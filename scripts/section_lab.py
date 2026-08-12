@@ -134,10 +134,16 @@ def song_page(stem: str, title: str) -> str:
     ax = axs[0]
     ax.fill_between(xcurve, P, color="#3d7fa6", lw=0)
     verticals(ax)
+    # Retenu = triangle NOIR PLEIN + une barre qui traverse la page. Suivant =
+    # petit triangle CREUX. Louis, 2026-08-12 : il a lu des « suivants » gris
+    # comme des retenus sur Blue Lights, parce qu'un aplat gris et un aplat noir
+    # se ressemblent à cette taille. Ce n'est pas une nuance de gris qu'il faut,
+    # c'est une forme différente.
     for c in kept:
-        ax.plot([xcut(c)], [1.1], marker="v", ms=9, color=HARD, clip_on=False)
+        ax.plot([xcut(c)], [1.1], marker="v", ms=10, color=HARD, clip_on=False)
     for c in rest:
-        ax.plot([xcut(c)], [1.1], marker="v", ms=6.5, color="#b9c4cc", clip_on=False)
+        ax.plot([xcut(c)], [1.1], marker="v", ms=7, markerfacecolor="none",
+                markeredgecolor="#9aa3a9", markeredgewidth=1.1, clip_on=False)
     ax.set_ylim(0, 1.2)
     deco(ax, "PROFIL\nfusionné")
 

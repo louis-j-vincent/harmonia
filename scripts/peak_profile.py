@@ -72,7 +72,46 @@ INK = "#1c1c1c"
 SHOW_EXTRA = 6                     # pics au-delà du coude, montrés en pâle
 
 
+KEEP_PROM = 0.25   # on garde tout pic dont la proéminence vaut au moins ce
+                   # multiple du plus fort du morceau.
+                   #
+                   # POURQUOI PAS LA RÈGLE DU COUDE, qui était ici avant.
+                   # Louis, 2026-08-12, sur Blue Lights : « il y a des pics
+                   # marqués par des triangles au-dessus, mais pas de barres
+                   # dures — comment ça se fait ? » Le coude n'en gardait qu'UN
+                   # sur ce morceau, et les six autres qu'il voyait étaient les
+                   # « suivants ». Or cinq d'entre eux tombent EXACTEMENT sur une
+                   # de ses frontières : le coude était bien trop prudent, et
+                   # précisément sur le morceau le plus régulier — quand tous les
+                   # pics se valent, l'écart entre le k-ième et le suivant ne dit
+                   # plus rien.
+                   #
+                   # Mesuré sur les douze morceaux annotés (43 à 61 pics selon la
+                   # règle), écart au repère le plus proche :
+                   #     coude  43 pics · exact 49 % · ±1 mes. 79 % · rappel 22 %
+                   #     ≥0,50  41 pics · exact 51 % · ±1 78 % · rappel 22 %
+                   #     ≥0,35  48 pics · exact 56 % · ±1 79 % · rappel 29 %
+                   #     ≥0,25  61 pics · exact 56 % · ±1 77 % · rappel 40 %
+                   # 0,25 domine le coude sur la justesse ET sur le rappel, à
+                   # ±1 mesure près identique. Le coude reste utilisé PAR MATRICE
+                   # dans `ssm_clarity` (il y choisit le k qui sert à mesurer le
+                   # contraste) ; ici, sur le profil fusionné, il est remplacé.
 _MEMO: dict = {}
+
+
+def select_peaks(P: np.ndarray, keep=KEEP_PROM, extra=SHOW_EXTRA):
+    """(retenus, suivants) — les pics du profil, en cases de demi-mesure."""
+    from scipy.signal import find_peaks, peak_prominences
+    x = np.nan_to_num(P)
+    idx, _ = find_peaks(x, distance=8)
+    if not len(idx):
+        return [], []
+    prom = peak_prominences(x, idx)[0]
+    order = np.argsort(-prom)
+    idx, prom = idx[order], prom[order]
+    n_keep = int((prom >= keep * prom[0]).sum())
+    return (sorted(int(i) for i in idx[:n_keep]),
+            sorted(int(i) for i in idx[n_keep:n_keep + extra]))
 
 
 def fused_profile(stem: str):
@@ -104,12 +143,7 @@ def fused_profile(stem: str):
         P += wi * np.nan_to_num(d["nov"])
     P = P / max(1e-9, P.max())
 
-    r = peak_report(P)
-    kept = r["cuts"]
-    from scipy.signal import find_peaks
-    idx, _ = find_peaks(np.nan_to_num(P), distance=8)
-    rest = sorted((int(i) for i in idx if int(i) not in kept),
-                  key=lambda i: -P[i])[:SHOW_EXTRA]
+    kept, rest = select_peaks(P)
     _MEMO[stem] = (P, kept, rest, lines, n, extra)
     return _MEMO[stem]
 
@@ -148,8 +182,9 @@ def song_page(stem: str, title: str) -> str:
     for c in kept:
         ax.axvline(c, color="#0d2437", lw=1.6)
         ax.plot([c], [1.1], marker="v", ms=9, color="#0d2437", clip_on=False)
-    for c in rest:
-        ax.plot([c], [1.1], marker="v", ms=7, color="#b9c4cc", clip_on=False)
+    for c in rest:                          # creux, pas gris : voir section_lab
+        ax.plot([c], [1.1], marker="v", ms=7, markerfacecolor="none",
+                markeredgecolor="#9aa3a9", markeredgewidth=1.1, clip_on=False)
     ax.set_ylim(0, 1.2)
     deco(ax, "PROFIL\nfusionné")
 

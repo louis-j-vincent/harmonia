@@ -25083,3 +25083,60 @@ seule tête de lecture court sur l'ensemble, boutons pour écouter un pic (±2
 mesures) ou une section. Marges de tracé FIXES (`PLOT_L`/`PLOT_R`, jamais
 `bbox_inches="tight"`) — le curseur est positionné en pourcentage de largeur.
 Vérifié dans le navigateur : un clic à 50 % de la largeur tombe mesure 41 sur 80.
+
+### Trois corrections, toutes trouvées à l'œil par Louis (2026-08-12)
+
+**1. « Sur Blue Lights je vois des triangles mais pas de barres dures. »** Il n'y
+avait qu'UN pic retenu, et les six autres qu'il voyait étaient les « suivants »,
+dessinés en gris plein — indistinguables du noir à cette taille. Deux défauts en
+un : un défaut d'AFFICHAGE (les suivants sont maintenant des triangles CREUX, une
+forme différente, pas une nuance) et un vrai défaut de RÈGLE — cinq de ces six
+« suivants » tombaient exactement sur une de ses frontières.
+
+**2. La règle du coude était trop prudente.** Elle choisit k là où l'écart entre
+le k-ième pic et le suivant est le plus grand ; quand tous les pics se valent
+(Blue Lights est le morceau le plus régulier du lot) cet écart ne dit plus rien.
+Remplacée, sur le profil FUSIONNÉ seulement, par un seuil de proéminence
+relatif : on garde tout pic à ≥ 0,25 du plus fort. Mesuré sur les douze :
+
+| règle | pics | exacts | à ±1 mes. | rappel médian |
+|---|---|---|---|---|
+| coude | 43 | 49 % | 79 % | 22 % |
+| ≥ 0,50 | 41 | 51 % | 78 % | 22 % |
+| ≥ 0,35 | 48 | 56 % | 79 % | 29 % |
+| **≥ 0,25** | 61 | **56 %** | 77 % | **40 %** |
+
+Le coude reste utilisé PAR MATRICE dans `ssm_clarity` (il y sert à mesurer le
+contraste).
+
+**3. « Sur She Will Be Loved la deuxième barre dure ne tombe pas sur un pic mais
+juste à côté. »** Exact, et c'était mon calage sur les mesures paires : le pic
+était en mesure 33 — une de ses frontières — et le calage le poussait en 32. Ce
+morceau gagne une mesure en route (le phénomène déjà documenté dans
+`voice_sections._pass`), donc sa seconde moitié vit sur la parité impaire. Le
+calage retiré : il coûtait 49 % → 47 % d'exactitude et 79 % → 72 % à ±1 mesure.
+
+**Ce qui le remplace** : la contrainte tolère ±1 mesure aux deux bords d'un bloc
+(un bord à une mesure du pic satisfait la règle) au lieu de déplacer le pic. La
+raison pour laquelle le calage améliorait quand même le score était ailleurs — la
+recherche de la prod n'accepte que des ancres de parité paire, donc un pic impair
+lui posait une contrainte insatisfiable ; la tolérance traite ça sans mentir sur
+la position du pic.
+
+**LA PRÉCISION DES PICS, la réponse à sa question** : sur 43 pics / 12 morceaux,
+**49 % tombent exactement sur une de ses frontières, 79 % à une mesure près, 88 %
+à deux**. Écart absolu médian : 1 mesure.
+
+### Le score après ces trois corrections
+
+| | médiane |
+|---|---|
+| prod seule | 0,781 |
+| prod + pics durs, tolérance ±1 | **0,776** |
+| prod + pics durs, tolérance 0 | 0,690 |
+| version du 2026-08-11 (calage pair, coude) | 0,727 |
+
+À égalité avec la prod, et la distribution a changé de nature : Blue Lights
+0,543 → 0,696, The Walk 0,430 → 0,525, Sunny 0,808 → 0,865, Stand By Me 0,771 →
+0,798 ; plus rien ne casse sauf **Grenade** (0,790 → 0,674), dont les pics
+tombent à 2–4 mesures des frontières. C'est le morceau à regarder ensuite.

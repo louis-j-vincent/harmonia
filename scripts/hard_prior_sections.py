@@ -72,6 +72,8 @@ SAME = 0.94            # au-dessus, deux blocs portent la même lettre. Réglé 
                        # son pont au couplet. Ce n'est pas un optimum mesuré.
 MUTE_SOLO = 0.8        # part de demi-mesures sans chant au-delà de laquelle le
                        # bloc est un solo / un pont instrumental
+HARD_TOL = 1           # tolérance, en mesures, aux deux bords d'un bloc : nos
+                       # pics ne sont exacts qu'une fois sur deux (voir `crosses`)
 LETTERS = "ABCDEFGHIJKLMNOP"
 
 
@@ -192,8 +194,18 @@ def voice_with_hard(stem: str, hard: list[int], n: int, extra: dict,
 
     hard = sorted(h for h in hard if 0 < h < n)
 
-    def crosses(p, L):
-        return any(p < h < p + L for h in hard)
+    def crosses(p, L, tol=HARD_TOL):
+        """Le bloc [p, p+L) enjambe-t-il un pic ?
+
+        TOLÉRANCE DE ±`tol` MESURE aux deux bords, et c'est le remplaçant du
+        calage sur les mesures paires. Un pic dit « il y a une frontière par
+        ici », pas « elle est exactement en mesure 32 » : nos pics ne tombent
+        juste au bar près qu'une fois sur deux (49 % exacts, 79 % à ±1 mesure
+        sur les douze morceaux annotés). Un bloc dont le bord est à une mesure
+        du pic satisfait donc la règle au lieu d'être rejeté — sans jamais
+        déplacer le pic, ce qui était l'erreur du calage.
+        """
+        return any(p + tol < h < p + L - tol for h in hard)
 
     def _pass_hard(block, thr, claimed, max_blocks=20):
         runs, cursor = [], start
@@ -267,13 +279,20 @@ def sections_from_peaks(stem: str) -> dict:
     m = len(P)
     S_acc = next(d["S"] for d in lines if d["nom"] == "accords")
     raw = [h for h in sorted({int(round(c * n / max(1, m))) for c in kept}) if 0 < h < n]
-    # CALÉS SUR LA GRILLE DE 2 MESURES, et ce n'est pas cosmétique : un pic à une
-    # mesure près devient, sous une contrainte DURE, une section coupée au mauvais
-    # endroit. Mesuré sur les douze : brut 0,704 de médiane, calé 0,727, et Bein'
-    # Green passe de 0,718 à 1,000 (ses pics tombaient en 19 et 35 au lieu de 20
-    # et 36). Les sections de Louis commencent sur des mesures paires — c'est le
-    # même prior que `voice_sections.UNIT`.
-    hard = sorted({2 * int(round(h / 2)) for h in raw if 0 < 2 * int(round(h / 2)) < n})
+    # PAS DE CALAGE SUR LES MESURES PAIRES — retiré le 2026-08-12, Louis l'a vu à
+    # l'œil sur She Will Be Loved : « la deuxième barre dure ne tombe pas au
+    # niveau d'un pic mais juste à côté, donc on se trompe de temps ». Le pic y
+    # était en mesure 33, exactement une de ses frontières, et le calage le
+    # poussait en 32. Ce morceau GAGNE UNE MESURE en route (le phénomène déjà
+    # documenté dans `voice_sections._pass`), donc sa seconde moitié vit sur la
+    # parité impaire et le prior « les sections commencent sur une mesure paire »
+    # y est faux. Mesuré sur les douze : le calage fait passer la justesse des
+    # pics de 49 % à 47 % d'exactitude et de 79 % à 72 % à ±1 mesure. Il
+    # améliorait le score de sections (0,704 -> 0,727) pour une autre raison —
+    # la recherche de la prod n'accepte que des ancres de parité paire, donc un
+    # pic impair lui posait une contrainte insatisfiable. C'est ça qu'il faut
+    # traiter, et la tolérance de `voice_with_hard` le fait sans déplacer le pic.
+    hard = list(raw)
 
     L = _block_len(S_acc, n)
     triad = extra["triad"]
@@ -412,13 +431,17 @@ seize s'écrit deux A de huit »), <b>la prod seule</b> (le même code, zéro pi
 la comparaison ne change qu'une chose), <b>pavage depuis les pics</b> (ma
 première version : blocs réguliers de 8 depuis chaque pic, sans recherche de
 reprises), et <b>toi</b>.<br><br>
-<b>Ce que ça donne, et c'est un résultat négatif</b> : sur les douze morceaux la
-contrainte fait <b>0,727</b> de médiane contre <b>0,781</b> pour la prod seule
-(le pavage seul, 0,600). Mais le détail compte plus que la médiane — elle
-<b>gagne là où la prod échoue</b> (The Walk 0,430 → 0,539 ; Blue Lights 0,543 →
-0,611) et <b>perd là où la prod réussit</b> (Sunny 0,808 → 0,672 ; She Will Be
-Loved 0,754 → 0,584). Un pic juste apporte quelque chose ; un pic faux, sous une
-règle DURE, casse une solution déjà bonne.<br><br>
+<b>Ce que ça donne</b> (2026-08-12, après deux correctifs : plus de calage sur
+les mesures paires, et une contrainte tolérante à ±1 mesure) : <b>0,776</b> de
+médiane contre <b>0,781</b> pour la prod seule — à égalité, là où la première
+version faisait 0,727. Le détail compte plus que la médiane : elle <b>gagne là où
+la prod échoue</b> (Blue Lights 0,543 → 0,696 ; The Walk 0,430 → 0,525 ; Sunny
+0,808 → 0,865) et ne casse plus ce qui marchait, sauf Grenade (0,790 → 0,674),
+dont les pics tombent à 2–4 mesures des frontières.<br><br>
+<b>La précision des pics</b>, mesurée sur les douze : <b>49 % tombent
+exactement</b> sur une de tes frontières, <b>79 % à une mesure près</b>, 88 % à
+deux. C'est pour ça que la contrainte tolère ±1 mesure au lieu de déplacer le
+pic.<br><br>
 <b>Touche une section pour l'écouter</b>, ou le graphique pour te déplacer — le
 jugement qui compte est à l'oreille, pas sur ces nombres.</div>"""
 
