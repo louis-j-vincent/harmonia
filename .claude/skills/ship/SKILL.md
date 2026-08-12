@@ -41,6 +41,17 @@ Relancer `--save` et l'écrire dans le message de commit.
 
 Si la modification ne touche pas les sections, sauter cette étape en le disant.
 
+### 2 bis. Sauver les étiquettes de Louis
+
+    cp harmonia_min/state/sections/*.json docs/ground_truth/sections/
+    git status --short docs/ground_truth/sections/
+
+`harmonia_min/state/` est **gitignoré**. Les annotations de sections y vivent, et
+elles sont la contrainte qui dimensionne tout le projet — une annotation non
+copiée est une annotation non sauvegardée. Le 2026-08-12, celle qu'il venait de
+faire n'était dans aucun commit. Copier à chaque ship, et commiter le miroir avec
+le reste.
+
 ### 3. Les tests du périmètre touché
 
     .venv/bin/python -m pytest tests/ -q --no-cov -k "<le sujet>"
