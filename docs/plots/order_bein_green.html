@@ -1,0 +1,112 @@
+<!DOCTYPE html><html lang=fr><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Bein' Green — petites sections d'abord</title><style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:#e7e0d0;font:16px/1.55 -apple-system,system-ui,sans-serif;color:#1c1c1c}
+.wrap{max-width:1120px;margin:0 auto;padding:20px 12px calc(40px + env(safe-area-inset-bottom))}
+h1{font:italic 600 24px Georgia,serif;margin:0 0 3px}
+.lede{color:#6f6858;font-size:13.5px;margin-bottom:18px}
+.lede b{color:#1c1c1c}
+section{background:#fffdf6;border:1px solid #e5dcc6;border-radius:14px;padding:14px 13px;margin-bottom:16px}
+h2{font:700 18px system-ui;margin:0 0 10px;color:#8a2b2b}
+.sub{font:500 12px system-ui;color:#8a8371}
+img{width:100%;border-radius:8px;display:block;margin-bottom:8px}
+.plot{position:relative;margin-bottom:8px}
+.plot img{margin:0}
+.cur{position:absolute;top:0;bottom:0;width:2px;background:#111;opacity:.8;
+  display:none;pointer-events:none;box-shadow:0 0 0 1px rgba(255,255,255,.55)}
+.hit{position:absolute;top:0;bottom:0;cursor:crosshair}
+.bar{display:flex;align-items:center;gap:10px;margin:0 0 10px}
+.pp{width:42px;height:42px;border-radius:50%;border:1px solid #d8cfb4;
+  background:#f7f3e9;font-size:15px;cursor:pointer;flex:none}
+.pos{font:600 12.5px ui-monospace,monospace}
+.hint{font:500 11.5px system-ui;color:#a89f8c}
+.lane{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:0 0 6px}
+.lab{font:600 11px system-ui;color:#8a8371;width:96px;flex:none}
+button.blk{border:1px solid #d8cfb4;background:#f7f3e9;border-radius:7px;
+  padding:5px 8px;cursor:pointer;font:600 12px system-ui;color:#6f6858}
+button.blk small{display:block;font:500 9.5px ui-monospace,monospace;
+  color:#a89f8c;margin-top:1px}
+button.blk.on{background:#0d2437;color:#fff} button.blk.on small{color:#cbd8e0}
+.verdict{font-size:13px;background:#f7f3e9;border-radius:8px;padding:9px 11px;margin:10px 0 0}
+.votes{font-size:12.5px;background:#fbf7ec;border:1px solid #eee5d2;border-radius:8px;
+  padding:9px 11px;margin:9px 0 0}
+.vrow{margin-top:3px;color:#4a4438}
+a{color:#8a2b2b}
+.back{display:inline-block;margin-bottom:12px;font-size:13px;text-decoration:none}
+.idx{border-collapse:collapse;font-size:13.5px;width:100%}
+.idx td{border-bottom:1px solid #e5dcc6;padding:8px 9px}
+.idx td a{font-weight:600;text-decoration:none}
+</style></head><body><div class=wrap>
+<a class=back href="order_lab.html">← tous les morceaux</a>
+<h1>Bein' Green — petites sections d'abord</h1>
+<div class=lede>Trois bandes : <b>petites d'abord</b> (les deux
+longueurs proposées à chaque ancre, le bloc de 4 passant devant quand il se
+rejoue à l'identique), <b>la prod</b> (les 8 d'abord, les 4 ensuite), et
+<b>toi</b>. Les traits noirs sont les pics durs.<br><br>
+<b>L'inversion simple ne marche pas</b> : lancer la passe de 4 avant celle de 8
+donne 0,566 de médiane contre 0,789 — et ce n'est pas une histoire de seuil, les
+deux longueurs ont exactement la même échelle de score. La passe de 4 lancée en
+premier mesure la <b>période de la boucle</b>, pas l'<b>échelle de la
+section</b>.<br><br>
+<b>Ce qui marche</b> : un seul parcours, le 8 prioritaire, et le 4 qui passe
+devant seulement là où aucun 8 n'est possible et où ses reprises valent ≥ 0,88 de
+l'ancre. Sur Blue Lights c'est ce qui donne tes cinq B de 4 mesures d'un coup —
+la passe de 8, lancée seule, arrivait mesure 45 et volait le troisième.<br><br>
+<b>Touche une section pour l'écouter</b> : le jugement qui compte est à
+l'oreille.</div>
+<section><h2>Bein' Green <span class=sub>52 mesures</span></h2>
+<div class=plot><img src="data:image/png;base64,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">
+<div class=cur></div><div class=hit></div></div>
+<div class=bar><button class=pp>▶</button><span class=pos>mes. 1 · 0:00</span>
+<span class=hint>touche le graphique pour te déplacer</span></div>
+<div class=lane><span class=lab>écouter</span><button class=blk data-p="[0,4]">intro<small>mes. 1–4</small></button><button class=blk data-p="[4,12]">A<small>mes. 5–12</small></button><button class=blk data-p="[12,20]">A<small>mes. 13–20</small></button><button class=blk data-p="[20,28]">B<small>mes. 21–28</small></button><button class=blk data-p="[28,36]">A<small>mes. 29–36</small></button><button class=blk data-p="[36,44]">B<small>mes. 37–44</small></button><button class=blk data-p="[44,52]">A<small>mes. 45–52</small></button></div>
+<div class=verdict>contre ton découpage : <b>petites d'abord 1.000</b> · prod 0.993 — <b>gagne</b> ici<br><b>blocs posés — petites d'abord :</b> 8@5→13,29,45 · 8@21→37<br><b>blocs posés — la prod :</b> 8@5→13,29,45 · 8@21→37</div></section>
+<audio id=au preload=metadata playsinline src="/audio/bein_green.m4a"></audio>
+<script>window.GRID=[1.3, 4.56, 7.76, 11.06, 14.3, 17.54, 20.76, 23.98, 27.22, 30.44, 33.64, 36.9, 40.14, 43.34, 46.6, 49.78, 53.0, 56.14, 59.32, 62.5, 65.68, 68.88, 72.08, 75.28, 78.48, 81.7, 84.92, 88.14, 91.38, 94.6, 97.86, 101.08, 104.32, 107.58, 110.8, 113.98, 117.14, 120.34, 123.52, 126.72, 129.94, 133.16, 136.36, 139.56, 142.8, 146.08, 149.32, 152.56, 155.86, 159.44, 166.08, 169.94, 173.4];
+window.PLOT=[0.085,0.995]; window.U=1;</script></div>
+<script>
+(function(){
+  const au=document.getElementById("au"); if(!au) return;
+  const G=window.GRID, n=G.length-1, L0=window.PLOT[0], W=window.PLOT[1]-L0;
+  const plot=document.querySelector(".plot"), cur=plot.querySelector(".cur"),
+        hit=plot.querySelector(".hit"), pp=document.querySelector(".pp"),
+        pos=document.querySelector(".pos");
+  hit.style.left=(L0*100)+"%"; hit.style.width=(W*100)+"%";
+  const t2b=t=>{ if(t<=G[0])return 0; if(t>=G[n])return n;
+    let lo=0,hi=n; while(hi-lo>1){const m=(lo+hi)>>1; G[m]<=t?lo=m:hi=m;}
+    return lo+(t-G[lo])/(G[lo+1]-G[lo]); };
+  const b2t=f=>{ const i=Math.max(0,Math.min(n-1,Math.floor(f)));
+    return G[i]+(f-i)*(G[i+1]-G[i]); };
+  const fmt=s=>Math.floor(s/60)+":"+String(Math.floor(s%60)).padStart(2,"0");
+  let stopAt=null, raf=null, onBtn=null;
+  function draw(){
+    const f=t2b(au.currentTime);
+    cur.style.display="block";
+    cur.style.left="calc("+((L0+W*f/n)*100)+"% - 1px)";
+    pos.textContent="mes. "+(Math.floor(f)+1)+" · "+fmt(au.currentTime);
+  }
+  function clear(){ if(onBtn){ onBtn.classList.remove("on"); onBtn=null; } }
+  function tick(){ draw();
+    if(stopAt!=null && au.currentTime>=stopAt){ au.pause(); stopAt=null; clear(); }
+    if(!au.paused) raf=requestAnimationFrame(tick); }
+  function go(t0,t1,btn){
+    clear(); stopAt=t1;
+    if(btn){ onBtn=btn; btn.classList.add("on"); }
+    const seek=()=>{ try{ au.currentTime=t0; }catch(e){} draw(); };
+    if(au.readyState>=1) seek();
+    else au.addEventListener("loadedmetadata",seek,{once:true});
+    au.play().catch(()=>{ clear(); });
+  }
+  au.addEventListener("play",()=>{ pp.textContent="❚❚"; tick(); });
+  au.addEventListener("pause",()=>{ pp.textContent="▶";
+    cancelAnimationFrame(raf); draw(); });
+  pp.onclick=()=>{ if(au.paused){ stopAt=null; clear(); au.play().catch(()=>{}); }
+                    else au.pause(); };
+  hit.onclick=e=>{ const r=hit.getBoundingClientRect();
+    go(b2t(n*(e.clientX-r.left)/r.width), null, null); };
+  document.querySelectorAll("[data-p]").forEach(b=>{
+    const d=JSON.parse(b.dataset.p);
+    b.onclick=()=>go(G[d[0]], G[Math.min(n,d[1])], b); });
+})();
+</script></body></html>

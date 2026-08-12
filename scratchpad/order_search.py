@@ -83,8 +83,17 @@ def _passes(b, hard, passes, hard_tol=HARD_TOL, odd_bonus=None,
     return runs, claimed
 
 
-def assemble(b, runs, hard, tail_unit=TAIL_UNIT):
-    """Le lettrage + l'écriture, identiques à `voice_with_hard`."""
+def assemble(b, runs, hard, tail_unit=TAIL_UNIT, min_cut=0):
+    """Le lettrage + l'écriture, identiques à `voice_with_hard`.
+
+    `min_cut` > 0 : une coupure sur pic qui laisserait moins de `min_cut` mesures
+    d'un côté À L'INTÉRIEUR D'UN MÊME BLOC est annulée. Motif mesuré sur Chain of
+    Fools : le pic tombe mesure 9, la frontière de Louis est mesure 10, et la
+    coupure exacte écrit `A[2-8] | A[9-9]` — une section d'UNE mesure. La
+    tolérance de ±1 mesure existait déjà pour la RECHERCHE (`crosses`) et pas
+    pour l'ÉCRITURE. Les queues (`owner < 0`) ne sont pas concernées : elles sont
+    courtes exprès.
+    """
     n, start, S, V = b["n"], b["start"], b["S"], b["V"]
     owner, occid, k = np.full(n, -1), np.full(n, -1), 0
     for i, r in enumerate(runs):
@@ -94,24 +103,43 @@ def assemble(b, runs, hard, tail_unit=TAIL_UNIT):
             k += 1
 
     cut = set(h for h in hard if 0 < h < n)
-    out, bb = [], 0
+    # 1. les segments bruts : un (owner, occid) constant, coupé sur chaque pic
+    raw, bb = [], 0
     if start > 0:
-        out.append({"b0": 0, "b1": start - 1, "label": "intro"})
+        raw.append({"b0": 0, "b1": start - 1, "label": "intro", "own": -2})
         bb = start
     while bb < n:
         z = bb
         while (z + 1 < n and owner[z + 1] == owner[bb] and occid[z + 1] == occid[bb]
                and (z + 1) not in cut):
             z += 1
-        seg = {"b0": bb, "b1": z, "label": owner[bb]}
-        L = z - bb + 1
-        if tail_unit and owner[bb] < 0 and L % tail_unit and L > tail_unit:
-            core = L - (L % tail_unit)
-            out.append({"b0": bb, "b1": bb + core - 1, "label": owner[bb]})
-            out.append({"b0": bb + core, "b1": z, "label": "queue"})
-        else:
-            out.append(seg)
+        raw.append({"b0": bb, "b1": z, "label": owner[bb],
+                    "own": (int(owner[bb]), int(occid[bb]))})
         bb = z + 1
+
+    # 2. une coupure sur pic qui laisse un moignon est annulée
+    if min_cut:
+        m = []
+        for s in raw:
+            if (m and m[-1]["own"] == s["own"] and s["own"] != -2
+                    and min(s["b1"] - s["b0"] + 1,
+                            m[-1]["b1"] - m[-1]["b0"] + 1) < min_cut):
+                m[-1]["b1"] = s["b1"]
+            else:
+                m.append(dict(s))
+        raw = m
+
+    # 3. cœur pair + queue amovible, sur les segments que personne n'a réclamés
+    out = []
+    for s in raw:
+        L = s["b1"] - s["b0"] + 1
+        if (tail_unit and not isinstance(s["label"], str) and s["label"] < 0
+                and L % tail_unit and L > tail_unit):
+            core = L - (L % tail_unit)
+            out.append({"b0": s["b0"], "b1": s["b0"] + core - 1, "label": s["label"]})
+            out.append({"b0": s["b0"] + core, "b1": s["b1"], "label": "queue"})
+        else:
+            out.append({k2: s[k2] for k2 in ("b0", "b1", "label")})
 
     tails = {(s["b0"], s["b1"]) for s in out if s["label"] == "queue"}
     ren, k = {}, 0

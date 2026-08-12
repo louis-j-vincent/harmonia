@@ -25751,3 +25751,138 @@ nouvelles encodent ses deux lectures du 2026-08-12, par substrat :
   morceaux, et le sommet du lobe gauche est à ±2 mesures d'une vraie frontière
   **douze fois sur douze**, avec un écart CONSTANT par morceau (+1 sur The Walk,
   +2 sur Blue Lights, +3 sur Stand By Me).
+
+## « Petites sections d'abord » : ce n'est pas un ORDRE, c'est une CONCURRENCE (2026-08-12)
+
+Louis, après avoir regardé Blue Lights : « clairement un B est bien détecté, et
+ensuite il y a sûrement une hésitation après ce B entre est-ce qu'on passe un A
+ou un autre B… il faudrait peut-être commencer par privilégier les petites
+sections puis les grandes, donc 4 d'abord puis 8 après. »
+
+L'inversion littérale des deux passes rend **0,566** de médiane contre 0,789.
+Cette entrée dit pourquoi, et ce qui marche à la place.
+
+### Ce que ce N'EST PAS : un problème de seuil (piste close)
+
+L'explication naturelle — « un bloc de 4 se ressemble partout sur une chanson en
+boucle de 4, donc son seuil doit être bien plus exigeant quand il passe en
+premier » — est **fausse**, mesurée. Distribution du score de glissement, toutes
+ancres paires, toutes positions hors-bloc :
+
+| morceau | L=4 méd. | L=4 % > 0,70 | L=8 méd. | L=8 % > 0,66 |
+|---|---|---|---|---|
+| This Love | 0,356 | 4,2 % | 0,346 | 3,2 % |
+| Let It Be | 0,480 | 20,2 % | 0,471 | 25,4 % |
+| Blue Lights | 0,507 | 15,1 % | 0,511 | 12,6 % |
+| Stand By Me | 0,383 | 10,4 % | 0,380 | 8,8 % |
+
+Les deux longueurs vivent **sur la même échelle** (écart de médiane ≤ 0,02).
+`block_score` divise déjà par le score de l'ancre, qui vaut ~1 quelle que soit la
+longueur. Re-régler THR4 ne peut donc que retirer des blocs de 4 — pas changer la
+forme de l'échec. **Idem pour la piste « rendre block_score comparable » : il
+l'est déjà.**
+
+### La vraie cause : la passe de 4 mesure la PÉRIODE, pas l'ÉCHELLE
+
+Runs de Blue Lights, même code, seul l'ordre change :
+
+    4 d'abord : bloc 4 @mes. 5  → 9, 17, 33, 41, 65, 81
+                bloc 4 @mes.13  → 29, 45, 61, 77      <- SES CINQ B, exactement
+                bloc 4 @mes.21  → 25, 37, 57, 69, 73
+    8 d'abord : bloc 8 @mes. 5  → 21, 33
+                bloc 8 @mes.45  → 77                  <- LE BLOC FAUTIF
+
+La passe de 4 trouve ses cinq B — et aussi la boucle de 4 mesures partout
+ailleurs, découpant ses A de 8 et 12 mesures en tranches qui reçoivent chacune
+une lettre différente. Les deux moitiés de la métrique tombent : sur Stand By Me
+`spans` 0,990 → 0,697 et `letters` 0,803 → 0,684.
+
+**Plafond d'un choix d'ordre** : un oracle qui choisirait par morceau le meilleur
+des deux ordres resterait à 0,789 de médiane, Blue Lights à 0,710. Aucun réglage
+d'ordre ni de seuil ne peut atteindre la cible.
+
+### Ce qui marche : un seul parcours, les deux longueurs en concurrence
+
+À chaque ancre libre on construit LES DEUX runs (le bloc de 8 avec ses reprises,
+le bloc de 4 avec les siennes) et on tranche sur place, au lieu de faire deux
+passes complètes. Trois règles :
+
+1. **le bloc de 8 garde la priorité** quand il existe (le lui faire perdre coûte
+   0,803 → 0,789 de moyenne : mesuré, rejeté) ;
+2. **le bloc de 4 ne passe devant que là où aucun 8 n'est possible** — un pic dur
+   le barre, ou il n'a pas de reprise — **ET que ses reprises valent ≥ 0,88 de
+   l'ancre**, c'est-à-dire qu'il se rejoue à l'identique. À 0,75 c'est la boucle
+   du morceau, et elle attend la passe de comblement ;
+3. **une coupure sur pic qui laisserait une section d'UNE mesure est annulée.**
+   Les pics ne sont justes qu'à ±1 mesure ; `crosses()` le savait déjà pour la
+   RECHERCHE, l'ÉCRITURE non — d'où des `A[2-8] | A[9-9]` sur Chain of Fools.
+
+Le mécanisme du gain, lisible sur les runs ci-dessus : la passe de 8 lancée seule
+arrive mesure 45 et **vole la troisième occurrence de la famille B**, si bien que
+la passe de 4 qui suit ne retrouve que 13/29/61. Dans le parcours unique, le pic
+dur de la mesure 17 barre le bloc de 8 à la mesure 13, le bloc de 4 y est proposé
+**pendant que sa famille est encore entière**, et il prend 13/29/45/61/77 d'un
+coup. C'est « privilégier les petites sections » — mais à l'ancre où ça se joue,
+pas globalement.
+
+### Le résultat
+
+| morceau | prod | petites d'abord | écart |
+|---|---|---|---|
+| This Love | 1,000 | 1,000 | +0,000 |
+| Don't Know Why | 0,974 | 0,979 | +0,005 |
+| Bein' Green | 0,993 | **1,000** | +0,007 |
+| Let It Be | 0,716 | 0,716 | +0,000 |
+| Sunny | 0,796 | 0,814 | +0,018 |
+| **Blue Lights** | 0,696 | **0,813** | **+0,117** |
+| Stand By Me | 0,795 | 0,797 | +0,002 |
+| She Will Be Loved | 0,783 | 0,785 | +0,001 |
+| Every Breath You Take | 0,835 | 0,835 | +0,000 |
+| Chain of Fools | 0,676 | 0,678 | +0,002 |
+| The Walk | 0,511 | 0,586 | +0,075 |
+| Grenade | 0,663 | 0,663 | +0,000 |
+| **médiane des 12** | **0,789** | **0,805** | |
+| moyenne des 12 | 0,786 | 0,805 | |
+
+**Aucun morceau en recul.** Six morceaux annotés tenus hors de toute décision de
+conception : The Lazy Song 0,686 → **0,774**, Happy 0,967 → 0,970, Easy 0,409 →
+0,417, ABC 0,412 → 0,416, Be My Baby inchangé, Yesterday 0,586 → 0,581 (le seul
+recul du corpus, −0,004). Moyenne des six 0,620 → **0,636**.
+
+**Sur-ajustement** : un seul seuil réglé, et il vit sur un large plateau — toute
+valeur de 0,86 à 1,02 rend 0,805 de médiane sans aucun recul. Validation
+un-contre-tous (seuil ET statistique choisis sur les 11 autres) : médiane
+**0,805**, moyenne 0,799, et le réglage (moyenne, 0,88) est choisi dans 11 replis
+sur 12. Le seul gain qui NE survit PAS à l'un-contre-tous est The Walk (+0,075
+n'apparaît qu'entre 0,88 et 0,92) — à traiter comme du bruit.
+
+### Ce que ça ne résout PAS (règle #4)
+
+* **Les longueurs 12 et 16 mesures sont pires**, mesurées dans la même
+  concurrence : médiane 0,630 (12/8/4) et 0,715 (16/8/4) contre 0,805. « Un A de
+  seize s'écrit deux A de huit » n'est donc plus une opinion. Mais les sections
+  de 12 mesures que Louis écrit vraiment (Blue Lights A[17-28], The Walk B[25-36])
+  restent inatteignables — on les écrit 8+4 sous deux lettres.
+* **Deux hypothèses réfutées en route**, à ne pas retenter telles quelles :
+  (a) *un bloc de 4 est une vraie section si les pics le corroborent* —
+  corrélation appui-pics / appui-vérité **0,114** sur 52 runs ;
+  (b) *un bloc de 8 est deux 4 collés si sa 2e moitié ne suit sa 1re que
+  rarement* (« taux de suite ») — corrélation **−0,076** sur 78 blocs, et le
+  contre-exemple est frontal : Blue Lights 8@5 a le taux le plus BAS du corpus
+  (0,14) et c'est un bloc juste.
+* **Les pics « suivants » (sous le seuil de rétention) ne servent toujours à
+  rien**, même dans l'usage le plus étroit qu'on puisse leur donner (interdire
+  qu'un bloc de 8 ait son milieu dessus) : médiane 0,784, This Love 1,000 → 0,900,
+  Grenade 0,663 → 0,494. La note du 2026-08-12 qui proposait « un seuil de
+  rétention par morceau » comme piste pour Blue Lights est donc **caduque** : la
+  concurrence règle le morceau sans toucher aux pics.
+* **Easy et ABC (0,42) ne sont pas un problème de sections** : leurs grilles de
+  mesures sont décalées de 3 et 2 mesures par rapport aux annotations (Easy
+  commence son A mesure 8, on démarre mesure 5). Aucun changement de recherche ne
+  les répare.
+* **Rien n'est en prod.** `harmonia_min/voice_sections.py` n'a pas changé. Le
+  code vit dans `scratchpad/order_*.py` et la page dans `scripts/order_lab.py`.
+
+Page à écouter : **`/plots/order_lab.html`** + une page par morceau (18), avec les
+blocs posés par chaque version et le détail par section.
+Journal complet : `docs/research_sessions/sections_small_first_2026-08-12.md`.

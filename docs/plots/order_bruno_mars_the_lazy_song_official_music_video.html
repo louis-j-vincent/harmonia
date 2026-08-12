@@ -1,0 +1,112 @@
+<!DOCTYPE html><html lang=fr><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>The Lazy Song — petites sections d'abord</title><style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:#e7e0d0;font:16px/1.55 -apple-system,system-ui,sans-serif;color:#1c1c1c}
+.wrap{max-width:1120px;margin:0 auto;padding:20px 12px calc(40px + env(safe-area-inset-bottom))}
+h1{font:italic 600 24px Georgia,serif;margin:0 0 3px}
+.lede{color:#6f6858;font-size:13.5px;margin-bottom:18px}
+.lede b{color:#1c1c1c}
+section{background:#fffdf6;border:1px solid #e5dcc6;border-radius:14px;padding:14px 13px;margin-bottom:16px}
+h2{font:700 18px system-ui;margin:0 0 10px;color:#8a2b2b}
+.sub{font:500 12px system-ui;color:#8a8371}
+img{width:100%;border-radius:8px;display:block;margin-bottom:8px}
+.plot{position:relative;margin-bottom:8px}
+.plot img{margin:0}
+.cur{position:absolute;top:0;bottom:0;width:2px;background:#111;opacity:.8;
+  display:none;pointer-events:none;box-shadow:0 0 0 1px rgba(255,255,255,.55)}
+.hit{position:absolute;top:0;bottom:0;cursor:crosshair}
+.bar{display:flex;align-items:center;gap:10px;margin:0 0 10px}
+.pp{width:42px;height:42px;border-radius:50%;border:1px solid #d8cfb4;
+  background:#f7f3e9;font-size:15px;cursor:pointer;flex:none}
+.pos{font:600 12.5px ui-monospace,monospace}
+.hint{font:500 11.5px system-ui;color:#a89f8c}
+.lane{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:0 0 6px}
+.lab{font:600 11px system-ui;color:#8a8371;width:96px;flex:none}
+button.blk{border:1px solid #d8cfb4;background:#f7f3e9;border-radius:7px;
+  padding:5px 8px;cursor:pointer;font:600 12px system-ui;color:#6f6858}
+button.blk small{display:block;font:500 9.5px ui-monospace,monospace;
+  color:#a89f8c;margin-top:1px}
+button.blk.on{background:#0d2437;color:#fff} button.blk.on small{color:#cbd8e0}
+.verdict{font-size:13px;background:#f7f3e9;border-radius:8px;padding:9px 11px;margin:10px 0 0}
+.votes{font-size:12.5px;background:#fbf7ec;border:1px solid #eee5d2;border-radius:8px;
+  padding:9px 11px;margin:9px 0 0}
+.vrow{margin-top:3px;color:#4a4438}
+a{color:#8a2b2b}
+.back{display:inline-block;margin-bottom:12px;font-size:13px;text-decoration:none}
+.idx{border-collapse:collapse;font-size:13.5px;width:100%}
+.idx td{border-bottom:1px solid #e5dcc6;padding:8px 9px}
+.idx td a{font-weight:600;text-decoration:none}
+</style></head><body><div class=wrap>
+<a class=back href="order_lab.html">← tous les morceaux</a>
+<h1>The Lazy Song — petites sections d'abord</h1>
+<div class=lede>Trois bandes : <b>petites d'abord</b> (les deux
+longueurs proposées à chaque ancre, le bloc de 4 passant devant quand il se
+rejoue à l'identique), <b>la prod</b> (les 8 d'abord, les 4 ensuite), et
+<b>toi</b>. Les traits noirs sont les pics durs.<br><br>
+<b>L'inversion simple ne marche pas</b> : lancer la passe de 4 avant celle de 8
+donne 0,566 de médiane contre 0,789 — et ce n'est pas une histoire de seuil, les
+deux longueurs ont exactement la même échelle de score. La passe de 4 lancée en
+premier mesure la <b>période de la boucle</b>, pas l'<b>échelle de la
+section</b>.<br><br>
+<b>Ce qui marche</b> : un seul parcours, le 8 prioritaire, et le 4 qui passe
+devant seulement là où aucun 8 n'est possible et où ses reprises valent ≥ 0,88 de
+l'ancre. Sur Blue Lights c'est ce qui donne tes cinq B de 4 mesures d'un coup —
+la passe de 8, lancée seule, arrivait mesure 45 et volait le troisième.<br><br>
+<b>Touche une section pour l'écouter</b> : le jugement qui compte est à
+l'oreille.</div>
+<section><h2>The Lazy Song <span class=sub>69 mesures</span></h2>
+<div class=plot><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABNoAAADhCAMAAAAppygFAAABgFBMVEX+/faoyNzD177cwMjgyaYNJDfJ28Pc1cS20OCfvdHk0bMbGxslJia4zbbg2skCAgLQt8Dhys+Ztcc1NzeLpLTy8etoeoUtMTN8e3daWldbanNHSEc3PUFpaWWpp6N0iZW5t7KDm6o8REjb2dNJU1rIxsFWY2uJiYTk4ttDTFLq6OFRXWVicnypuaSgvtGamJSCdXmRrL0fICCSlI2Yp5UqLjC90LlyZ2ltgIx9lKKJloZrdWm4parEq7N6kJ1xdG16hXdOWWHEwr2lm5uBhX3w7ufIuLqjoZ1hZF5QU06xw62fjJLS4MxAQT5iW1zg3tgwMC4gIB9STE2Tr8CzytdNU0vkztJcZFo9QTy0sq2hsZ1wg4+SoI9gb3mHoK9pXmEwLS6UiIpWTlB6bHAuMS7AqK+uwKqNfYHRtr4fIB+xnKIgHyBDPT+Qf4SgjZJFP0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABUeEV8AAAVt0lEQVR42u3d+VvbSILGcTukuaoYJZLxJRtjYwzGQLjPcORocmyOTme6k76PuXd3Zv//37Zky2AI2JFKZSnp7/vkITJGllVV+rhKJUEqRQghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgJn+osvvpimGBJZuJ933cS8dzT8YeRPl5JKjaeHGFXDvQ/H9Tavubq3/uTtmzM55MLR3TvNwo28bvqV7dAL98O9G9XIi4Cr76jN71xeP86Gr98yk0nbWE8UbcMskwlVwxOXy0iziHWraMDRl463AQ2zcKOvm9sJKtxr9m70VviMBlx9Sm1+6vL6cTZ83UAbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtMVF21x+6WN+bHbB+9He39o5lv+y/yr3ZqAN2qAN2oZO21gbtVlrzF/qm7zwfrT3x2asxf6ryIIR2iqlPZOHT7W0rFXDtVqctNmlusn2u1prahVusVTVWT1TasRJW6WUNUjbzuOC++zweWjatp667rut8LRlSxWTtAUsPD3aZqw5v9fWWfpEaCtJxyRtdSl1anhfbFRipG1ZinWDtP0ghZZNUtZ1Vm9IYcdIW03mzNH2d8d5vHXwjVgJSVtZHm5tncjD0LTlZM0kbQEL7+NpU6PHuYXNjkVz9xZm1MhypGCV8/lpRZu/dP5MKrXYXfAHozPntC3m82v35n3azl9yfmFh1t/M68176k9OPFGPzdCWEXsiY442W2RFRaOG6816M0bacsVc0SBttVbtgUbhVmRW2joyZmU2PtrWVcurGqPt/fsd7798SNoei3aHbeUkLG1VtXfr5mgLWngfT9uM9cjZdSzPnwXLPZFysUubGpB2aes+owxz8wU55q9bsJ4+dU9E51yboi3/1CpcfsmyVSiLl9Pe9544+XupJSnKbt4MbQ0n7bTM0ZaV6WYzfA3bG5VjnZ6F5tFXFes/SXO0rYtqVq6GL9xaffWSTUFlFHbLiY+2Yi5dapmibUtsaZ1rc55pnmt7UEtvF83R5hXeA0O0uUqeZ9Jjy+tVOc+6A1LvXFt3qfvMSw+lpdfdVZVeD4Xo7QNa3/W+5BNrxvvebvt73vNloUauj4UR2uSyx48x2pyGdwSFrmHvrcnl2Gh7UEq/FfvGaCtue3aHLlxbvTX1DkPXjfrMqfbrsRumrd3yVg3Rdih2dGj7uzjVo21V7nnVa4w2xWagwgtCmzddOa+UcmV79tKa/oC2i2cct2dV1/G+vjyn7bvNtbz1+MOXLIju91JW3vs7iJYJ2rw+kd13yKhFW8brNfcb9QySUX0yNXJx0dbuE9XqxmiT6mO9XgtduMsyfdmmoDKqas814qJtX43XdFvezTa9k1ozpFviQI+2HzZs1SnfN0Vbu/A2KmZo84aXX1qbKSnVkDJf6OmrdZd6nxHl83NtnXFl2adtUUo1eLXKvS/5pv0TC9aS/73X1hNj0wjNWveLEdraLPUb9XyEjJl+JxWM0tbub+5t2IZo2/dYOu49IxOscNssyaKOjJ0vsdBWj6Dl3WzTUz3aVnRpa38g9pte16OtXkpf+VSMnLZ7qTdtwPL5xQ9ou3gmNbfgWmL+OtrK0iOvl7Z7KdFD22Kbtnbf7Y0B2mwhS6VS/4kyHdqk9/K5PjYNkFGo1UuiFRNtNe/dOyJriLa6aL98WJuqIufVnQxbN05n7yrx0GZveJvfFm/N0HZ689Tox9C2I8tatK2Lba9u+nwqjkdReOtmB6Rfdb93/5y2ztLFM+3umXh23YDU8bya69B23YB00eyANCszXraXzdBWEVXv5fucLR4gY9FbfbnPSQWTtK2Lirf5B44Z2uyNrPfyje2QhVsveatXxXFYGY+99ftM8hilzW95ASagA9E25du08jzcNMI72WFsKxxtxVx77/qcihkfbuEFmkbw9FEGfdcZLc56Kj30aessXTwz2zuenLHO1M92pxG8l1BzpuXel3zizSr43C2anUbwJ0cbOTO0ue75ZECYGvYnIOzwPQuto68ofQMyRmjLbkx0Bt37oQp3wj9ues4FBqob/zRBn0keo7R5Z1G9lrdt6OKPx+JUTST8KENe/PH8r65a8/mzcjja/NME9ZIZ2vyRblEauvjj5Pzij/wrqRyall91Lv7wly6eKajzaY7oufij7O76tM1b6nU2RfnSS7Yv/nCmz2lblG/MXPzRPayqH3+NTJDDxxZ76QE29a3hZmngHQkmadv2O5uyYYQ2x+8vOeFs2vNNyl7YFGT1VfmT//9yHLRF0/L6XXO76UhHysOdkJfsPi9Ix5HffB+Ktn3/07By86fiuFbhHaevfipGSNvF9bXqetxH7bsPlu49bl+y6y/1PDN35ZLdJ9PePaTdtedT3gW6vVcB91yy237cvmTXwD2kdrfkM7YR2ga/fN8a7q5mZ2Khrbv59XUjtF2zd2EKdzUzEarXdr53b+OgLZqW1/8m0KmbR6Mfcw/pzspK2HNtug0/+sILRBu/+YPb47k9ntvjP7fb46EN2qAN2j5D2gb+BiJogzZogzZ+FSW0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0QRu0RULbpaRS48MsE1XDV6poXK+GxzVbyGT/o288XtrGh1m4kdfN5O0EFe6HezeqkRcBV99Rm9+5vH6cDV+/ZZIrmVY1PE0xJLJwP++6iXnvaPiEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBCS4k8sU7j8iWUa/ueZP11KKjWeHl7+rGq49/G43uY1V/fWn7x9cyaHWzjXvLvRQFGFu9Pz8EWwtx993fQr22EX7jV7d3ckfL4Nurra/J3L649q5EXsLTOZtI31RNE21EJRNTxxuYw0i1i3igYcfemYabsVJKpwp3oejgZ8+5HXze0kFe6He6ch28jdoKtfoe1u0Lq9nNF4W2Ya2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAN2qAt2bSNyJHA6xTy0dJmrw6FNntCizbbjpW2AZsPTdvUlA5tq3ZEdWPHQlv/JhEJbUdHR2d3gtN25q0XEW07z43SFvLwNU7bvDUfeB1ZiJS2rKgPg7asaOrQZm8IO0baqmLbAG1TZanydCU0bXWxHEXdVIQTB23Rtbwb3bojpPOrdP7yz4C07QrHkfL3R/q0HbxXVeweGKOtKFrQdkMcZ8MeAm2O09emgTJKmY2RtpYj9iOnbcp5+f2tWysvD8PSZksnF0XdNB2RiYG2AU0iGtrW1JdHjnMWkDbp9fjK3tp6tB3K051bUyfSGG3bjlxNLG2LivWX5cXutx7KuXuOs9lZevTSTaXGXjnO4/ZfmnjoOuWlaGn7WWT6oxENbRlR7buZQUdfqdFwYqRN7tXqkdNWkG2+djbD0paVqlj168YWx05j+LRlomt5/WlTSMlXIWgbGflFHunR9r143Om7maKtqgqxktxem3Jp1hVL/rdmrfLJw03rxF+aSz20CrMzwlG2qaWzR260tLWcdKtknjYFU1+bBsuYET/HRltlw65IO2Lapv51qDmNUGqlnZZ+3WRlelkOnzbVHlrOcGgbeSXvhKHt/nXdtiC0PZWGpxHqNe9fsgekYuGcNo+uTWvOX0o5sv2D6nnHUUvfWZHSpj44q32HI9HQJpe9T+nQtDXUwMtpxUab6rJNhOth9KFtSxzo0eZ12bLXDkeC1Y3qstmiMnTaImx5A2lbE0dhaBuRv+jR5rpmabPlXnpfvE0sbSPll1Ja5XPa7quvS9Y9tTTTXmqjJ93UtOUNU1OR0lbxTnfkGqZpG7iZQTL+1O5cxESbGrGpz8dS5LT9qEdbcTt9g0mB6qbdHa41h01blC1vIG3/FvfD0fZKjzbHMG173nlyWUwqbfPW09mRsfNh5mynI2fl/aUx64n32JWpuTZ10U4j1Gq2bbekadqaJbWZhgxL27Go2nZVo2ehR9tPct22fwjVw+hD24pur022VKHWarp105LqZZb7nNE3Q5s7qEkkoNd253/Kmr2292ZpK7mqEB9sJ5W2gmwPSC9om/X+RrXqoc1aY2pprtNXU4NRryfX+5MR0GaL7ZyK1ysxSVt3M5WQtDWlt7qsxURbrrP5YsTTCPKdFm3HItcu1LeatMnO3mWHS9vgJhElbV//Gmoa4ZH4TY+2w39NmaQt4zeBakJpc91Ue4bgnLa19tczn7YOZUvegFU8bVMXIW3+6eNm0yxt/liy7oajzR917YfvWWjRVhXrPWUVHW2Hsn1F28ppONr808fbRb26qXRKtc8kjxHaIm15g2h7dO1VHANpu+NeN/sQhLbnstz+v2yGtmKueyo4mbQ9VoItum8uaHPnU0tfOakubQtqHDpdUNMKam5hVi1F2Wvzz3VUQlxgFOTw8WcA+mxmgIyr3bmIOGird4769TB9276X7D6TpysrpzLcdW222OvMsGzr1U3N7V5FMFTacq0IW14f2naP/vZoVxbuBKXt6Oj+b/8r/1v3urZNWdha2XINXdfmDySyGrP3Rmmb/toS8mHPubaHjrCc1+e0KfuEJc+8pbIlxGyE59oyuU5X1s5VTNLW3cxqbi8UbU1/brRRi4U2xx+ruY2ob7Q6eOY4hYNwA9JKrtOeq7mMTt2cV31peZi0XbS8H4zS5qi4vzwKeqPVmrfe72tn+ncjrJTfO+7hcyO0das+zOFrnLbpMe9S3CXVI5tbPKdNdeIWL570cv7kl70/ye3x3B7P7fHcHp/+VH7zR7evxm/+gDZogzZogzZogzZoSzJtF8NQaIM2aIM2fhUltEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtJ3Tdimp1PgQi+TPqoavtP9xvcNnXPPwm+x/9I3HTFugqMLd6Xn4Itjbj75uJm8np3Cv2bu7GrR9G3T1K7R9G7RuL+dF7C2TXP1lwKqGpymGRBbu5103Me8dDZ8QQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEEEJS/IllCpc/sUzD/2NkPD3EqBrufTg+5M1fidr85O2bMxn7uxsNkh1VuDs9j18EfPtX6sZs2Q69cD9seXdHhpc7avN3eh5/G2vTCtqyPsgnQtswy3RC1fDE5TJOx4vHgKMv5nc3eitAplThTvU8Hg329q/WjdmyHXbhXtPyRmKk7W6sTStoy7oaaIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIM2aIO2pTlogzZog7ZPnrbFK5SVhRHaMtlMnLRVs3aSactWTDbAna3Tgy2DtP2QTTJt+i0vtFN/W1tb+8d/juKkrZI1StvKwunWVFJpK8vLjxdcI7TVRTNO2hxRTDBtFSFtcw3wQDrv3n3lbJmibV2IaoJpqws3Ltr+S7zaLX8tfz+KjTZ7Q1TMtawVVxbKrjxJJm2LBTE21u64vV4yOCC1N+rCjo+2qqjLBNNWa8o9Yw1wU5x6/x2emqKt6JRayaXNltotT4O2++rrkeP8My7asrLZNNaypv76jdeMfnSTSVteWFJ+rTprQi3MGxuQZuWEzMZHW6tki/3E0qbe24OasQbofON/xJqiTS5nZXJpy0pbLsdK28h9sRYXbaXWsbBNtaxDOXWlZSVxQPqb9SQ1XbDmTNHmtNINJzbaVhWrtXpiaVuWqlu5bqgBrogDs9MI+8K2dUY9hmkrPUg3cvHSNuK4MdGWUacKAsEe6kMz2efaRMEbi1onhmjzijgT5IxMtLRV1CfX3oadVNpyjXR6u2ioAR6ILbO01VWHs1lLKm1RtDxt2r52YqLNQz1QlyIQbaL8CdD22tr0lh3HEG3tz02nFRdttaZ3ziWbUNqqQk3hFeUnSpu9sdf57Egmbe1ydR78QWmTxXQw2D8/2sbUeFTFlYZok7VsNluTMdH2VtTV5nOlhNL2QKp319A4F9i3AX5veECaFcVsdlksJ5Q2WWq3vNU/5ID0WDTU3suWIdq+KnwCtC1ZC96ydM3QVhFFL7ISD21F6W29ITKJpG1V1r2359QNNUDpN8ApM7Q5Ne/du7lk0nYcRcvTpe1I5OOhrel4O18PAHuglvXUn0aYSihtedEdiqZGPOBM0OafiqnX4qEtVzw/pZVA2vzBXCX8ucD+DfCg0207NXPxhz/c0Rj1GKWtHkXL06TtzP31LBba/NkdjUme/i3reedTc+ubhNI2Y82o69rOrMLDmTdy2ghtttjrPYiHTVvV765pnM4ySVut6Z+zyhq6sPJUuoeH7+WPRmhr+IUa5HTW8GizRdZveevx0La7ln8l/+9+PJfsZjc6O+LWDLWs7x3nMF+Q5aTeQ5p3vOva5gvSyX9p5m6ETLFD2mrx5zho2/cnH9eLdhJpK/r9neyeqdthpg4O8wdTZs61dW8RO/4pibRdtLxqHLTd393d/cs/7o/EdKPVnv9hWS0au9Hqx5PDhRV+8we3x3N7PLfHc3s8tEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEEbtEFbv4wPs1BVDV8p4/F4q3iy/9EX87sbDZIdVbg7PY9fBHz7V+rGbNkOvXA/bHl3Y6Tt21ibVtCW9UFS5GqmVQ1PUwyJLNzPu25i3jsaPiGEEEIIIYQQQgghhBBCCCGEEEIIIYQQQgghhBBCCCGEfL75f3oXvUgmNtTSAAAAAElFTkSuQmCC">
+<div class=cur></div><div class=hit></div></div>
+<div class=bar><button class=pp>▶</button><span class=pos>mes. 1 · 0:00</span>
+<span class=hint>touche le graphique pour te déplacer</span></div>
+<div class=lane><span class=lab>écouter</span><button class=blk data-p="[0,1]">intro<small>mes. 1–1</small></button><button class=blk data-p="[1,9]">A<small>mes. 2–9</small></button><button class=blk data-p="[9,13]">A<small>mes. 10–13</small></button><button class=blk data-p="[13,17]">A<small>mes. 14–17</small></button><button class=blk data-p="[17,19]">B<small>mes. 18–19</small></button><button class=blk data-p="[19,27]">A<small>mes. 20–27</small></button><button class=blk data-p="[27,31]">A<small>mes. 28–31</small></button><button class=blk data-p="[31,35]">A<small>mes. 32–35</small></button><button class=blk data-p="[35,39]">A<small>mes. 36–39</small></button><button class=blk data-p="[39,41]">B<small>mes. 40–41</small></button><button class=blk data-p="[41,49]">A<small>mes. 42–49</small></button><button class=blk data-p="[49,53]">C<small>mes. 50–53</small></button><button class=blk data-p="[53,57]">C<small>mes. 54–57</small></button><button class=blk data-p="[57,61]">A<small>mes. 58–61</small></button><button class=blk data-p="[61,69]">A<small>mes. 62–69</small></button></div>
+<div class=verdict>contre ton découpage : <b>petites d'abord 0.774</b> · prod 0.686 — <b>gagne</b> ici<br><b>blocs posés — petites d'abord :</b> 8@2→20,42,62 · 4@10→14,32,36 · 4@54→50 · 4@58→28<br><b>blocs posés — la prod :</b> 8@2→20,42,62 · 4@10→14,32,36 · 4@28→58 · 4@50→54</div></section>
+<audio id=au preload=metadata playsinline src="/audio/bruno_mars_the_lazy_song_official_music_video.m4a"></audio>
+<script>window.GRID=[5.78, 8.54, 11.28, 14.02, 16.76, 19.5, 22.26, 25.0, 27.74, 30.48, 33.22, 35.96, 38.72, 41.46, 44.2, 46.94, 49.68, 52.42, 55.18, 57.92, 60.66, 63.4, 66.14, 68.88, 71.62, 74.38, 77.12, 79.86, 82.6, 85.34, 88.08, 90.82, 93.56, 96.3, 99.06, 101.8, 104.54, 107.28, 110.02, 112.78, 115.52, 118.26, 121.0, 123.74, 126.48, 129.22, 131.98, 134.72, 137.46, 140.2, 142.94, 145.68, 148.44, 151.18, 153.92, 156.66, 159.4, 162.14, 164.88, 167.62, 170.38, 173.1, 175.86, 178.6, 181.34, 184.1, 186.82, 189.58, 192.32, 195.04];
+window.PLOT=[0.085,0.995]; window.U=1;</script></div>
+<script>
+(function(){
+  const au=document.getElementById("au"); if(!au) return;
+  const G=window.GRID, n=G.length-1, L0=window.PLOT[0], W=window.PLOT[1]-L0;
+  const plot=document.querySelector(".plot"), cur=plot.querySelector(".cur"),
+        hit=plot.querySelector(".hit"), pp=document.querySelector(".pp"),
+        pos=document.querySelector(".pos");
+  hit.style.left=(L0*100)+"%"; hit.style.width=(W*100)+"%";
+  const t2b=t=>{ if(t<=G[0])return 0; if(t>=G[n])return n;
+    let lo=0,hi=n; while(hi-lo>1){const m=(lo+hi)>>1; G[m]<=t?lo=m:hi=m;}
+    return lo+(t-G[lo])/(G[lo+1]-G[lo]); };
+  const b2t=f=>{ const i=Math.max(0,Math.min(n-1,Math.floor(f)));
+    return G[i]+(f-i)*(G[i+1]-G[i]); };
+  const fmt=s=>Math.floor(s/60)+":"+String(Math.floor(s%60)).padStart(2,"0");
+  let stopAt=null, raf=null, onBtn=null;
+  function draw(){
+    const f=t2b(au.currentTime);
+    cur.style.display="block";
+    cur.style.left="calc("+((L0+W*f/n)*100)+"% - 1px)";
+    pos.textContent="mes. "+(Math.floor(f)+1)+" · "+fmt(au.currentTime);
+  }
+  function clear(){ if(onBtn){ onBtn.classList.remove("on"); onBtn=null; } }
+  function tick(){ draw();
+    if(stopAt!=null && au.currentTime>=stopAt){ au.pause(); stopAt=null; clear(); }
+    if(!au.paused) raf=requestAnimationFrame(tick); }
+  function go(t0,t1,btn){
+    clear(); stopAt=t1;
+    if(btn){ onBtn=btn; btn.classList.add("on"); }
+    const seek=()=>{ try{ au.currentTime=t0; }catch(e){} draw(); };
+    if(au.readyState>=1) seek();
+    else au.addEventListener("loadedmetadata",seek,{once:true});
+    au.play().catch(()=>{ clear(); });
+  }
+  au.addEventListener("play",()=>{ pp.textContent="❚❚"; tick(); });
+  au.addEventListener("pause",()=>{ pp.textContent="▶";
+    cancelAnimationFrame(raf); draw(); });
+  pp.onclick=()=>{ if(au.paused){ stopAt=null; clear(); au.play().catch(()=>{}); }
+                    else au.pause(); };
+  hit.onclick=e=>{ const r=hit.getBoundingClientRect();
+    go(b2t(n*(e.clientX-r.left)/r.width), null, null); };
+  document.querySelectorAll("[data-p]").forEach(b=>{
+    const d=JSON.parse(b.dataset.p);
+    b.onclick=()=>go(G[d[0]], G[Math.min(n,d[1])], b); });
+})();
+</script></body></html>
