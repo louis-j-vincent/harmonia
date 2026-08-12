@@ -3849,7 +3849,8 @@ window.APP = (function(){
 
   async function openSectionTool(){
     const folded=S.model;
-    S.sectTool={label:"A", marks:[], sel:null, busy:true, note:"chargement…"};
+    S.sectTool={label:"A", marks:[], sel:null, busy:true, note:"chargement…",
+                thr:0.78};
     // on garde le modèle replié pour le remettre en sortant
     const un=unfoldedModel(folded);
     if(un!==folded){
@@ -4000,6 +4001,25 @@ window.APP = (function(){
       {state:st.busy?"off":"on", height:40}));
     if(st.sel) row.appendChild(kitButton("Effacer",
       ()=>{ st.sel=null; go("chart"); }, {height:40}));
+    // LA SÉVÉRITÉ EST À L'UTILISATEUR. Mesuré sur les 18 annotations : à
+    // 0,78 on retrouve 66 reprises sur 100 en en proposant 60 fausses ; à
+    // 0,90, 60 sur 100 pour 44 fausses ; à 0,95, 57 pour 37. Aucun seuil ne
+    // domine — c'est un échange entre « ça trouve tout » et « j'ai peu à
+    // enlever », et c'est un choix, pas un réglage à deviner.
+    const sev=el("div","display:flex;gap:5px;align-items:center;margin-left:auto;");
+    sev.appendChild(el("span",`font:600 10.5px ${UI};color:${T.faint};`,"tri"));
+    [["large",0.78],["moyen",0.88],["strict",0.95]].forEach(([lb,v])=>{
+      const on=Math.abs((st.thr||0.78)-v)<0.001;
+      const c=el("button",`flex:0 0 auto;height:28px;padding:0 9px;border-radius:8px;`+
+        `cursor:pointer;font:600 11.5px ${UI};`+
+        (on?`border:1.5px solid ${T.accent};background:rgba(138,43,43,.09);color:${T.ink};`
+           :`border:1px solid ${T.line};background:${T.card};color:${T.faint};`), lb);
+      c.onclick=()=>{ haptic(); st.thr=v;
+        st.note="tri « "+lb+" » — s'applique à la prochaine validation";
+        go("chart"); };
+      sev.appendChild(c);
+    });
+    row.appendChild(sev);
     if(st.marks.length && !st.sel){
       row.appendChild(kitButton("Enregistrer comme vérité", confirmSectionTruth,
                                 {height:40}));
@@ -4081,7 +4101,8 @@ window.APP = (function(){
     st.busy=true; st.note=""; go("chart");
     try{
       const r=await api.post("/api/section-repeats/"+m.file,
-        {b0:st.sel.b0, b1:st.sel.b1, claimed:sectClaimed(st.label)});
+        {b0:st.sel.b0, b1:st.sel.b1, claimed:sectClaimed(st.label),
+         thr:st.thr||0.78});
       if(r.error){ st.busy=false; st.note=r.error; go("chart"); return; }
       const occ=(r.occurrences||[]).map(o=>({b0:o.b0, b1:o.b1,
                                              source:o.source, rot:o.rot||0}));

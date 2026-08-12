@@ -1,5 +1,53 @@
 # Harmonia — Known Issues
 
+## ★★ 2026-08-12 — LE SCORE D'APPARIEMENT : CE QUE LOUIS SOUPÇONNAIT EST FAUX, LE VRAI DÉFAUT EST AILLEURS ★★ SECTIONS · OUTIL
+
+Louis : « lorsque j'identifie une première section elle est mal rematchée aux
+autres endroits, montre-moi le scoring de matching […] j'ai l'impression
+qu'on favorise le scoring de longues sections même si elles ne sont pas
+bonnes ? »
+
+Page : `/reports/match_scoring.html` — pour chaque section annotée, l'ancre
+est sa première occurrence et TOUTES les positions du morceau sont affichées
+avec leur score, cliquables. Générateur : `scripts/match_scoring_page.py`.
+
+**Son hypothèse, mesurée** (`scripts/match_scoring_probe.py`, ses 18
+annotations, 35 lettres) : le score médian d'une position AU HASARD monte
+bien avec la longueur du bloc (0,27 à 2 mesures → 0,40 à 16) — un long bloc
+ressemble donc à tout, il avait raison là-dessus. **Mais le pouvoir de
+séparation ne bouge pas** : remplacer la moyenne par le minimum ou le
+premier quartile donne AUC 0,927 / 0,927 / 0,926. **La loi de score n'est
+pas le problème.**
+
+**Le vrai état des lieux**, jamais mesuré jusqu'ici : sur ses annotations,
+l'appariement retrouve **66 reprises sur 100 et en propose 60 fausses**.
+
+**Aucun seuil ne sauve la mise** (le seuil est relatif à l'ancre) :
+
+| règle | retrouvées | fausses |
+|---|---|---|
+| 0,78 (prod) | 66/100 | 60 |
+| 0,90 | 60/100 | 44 |
+| 0,95 | 57/100 | 37 |
+| fond du morceau, médiane+2·MAD | 56/100 | 64 |
+| fond, médiane+4·MAD | 50/100 | 40 |
+
+Le compromis est linéaire et la règle « battre le fond du morceau » est
+strictement PIRE qu'un seuil plus haut. Un seuil ne répare pas un CLASSEMENT :
+avec AUC 0,927, une lettre sur trois a une fausse position devant une vraie.
+
+**Le chant n'est pas la cause** non plus : ajouter la voie mélodie fait
+0,915 → 0,923. Il sauve deux morceaux (Sunny, qui module à chaque reprise —
+là c'est la rotation qui joue) et ne change rien ailleurs.
+
+**Conséquence livrée** : puisque le compromis appartient à l'utilisateur, il
+est passé dans l'outil — un réglage « tri : large / moyen / strict »
+(0,78 / 0,88 / 0,95) à côté du bouton Valider.
+
+**Le vrai levier restant** est le SUBSTRAT de similarité, pas le seuil ni la
+loi : aujourd'hui c'est la matrice harmonique seule. Le CQT vient de prouver
+sa valeur sur les accords ; c'est le candidat suivant pour l'appariement.
+
 ## 2026-08-12 — L'ORDRE DE REMPLISSAGE VIENT DES VOIX, LA MATIÈRE DES BI-MESURES
 
 Louis : « explique-moi comment tu fais l'ordre des sections pour privilégier
