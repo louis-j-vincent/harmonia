@@ -1,5 +1,258 @@
 # Harmonia — Known Issues
 
+## ★★★ 2026-08-11 — LE REPLI IGNORAIT LE CAS PRINCIPAL : UNE SECTION SANS BOUCLE INTERNE, JOUÉE N FOIS ★★★ FOLD (branche feat/occurrence-merge)
+
+En cherchant pourquoi le repli refuse 74 % des lettres, la cause n'était pas
+un seuil trop dur : c'était **ce que le repli sait empiler**. Il n'empilait
+que les positions d'une BOUCLE INTERNE à la section (une cellule de 2, 4 ou
+8 mesures qui se répète dans le couplet). Une section écrite d'un trait n'en
+a pas — donc la lettre était refusée ENTIÈRE, **même jouée dix fois**.
+
+Décompte des 162 lettres du corpus :
+
+| refus | lettres |
+|---|---|
+| **pas de boucle interne** | **61** |
+| acceptées | 43 |
+| une seule occurrence (rien à empiler, légitime) | 28 |
+| pile incohérente | 26 |
+| template décodé vide | 4 |
+
+**45 de ces 61** ont au moins deux occurrences de MÊME longueur : elles sont
+donc parfaitement empilables occurrence contre occurrence. C'est mot pour mot
+le cas que Louis décrivait en ouvrant le chantier (« quand une section est
+jouée N fois, on a N observations du même enchaînement ») — et c'est celui
+que le code ne traitait pas.
+
+**Correctif** (`loop="occurrence"`) : quand aucune boucle interne n'est
+confiante mais que la lettre a ≥2 occurrences de même longueur, **la section
+elle-même devient la période** — la mesure k du couplet s'empile avec la
+mesure k de tous les autres couplets. Longueurs inégales : toujours refusé
+(under-fold, never over-fold), avec la raison écrite dans le rapport. Borné à
+2–32 mesures.
+
+**Mesuré sur les 34 charts :**
+
+| | avant | après |
+|---|---|---|
+| lettres repliées | 43 / 162 (27 %) | **64 / 162 (40 %)** |
+| accords adossés à un consensus ×N | 823 | **1173 (×1,4)** |
+| mesures dont l'accord change | — | 30 (sur 13 morceaux) |
+
+**Le gain ne se lit pas dans les accords qui changent** (30 seulement) mais
+dans les 350 accords qui passent d'UNE observation à N. Exemples : How Deep
+Is Your Love passe de 0 à 86 accords consensuels, Be My Baby de 11 à 57,
+Stand By Me de 0 à 18 (et sa mesure 11 passe de « aucun accord » à D).
+
+Combiné au CQT moyenné, l'ensemble change 213 mesures sur le corpus
+(`occ_cqt` : 134 à mi-parcours contre 110 pour le CQT seul).
+
+Pages d'écoute : `/reports/merge_occurrences.html` et `/reports/merge_cqt.html`.
+Les deux sont **désactivés par défaut** (`HARMONIA_MERGE=cqt` pour la loi
+CQT ; `loop="occurrence"` pas encore câblé à un drapeau) — une loi de merge
+réécrit tous les charts, ça passe en prod sur la décision de Louis.
+
+## ★★ 2026-08-11 — LE MERGE PAR CQT MOYENNÉ EST EN PLACE ; SA VRAIE LIMITE EST QUE LE REPLI REFUSE 3 LETTRES SUR 4 ★★ FOLD (branche feat/occurrence-merge)
+
+L'agrégation choisie à l'oreille par Louis le 2026-08-08 (« les CQT moyennés
+ça marche très bien ») est devenue une **loi de combinaison** du repli :
+`combine="cqt"` dans `fold_letter_groups`, `HARMONIA_MERGE=cqt` dans la
+pipeline de l'app (défaut inchangé — une loi de merge réécrit TOUS les
+charts, elle passe en prod sur sa décision).
+
+Mécanique : par position, on moyenne les **CQT** des mesures membres, on
+pave ×3 sur le CQT lui-même (le réseau voit un vrai contexte aux coutures),
+on ré-infère l'ensemble 5-fold, puis on décode comme avant. Deux nouvelles
+briques dans `musx.py` : `song_cqt()` (cache disque, ~3 s/morceau) et
+`posteriors_from_cqt()`. Le contrôle d'adhésion demandé le même jour est
+armé par `check_thr` : une répétition dont les frames ne soutiennent pas
+les accords du consensus est écartée et le template refait sans elle.
+
+**Mesuré sur les 27 charts de la bibliothèque** (`scripts/occmerge_harness.py`,
+page d'écoute `/reports/merge_cqt.html`) :
+
+| variante | mesures dont l'accord change |
+|---|---|
+| CQT moyenné | **176** (sur 10 morceaux) |
+| CQT + contrôle d'adhésion (0,60) | 195 |
+| CQT + veto par bi-mesure | 176 (identique) |
+| médiane / produit / trim20 | 25 chacune |
+| pondération par entropie | 49 |
+| basse hors moyenne | 445 |
+
+**LE RÉSULTAT QUI COMPTE N'EST PAS CELUI-LÀ.** Le repli n'accepte de
+fusionner que **33 lettres sur 125 (26 %)**, et **9 morceaux sur 26 ne
+replient rien du tout**. La loi CQT ne peut agir que là où le repli a déjà
+dit oui : elle ne change rien sur les deux tiers du corpus non pas parce
+qu'elle est faible, mais **parce qu'on ne l'appelle jamais**. Le prochain
+levier n'est pas la loi de combinaison, c'est le taux d'acceptation du
+repli — et le veto par bi-mesure, qui devait l'ouvrir, change **0 accord**
+(il n'étend que la confiance et le ×N).
+
+À trancher à l'oreille sur la page : les 176 mesures, avec l'accord
+d'aujourd'hui et celui du CQT côte à côte, cliquables. Aucun score — il
+n'existe pas de vérité terrain d'accords utilisable ici.
+
+## ★★ 2026-08-10 — CHASSE AUX BUGS DEMANDÉE PAR LOUIS : 15 DÉFAUTS, DONT UN QUI TUAIT SA DEMANDE ★★ OUTIL SECTIONS · SERVEUR
+
+Méthode : balayage de l'app au navigateur à 390 px (`scratchpad/uisweep.py`,
+rejouable) + deux audits délégués (routes HTTP, relecture critique du code).
+Chaque défaut a été REPRODUIT avant correction, et revérifié après.
+
+**Le pire, et il annulait exactement ce qui avait été demandé la veille.**
+Modifier une chanson DÉJÀ annotée ne pouvait jamais rien trouver : l'outil
+s'ouvre sur l'annotation existante, et toutes ses mesures partaient en
+`claimed`, donc le morceau entier était verrouillé. Mesuré sur Bein Green,
+même sélection de 8 mesures : **3 reprises depuis un état vide, 0 avec
+l'annotation chargée**. Seules les AUTRES lettres sont désormais exclues.
+
+**Sécurité des données — quatre façons de perdre une annotation :**
+1. changer de morceau gardait l'outil ouvert avec les marques du précédent,
+   et la sauvegarde automatique les écrivait dans le fichier du NOUVEAU ;
+2. un échec de lecture ouvrait l'outil comme une page blanche — « enregistrer
+   comme vérité » remplaçait alors les sections faites à la main par presque
+   rien. Il refuse maintenant d'écrire et le dit ;
+3. le `.bak` était réécrit à chaque enregistrement validé : le deuxième
+   détruisait définitivement l'annotation d'origine. Premier seulement ;
+4. un corps de requête illisible valait « aucune marque » et vidait le
+   brouillon en cours (400 désormais, sans écrire).
+Et le brouillon n'était jamais relu tant qu'une vérité existait : fermer
+l'outil sans enregistrer perdait tout le travail. Le plus RÉCENT gagne.
+
+**Ma propre régression, vieille de vingt minutes.** Le plancher de 2 mesures
+laissait le bloc devenir plus GRAND que la sélection ; `_slide` ne score
+alors rien en b0, `block_score` divise par 1e-6, et une sélection d'une
+mesure rendait des scores à **1,5 million** avec des reprises hors du
+morceau. Une sélection d'une mesure est maintenant ÉLARGIE à deux.
+
+**Doigt et écran :**
+- le panneau de l'outil était si haut qu'il ne restait **qu'une mesure
+  visible** sur 390 px — plus rien à sélectionner. Lettres sur une rangée
+  qui défile, liste des sections repliée : **25 mesures visibles** ;
+- sur un chart replié, le badge ✕ effaçait l'occurrence du PREMIER passage
+  au lieu de la sienne, puis devenait inerte ;
+- glisser à travers une frontière sur un chart replié avalait des passages
+  entiers jamais touchés (mesure 8 → 17 = 10 mesures, dont 8 invisibles).
+  La sélection s'arrête au passage écrit et le dit ;
+- le minuteur d'appui long survivait à un re-rendu (sélection fantôme, et
+  TypeError si l'outil avait été fermé entre-temps) ;
+- une note de bouton trop longue sortait de l'écran à 390 px.
+
+**Robustesse serveur** : `section-repeats`, `section-marks`, `yt-search` et
+`/api/sections` rendaient des **500 en HTML** sur des types faux — or le
+shell fait `r.json()` dessus et cassait sans rien afficher. Tous valident et
+répondent 400. `/api/sections` écrivait le fichier PUIS plantait, laissant
+une vérité terrain invalide sur disque.
+
+**Deux corrections de fond** : la recherche transposée mélangeait une voie
+harmonique tournée avec une voie NON tournée (la moitié de l'évidence votait
+contre la reprise modulée cherchée) ; et une occurrence entièrement
+recouverte par une marque plus récente laissait sa frontière, ce qui écrit
+deux entrées adjacentes de même lettre — donc, dans ce format, **une reprise
+qui n'existe pas**.
+
+**Fausses pistes écartées** (pour ne pas les rechercher) : la tête de lecture
+et le bouton A–B vont bien ; « Practise n'a pas d'onglet Read » est voulu
+(écran plein, sortie par le chevron). Trois « bugs » de mon balayage venaient
+de MON test — il confondait l'ordre des éléments et le numéro de mesure, et
+visait une mesure passant sous la barre d'outils collante.
+
+## ★ 2026-08-10 — DEUX BUGS DE LOUIS : LE 403 DE YOUTUBE, ET L'OUTIL QUI MANGEAIT LA TÊTE DE LECTURE ★ SERVEUR · UI
+
+**Le téléchargement.** Ce qu'il a vu à l'écran était un `CalledProcessError`
+avec la ligne de commande complète ; la cause était une ligne plus bas dans
+le log du serveur : `unable to download video data: HTTP Error 403:
+Forbidden`, sur le client « android vr » que yt-dlp avait choisi tout seul.
+**La même URL passe à la reprise** (vérifié deux fois) : c'est intermittent
+et côté YouTube, donc ça se réessaie. `_download_audio` parcourt maintenant
+une liste de clients (défaut, web_safari, android, ios, tv), réessaie les
+fragments, nettoie le `.part` entre deux tentatives, et lève une PHRASE :
+403 partout → « c'est passager, réessaie » ; vidéo privée → le dit ;
+indisponible → le dit. Vérifié de bout en bout.
+
+**La tête de lecture.** L'outil sections prenait le doigt en entier :
+`touch-action:none` tuait le DÉFILEMENT du chart, et tout tap était mangé,
+donc la lecture ne se déplaçait plus — alors que marquer des sections se
+fait EN ÉCOUTANT. Sa propre page d'annotation avait déjà payé cette leçon
+(« il faut que je puisse rapidement balayer dans la chanson… là quand je
+clique ça me modifie les sections ») et y avait séparé la piste de lecture
+de la piste d'édition. Trois gestes désormais :
+
+| geste | effet |
+|---|---|
+| tap | la lecture saute là (comportement normal de l'app) |
+| appui long puis glissé | sélectionne l'intervalle (`pan-y` tant que ce n'est pas armé, donc un balayage franc fait toujours défiler) |
+| tap sur le badge de lettre | enlève CETTE occurrence |
+
+Et le tap sautait à la MAUVAISE mesure : `barUnder` rendait un indice de
+mesure de CHANSON là où `seekToBar` attend un indice de mesure AFFICHÉE — sur
+un chart replié, taper la 10ᵉ mesure écrite allumait la 13ᵉ. Les deux indices
+sont maintenant portés séparément. Vérifié à 390 px : outil ouvert, un tap
+allume exactement la même mesure qu'outil fermé.
+
+## ★ 2026-08-09 — L'OUTIL SECTIONS AU DOIGT : CE QU'IL TROUVE, ET LES TROIS PIÈGES ★ SECTIONS · UI (branche feat/occurrence-merge)
+
+Demande de Louis : « une option toute simple sur le chart raw […] on
+sélectionne A B C intro […] on passe le doigt le long des barres […] puis on
+valide. Dès qu'on valide, l'outil repère automatiquement les autres repeats
+[…] → output : morceau fait par sections. »
+
+Livré sur **http://100.89.209.63:7778/** (instance worktree ; l'app de Louis
+sur :7772 n'est pas touchée). Moteur : `harmonia_min/section_tool.py`,
+routes `/api/section-repeats` et `/api/section-marks`.
+
+**Aucun nouveau détecteur.** `voice_sections._slide/block_score/_peaks`
+répond déjà à « où ce bloc se rejoue-t-il ? » et vaut 0,782 contre les 17
+morceaux annotés ; la seule chose qui change est que **l'ancre est le doigt**
+au lieu d'un curseur qui balaie. Deux scorers de similarité auraient permis
+à l'outil de contredire le chart qu'il annote.
+
+**Mesuré sur les 18 annotations à la main, 100 occurrences à retrouver :**
+
+| réglage | rappel | mesures hors-lettre |
+|---|---|---|
+| seuil 0,66 (celui de la prod) | 81 % | 1044 |
+| **seuil 0,78** (retenu) | 82 % | 711 |
+| seuil 0,90 | 67 % | 471 |
+| + lettres déjà **validées** retirées du jeu | **86 %** | **411** |
+| (variante) retirer les trouvailles BRUTES de A | 53 % | 305 |
+
+La dernière ligne est le piège : verrouiller ce que l'outil propose (et non
+ce que l'utilisateur valide) fait manger les mesures de B et C par les
+erreurs de A. Granularité : chercher avec la cellule ou avec la sélection
+entière est équivalent (81 % contre 80 %) — la lecture littérale de la
+demande ne coûte rien. Un artefact de mesure a failli la faire rejeter :
+compter une occurrence retrouvée seulement si UNE trouvaille la couvre à
+moitié donne 0 % pour les cellules (deux cellules de 4 couvrent une
+occurrence de 8 à exactement 50 % chacune) ; la bonne question est la
+couverture par l'UNION.
+
+**Les trois pièges, tous invisibles dans les chiffres, tous vus au rendu :**
+
+1. **Mesure AFFICHÉE ≠ mesure de la CHANSON.** `data-bar` indexe
+   l'affichage ; un chart replié écrit un bloc une fois pour N passages
+   (Bein Green : 20 cellules pour 52 mesures), donc le geste envoyait de
+   mauvais numéros. On passe par le TEMPS, seul espace commun aux deux.
+2. **Un geste de 4 mesures répondait 21 reprises.** La cellule de 2 mesures
+   n'identifie plus la section, elle trouve la boucle harmonique du morceau.
+   Garde-fou : on retombe sur la sélection entière quand la cellule trouve
+   plus de 3× plus (coût mesuré : 1 point de rappel). La transposition est
+   réservée aux cellules ≥ 4 mesures — une cellule de 2 tournée a matché
+   10 fois sur Bein Green, toutes fausses.
+3. **Le brouillon écrasait la vérité terrain.** Chaque geste écrivait dans
+   `state/sections/<stem>.json`, le fichier des 18 annotations à la main :
+   un test a transformé les 7 sections de Bein Green en 23 cellules de
+   2 mesures. Les gestes vont désormais dans `state/sections_draft/`, seul
+   un « Enregistrer comme vérité » explicite touche le vrai fichier, et le
+   serveur en garde un `.bak`. **L'arbre live n'a jamais été touché**
+   (le worktree a son propre `state/`) — vérifié après coup.
+
+**Ce qui reste à la main**, mesuré : 14 % des occurrences ne sont pas
+retrouvées et il reste ~12 mesures hors-lettre par lettre à désélectionner.
+L'outil réduit le travail, il ne le supprime pas.
+
+## ★ 2026-08-09 — LE PLI MANGE L'ACCORD DU 1er TEMPS EN POSITION 0 ★ OUVERT · REPLI
+
 ## ★ 2026-08-09 — LE PLI MANGE L'ACCORD DU 1er TEMPS EN POSITION 0 ★ RÉSOLU · REPLI
 
 > **RÉSOLU le 2026-08-10.** Cause : la fenêtre qui garde la copie du MILIEU du
@@ -150,6 +403,94 @@ bibliothèque) : bouton présent en phase brute, 32 mesures rendues, liseré aff
 sur le chart, transport et les quatre onglets disponibles, rechargement
 automatique à la fin. Au passage : `grow:true` posait `flex:1` dans un conteneur
 bloc — le bouton principal de cet écran était en fait à la largeur de son texte.
+
+## ★★ 2026-08-08 — VERDICT LOUIS : L'AGRÉGATION DES RÉPÉTITIONS SE FAIT SUR LE CQT MOYENNÉ, PAR BI-MESURE ★★ FOLD / CHORDS (branche feat/occurrence-merge)
+
+Après recadrage de Louis (« ne score rien, montre-moi ce que ça donne à
+chaque fois »), le labo `scripts/bibar_stack_lab.py` a montré côte à côte,
+sur les bi-mesures similaires (grille paire, lien complet, seuil 0,92),
+quatre agrégations décodées par le MÊME chemin (template 2 mesures ×3,
+latence 0) : chaque répétition seule / audios superposés (écoutables) /
+CQT moyennés / probabilités musx moyennées. Pages
+`/reports/bibar_lab_<stem>.html`.
+
+**Verdict de Louis à l'oreille : « les CQT moyennés ça marche très bien »**
+(l'addition EN AMONT du modèle, dans le domaine spectre — pas le signal,
+qui se déphase ; pas les probabilités, qui sont l'agrégation actuelle du
+repli). Exemple type : la boucle du couplet de This Love — les deux
+additions amont font émerger F:min7 là où la moyenne des probabilités
+reste F:min. L'unité d'agrégation confirmée : la bi-mesure.
+
+**Demande complémentaire du même jour, implémentée** : un check de
+cohérence au SCORE FINAL musx, seuil 0,60 de départ, deux placements
+montrés sur les pages : « avant » (adhésion de chaque répétition = score
+musx des accords du consensus sur ses frames ; sous le seuil → écartée,
+re-moyenne sans elle) et « après » (accord du consensus sous le seuil →
+marqué). Le seuil est un point de départ d'arbitrage, pas une calibration.
+
+Conséquence pour la brique de merge à venir : l'agrégation du repli
+(`_template_chords`, moyenne de probabilités) devra être remplacée/doublée
+par la moyenne de CQT + re-inférence musx sur le CQT moyen (coût : une
+passe des 5 réseaux par groupe, cache possible). Chantier suivant sur la
+branche.
+
+## ★ 2026-08-08 — MERGE D'OCCURRENCES : « ALIGNER AVANT D'EMPILER » EST MORT, LE VRAI LEVIER EST LE VETO PAR LETTRE ★ FOLD (branche feat/occurrence-merge)
+
+Handoff du 2026-08-08, levier 1 (« ≈71 % des dégâts ») **falsifié avant
+d'implémenter**, sur les 27 charts de la bibliothèque live
+(`scripts/occmerge_lever1_probe.py`, `_rescue.py`) :
+
+- **173/182 occurrences s'alignent déjà au décalage 0** contre le centroïde
+  leave-one-out de leur lettre. Les 9 restantes : gain médian +0,018 de
+  cosinus — du bruit, sauf 3 cas sur 2 chansons.
+- La seule occurrence gravement désalignée d'un fold ACCEPTÉ
+  (Urdlvw0SSEc B, mesure 101, cos 0,49) était **déjà écartée en variante**
+  par OUTLIER_Z. Aucune contamination réelle constatée.
+- Balayer TOUS les décalages cycliques par occurrence (un oracle sur toute
+  la famille du levier 1) **ne sauve AUCUNE des 17 lettres refusées** en
+  « stack incoherent » : lgHGU8gqz9U E passe 0,585→0,744 (< 0,85),
+  Chain of Fools A 0,823→0,838 (< 0,85), Every Breath A **empire**
+  0,817→0,712 (la recherche colle au bruit). Les refus sont dus au
+  CONTENU qui diverge entre occurrences, pas à la phase. Mécanisme :
+  l'alignement est déjà fait en amont par la détection de sections
+  (blocs de 8/4 sur la grille paire).
+
+**Ce que le mécanisme implique à la place** : le veto de cohérence est
+TOUT-OU-RIEN par lettre (`min(coh) < STACK_COHERENCE` refuse tout) —
+**21 des 44 positions des lettres refusées sont individuellement
+cohérentes (≥ 0,85) et perdent leur merge**. Cas extrême : She Will Be
+Loved B, coh par position [0,99 · 0,99 · 0,96 · 0,49] — trois positions
+quasi parfaites jetées pour une divergente (qui est de la vraie musique,
+une fin qui varie). Implémenté sur la branche : `gate="bibar"` dans
+`fold_letter_groups` — le veto se décide par bi-mesure (la granularité
+des blocs détectés en phase 1, directive Louis 2026-08-08), les
+bi-mesures refusées vont dans `pos_skip`.
+
+**Rejeu corpus des variantes** (`scripts/occmerge_harness.py`, bars
+première passe rejouées puis chaque variante sur copie) — accords
+(root/qualité) changés vs prod :
+
+| variante | mesures changées | où |
+|---|---|---|
+| gate bibar (levier 1bis) | **0** | le template CONFIRME la 1ʳᵉ passe partout où il fold en plus — le gain est en confiance/×N, pas en accords |
+| médiane (levier 2) | 3 | She Will Be Loved (3), This Love (3) |
+| trim20 (levier 2) | 0 | — |
+| produit/logpool (levier 3) | **0** | la loi de combinaison ne bouge pas l'argmax Viterbi sur ce corpus |
+| entropie (levier 4) | 44 | **41 sur la seule Urdlvw0SSEc** + 3 lgHGU8gqz9U |
+| basse sortie (levier 5, approx.) | ~340 sur 16 chansons | quasi tout = suppression d'inversions dans les labels |
+
+**Reste ouvert** (même branche) :
+1. `gate="bibar"` ne doit PAS shipper sans que `minimal_fold` consulte
+   `pos_skip`/`cv_skip` — sinon le ×N s'affiche sur des positions refusées
+   (le bug §2.3 du handoff, désormais VISIBLE dans le report : les clés
+   `cv_skip`/`pos_skip`/`coh` y sont écrites par la branche).
+2. Levier 5 fidèle : l'ancien `musx_posterior_fold` (`FOLDED_STREAMS =
+   (0, 2, 3, 4, 5)`, test `test_bass_stream_is_never_folded`) foldait sur
+   la timeline pleine chanson et laissait chaque occurrence SES frames de
+   basse. L'équivalent template = décoder par occurrence (triades
+   moyennées + basse propre), pas la basse uniforme actuelle.
+3. Urdlvw0SSEc est l'unique chanson où la pondération par entropie bouge
+   41 mesures — à trancher à l'oreille (page levier 4).
 
 ## ★ 2026-08-08 — LA FORME MINIMALE, ET SON GARDE-FOU ★ REPLI · AFFICHAGE
 

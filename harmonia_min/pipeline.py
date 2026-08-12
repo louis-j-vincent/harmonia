@@ -628,8 +628,37 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
         # excluded — they keep the first-pass decode). Display folding comes
         # later.
         from harmonia_min.folding import fold_letter_groups
-        fold_report = fold_letter_groups(sections, bars, grid, probs, bpb,
-                                         arr=_arr, times=_times)
+        # HARMONIA_MERGE=cqt (Louis, 2026-08-08 : « les CQT moyennés ça marche
+        # très bien ») : les répétitions sont empilées AVANT le modèle, dans
+        # le domaine du spectre, et musx re-tourne sur ce spectre moyen — au
+        # lieu de moyenner ses probabilités de sortie. Coûte le CQT du morceau
+        # (~3 s, mis en cache) plus une inférence par lettre (~2 s).
+        # HARMONIA_MERGE_CHECK=<seuil> arme en plus le contrôle d'adhésion.
+        # DÉFAUT DEPUIS LE 2026-08-12 : Louis a écouté les deux pages
+        # (/reports/merge_cqt.html et /reports/merge_occurrences.html) et a
+        # tranché — « validé partout c'est top avec la règle CQT moyenné ».
+        # HARMONIA_MERGE=mean|off revient à la moyenne de postérieures.
+        _merge = os.environ.get("HARMONIA_MERGE", "cqt").strip().lower()
+        _mchk = os.environ.get("HARMONIA_MERGE_CHECK", "").strip()
+        _cqt = None
+        if _merge == "cqt":
+            try:
+                _cqt = _musx.song_cqt(audio_path)
+            except Exception:
+                logger.exception("HARMONIA_MERGE=cqt : CQT indisponible, on "
+                                 "retombe sur la moyenne de postérieures")
+                _merge = ""
+        # `loop="occurrence"` : quand une section n'a pas de boucle interne
+        # mais revient N fois à longueur égale, la section elle-même devient
+        # la période. Sans ça, le repli refusait 61 lettres sur 162 — le cas
+        # le plus fréquent du corpus, et celui que Louis décrivait au départ.
+        # HARMONIA_FOLD_LOOP=internal revient au comportement d'avant.
+        _loop = os.environ.get("HARMONIA_FOLD_LOOP", "occurrence").strip().lower()
+        fold_report = fold_letter_groups(
+            sections, bars, grid, probs, bpb, arr=_arr, times=_times,
+            combine=("cqt" if _merge == "cqt" else "mean"),
+            cqt=_cqt, loop=_loop,
+            check_thr=(float(_mchk) if _mchk and _merge == "cqt" else None))
         # repetition counts recomputed on the folded chords
         from collections import Counter as _C2
         fam2 = _C2()

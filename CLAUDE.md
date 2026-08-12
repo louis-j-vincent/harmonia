@@ -282,6 +282,14 @@ Estimating 12-minute Opus session. Awaiting confirmation before proceeding."
   measured. If you are told to change "the pipeline", change `infer_chords_v1`,
   and put live-affecting env flags there (the `HARMONIA_NNLS24_CALIB` /
   `HARMONIA_SECTION_MODE` / `HARMONIA_VOCAB_FOLD` precedent).
+- **L'app `harmonia_min` a sa propre pipeline** (`harmonia_min/pipeline.py`,
+  `analyze_steps`) — c'est elle qui sert :7772, et ses drapeaux à elle :
+  `HARMONIA_SECTIONS` (voice/harmonic/chroma), `HARMONIA_RAW_CHART`,
+  `HARMONIA_QUARTER_BAR`, et depuis 2026-08-11 `HARMONIA_MERGE=cqt`
+  (+ `HARMONIA_MERGE_CHECK=<seuil>`) : le repli empile alors les répétitions
+  sur le **CQT** avant le modèle au lieu de moyenner ses postérieures —
+  l'agrégation que Louis a choisie à l'oreille. Défaut inchangé : une loi de
+  merge réécrit TOUS les charts, elle passe en prod sur sa décision.
 - `ChordInferrer(emission_scoring=...)` — **NOT in the live path.** `infer_chords_v1`
   never builds a `ChordInferrer`; it calls `chord_hmm.viterbi` directly. The old
   note here said to gate an `emission_scoring` flip behind

@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import threading
 import time
@@ -50,7 +51,10 @@ PKG = Path(__file__).resolve().parent
 REPO = PKG.parent
 AUDIO_DIR = REPO / "docs" / "audio"
 CHARTS_DIR = PKG / "state" / "charts"
-PORT = 7772
+# Le port par défaut reste 7772 (l'app vivante). HARMONIA_MIN_PORT permet
+# de lancer une SECONDE instance depuis un worktree — indispensable pour
+# essayer une UI sans écraser celle qu'une autre session sert.
+PORT = int(os.environ.get("HARMONIA_MIN_PORT", "7772"))
 
 app = Flask(__name__)
 _jobs: dict[str, dict] = {}
@@ -307,6 +311,9 @@ def get_annotations(file):
 # disque : il vient d'une page web.
 
 SECTIONS_DIR = PKG / "state" / "sections"
+#: Les gestes de l'outil du chart (brouillons) — séparés des 18
+#: annotations faites à la main, qui sont la vérité terrain du projet.
+SECTIONS_DRAFT_DIR = PKG / "state" / "sections_draft"
 
 
 def _safe_stem(stem: str) -> str:
@@ -319,6 +326,11 @@ def save_sections(stem):
     if not stem:
         return jsonify({"error": "bad stem"}), 400
     doc = request.get_json(silent=True) or {}
+    secs = doc.get("sections", [])
+    if not isinstance(secs, list) or not all(isinstance(x, dict) for x in secs):
+        # Il écrivait le fichier PUIS plantait en comptant : la vérité terrain
+        # se retrouvait invalide sur disque avec un 500 côté client.
+        return jsonify({"error": "sections doit être une liste d'objets"}), 400
     try:
         SECTIONS_DIR.mkdir(parents=True, exist_ok=True)
         (SECTIONS_DIR / f"{stem}.json").write_text(
@@ -356,6 +368,197 @@ def all_sections():
         except (OSError, ValueError):
             continue
     return jsonify(out)
+
+
+# ── l'outil sections du chart (Louis, 2026-08-09) ───────────────────────────
+
+@app.post("/api/section-repeats/<file>")
+def api_section_repeats(file):
+    """« Je viens de passer le doigt sur ces mesures : où ça se rejoue ? »
+
+    Corps {b0, b1, claimed:[mesures déjà prises par les lettres validées],
+    thr?, melody?} → la réponse de `section_tool.find_repeats`.
+
+    Le stem de l'audio est relu dans le chart plutôt que reçu du client :
+    c'est la même règle que /api/bar1, et ça évite qu'une page fabrique un
+    chemin. Les postérieures musx sont en cache disque (clé = stem), donc
+    l'appel tient largement dans un geste — la mélodie, elle, coûterait une
+    séparation de voix et reste sur demande explicite.
+    """
+    p = CHARTS_DIR / f"{Path(file).stem}.json"
+    if not p.exists():
+        return jsonify({"error": "no such chart"}), 404
+    body = request.get_json(silent=True) or {}
+    if body.get("b0") is None or body.get("b1") is None:
+        return jsonify({"error": "b0/b1 required"}), 400
+    # Valider AVANT d'appeler le moteur : un type faux y levait une exception
+    # rendue en 500 (page HTML), et le shell fait `r.json()` dessus — il
+    # cassait sans rien afficher.
+    try:
+        b0 = int(body["b0"])
+        b1 = int(body["b1"])
+    except (TypeError, ValueError, OverflowError):
+        return jsonify({"error": "b0/b1 doivent être des entiers"}), 400
+    thr = body.get("thr")
+    if thr is not None:
+        try:
+            thr = float(thr)
+        except (TypeError, ValueError):
+            return jsonify({"error": "thr doit être un nombre"}), 400
+        if not 0.0 <= thr <= 1.0:
+            return jsonify({"error": "thr doit être entre 0 et 1"}), 400
+    claimed = body.get("claimed") or []
+    if not isinstance(claimed, list):
+        return jsonify({"error": "claimed doit être une liste de mesures"}), 400
+    try:
+        claimed = [int(x) for x in claimed]
+    except (TypeError, ValueError):
+        return jsonify({"error": "claimed doit contenir des entiers"}), 400
+    model = json.loads(p.read_text(encoding="utf-8"))
+    stem = Path(model.get("audio_url") or "").stem or \
+        Path(file).stem.removeprefix("min_")
+    audio = AUDIO_DIR / f"{stem}.m4a"
+    try:
+        from harmonia_min import musx as _musx
+        from harmonia_min import section_tool as st
+        triad = _musx.frame_posteriors(audio)[0]
+        out = st.find_repeats(
+            model["barGrid"], triad, b0, b1,
+            audio=audio if body.get("melody") else None,
+            melody=bool(body.get("melody")),
+            thr=thr, claimed_bars=claimed)
+    except Exception as exc:  # noqa: BLE001 — l'UI affiche l'erreur
+        log.exception("section-repeats failed for %s", file)
+        return jsonify({"error": f"repeat search failed: {exc}"}), 500
+    out["file"] = Path(file).stem
+    out["stem"] = stem
+    out["n_bars"] = len(model["barGrid"]) - 1
+    return jsonify(out)
+
+
+def _sections_known(stem: str, model: dict) -> dict:
+    """Ce qu'on sait déjà des sections de ce morceau, par ordre de confiance.
+
+    Louis, 2026-08-09 : « même quand les sections sont écrites, on devrait
+    pouvoir les modifier dans le même outil, et il devrait aussi être
+    présent pour les chansons déjà annotées. » L'outil doit donc OUVRIR sur
+    l'existant, jamais sur une page blanche — sinon modifier une annotation
+    veut dire la refaire.
+
+    Ordre : la vérité écrite à la main d'abord (`state/sections/`), puis le
+    brouillon en cours (`sections_draft/`), puis, à défaut, ce que le
+    détecteur a trouvé et que le chart affiche. Le dernier est le seul qui
+    ne vient pas de lui : il est étiqueté comme tel pour que l'UI le dise.
+    """
+    # Le PLUS RÉCENT des deux gagne, pas la vérité par principe : l'outil
+    # sauvegarde un brouillon à chaque geste, et donner systématiquement la
+    # priorité au fichier validé faisait disparaître tout le travail de
+    # correction dès qu'on refermait l'outil sans enregistrer (audit
+    # 2026-08-10). La réponse dit toujours d'où ça vient.
+    found = []
+    for d, src in ((SECTIONS_DIR, "truth"), (SECTIONS_DRAFT_DIR, "draft")):
+        f = d / f"{stem}.json"
+        if not f.exists():
+            continue
+        try:
+            doc = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        secs = [x for x in (doc.get("sections") or [])
+                if isinstance(x, dict) and "b0" in x and "b1" in x]
+        if secs:
+            found.append((f.stat().st_mtime, src, secs,
+                          bool(doc.get("validated"))))
+    if found:
+        found.sort(reverse=True)                      # le plus récent d'abord
+        _, src, secs, validated = found[0]
+        return {"source": src, "sections": secs, "validated": validated}
+    # à défaut : les sections du chart lui-même, une entrée par passage
+    out = []
+    for s in model.get("sections", []):
+        for rng in s.get("barRanges", []) or []:
+            if len(rng) == 2:
+                out.append({"label": s.get("label") or "?",
+                            "b0": int(rng[0]), "b1": int(rng[1])})
+    out.sort(key=lambda s: s["b0"])
+    return {"source": "chart", "sections": out, "validated": False}
+
+
+@app.get("/api/section-marks/<file>")
+def api_section_marks_get(file):
+    """Ce que l'outil doit afficher à l'ouverture (voir `_sections_known`)."""
+    p = CHARTS_DIR / f"{Path(file).stem}.json"
+    if not p.exists():
+        return jsonify({"error": "no such chart"}), 404
+    model = json.loads(p.read_text(encoding="utf-8"))
+    stem = _safe_stem(Path(model.get("audio_url") or "").stem or
+                      Path(file).stem.removeprefix("min_"))
+    known = _sections_known(stem, model)
+    known.update({"stem": stem, "n": len(model["barGrid"]) - 1})
+    return jsonify(known)
+
+
+@app.post("/api/section-marks/<file>")
+def api_section_marks(file):
+    """Les marques validées → le morceau écrit par sections.
+
+    Corps {marks:[{label, occurrences:[{b0,b1}]}], validated?} → la liste
+    de sections, ET son écriture dans `state/sections/<stem>.json`, le
+    fichier que Louis remplit déjà à la main dans /reports/annotate.html.
+    Même schéma, même endpoint de lecture, mêmes scripts de mesure en aval :
+    l'outil du chart et la page d'annotation écrivent au même endroit,
+    sinon deux vérités terrain divergentes coexisteraient.
+    """
+    p = CHARTS_DIR / f"{Path(file).stem}.json"
+    if not p.exists():
+        return jsonify({"error": "no such chart"}), 404
+    model = json.loads(p.read_text(encoding="utf-8"))
+    stem = _safe_stem(Path(model.get("audio_url") or "").stem or
+                      Path(file).stem.removeprefix("min_"))
+    n_bars = len(model["barGrid"]) - 1
+    body = request.get_json(silent=True)
+    if body is None or not isinstance(body, dict):
+        # Un corps illisible valait « aucune marque » : la sauvegarde
+        # automatique remplaçait alors le brouillon en cours par une liste
+        # vide, donc effaçait le travail (audit 2026-08-10).
+        return jsonify({"error": "corps JSON invalide"}), 400
+    marks = body.get("marks")
+    if marks is not None and not isinstance(marks, list):
+        return jsonify({"error": "marks doit être une liste"}), 400
+    from harmonia_min import section_tool as st
+    sections = st.sections_from_marks(marks or [], n_bars)
+    keep = [{"label": s["label"], "b0": s["b0"], "b1": s["b1"]}
+            for s in sections if not s.get("pending")]
+    # UN BROUILLON N'ÉCRASE PAS UNE VÉRITÉ TERRAIN. `state/sections/` porte
+    # les 18 annotations faites à la main par Louis — la seule référence de
+    # sections du projet, ce que lisent section_bench et section_metric.
+    # L'outil sauvegarde à chaque geste ; sans séparation, le premier essai
+    # remplaçait ses 7 sections de Bein Green par 23 cellules de 2 mesures
+    # (constaté en test). Les gestes vont donc dans `sections_draft/`, et
+    # seul un `validated: true` explicite touche la vraie annotation — en
+    # gardant d'abord une copie `.bak` de ce qui était là.
+    validated = bool(body.get("validated"))
+    target_dir = SECTIONS_DIR if validated else SECTIONS_DRAFT_DIR
+    doc = {"stem": stem, "n": n_bars, "validated": validated,
+           "sections": keep}
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+        dest = target_dir / f"{stem}.json"
+        bak = target_dir / f"{stem}.json.bak"
+        if validated and dest.exists() and not bak.exists():
+            # PREMIÈRE sauvegarde seulement : le .bak doit garder l'annotation
+            # d'ORIGINE. L'écraser à chaque fois faisait qu'un deuxième
+            # enregistrement détruisait définitivement le travail à la main.
+            bak.write_text(dest.read_text(encoding="utf-8"), encoding="utf-8")
+        dest.write_text(json.dumps(doc, ensure_ascii=False, indent=1))
+    except (OSError, TypeError, ValueError) as exc:
+        log.warning("section marks save failed for %s: %s", stem, exc)
+        return jsonify({"error": "could not persist sections"}), 500
+    log.info("outil sections %s: %d marque(s) → %d section(s) écrite(s) dans "
+             "%s", stem, len(marks or []), len(keep), target_dir.name)
+    return jsonify({"ok": True, "stem": stem, "n": n_bars,
+                    "sections": sections, "written": len(keep),
+                    "draft": not validated})
 
 
 @app.route("/api/context_rescore/<file>", methods=["POST"])
@@ -457,8 +660,13 @@ def yt_search():
     on indefinitely instead of stopping at whatever the library happened to hold.
     """
     body = request.get_json(silent=True) or {}
-    q = (body.get("q") or "").strip()
-    page = max(0, int(body.get("page") or 0))
+    # `q` et `page` viennent d'une page web : un type faux plantait la route
+    # en 500 (audit 2026-08-10).
+    q = str(body.get("q") or "").strip()
+    try:
+        page = max(0, int(body.get("page") or 0))
+    except (TypeError, ValueError):
+        page = 0
     if not q:
         return jsonify({"results": [], "hasMore": False, "page": page})
     words = [w for w in re.split(r"\W+", q.lower()) if w]
@@ -554,6 +762,58 @@ def _video_meta(ytdlp: str, url: str) -> tuple[str, str]:
         return "", ""
 
 
+#: Les clients d'API YouTube essayés, dans l'ordre. yt-dlp en choisit un tout
+#: seul ; quand celui-là se fait jeter, la commande entière échoue alors que
+#: le suivant aurait marché. Constaté le 2026-08-10 (Louis) : « android vr »
+#: a rendu `HTTP Error 403: Forbidden`, et exactement la même URL est passée
+#: à la reprise, sans rien changer. C'est intermittent et côté YouTube — donc
+#: ça se réessaie, ça ne se diagnostique pas.
+YTDLP_CLIENTS = (None, "web_safari", "android", "ios", "tv")
+
+
+def _download_audio(ytdlp: str, url: str, out: Path) -> None:
+    """Télécharge l'audio, en réessayant avec un autre client YouTube.
+
+    Lève une RuntimeError au message LISIBLE : l'échec précédent remontait
+    jusqu'à l'écran de Louis sous la forme d'un `CalledProcessError` avec la
+    ligne de commande complète, qui ne dit pas ce qui s'est passé ni quoi
+    faire. La vraie cause (« 403 Forbidden ») était, elle, uniquement dans
+    les logs du serveur.
+    """
+    import subprocess          # comme partout ailleurs dans ce fichier
+    errors = []
+    for client in YTDLP_CLIENTS:
+        cmd = [ytdlp, "-f", "bestaudio[ext=m4a]/bestaudio",
+               "--extract-audio", "--audio-format", "m4a",
+               "--retries", "5", "--fragment-retries", "5",
+               "-o", str(out)]
+        if client:
+            cmd += ["--extractor-args", f"youtube:player_client={client}"]
+        cmd.append(url)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        if r.returncode == 0 and out.exists():
+            if client:
+                log.info("yt-dlp: réussi avec le client %s", client)
+            return
+        tail = (r.stderr or r.stdout or "").strip().splitlines()
+        msg = tail[-1] if tail else f"code {r.returncode}"
+        errors.append(f"{client or 'défaut'}: {msg}")
+        log.warning("yt-dlp: client %s a échoué — %s", client or "défaut", msg)
+        for junk in AUDIO_DIR.glob(out.name + "*.part"):
+            junk.unlink(missing_ok=True)     # sinon la reprise repart de rien
+    joined = " | ".join(errors)
+    if "403" in joined or "Forbidden" in joined:
+        raise RuntimeError("YouTube a refusé le téléchargement (403) sur tous "
+                           "les clients essayés. C'est passager : réessaie "
+                           "dans un moment.")
+    if "Private video" in joined or "Sign in" in joined:
+        raise RuntimeError("Cette vidéo demande une connexion (privée ou "
+                           "restreinte) — elle ne peut pas être téléchargée.")
+    if "Video unavailable" in joined:
+        raise RuntimeError("Cette vidéo n'est pas disponible.")
+    raise RuntimeError(f"Le téléchargement a échoué. Détail : {joined}")
+
+
 def _resolve_audio(url: str) -> tuple[Path, str, str]:
     """analyze URL → (audio path, title, artist). Three forms:
     'local:<stem>' (from our own search results, possibly wrapped in a
@@ -586,10 +846,7 @@ def _resolve_audio(url: str) -> tuple[Path, str, str]:
         if not out.exists():
             # `ytdlp`, pas "yt-dlp" : le chemin résolu juste au-dessus n'était
             # pas utilisé ici, ce qui annulait la raison d'être de _ytdlp_bin.
-            subprocess.run(
-                [ytdlp, "-f", "bestaudio[ext=m4a]/bestaudio",
-                 "--extract-audio", "--audio-format", "m4a",
-                 "-o", str(out), url], check=True, timeout=600)
+            _download_audio(ytdlp, url, out)
         artist, title = _video_meta(ytdlp, url)
         return out, (title or _titles.pretty_from_slug(out.stem)), artist
     raise FileNotFoundError(f"could not resolve {url!r} to audio")
