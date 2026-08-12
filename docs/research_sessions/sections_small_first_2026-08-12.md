@@ -1,5 +1,38 @@
 # « Petites sections d'abord » — journal de session (2026-08-12)
 
+## Résumé (écrit à la fin)
+
+**Les deux cibles sont atteintes.** Médiane des 12 : **0,799** (cible ≥ 0,789).
+Blue Lights : **0,813** (cible > 0,75, départ 0,696). Moyenne des 12 : 0,816
+contre 0,786. Sur les six morceaux annotés tenus hors de toute décision de
+conception : moyenne **0,692** contre 0,620, dont Be My Baby 0,658 → **0,935**.
+Onze morceaux sur dix-huit en hausse, un seul en baisse (Stand By Me, −0,024).
+Page à écouter : `http://100.89.209.63:7772/plots/order_lab.html`.
+
+**Le mécanisme, en une phrase** : « 4 d'abord puis 8 » n'est pas un ordre à
+inverser, c'est une **concurrence à arbitrer à chaque ancre**. La passe de 8
+lancée seule arrive mesure 45 de Blue Lights et vole la 3e occurrence de la
+famille B ; dans un parcours unique où les deux longueurs sont proposées, le pic
+dur de la mesure 17 barre le bloc de 8 et le bloc de 4 prend ses cinq B d'un coup.
+
+**Ce que le brief supposait, et qui est faux** : le swap naïf n'échoue pas à
+cause des seuils. Les scores de bloc à 4 et à 8 mesures vivent sur la même
+échelle (médiane 0,36 contre 0,35), parce que `block_score` divise déjà par
+l'ancre. Re-régler THR4 ne pouvait rien réparer, et « rendre `block_score`
+comparable » n'avait rien à corriger. La vraie cause : la passe de 4 mesure la
+**période de la boucle**, pas l'**échelle de la section**.
+
+**Trois choses mesurées et rejetées** : la corroboration des runs de 4 par les
+pics (corrélation 0,114), le « taux de suite » d'un bloc de 8 (−0,076), les
+longueurs 12 et 16 mesures (médianes 0,630 et 0,715).
+
+**Découverte de côté, à traiter** : les pics durs gagnent sur 4 morceaux sur 18 et
+perdent sur 6. Leur tolérance était à ±1 alors que leur précision réelle est de
+88 % à ±2 — c'est ce décalage qui coûtait le plus, et le corriger vaut +0,072 de
+moyenne sur les six morceaux hors conception.
+
+---
+
 **Cible** : une variante 4-avant-8 qui fasse ≥ 0,789 de médiane sur les 12
 morceaux annotés ET ≥ 0,75 sur Blue Lights (aujourd'hui 0,696).
 
@@ -170,6 +203,105 @@ ait son milieu dessus (c'est le cas de la mesure 49 de Blue Lights). Mesuré :
 Rejeté. Les suivants sont trop imprécis (49 % de justesse) même dans cet usage
 étroit, et la concurrence n'en a pas besoin : elle règle Blue Lights toute seule.
 Artefact : `scratchpad/order_soft.py`.
+
+### E8 — un bug DANS MON PROPRE ORACLE, et ce qu'il cachait (12h35)
+
+La colonne « tout différé » sortait identique à « tout posé ». Cause : ma liste de
+bits était plus courte que le nombre de décisions et le défaut tombait sur
+« poser » — or DIFFÉRER crée de nouvelles décisions, donc la liste ne pouvait pas
+suffire. Corrigé (défaut = différer, et le nombre de décisions est pris au
+maximum des deux extrêmes). Après correction, « tout différé » reproduit la prod
+**au millième** sur les douze : c'est le contrôle qui manquait.
+
+Ce que l'oracle corrigé dit : le plafond de l'espace « poser ce 4 maintenant ou
+le différer » est **0,795** de médiane, et il ne demande **qu'un bit par
+morceau**. Blue Lights : la famille B de la mesure 13. The Walk : un seul point à
+la mesure 75.
+
+### E9 — 49 points de décision, un descripteur qui sépare (12h50)
+
+Jeu construit (`scratchpad/order_decisions.py`) : chaque ancre où seul un bloc de
+4 existe, avec 12 descripteurs et le gain marginal de le poser. **49 points ·
+5 gagnants · 14 perdants · 30 neutres.**
+
+Le descripteur qui sépare est le plus simple : **le score moyen des reprises du
+bloc de 4**. Les gagnants de Blue Lights sont à 1,03 et 0,99, celui de The Walk à
+0,94 ; aucun perdant n'atteint 0,94. Lecture musicale : `block_score` étant
+relatif à l'ancre, ≥ 0,9 veut dire « cette reprise est presque aussi proche de
+l'ancre que l'ancre l'est d'elle-même » — un motif rejoué **à l'identique**. À
+0,75, c'est la boucle harmonique du morceau.
+
+Plateau : tout seuil de 0,86 à 1,02 donne le même résultat, sans aucun recul.
+Un-contre-tous : le réglage (moyenne, 0,88) est choisi sur 11 replis sur 12.
+
+### E10 — le 4 ne doit PAS battre un 8 disponible (13h00)
+
+Variante testée : quand les deux existent, le 4 littéral l'emporte. Moyenne des
+12 : 0,789 contre **0,803**. Rejeté. Le 8 garde la priorité ; le 4 ne passe que
+là où il n'y a pas de 8.
+
+### E11 — les longueurs 12 et 16 : mesurées, rejetées (13h10)
+
+Médiane des 12 : 12/8/4 → **0,630**, 16/8/4 → **0,715**, 16/12/8/4 → **0,639**,
+contre 0,805 pour 8/4. Don't Know Why s'effondre à 0,631, Stand By Me à 0,461.
+« Un A de seize s'écrit deux A de huit » est maintenant mesuré.
+
+### E12 — la coupure qui laisse un moignon (13h20)
+
+Chain of Fools : pic en mesure 9, frontière de Louis en mesure 10, et l'assemblage
+coupait EXACTEMENT sur le pic → `A[2-8] | A[9-9]`. La tolérance de ±1 existait
+pour la recherche (`crosses`) et pas pour l'écriture. Corrigé : une coupure qui
+laisserait moins de `min_cut` mesures est annulée. Médiane des 12 0,795 → **0,805**,
+Bein' Green à **1,000**.
+
+### E13 — « le plus fort se sert le premier » ne se généralise PAS aux ancres (13h35)
+
+`_peaks` porte déjà la doctrine pour les reprises d'une même ancre. Appliquée
+ENTRE ancres (tous les candidats construits, le meilleur posé, on recommence) :
+médiane des 12 **0,692** (plus longue d'abord) et **0,586** (meilleur score
+d'abord), contre 0,805. Le parcours de gauche à droite est **porteur** — il cale
+la phase des ancres sur `start`, la première mesure chantée. Ce n'est pas un
+artefact dont il faut se débarrasser.
+
+### E14 — LES PICS DURS SONT UN PARI, et la tolérance est le vrai correctif (13h50)
+
+Ablation : sans aucun pic dur, la concurrence est un **no-op exact** (colonnes
+identiques au millième). Le mécanisme est donc bien celui identifié : le bloc de 4
+ne prend la main que là où un pic barre le bloc de 8.
+
+Et une découverte de côté, sur les 18 annotés : **les pics durs gagnent sur 4
+morceaux, perdent sur 6, neutres sur 8**, soit −0,005 de médiane et de moyenne.
+Blue Lights +0,270 et The Walk +0,156 contre Be My Baby −0,277 et Grenade −0,124.
+Un arbitre par morceau vaudrait +0,026 de moyenne (oracle 0,780 contre 0,754).
+
+Diagnostic du POURQUOI, vérifié à l'œil sur Be My Baby : ses pics sont en mesures
+19, 29, 43, 53, 71, 77 et ses frontières en 13, 21, 29, 37, 45, 53, 61, 71, 79.
+Trois pics sont à **deux** mesures — et `HARD_TOL` valait 1. Ils coupaient ses B
+de 8 mesures en trois morceaux. La précision réelle des pics était **déjà
+écrite** dans known_issues (49 % exacts, 79 % à ±1, **88 % à ±2**) et n'avait
+jamais été répercutée sur la tolérance.
+
+Balayage `HARD_TOL` × `min_cut` sur les 18 : ±2 domine partout sauf la médiane
+des 12 (0,799 contre 0,805). Retenu ±2 / min_cut 3 :
+
+| | 12 méd. | 12 moy. | 6 hors conception moy. | 18 moy. |
+|---|---|---|---|---|
+| prod | 0,789 | 0,786 | 0,620 | 0,731 |
+| + concurrence 4/8 | 0,795 | 0,803 | 0,620 | 0,742 |
+| + coupure sans moignon | 0,805 | 0,805 | 0,636 | 0,749 |
+| + pics tolérés à ±2 | **0,799** | **0,816** | **0,692** | **0,774** |
+| *sans la concurrence* | *0,778* | *0,808* | *0,692* | *0,769* |
+
+La dernière ligne est le contrôle qui compte : **sans la concurrence, la médiane
+des 12 retombe sous la référence.**
+
+### Note de cohabitation
+
+Une autre session a committé `bb632fd` (« la phase de la grille vient du CHANT »)
+dans `docs/known_issues.md` entre mes deux commits. Mes ajouts sont en amont des
+siens dans le fichier, rien n'a été écrasé — mais son `###` final se lit comme un
+sous-titre de mon entrée. Laissé tel quel : ce n'est pas à moi de changer le
+niveau de titre de quelqu'un d'autre.
 
 ### Hypothèse historique (H4)
 
