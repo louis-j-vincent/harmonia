@@ -234,7 +234,7 @@ def fill(b, stem, min_votes=MIN_VOTES, snap=SNAP):
     le bloc, dans quel ordre il a été traité et par quelle règle il a été rempli.
     C'est ce que la page dessine.
     """
-    word, a, J, _B = bibar_word(b)
+    word, a, J, B = bibar_word(b)
     n = b["n"]
     pk = [v for v in votes(stem) if v["votes"] >= min_votes]
 
@@ -273,7 +273,8 @@ def fill(b, stem, min_votes=MIN_VOTES, snap=SNAP):
         return L
 
     def put(j0, j1, L, regle, rang):
-        pieces.append({"j0": j0, "j1": j1, "label": L, "regle": regle, "rang": rang})
+        pieces.append({"j0": j0, "j1": j1, "label": L, "regle": regle,
+                       "rang": rang, "etape": len(pieces)})
 
     def poser(j0, j1, rang, prof=0):
         w = word[j0:j1]
@@ -339,18 +340,19 @@ def fill(b, stem, min_votes=MIN_VOTES, snap=SNAP):
     secs = []
     if a:
         secs.append({"b0": 0, "b1": a - 1, "label": "intro", "regle": "hors grille",
-                     "rang": -1})
+                     "rang": -1, "etape": -1})
     for s in pieces:
         secs.append({"b0": a + 2 * s["j0"], "b1": a + 2 * s["j1"] - 1,
-                     "label": s["label"], "regle": s["regle"], "rang": s["rang"]})
+                     "label": s["label"], "regle": s["regle"], "rang": s["rang"],
+                     "etape": s["etape"]})
     if a + 2 * J < n:
         secs.append({"b0": a + 2 * J, "b1": n - 1, "label": "queue",
-                     "regle": "hors grille", "rang": -1})
+                     "regle": "hors grille", "rang": -1, "etape": -1})
     for s in secs:                            # tout ce qui précède le chant
         if s["b1"] < b["start"]:
             s["label"] = "intro"
     return {"sections": secs, "blocs": blocs, "ordre": order, "mot": word,
-            "ancre": a, "J": J, "cuts": cuts, "pics": votes(stem)}
+            "ancre": a, "J": J, "cuts": cuts, "pics": votes(stem), "sim": B}
 
 
 # ── la page ─────────────────────────────────────────────────────────────────
@@ -375,6 +377,74 @@ SYMCOL = ["#a8c8dc", "#e0c9a6", "#c4d8bf", "#dcc0c8", "#cdc6e0", "#e6d9a8",
           "#bcd3d8", "#e3cdb8", "#cfd6c0", "#d8c4d0"]
 
 
+def matrices_png(R, n, gtb) -> str:
+    """Les deux matrices que Louis demande, côte à côte.
+
+    À GAUCHE, la CORRÉLATION entre toutes les bi-mesures — la matière brute d'où
+    sort le mot. Un carré sombre hors diagonale = deux bi-mesures qui se
+    ressemblent ; les damiers réguliers sont les couplets, les bandes qui coupent
+    tout sont les ponts. Les traits bleus sont les sections qu'on écrit, les
+    rouges les tiennes.
+
+    À DROITE, la TRANSITION entre les lettres du mot : combien de fois la
+    bi-mesure `x` est suivie de `y`. C'est la grammaire du morceau, et elle se
+    lit vite — une diagonale forte veut dire « chaque bi-mesure se prolonge »
+    (une boucle lente), un cycle `a→b→a` un balancement de deux mesures, et une
+    case isolée un passage qui n'arrive qu'une fois (le pont).
+    """
+    from matplotlib.colors import LinearSegmentedColormap
+    B, word, a, J = R["sim"], R["mot"], R["ancre"], R["J"]
+    cmap = LinearSegmentedColormap.from_list("h", ["#faf6ec", "#9fc0d4", "#1d4d69"])
+
+    fig, (ax1, ax2) = plt.subplots(
+        1, 2, figsize=(13.0, 5.6), facecolor="#fffdf6",
+        gridspec_kw={"width_ratios": [1.55, 1], "wspace": 0.16})
+
+    lo = float(np.quantile(B, 0.15))
+    ax1.imshow(B, cmap=cmap, vmin=lo, vmax=1.0, origin="upper",
+               extent=[a, a + 2 * J, a + 2 * J, a], interpolation="nearest")
+    for s in R["sections"][1:]:
+        ax1.axvline(s["b0"], color="#0d2437", lw=0.8, alpha=0.75)
+        ax1.axhline(s["b0"], color="#0d2437", lw=0.8, alpha=0.75)
+    for g in gtb:
+        ax1.axvline(g, color=GT_LINE, lw=0.8, alpha=0.7)
+    step = 8 if n <= 120 else 16
+    ax1.set_xticks(np.arange(0, n + 1, step)); ax1.set_yticks(np.arange(0, n + 1, step))
+    ax1.set_xticklabels([str(i + 1) for i in np.arange(0, n + 1, step)], fontsize=8)
+    ax1.set_yticklabels([str(i + 1) for i in np.arange(0, n + 1, step)], fontsize=8)
+    ax1.tick_params(length=2, colors="#8a8371")
+    ax1.set_title("corrélation entre toutes les bi-mesures", fontsize=10.5,
+                  color="#4a4438", pad=8)
+
+    syms = sorted(set(word))
+    K = len(syms)
+    T = np.zeros((K, K))
+    for x, y in zip(word, word[1:]):
+        T[syms.index(x), syms.index(y)] += 1
+    ax2.imshow(T, cmap=cmap, vmin=0, vmax=max(1.0, T.max()), interpolation="nearest")
+    for i in range(K):
+        for j in range(K):
+            if T[i, j]:
+                ax2.text(j, i, f"{int(T[i, j])}", ha="center", va="center",
+                         fontsize=8.5,
+                         color="#fffdf6" if T[i, j] > 0.55 * T.max() else "#4a4438")
+    ax2.set_xticks(range(K)); ax2.set_yticks(range(K))
+    ax2.set_xticklabels(syms, fontsize=9); ax2.set_yticklabels(syms, fontsize=9)
+    ax2.tick_params(length=0, colors="#4a4438")
+    for i, t in enumerate(ax2.get_xticklabels() + ax2.get_yticklabels()):
+        t.set_bbox(dict(facecolor=SYMCOL[(ord(syms[i % K]) - 97) % len(SYMCOL)],
+                        edgecolor="none", boxstyle="round,pad=0.22"))
+    ax2.set_xlabel("suivie de…", fontsize=9, color="#8a8371")
+    ax2.set_ylabel("la bi-mesure…", fontsize=9, color="#8a8371")
+    ax2.set_title("transition d'une bi-mesure à la suivante", fontsize=10.5,
+                  color="#4a4438", pad=8)
+    for ax in (ax1, ax2):
+        for sp in ax.spines.values():
+            sp.set_color("#e0d7c2")
+    fig.subplots_adjust(left=0.05, right=0.99, top=0.93, bottom=0.07)
+    return fig2b64_fixed(fig)
+
+
 def song_page(stem: str, title: str) -> str:
     b = order_bundle.get(stem)
     n, grid = b["n"], b["grid"]
@@ -386,11 +456,14 @@ def song_page(stem: str, title: str) -> str:
     strips = [("le remplissage", R["sections"]), ("ce qu'on écrit", today)]
     if gt:
         strips.append(("toi", gt["sections"]))
-    rows = 3 + len(strips)                    # mot · voix · ordre · bandes
-    fig, axs = plt.subplots(rows, 1, figsize=(13.0, 0.55 * 3 + 0.62 * len(strips) + 0.6),
-                            facecolor="#fffdf6",
-                            gridspec_kw={"height_ratios": [1.0, 1.25, 0.9] + [1.15] * len(strips),
-                                         "hspace": 0.0})
+    hist = sorted([s for s in R["sections"] if s["etape"] >= 0],
+                  key=lambda s: s["etape"])
+    rows = 3 + len(hist) + len(strips)         # mot · voix · ordre · pas · bandes
+    fig, axs = plt.subplots(
+        rows, 1, figsize=(13.0, 0.55 * 3 + 0.30 * len(hist) + 0.62 * len(strips) + 0.6),
+        facecolor="#fffdf6",
+        gridspec_kw={"height_ratios": [1.0, 1.25, 0.9] + [0.62] * len(hist)
+                     + [1.15] * len(strips), "hspace": 0.0})
     gtb = [s["b0"] for s in gt["sections"][1:]] if gt else []
 
     def deco(ax, lab, colour=INK, last=False, hard=True):
@@ -446,23 +519,45 @@ def song_page(stem: str, title: str) -> str:
                 fontsize=8.5, color="#fffdf6" if g < 0.6 else "#4a4438")
     deco(ax, "ordre de\nremplissage", "#4a4438")
 
-    # 4 ── les bandes de sections
+    # 4 ── l'HISTORIQUE, section par section, dans l'ordre où on les écrit.
+    #      Chaque ligne montre l'état de la partition après une pose : ce qui
+    #      était déjà là en pâle, ce qu'on vient d'écrire en couleur. C'est la
+    #      demande de Louis (« l'historique de comment les sections sont
+    #      inférées de manière incrémentale, section par section ») et c'est la
+    #      seule vue où l'on voit POURQUOI l'ordre compte : une section « connue »
+    #      ne peut l'être que d'une ligne écrite plus haut.
     cm = colourmap()
-    for k, (ax, (lab, ss)) in enumerate(zip(axs[3:], strips)):
+    for k, ax in enumerate(axs[3:3 + len(hist)]):
+        for s in hist[:k + 1]:
+            new = s is hist[k]
+            w = s["b1"] - s["b0"] + 1
+            ax.add_patch(plt.Rectangle((s["b0"], 0.12), w, 0.76,
+                                       facecolor=cm(s["label"]),
+                                       alpha=1.0 if new else 0.28,
+                                       edgecolor="#fffdf6", lw=0.9))
+            if new and w >= max(2, n * 0.03):
+                ax.text(s["b0"] + w / 2, 0.5, str(s["label"]), ha="center",
+                        va="center", fontsize=7.5, color=INK)
+        s = hist[k]
+        deco(ax, f"{k + 1}. {s['label']} · {s['regle']}", "#6f6858", hard=False)
+
+    # 5 ── les bandes de sections
+    for k, (ax, (lab, ss)) in enumerate(zip(axs[3 + len(hist):], strips)):
         for s in ss:
             w = s["b1"] - s["b0"] + 1
             ax.add_patch(plt.Rectangle((s["b0"], 0.08), w, 0.84,
                                        facecolor=cm(s["label"]),
                                        edgecolor="#fffdf6", lw=1.1))
-            if w >= max(2, n * 0.03):
+            if w >= max(4, n * 0.04):        # sinon les étiquettes se chevauchent
                 ax.text(s["b0"] + w / 2, 0.5, str(s["label"]), ha="center",
                         va="center", fontsize=8.5, color=INK)
         for g in gtb:
             ax.axvline(g, color=GT_LINE, lw=0.7, alpha=0.55)
         deco(ax, lab, INK, last=(k == len(strips) - 1))
 
-    fig.subplots_adjust(left=PLOT_L, right=PLOT_R, top=0.985, bottom=0.10)
+    fig.subplots_adjust(left=PLOT_L, right=PLOT_R, top=0.99, bottom=0.055)
     img = fig2b64_fixed(fig)
+    mats = matrices_png(R, n, gtb)
 
     ordre = "".join(
         f'<button class=blk data-p="[{a + 2 * bl["j0"]},{a + 2 * bl["j1"]}]">'
@@ -483,6 +578,14 @@ def song_page(stem: str, title: str) -> str:
 <div class=lane><span class=lab>l'ordre</span>{ordre}</div>
 <div class=lane><span class=lab>ce qu'on pose</span>{secs}</div>
 <div class=votes><b>Le mot —</b> <code>{word}</code></div>
+<img src="data:image/png;base64,{mats}" alt="matrices">
+<div class=votes><b>À gauche</b>, la corrélation entre toutes les bi-mesures :
+c'est la matière brute d'où sort le mot. Un carré sombre hors diagonale = deux
+bi-mesures qui se ressemblent. Traits bleus, nos sections ; rouges, les
+tiennes.<br><b>À droite</b>, la transition d'une bi-mesure à la suivante — la
+grammaire du morceau. Une diagonale forte = une boucle lente ; un aller-retour
+<code>a→b→a</code> = un balancement de deux mesures ; une case isolée = un
+passage qui n'arrive qu'une fois.</div>
 </section>
 <audio id=au preload=metadata playsinline src="/audio/{stem}.m4a"></audio>
 <script>window.GRID={[round(t, 3) for t in grid]};
