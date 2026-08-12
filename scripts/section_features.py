@@ -71,6 +71,92 @@ def _nov(S: np.ndarray, kw_hb: int) -> np.ndarray:
     return out
 
 
+def _shape_feats(x: np.ndarray, n: int) -> dict:
+    """Les formes que Louis lit à l'œil, rendues mesurables. `x` est la nouveauté
+    d'un substrat À L'ÉCHELLE DE LA MESURE.
+
+    Deux familles, et elles viennent toutes les deux de lui :
+
+    * le MONT (2026-08-12) — « les pics allongés pseudo-symétriques sont TOUJOURS
+      marqueurs d'une section ». Mesuré : 21 monts sur les douze morceaux, 21
+      contiennent une frontière validée.
+    * la FORME (sa précision du même jour) — « montée douce, aval abrupt, vallée
+      au milieu, puis le miroir ». Mesurée à l'échelle de la mesure : douze
+      occurrences, et le sommet du lobe GAUCHE est à ±2 mesures d'une vraie
+      frontière **douze fois sur douze**. Mieux : l'écart est CONSTANT par
+      morceau (+2 partout sur Blue Lights, +3 sur Stand By Me, +1 sur The Walk),
+      donc la forme repère la frontière à un décalage près propre au morceau.
+
+    On rend des distances plutôt que des indicatrices : un modèle linéaire ne
+    peut rien faire d'un drapeau qui vaut 1 sur trois mesures du morceau.
+    """
+    from scipy.signal import find_peaks
+    m = len(x)
+    out = {}
+
+    # asymétrie locale : longueur de la montée qui finit ici moins celle de la
+    # descente qui commence ici. C'est « monte doucement, tombe vite » en un
+    # nombre.
+    rise = np.zeros(m); fall = np.zeros(m)
+    for i in range(1, m):
+        rise[i] = rise[i-1] + 1 if x[i] >= x[i-1] else 0
+    for i in range(m - 2, -1, -1):
+        fall[i] = fall[i+1] + 1 if x[i] >= x[i+1] else 0
+    out["asym"] = (rise - fall) / max(1.0, m ** 0.5)
+
+    # le MONT : au-dessus de la médiane, large d'au moins 6 mesures
+    pos = x[x > 0]
+    thr = float(np.quantile(pos, 0.5)) if pos.size else 0.0
+    tops, inm = [], np.zeros(m)
+    i = 0
+    while i < m:
+        if x[i] >= thr:
+            j = i
+            while j + 1 < m and x[j + 1] >= thr:
+                j += 1
+            if j - i + 1 >= 6:
+                inm[i:j+1] = 1.0
+                tops.append(i + int(np.argmax(x[i:j+1])))
+            i = j + 1
+        else:
+            i += 1
+    out["in_mont"] = inm
+    out["d_mont"] = _dist_to(tops, m)
+
+    # la FORME : deux lobes miroirs séparés par une vallée creuse
+    pk, _ = find_peaks(x, prominence=0.08)
+    vals, lefts = [], []
+    for a, b in zip(pk, pk[1:]):
+        if b - a > 20:
+            continue
+        v = a + int(np.argmin(x[a:b+1]))
+        if x[v] > 0.55 * min(x[a], x[b]):
+            continue
+        s_ = a
+        while s_ > 0 and x[s_-1] <= x[s_]:
+            s_ -= 1
+        e_ = b
+        while e_ + 1 < m and x[e_+1] <= x[e_]:
+            e_ += 1
+        if (a - s_) < 1.4 * max(1, v - a):
+            continue
+        if (e_ - b) < 1.4 * max(1, b - v):
+            continue
+        vals.append(v); lefts.append(a)
+    out["d_vallee"] = _dist_to(vals, m)
+    out["d_lobe_g"] = _dist_to(lefts, m)
+    return out
+
+
+def _dist_to(idx, m, cap=8):
+    """Distance (bornée) à l'élément le plus proche d'une liste de positions."""
+    if not idx:
+        return np.full(m, 1.0)
+    a = np.asarray(idx)
+    d = np.abs(np.arange(m)[:, None] - a[None, :]).min(1)
+    return np.minimum(d, cap) / cap
+
+
 def song_features(stem: str) -> tuple[np.ndarray, np.ndarray, list[str], int]:
     """(X (n_bars, F), y (n_bars,), noms, n_bars)."""
     P, kept, rest, lines, n, extra = fused_profile(stem)
@@ -98,6 +184,12 @@ def song_features(stem: str) -> tuple[np.ndarray, np.ndarray, list[str], int]:
                             for i in range(m)])
             add(to_bar(fwd), f"lag+{L}[{nm}]")
             add(to_bar(bwd), f"lag-{L}[{nm}]")
+
+    # les FORMES de Louis, sur chaque substrat (mont, vallée, asymétrie)
+    for nm in SUBSTRATES:
+        xb = to_bar(_nov(by[nm]["S"], 8 * hb))
+        for k, v in _shape_feats(np.asarray(xb, float), n).items():
+            add(v, f"forme.{k}[{nm}]")
 
     # la voix
     mute = np.asarray(extra["mute"], bool) if extra.get("mute") is not None \

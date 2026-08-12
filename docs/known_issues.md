@@ -25691,3 +25691,63 @@ premier test (exiger que la nouveauté basse+harmonie dépasse sa médiane à ±
 mesures d'un pic) ne rejette que 3 pics sur 61 : le critère est trop permissif
 pour tester quoi que ce soit. Le vrai test est de reconstruire la fusion avec le
 timbre rétrogradé au rang de proposeur — non fait.
+
+## Extraction de frontières : l'objectif devient le RAPPEL (2026-08-12, autonomie)
+
+Louis, avant de partir : « on a largement tous les ingrédients pour faire marcher
+un modèle d'extraction de frontière […] il ne nous les faut pas toutes, juste le
++ possible […] la notion de faux positif est floue car tu peux couper une
+section, donc pour l'instant je veux juste le + de frontières possible. »
+
+Couper une section en deux est réversible ; rater une frontière ne l'est pas.
+La métrique de travail devient donc **le rappel à budget de propositions fixé**
+(`scripts/section_recall.py`).
+
+### LE GARDE-FOU, et il a failli manquer
+
+À ±1 mesure de tolérance, proposer une mesure sur quatre couvre **75 % du
+morceau** : on affiche alors 95 % de rappel sans rien avoir détecté. Toute ligne
+de rappel est maintenant publiée **avec sa couverture**, et le tableau ci-dessous
+compare à couverture égale. C'est l'erreur n°1 du projet (une mesure qui paraît
+bonne parce que son échelle est fausse) ; elle a été attrapée ici en cours de
+route, pas après coup.
+
+### Le tableau, à couverture égale (12 % du morceau, tolérance ±0 mesure)
+
+| | rappel médian | précision |
+|---|---|---|
+| profil fusionné (l'existant) | 30 % | 31 % |
+| arbres (HistGB) | 35 % | 35 % |
+| régression logistique | 39 % | 35 % |
+| **logistique + grille métrique** | **48 %** | **42 %** |
+
+À ±1 mesure et 32-37 % de couverture : 43 % · 50 % · 50 % · **57 %**.
+
+### Ce qui a fait la différence : la grille métrique
+
+Les sections commencent presque toujours sur **la même phase modulo 4 mesures**.
+On ne demande donc plus au modèle de trouver n frontières, mais **une phase et n
+scores** : on choisit la phase dont les k meilleures mesures totalisent le plus
+haut score, et on ne propose que des mesures de cette phase. +9 points de rappel
+sur le modèle seul, +18 sur le profil, à couverture identique.
+
+Là où elle échoue, elle échoue en entier — Sunny, Stand By Me, Chain of Fools
+tombent à 0 % : la phase choisie est la mauvaise, et une phase fausse ne rate pas
+une frontière, elle les rate TOUTES. C'est le point de fragilité à traiter :
+estimer la phase autrement que par le score du modèle (la phase par le rythme
+harmonique a été testée, 79 % contre 95 % à ±1 — moins bonne).
+
+### Les règles de Louis, transformées en features
+
+`scripts/section_features.py` passe de 110 à 145 features par mesure. Les 35
+nouvelles encodent ses deux lectures du 2026-08-12, par substrat :
+
+* `forme.asym` — « monte doucement, tombe vite » : longueur de la montée qui
+  finit ici moins celle de la descente qui commence ici ;
+* `forme.in_mont` / `forme.d_mont` — le mont large et sa distance au sommet ;
+* `forme.d_vallee` / `forme.d_lobe_g` — la forme précise qu'il a décrite
+  (montée douce / aval abrupt / vallée / miroir) et la distance à ses deux
+  ancres. Mesurée à l'échelle de la mesure : douze occurrences sur les douze
+  morceaux, et le sommet du lobe gauche est à ±2 mesures d'une vraie frontière
+  **douze fois sur douze**, avec un écart CONSTANT par morceau (+1 sur The Walk,
+  +2 sur Blue Lights, +3 sur Stand By Me).
