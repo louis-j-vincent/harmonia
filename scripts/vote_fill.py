@@ -104,6 +104,8 @@ WORD_TOL = 0.75    # deux mots de même longueur sont « les mêmes » à partir
 MIN_BI = 4         # 8 mesures : l'unité minimale d'une répétition
 MAX_BI = 6         # 12 mesures : au-delà, un bloc DOIT se couper
 MIN_PIECE = 2      # 4 mesures : rien de plus court ne s'écrit (sauf la queue)
+RESET_COST = 4.0   # ce que coûte un changement de parité de la grille
+ANCRE_W = 4.0      # le poids du premier chant, compté comme un pic
 PER_TOL = 0.85     # une période, elle, doit être franche : à 0,75 The Walk
                    # sortait une fausse période de 12 mesures (20 bi-mesures
                    # concordantes sur 26) qui écrasait ses A de 8 mesures.
@@ -136,12 +138,71 @@ def votes(stem: str, rebuild=False) -> list[dict]:
 
 # ── le mot de deux mesures ──────────────────────────────────────────────────
 
-def bibar_word(b, thr=SYM_THR):
-    """(mot, ancre, J, sim) — une lettre minuscule par bi-mesure.
+def phases(stem, n, ancre, cout=RESET_COST, poids_ancre=ANCRE_W):
+    """[(bar0, parité)] — la parité de la grille de deux mesures, par tronçon.
 
-    L'ancre est la phase de la première mesure chantée : c'est là que les
-    sections commencent (mesuré : 90 % des frontières de Louis sont sur cette
-    grille de deux mesures).
+    LA RÈGLE QUE LOUIS A FAIT SAUTER (2026-08-12, sur She Will Be Loved) : « la
+    barre en extra à la mesure 33 fait qu'on a un décalage sur la parité des
+    petits a, donc on les détecte mal — y a-t-il une règle qui fait qu'on ne
+    cherche des bi-barres jumeaux que dans la même parité de mesures ? si c'est
+    le cas enlève cette règle. » Oui, elle existait : la grille était
+    `[ancre, ancre+2, ancre+4, …]` sur tout le morceau, donc après une mesure
+    insérée AUCUN jumeau n'était trouvable — leur écart devient impair et une
+    grille figée ne le franchit jamais. Sur She Will Be Loved le pic à **5 voix
+    de la mesure 34** tombait sur une mesure impaire, hors grille, et on le
+    rabotait sur 33.
+
+    CE QUI LA REMPLACE, et pourquoi pas un simple ±1 partout. Autoriser la
+    comparaison à ±1 mesure sur tout le morceau a été essayé et **détruit la
+    structure** : Blue Lights perd ses B (`aaaaaabc` devient `aaaaaaaa`), parce
+    que dans une boucle de 4 mesures la fenêtre décalée d'une mesure ressemble
+    encore à tout. Le décalage doit être LOCAL et il doit se payer.
+
+    On choisit donc la parité par tronçon qui maximise
+        Σ voix des pics tombant sur la grille  −  `cout` par changement,
+    avec le premier chant compté comme un pic de poids `poids_ancre`, et un
+    changement admis seulement s'il est soutenu par **au moins trois pics** et
+    **dix voix** après lui. Ce garde-fou est ce qui sépare les trois cas :
+    She Will Be Loved (trois pics, douze voix après la mesure 34 → décalage
+    accepté), Grenade (deux pics impairs à 5 voix, tous deux au milieu d'une
+    section → refusé) et Chain of Fools (un seul pic de 6 voix tout à la fin →
+    simple erreur de pic, rabotée sur la grille). Sur les douze morceaux, un
+    seul décalage est retenu : celui que Louis avait vu à l'oreille.
+    """
+    pk = [v for v in votes(stem) if v["votes"] >= MIN_VOTES]
+    ev = [{"bar": ancre, "votes": poids_ancre}] + sorted(pk, key=lambda v: v["bar"])
+    best, meilleur = None, -1e9
+    for k in range(len(ev)):                      # au plus UN changement, au pic k
+        for par in (0, 1):
+            if k and (ev[k]["bar"] % 2) != par:
+                continue
+            tot, ok, apres = 0.0, 0, 0
+            for i, v in enumerate(ev):
+                p = (ancre % 2) if i < k else par
+                if v["bar"] % 2 == p:
+                    tot += v["votes"]
+                    if i >= k and k:
+                        ok += 1; apres += v["votes"]
+            if k:
+                if ok < 3 or apres < 10:
+                    continue
+                tot -= cout
+            if tot > meilleur:
+                meilleur, best = tot, (k, par)
+    k, par = best
+    if not k:
+        return [(0, ancre % 2)]
+    return [(0, ancre % 2), (ev[k]["bar"], par)]
+
+
+def bibar_word(b, stem, thr=SYM_THR):
+    """(mot, spans, sim) — une lettre minuscule par bi-mesure.
+
+    `spans` donne les mesures de chaque bi-mesure : c'est la grille, et elle
+    peut SAUTER UNE MESURE là où `phases()` détecte un changement de parité
+    (voir sa docstring). Deux bi-mesures se comparent toujours entière contre
+    entière — la contrainte qui saute est celle de la grille GLOBALE, pas celle
+    de la comparaison.
 
     Le groupage est en lien complet, comme `bibar_stack_lab.bibar_clusters` que
     Louis a validé le 2026-08-08 pour l'empilement des répétitions : un membre
@@ -149,11 +210,20 @@ def bibar_word(b, thr=SYM_THR):
     la chaîne où a≈b, b≈c mais a≉c.
     """
     S, n, a = b["S"], b["n"], b["start"] % 2
-    J = (n - a) // 2
-    idx = [a + 2 * j for j in range(J)]
+    ph = phases(stem, n, a)
+    spans, p, seg = [], a, 0
+    while p + 1 < n:
+        if seg + 1 < len(ph) and p >= ph[seg + 1][0] - 1:
+            seg += 1
+            p += (p % 2 != ph[seg][1])          # la mesure en trop, sautée
+            if p + 1 >= n:
+                break
+        spans.append((p, p + 2)); p += 2
+    J = len(spans)
+
     B = np.zeros((J, J))
-    for i, p in enumerate(idx):
-        for k, q in enumerate(idx):
+    for i, (p, _) in enumerate(spans):
+        for k, (q, _) in enumerate(spans):
             B[i, k] = (S[p, q] + S[p + 1, q + 1]) / 2
     d = np.sqrt(np.clip(np.diag(B), 1e-9, None))
     B = B / np.outer(d, d)
@@ -172,13 +242,12 @@ def bibar_word(b, thr=SYM_THR):
             lab[q] = k
         used.update(mem)
         k += 1
-    # les lettres dans l'ordre d'apparition, pour que le mot se lise
-    ren, k = {}, 0
+    ren, k = {}, 0                    # les lettres dans l'ordre d'apparition
     for j in range(J):
         if lab[j] not in ren:
             ren[lab[j]] = k; k += 1
     word = "".join(SYM[ren[lab[j]] % 26] for j in range(J))
-    return word, a, J, B
+    return word, spans, B
 
 
 def same(u: str, v: str, tol=WORD_TOL) -> bool:
@@ -234,7 +303,9 @@ def fill(b, stem, min_votes=MIN_VOTES, snap=SNAP):
     le bloc, dans quel ordre il a été traité et par quelle règle il a été rempli.
     C'est ce que la page dessine.
     """
-    word, a, J, B = bibar_word(b)
+    word, spans, B = bibar_word(b, stem)
+    J, a = len(spans), spans[0][0]
+    x0 = [sp[0] for sp in spans] + [spans[-1][1]]   # mesure de début de chaque bi-mesure
     n = b["n"]
     pk = [v for v in votes(stem) if v["votes"] >= min_votes]
 
@@ -242,7 +313,7 @@ def fill(b, stem, min_votes=MIN_VOTES, snap=SNAP):
     cuts = {}
     for v in pk:
         j = int(round((v["bar"] - a) / 2))
-        if 0 < j < J and abs(v["bar"] - (a + 2 * j)) <= snap:
+        if 0 < j < J and abs(v["bar"] - x0[j]) <= snap:
             cuts[j] = max(cuts.get(j, 0), v["votes"])
     bounds = sorted({0, J} | set(cuts))
 
@@ -342,17 +413,18 @@ def fill(b, stem, min_votes=MIN_VOTES, snap=SNAP):
         secs.append({"b0": 0, "b1": a - 1, "label": "intro", "regle": "hors grille",
                      "rang": -1, "etape": -1})
     for s in pieces:
-        secs.append({"b0": a + 2 * s["j0"], "b1": a + 2 * s["j1"] - 1,
+        secs.append({"b0": x0[s["j0"]], "b1": x0[s["j1"]] - 1,
                      "label": s["label"], "regle": s["regle"], "rang": s["rang"],
                      "etape": s["etape"]})
-    if a + 2 * J < n:
-        secs.append({"b0": a + 2 * J, "b1": n - 1, "label": "queue",
+    if x0[J] < n:
+        secs.append({"b0": x0[J], "b1": n - 1, "label": "queue",
                      "regle": "hors grille", "rang": -1, "etape": -1})
     for s in secs:                            # tout ce qui précède le chant
         if s["b1"] < b["start"]:
             s["label"] = "intro"
     return {"sections": secs, "blocs": blocs, "ordre": order, "mot": word,
-            "ancre": a, "J": J, "cuts": cuts, "pics": votes(stem), "sim": B}
+            "ancre": a, "J": J, "cuts": cuts, "pics": votes(stem), "sim": B,
+            "spans": spans, "x0": x0, "phases": phases(stem, n, a)}
 
 
 # ── la page ─────────────────────────────────────────────────────────────────
@@ -393,7 +465,8 @@ def matrices_png(R, n, gtb) -> str:
     case isolée un passage qui n'arrive qu'une fois (le pont).
     """
     from matplotlib.colors import LinearSegmentedColormap
-    B, word, a, J = R["sim"], R["mot"], R["ancre"], R["J"]
+    B, word, J = R["sim"], R["mot"], R["J"]
+    a, fin = R["x0"][0], R["x0"][R["J"]]
     cmap = LinearSegmentedColormap.from_list("h", ["#faf6ec", "#9fc0d4", "#1d4d69"])
 
     fig, (ax1, ax2) = plt.subplots(
@@ -402,7 +475,7 @@ def matrices_png(R, n, gtb) -> str:
 
     lo = float(np.quantile(B, 0.15))
     ax1.imshow(B, cmap=cmap, vmin=lo, vmax=1.0, origin="upper",
-               extent=[a, a + 2 * J, a + 2 * J, a], interpolation="nearest")
+               extent=[a, fin, fin, a], interpolation="nearest")
     for s in R["sections"][1:]:
         ax1.axvline(s["b0"], color="#0d2437", lw=0.8, alpha=0.75)
         ax1.axhline(s["b0"], color="#0d2437", lw=0.8, alpha=0.75)
@@ -449,7 +522,7 @@ def song_page(stem: str, title: str) -> str:
     b = order_bundle.get(stem)
     n, grid = b["n"], b["grid"]
     R = fill(b, stem)
-    word, a, J = R["mot"], R["ancre"], R["J"]
+    word, J, x0 = R["mot"], R["J"], R["x0"]
     gt = gt_sections(stem)
     today = OL.new_sections(b)[0]
 
@@ -474,7 +547,7 @@ def song_page(stem: str, title: str) -> str:
             s.set_visible(False)
         if hard:
             for j in R["cuts"]:
-                ax.axvline(a + 2 * j, color=HARD, lw=1.5, alpha=0.9)
+                ax.axvline(x0[j], color=HARD, lw=1.5, alpha=0.9)
         if last:
             step = 8 if n <= 120 else 16
             ax.set_xticks(np.arange(0, n + 1, step))
@@ -487,11 +560,11 @@ def song_page(stem: str, title: str) -> str:
     # 1 ── le mot de deux mesures
     ax = axs[0]
     for j, ch in enumerate(word):
-        ax.add_patch(plt.Rectangle((a + 2 * j, 0.15), 2, 0.7,
+        ax.add_patch(plt.Rectangle((x0[j], 0.15), 2, 0.7,
                                    facecolor=SYMCOL[(ord(ch) - 97) % len(SYMCOL)],
                                    edgecolor="#fffdf6", lw=0.9))
         if n <= 120:
-            ax.text(a + 2 * j + 1, 0.5, ch, ha="center", va="center", fontsize=7.5,
+            ax.text(x0[j] + 1, 0.5, ch, ha="center", va="center", fontsize=7.5,
                     color="#4a4438")
     deco(ax, "le mot\n(2 mesures)", "#4a4438", hard=False)
 
@@ -511,11 +584,11 @@ def song_page(stem: str, title: str) -> str:
     # 3 ── l'ordre dans lequel les blocs ont été remplis
     ax = axs[2]
     for i, bl in enumerate(R["blocs"]):
-        x0, x1 = a + 2 * bl["j0"], a + 2 * bl["j1"]
+        xa, xb = x0[bl["j0"]], x0[bl["j1"]]
         g = 0.86 - 0.5 * (bl["rang"] / max(1, len(R["blocs"]) - 1))
-        ax.add_patch(plt.Rectangle((x0, 0.2), x1 - x0, 0.6,
+        ax.add_patch(plt.Rectangle((xa, 0.2), xb - xa, 0.6,
                                    facecolor=str(g), edgecolor="#fffdf6", lw=1.2))
-        ax.text((x0 + x1) / 2, 0.5, f"{bl['rang'] + 1}", ha="center", va="center",
+        ax.text((xa + xb) / 2, 0.5, f"{bl['rang'] + 1}", ha="center", va="center",
                 fontsize=8.5, color="#fffdf6" if g < 0.6 else "#4a4438")
     deco(ax, "ordre de\nremplissage", "#4a4438")
 
@@ -560,7 +633,7 @@ def song_page(stem: str, title: str) -> str:
     mats = matrices_png(R, n, gtb)
 
     ordre = "".join(
-        f'<button class=blk data-p="[{a + 2 * bl["j0"]},{a + 2 * bl["j1"]}]">'
+        f'<button class=blk data-p="[{x0[bl["j0"]]},{x0[bl["j1"]]}]">'
         f'{bl["rang"] + 1}<small>{bl["voix"] if bl["voix"] < 99 else "bord"} voix · '
         f'{word[bl["j0"]:bl["j1"]]}</small></button>'
         for bl in sorted(R["blocs"], key=lambda x: x["rang"]))

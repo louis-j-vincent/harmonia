@@ -77,7 +77,7 @@ def song_page(stem: str, title: str) -> str:
     R = fill(b, stem)
     st = BP.merges(R["mot"])
     kstop = BP.arret(st, R["cuts"])
-    ents = BP.entites(st, R["ancre"], n, kstop)
+    ents = BP.entites(st, R["x0"], n, kstop)
     gt = gt_sections(stem)
     gtb = [s["b0"] for s in gt["sections"][1:]] if gt else []
     today = OL.new_sections(b)[0]
@@ -116,7 +116,7 @@ def song_page(stem: str, title: str) -> str:
             s.set_visible(False)
         if peaks:
             for j in R["cuts"]:
-                ax.axvline(R["ancre"] + 2 * j, color=HARD, lw=1.2, alpha=0.55,
+                ax.axvline(R["x0"][j], color=HARD, lw=1.2, alpha=0.55,
                            zorder=1)
         for g in gtb:
             ax.axvline(g, color=GT_LINE, lw=0.9, alpha=0.8, zorder=5)

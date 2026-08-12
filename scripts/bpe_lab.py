@@ -181,14 +181,14 @@ def arret(steps, cuts):
     return len(steps) - 1
 
 
-def entites(steps, a, n, k=-1):
+def entites(steps, x0, n, k=-1):
     """Les jetons d'un tour, en mesures, avec une lettre par type."""
     toks = steps[k]["jetons"]
     ren, k, out = {}, 0, []
     for j0, j1, t in toks:
         if t not in ren:
             ren[t] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[k % 26]; k += 1
-        out.append({"b0": a + 2 * j0, "b1": a + 2 * j1 - 1, "label": ren[t],
+        out.append({"b0": x0[j0], "b1": x0[j1] - 1, "label": ren[t],
                     "type": t})
     return out
 
@@ -197,12 +197,12 @@ def song_page(stem: str, title: str) -> str:
     b = order_bundle.get(stem)
     n, grid = b["n"], b["grid"]
     R = fill(b, stem)
-    word, a, J = R["mot"], R["ancre"], R["J"]
+    word, J, x0 = R["mot"], R["J"], R["x0"]
     st = merges(word)
     gt = gt_sections(stem)
     gtb = [s["b0"] for s in gt["sections"][1:]] if gt else []
     kstop = arret(st, R["cuts"])
-    ents = entites(st, a, n, kstop)
+    ents = entites(st, x0, n, kstop)
     today = OL.new_sections(b)[0]
 
     strips = [(f"les entités\n(arrêt tour {kstop})", ents),
@@ -233,7 +233,7 @@ def song_page(stem: str, title: str) -> str:
         for s_ in ax.spines.values():
             s_.set_visible(False)
         for j in R["cuts"]:
-            ax.axvline(a + 2 * j, color=HARD, lw=1.2, alpha=0.85)
+            ax.axvline(x0[j], color=HARD, lw=1.2, alpha=0.85)
         if last:
             step = 8 if n <= 120 else 16
             ax.set_xticks(np.arange(0, n + 1, step))
@@ -247,14 +247,14 @@ def song_page(stem: str, title: str) -> str:
         for j0, j1, t in s["jetons"]:
             neuf = s["paire"] is not None and t == s["paire"][0] + s["paire"][1]
             mal = neuf and traverse((j0, j1), R["cuts"])
-            ax.add_patch(plt.Rectangle((a + 2 * j0, 0.16), 2 * (j1 - j0), 0.68,
+            ax.add_patch(plt.Rectangle((x0[j0], 0.16), x0[j1] - x0[j0], 0.68,
                                        facecolor=col.get(t, "#e8e2d4"),
                                        edgecolor=GT_LINE if mal else
                                        (INK if neuf else "#fffdf6"),
                                        lw=2.0 if mal else (1.4 if neuf else 0.8),
                                        zorder=4 if mal else (3 if neuf else 2)))
             if (j1 - j0) * 2 >= max(3, n * 0.035):
-                ax.text(a + 2 * (j0 + j1) / 2, 0.5,
+                ax.text((x0[j0] + x0[j1]) / 2, 0.5,
                         t if len(t) <= 8 else f"{2 * (j1 - j0)} mes.",
                         ha="center", va="center", fontsize=7, color="#4a4438",
                         zorder=4)
@@ -283,8 +283,8 @@ def song_page(stem: str, title: str) -> str:
     mats = matrices_png(st)
 
     tours = "".join(
-        f'<button class=blk data-p="[{a + 2 * s["jetons"][0][0]},'
-        f'{a + 2 * s["jetons"][0][1]}]">{k}<small>{s["paire"][0]}+{s["paire"][1]}'
+        f'<button class=blk data-p="[{x0[s["jetons"][0][0]]},'
+        f'{x0[s["jetons"][0][1]]}]">{k}<small>{s["paire"][0]}+{s["paire"][1]}'
         f' · {s["compte"]}×</small></button>'
         for k, s in enumerate(st) if s["paire"])
     ent = "".join(

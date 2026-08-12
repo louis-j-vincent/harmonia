@@ -1,5 +1,38 @@
 # Harmonia — Known Issues
 
+## 2026-08-12 — LA GRILLE DE BI-MESURES ÉTAIT FIGÉE SUR UNE PARITÉ ★ CORRIGÉ
+
+Louis, sur She Will Be Loved : « la barre en extra à la mesure 33 fait qu'on a un
+décalage sur la parité des petits a, donc on les détecte mal — y a-t-il une règle
+qui fait qu'on ne cherche des bi-barres jumeaux que dans la même parité de
+mesures ? si c'est le cas enlève cette règle. »
+
+**Elle existait.** `bibar_word` construisait la grille `[ancre, ancre+2, ancre+4,
+…]` sur tout le morceau. Après une mesure insérée, l'écart entre deux occurrences
+devient IMPAIR et une grille figée ne peut structurellement pas le franchir : le
+pic à **5 voix de la mesure 34** tombait sur une mesure impaire, hors grille, et
+on le rabotait sur 33. Toutes les bi-mesures de la seconde moitié recevaient donc
+des lettres neuves (`…defefegefegefeii`) alors que c'est la même musique.
+
+**Ce qui a été essayé et rejeté : le ±1 partout.** Comparer chaque bi-mesure à
+ses voisines décalées d'une mesure DÉTRUIT la structure — Blue Lights perd ses B
+(`aaaaaabc` → `aaaaaaaa`), Stand By Me s'effondre. Dans une boucle de 4 mesures,
+la fenêtre décalée d'une mesure ressemble encore à tout. Le décalage doit être
+local et se payer.
+
+**Ce qui est en place** (`vote_fill.phases`) : on choisit la parité par tronçon
+qui maximise `Σ voix des pics sur la grille − 4 par changement`, le premier chant
+comptant comme un pic de poids 4, et un changement n'est admis que s'il est
+soutenu par **≥ 3 pics et ≥ 10 voix** après lui. Sur les douze morceaux **un seul
+décalage est retenu, mesure 34 de She Will Be Loved** — celui que Louis avait
+entendu. Le garde-fou sépare bien les cas voisins : Grenade (deux pics impairs à
+5 voix, tous deux au milieu d'une section) et Chain of Fools (un seul pic à 6
+voix en fin de morceau) sont refusés.
+
+**Effet** : le mot redevient `…aaaaaaaababcbcbcaaaada…` après la mesure 34, et
+`A34-41` / `A42-49` sortent exactement comme dans son annotation. Aucun des onze
+autres morceaux n'est modifié.
+
 ## 2026-08-12 — LES TROIS PROFILS SUPERPOSÉS : CE QUE CHACUN SAIT ET NE SAIT PAS
 
 Louis : « superpose-moi les profils de changement des matrices SSM basse +
