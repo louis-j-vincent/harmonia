@@ -452,69 +452,92 @@ SYMCOL = ["#a8c8dc", "#e0c9a6", "#c4d8bf", "#dcc0c8", "#cdc6e0", "#e6d9a8",
 def matrices_png(R, n, gtb) -> str:
     """Les deux matrices que Louis demande, côte à côte.
 
-    À GAUCHE, la CORRÉLATION entre toutes les bi-mesures — la matière brute d'où
-    sort le mot. Un carré sombre hors diagonale = deux bi-mesures qui se
-    ressemblent ; les damiers réguliers sont les couplets, les bandes qui coupent
-    tout sont les ponts. Les traits bleus sont les sections qu'on écrit, les
-    rouges les tiennes.
+    LES DEUX ONT LES MÊMES COORDONNÉES : les mini-sections (`a`, `b`, `c`…), pas
+    les mesures. Louis, 2026-08-12 : « pour la matrice de corrélation entre
+    bi-mesures, je veux que les coordonnées soient les mêmes que la matrice de
+    transition, donc les mini-sections. » On lit donc les deux tableaux ligne
+    par ligne l'un contre l'autre.
 
-    À DROITE, la TRANSITION entre les lettres du mot : combien de fois la
-    bi-mesure `x` est suivie de `y`. C'est la grammaire du morceau, et elle se
-    lit vite — une diagonale forte veut dire « chaque bi-mesure se prolonge »
-    (une boucle lente), un cycle `a→b→a` un balancement de deux mesures, et une
-    case isolée un passage qui n'arrive qu'une fois (le pont).
+    À GAUCHE, la RESSEMBLANCE moyenne entre deux mini-sections : toutes les
+    occurrences de `a` contre toutes celles de `b`. La diagonale dit à quel point
+    une mini-section est fidèle à elle-même d'une reprise à l'autre (vide si elle
+    n'arrive qu'une fois) ; le hors-diagonale dit quelles mini-sections sont
+    presque la même chose — un candidat naturel à la fusion.
+
+    À DROITE, la TRANSITION : combien de fois `a` est suivie de `b`. C'est la
+    grammaire du morceau — une diagonale forte veut dire « la mini-section se
+    prolonge » (boucle lente), un aller-retour `a→b→a` un balancement de deux
+    mesures, une case isolée un passage qui n'arrive qu'une fois (le pont).
+
+    Ensemble elles disent le contraire l'une de l'autre et c'est utile : deux
+    mini-sections très ressemblantes MAIS jamais voisines sont deux occurrences
+    d'une même section ailleurs dans le morceau ; très ressemblantes ET toujours
+    voisines, c'est une boucle interne qu'il ne faut pas couper.
     """
     from matplotlib.colors import LinearSegmentedColormap
-    B, word, J = R["sim"], R["mot"], R["J"]
-    a, fin = R["x0"][0], R["x0"][R["J"]]
+    word = R["mot"]
+    B = R["sim"]
     cmap = LinearSegmentedColormap.from_list("h", ["#faf6ec", "#9fc0d4", "#1d4d69"])
 
-    fig, (ax1, ax2) = plt.subplots(
-        1, 2, figsize=(13.0, 5.6), facecolor="#fffdf6",
-        gridspec_kw={"width_ratios": [1.55, 1], "wspace": 0.16})
-
-    lo = float(np.quantile(B, 0.15))
-    ax1.imshow(B, cmap=cmap, vmin=lo, vmax=1.0, origin="upper",
-               extent=[a, fin, fin, a], interpolation="nearest")
-    for s in R["sections"][1:]:
-        ax1.axvline(s["b0"], color="#0d2437", lw=0.8, alpha=0.75)
-        ax1.axhline(s["b0"], color="#0d2437", lw=0.8, alpha=0.75)
-    for g in gtb:
-        ax1.axvline(g, color=GT_LINE, lw=0.8, alpha=0.7)
-    step = 8 if n <= 120 else 16
-    ax1.set_xticks(np.arange(0, n + 1, step)); ax1.set_yticks(np.arange(0, n + 1, step))
-    ax1.set_xticklabels([str(i + 1) for i in np.arange(0, n + 1, step)], fontsize=8)
-    ax1.set_yticklabels([str(i + 1) for i in np.arange(0, n + 1, step)], fontsize=8)
-    ax1.tick_params(length=2, colors="#8a8371")
-    ax1.set_title("corrélation entre toutes les bi-mesures", fontsize=10.5,
-                  color="#4a4438", pad=8)
-
-    syms = sorted(set(word))
+    syms = []                                   # dans l'ordre d'apparition
+    for ch in word:
+        if ch not in syms:
+            syms.append(ch)
     K = len(syms)
+    pos = {c: [j for j, ch in enumerate(word) if ch == c] for c in syms}
+
+    # la ressemblance moyenne entre deux mini-sections
+    Rm = np.full((K, K), np.nan)
+    for i, ci in enumerate(syms):
+        for j, cj in enumerate(syms):
+            v = [B[p, q] for p in pos[ci] for q in pos[cj] if p != q]
+            if v:
+                Rm[i, j] = float(np.mean(v))
     T = np.zeros((K, K))
     for x, y in zip(word, word[1:]):
         T[syms.index(x), syms.index(y)] += 1
+
+    fig, (ax1, ax2) = plt.subplots(
+        1, 2, figsize=(13.0, 5.8), facecolor="#fffdf6",
+        gridspec_kw={"width_ratios": [1, 1], "wspace": 0.20})
+
+    fini = Rm[np.isfinite(Rm)]
+    lo = float(np.quantile(fini, 0.10)) if fini.size else 0.0
+    ax1.imshow(np.nan_to_num(Rm, nan=lo), cmap=cmap, vmin=lo, vmax=1.0,
+               interpolation="nearest")
+    for i in range(K):
+        for j in range(K):
+            if np.isfinite(Rm[i, j]):
+                ax1.text(j, i, f"{Rm[i, j]:.2f}".lstrip("0"), ha="center",
+                         va="center", fontsize=7.5 if K > 9 else 8.5,
+                         color="#fffdf6" if Rm[i, j] > lo + 0.62 * (1 - lo)
+                         else "#4a4438")
+    ax1.set_title("ressemblance moyenne entre mini-sections", fontsize=10.5,
+                  color="#4a4438", pad=8)
+
     ax2.imshow(T, cmap=cmap, vmin=0, vmax=max(1.0, T.max()), interpolation="nearest")
     for i in range(K):
         for j in range(K):
             if T[i, j]:
                 ax2.text(j, i, f"{int(T[i, j])}", ha="center", va="center",
-                         fontsize=8.5,
+                         fontsize=7.5 if K > 9 else 8.5,
                          color="#fffdf6" if T[i, j] > 0.55 * T.max() else "#4a4438")
-    ax2.set_xticks(range(K)); ax2.set_yticks(range(K))
-    ax2.set_xticklabels(syms, fontsize=9); ax2.set_yticklabels(syms, fontsize=9)
-    ax2.tick_params(length=0, colors="#4a4438")
-    for i, t in enumerate(ax2.get_xticklabels() + ax2.get_yticklabels()):
-        t.set_bbox(dict(facecolor=SYMCOL[(ord(syms[i % K]) - 97) % len(SYMCOL)],
-                        edgecolor="none", boxstyle="round,pad=0.22"))
     ax2.set_xlabel("suivie de…", fontsize=9, color="#8a8371")
-    ax2.set_ylabel("la bi-mesure…", fontsize=9, color="#8a8371")
-    ax2.set_title("transition d'une bi-mesure à la suivante", fontsize=10.5,
+    ax2.set_title("transition d'une mini-section à la suivante", fontsize=10.5,
                   color="#4a4438", pad=8)
+
+    lab = [f"{c}·{len(pos[c])}" for c in syms]   # la lettre et son nombre de fois
     for ax in (ax1, ax2):
+        ax.set_xticks(range(K)); ax.set_yticks(range(K))
+        ax.set_xticklabels(lab, fontsize=8.5); ax.set_yticklabels(lab, fontsize=8.5)
+        ax.tick_params(length=0, colors="#4a4438")
+        for i, t in enumerate(ax.get_xticklabels() + ax.get_yticklabels()):
+            t.set_bbox(dict(facecolor=SYMCOL[(ord(syms[i % K]) - 97) % len(SYMCOL)],
+                            edgecolor="none", boxstyle="round,pad=0.22"))
+        ax.set_ylabel("la mini-section…", fontsize=9, color="#8a8371")
         for sp in ax.spines.values():
             sp.set_color("#e0d7c2")
-    fig.subplots_adjust(left=0.05, right=0.99, top=0.93, bottom=0.07)
+    fig.subplots_adjust(left=0.07, right=0.99, top=0.93, bottom=0.09)
     return fig2b64_fixed(fig)
 
 
@@ -652,13 +675,14 @@ def song_page(stem: str, title: str) -> str:
 <div class=lane><span class=lab>ce qu'on pose</span>{secs}</div>
 <div class=votes><b>Le mot —</b> <code>{word}</code></div>
 <img src="data:image/png;base64,{mats}" alt="matrices">
-<div class=votes><b>À gauche</b>, la corrélation entre toutes les bi-mesures :
-c'est la matière brute d'où sort le mot. Un carré sombre hors diagonale = deux
-bi-mesures qui se ressemblent. Traits bleus, nos sections ; rouges, les
-tiennes.<br><b>À droite</b>, la transition d'une bi-mesure à la suivante — la
-grammaire du morceau. Une diagonale forte = une boucle lente ; un aller-retour
-<code>a→b→a</code> = un balancement de deux mesures ; une case isolée = un
-passage qui n'arrive qu'une fois.</div>
+<div class=votes>Les deux tableaux ont <b>les mêmes coordonnées</b> : les
+mini-sections, avec leur nombre d'occurrences. <b>À gauche</b>, à quel point deux
+mini-sections se ressemblent (la diagonale = à quel point une mini-section est
+fidèle à elle-même d'une reprise à l'autre ; vide si elle n'arrive qu'une fois).
+<b>À droite</b>, combien de fois l'une suit l'autre.<br>Les lire ensemble :
+très ressemblantes <b>mais jamais voisines</b> → deux occurrences de la même
+section ailleurs dans le morceau ; très ressemblantes <b>et toujours voisines</b>
+→ une boucle interne qu'il ne faut pas couper.</div>
 </section>
 <audio id=au preload=metadata playsinline src="/audio/{stem}.m4a"></audio>
 <script>window.GRID={[round(t, 3) for t in grid]};
