@@ -1,5 +1,43 @@
 # Harmonia — Known Issues
 
+## 2026-08-12 — LA VOIX NE SAIT PAS DIRE « C'EST LA MÊME CHOSE » ★ RÉSULTAT NÉGATIF UTILE
+
+Louis : « fais-moi aussi les bi-barres issues de la matrice SSM de la voix, et
+montre-moi celles qui concordent avec les bi-barres de la matrice d'accords —
+une visu pour voir si on peut trancher avec cela. » `scripts/voice_word.py`,
+`/plots/voice_word.html`.
+
+**CE QUI NE MARCHE PAS.** Fabriquer un MOT de la voix comme celui des accords ne
+donne rien. À tous les seuils testés (quantiles 0,90 / 0,95 / 0,97 des
+ressemblances du morceau) :
+
+| morceau | lettres, voix | lettres, accords | bi-mesures |
+|---|---|---|---|
+| This Love | 18 à 21 | 7 | 40 |
+| Blue Lights | 18 à 24 | 3 | 42 |
+| Bein' Green | 11 à 15 | 9 | 26 |
+
+Chaque bi-mesure chantée est unique. C'est musicalement juste et il faut le
+retenir : **une mélodie ne se rejoue pas note pour note d'un couplet à l'autre,
+une grille d'accords si.** La voix ne peut donc pas servir d'alphabet — donc pas
+de BPE sur la voix, pas de vocabulaire de voix.
+
+**CE QUI MARCHE, et qui est maintenant sur la page.** La voix sait dire deux
+choses :
+1. **elle se tait** — sur Blue Lights les bi-mesures muettes tombent EXACTEMENT
+   sur ses cinq B (mes. 13-16, 29-32, 45-48, 61-64, 77-80) : le hook y est
+   instrumental. Le silence est un marqueur de section à lui seul, sans seuil ;
+2. **elle repart** — la continuité de chaque bi-mesure à la précédente, avec un
+   creux local sous le premier tiers du morceau.
+
+**LA BANDE « JONCTIONS »** croise les deux lectures : trait noir = accords ET
+voix changent, bleu = accords seuls (la boucle harmonique tourne, milieu de
+section), doré = voix seule (même harmonie, nouvelle mélodie — le cas qui
+manquait pour séparer deux sections identiques collées). Sur This Love les
+**traits noirs tombent sur les mesures 17, 25, 37, 45, 57 et 73**, soit six de ses
+dix frontières, et ils sont rares. C'est le candidat le plus net pour une règle
+d'arrêt du merging : ne jamais souder par-dessus une jonction noire.
+
 ## 2026-08-12 — LA GRILLE DE BI-MESURES ÉTAIT FIGÉE SUR UNE PARITÉ ★ CORRIGÉ
 
 Louis, sur She Will Be Loved : « la barre en extra à la mesure 33 fait qu'on a un
