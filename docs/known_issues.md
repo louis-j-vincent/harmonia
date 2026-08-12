@@ -1,5 +1,51 @@
 # Harmonia — Known Issues
 
+## ★★★ 2026-08-12 — EN PROD : LE MERGE PAR CQT MOYENNÉ + L'EMPILEMENT DES OCCURRENCES ★★★ FOLD · PROD
+
+Louis, après avoir écouté les deux pages : « **Validé partout c'est top avec
+la règle CQT moyenné** ». Les deux lois sont donc passées par défaut, et la
+bibliothèque a été recuite — un chart est cuit UNE fois puis servi tel quel,
+donc changer une loi du repli ne change rien à l'écran tant que les charts
+ne sont pas refaits.
+
+**Ce qui est en prod :**
+1. `HARMONIA_MERGE` vaut `cqt` par défaut (`mean` revient en arrière) : les
+   répétitions sont empilées sur le **CQT**, avant le modèle, et musx
+   re-tourne sur ce spectre moyen.
+2. `HARMONIA_FOLD_LOOP` vaut `occurrence` par défaut (`internal` revient) :
+   une section sans boucle interne mais jouée N fois à longueur égale
+   s'empile occurrence contre occurrence.
+3. Branche `feat/occurrence-merge` mergée dans `fix/annotation-musx-chords`
+   (l'arbre live), **serveur :7772 redémarré** — il servait du code du
+   11 août 15h56, donc d'avant tout ce chantier.
+4. `scripts/rebake_library.py` recuit la bibliothèque : sortie dans un
+   dossier séparé, publication seulement à la fin et seulement si le chart
+   est valide, refus de démarrer sans sauvegarde. Sauvegarde de l'ancienne
+   bibliothèque : `harmonia_min/state/charts.bak_20260812`.
+
+**Effet réel sur les 35 charts servis** (comparaison contre la sauvegarde) :
+
+| | avant | après |
+|---|---|---|
+| charts dont les accords changent | — | **18 / 35** |
+| accords adossés à un consensus ×N | 254 | **406** |
+| lettres repliées | ~27 % | **63 / 167 (38 %)** |
+
+Recuisson : 35 réussites, 0 échec, ~5 s par morceau (caches chauds).
+
+**Vérifié dans l'app, pas seulement dans le JSON** (règle « toujours ouvrir
+le rendu réel ») : Stand By Me sort désormais en `A A F#m F#m | D E A A`
+×10 — la grille exacte du morceau, là où le repli refusait tout et laissait
+la mesure 11 SANS accord. This Love, Be My Baby et How Deep Is Your Love
+s'ouvrent sans erreur.
+
+**Ce que ça ne règle pas** : 104 lettres sur 167 ne se replient toujours pas
+— 28 n'ont qu'une occurrence (rien à empiler, légitime), les autres sont
+refusées pour pile incohérente ou occurrences de longueurs inégales. Et 8
+tests de l'ANCIENNE pipeline (`harmonia/`, parité nnls24, chord_head)
+échouaient déjà avant ce chantier : ils échouent à l'identique avec
+`HARMONIA_MERGE=mean HARMONIA_FOLD_LOOP=internal`, ils ne viennent pas de là.
+
 ## ★★★ 2026-08-11 — LE REPLI IGNORAIT LE CAS PRINCIPAL : UNE SECTION SANS BOUCLE INTERNE, JOUÉE N FOIS ★★★ FOLD (branche feat/occurrence-merge)
 
 En cherchant pourquoi le repli refuse 74 % des lettres, la cause n'était pas
