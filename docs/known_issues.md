@@ -25247,3 +25247,60 @@ sections de 4.
 
 Au passage : le fichier d'annotation de Blue Lights contient un chevauchement —
 `A[33-34]` et `A[33-44]` commencent tous deux mesure 33.
+
+## Le criblage ML, et la règle des monts de basse+harmonie (2026-08-12)
+
+### 1. Un modèle appris bat la règle à la main, sur le rappel
+
+Premier pas exigé par `docs/design_2026-08-12_section_model.md` §4. 110 features
+par mesure (`scripts/section_features.py`), un-contre-tous sur les 12 morceaux
+annotés, pics sélectionnés avec exactement la même règle que le profil pour que
+la comparaison porte sur le détecteur et pas sur le sélecteur
+(`scripts/section_screen.py`). Frontière comptée juste à ±1 mesure.
+
+| | précision | rappel | F1 |
+|---|---|---|---|
+| profil fusionné (aujourd'hui) | **1,00** | 0,40 | 0,47 |
+| régression logistique | 0,62 | **0,49** | **0,57** |
+| arbres (HistGB) | 0,80 | 0,42 | 0,52 |
+
+Lecture : notre profil est *parfaitement précis et sourd* — il ne propose que ce
+dont il est sûr et rate 60 % des frontières. Le linéaire trouve plus, moins
+proprement. C'est cohérent avec tout le reste : le problème n'est pas de placer
+un pic, c'est d'en trouver assez. **Le criblage passe** — l'information est dans
+les features — donc le modèle séquentiel a un sens.
+
+Ce que le linéaire regarde en premier (poids sur tout le corpus) :
+`lag+2[accords] +0,73`, `lag-2[timbre] −0,64`, `pos.mod4 +0,64`,
+`nov[rythme]@2 +0,55`, `lag-4[voix] −0,53`. Les **similarités à distance**
+dominent les nouveautés : c'est l'information de période, que notre profil
+n'utilise pas du tout.
+
+### 2. « Les monts allongés pseudo-symétriques de basse+harmonie sont TOUJOURS des marqueurs » — VÉRIFIÉ, 21/21
+
+Louis, 2026-08-12, en regardant The Walk : « le profil basse + harmonie fait
+souvent des pics allongés pseudo-symétriques (ex. mesures 19 à 33 sur The Walk),
+et ceux-là sont TOUJOURS marqueurs d'une section ».
+
+Définition opérationnelle : une suite contiguë de la nouveauté basse+harmonie
+au-dessus de la médiane du morceau, large d'au moins 6 mesures. Sur les douze
+morceaux : **21 monts, 21 contiennent une frontière validée (100 %)**. Le rappel
+est faible (21 % de ses frontières), mais **4 de ces monts portent une frontière
+qu'AUCUN de nos pics ne trouve** — c'est du rappel neuf, et à précision parfaite.
+
+Où tomber dans le mont : l'argmax est le meilleur repère (écart médian 1 mesure,
+86 % à ±2), devant le centre de masse (1,3) et le milieu géométrique (1,2). Un
+mont est donc mieux traité comme une **fenêtre qui contient une frontière** que
+comme un point — exactement ce qu'un décodeur semi-markovien sait consommer.
+
+Deux morceaux n'ont aucun mont : Let It Be et Blue Lights, les deux morceaux les
+plus « une seule boucle » du lot.
+
+### 3. « Le timbre seul ne devrait jamais trancher » — pas encore testé pour de vrai
+
+Louis : « le timbre seul ne devrait jamais servir à trancher des sections, il
+sert à créer des hypothèses, confirmées ou non par le basse+harmonie ». Mon
+premier test (exiger que la nouveauté basse+harmonie dépasse sa médiane à ±2
+mesures d'un pic) ne rejette que 3 pics sur 61 : le critère est trop permissif
+pour tester quoi que ce soit. Le vrai test est de reconstruire la fusion avec le
+timbre rétrogradé au rang de proposeur — non fait.

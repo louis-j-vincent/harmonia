@@ -341,7 +341,7 @@ def substrates(stem: str) -> tuple[list[tuple], int, dict, dict]:
     F = np.mean([_rankify(S) for _, _, S in out], axis=0)
     out.append(("fusion", "la moyenne des sept, chacune ramenée à ses rangs", F))
     extra = {"grid": grid, "mute": mute, "drums_rms": rms, "edges": edges,
-             "triad": cap["triad"]}
+             "triad": cap["triad"], "bars": cap.get("bars")}
     return out, n, T, extra
 
 
