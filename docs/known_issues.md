@@ -1,5 +1,55 @@
 # Harmonia — Known Issues
 
+## 2026-08-12 — L'ORDRE DE REMPLISSAGE VIENT DES VOIX, LA MATIÈRE DES BI-MESURES
+
+Louis : « explique-moi comment tu fais l'ordre des sections pour privilégier
+comment le remplir — je veux que ça se fasse par rapport au nombre de matrices
+qui votent pour un pic, et reprends les groupages par bi-barres. »
+`scripts/vote_fill.py`, pages `/plots/vote_fill.html`.
+
+**LE MOT DE DEUX MESURES.** Chaque bi-mesure reçoit une lettre minuscule d'après
+la matrice d'accords (lien complet à 0,90, grille calée sur la première mesure
+chantée). Le morceau devient une chaîne, et la structure s'y lit à l'œil nu :
+
+| morceau | mot | ce que ça dit |
+|---|---|---|
+| Blue Lights | `aaaaaabc` ×5 | le `bc` est EXACTEMENT chacun de ses B |
+| This Love | `abab` / `cccd` / `fefg` | `cccd` à chaque B, `fefg` = le pont, unique |
+| Bein' Green | `bcd?` / `efegh` | A et B, sans ambiguïté |
+| Chain of Fools | `aaaa…a` + `b` | un seul matériau : la boucle EST le morceau |
+| Sunny | 22 lettres pour 43 bi-mesures | modulation d'un demi-ton : rien ne se répète |
+
+**L'ORDRE, ET CE QU'IL FAIT.** Les pics à ≥ 3 voix (sur 7 matrices), calés sur la
+grille de deux mesures à ±1, découpent le morceau en blocs. Les blocs sont
+remplis **du mieux voté au moins voté**. Le premier bloc traité DÉFINIT sa
+lettre ; les suivants ne peuvent que se comparer à ce qui est déjà écrit. C'est
+tout ce que l'ordre fait — et ça suffit à changer le résultat, parce que le
+vocabulaire disponible au moment où on remplit un bloc dépend de qui est passé
+avant.
+
+**TROIS BOGUES DE MON PREMIER JET, TOUS DU MÊME TYPE (une échelle fausse).**
+1. Les BORDS du morceau comptaient 99 voix — ils ne sont l'avis de personne. Le
+   premier et le dernier bloc étaient donc toujours traités en premier.
+2. Sans longueur minimale, la période d'un mot tout en `a` (Chain of Fools) vaut
+   1 bi-mesure : le morceau sortait en dix-neuf sections de deux mesures. Une
+   boucle harmonique de 2 ou 4 mesures est la PÉRIODE du morceau, pas
+   l'ÉCHELLE de ses sections — le même constat qu'à chaque étape de ce chantier.
+3. Une tolérance de 0,75 sur la période inventait une fausse période de 12
+   mesures sur The Walk (20 bi-mesures concordantes sur 26) qui écrasait ses A
+   de 8. Il faut 0,85.
+
+**CE QUE ÇA DONNE** (à regarder, pas à mesurer) : Blue Lights et Every Breath You
+Take sortent frontière pour frontière comme le découpage de Louis, et nettement
+mieux que ce qu'on écrit aujourd'hui ; Chain of Fools aussi sauf la longueur du
+B. Bein' Green se décale de 4 mesures à cause d'un pic à 3 voix faux (mesure 9) —
+le défaut est dans le pic. Stand By Me n'a **aucun** pic à 3 voix : le morceau
+entier est un seul bloc, l'ordre n'a rien à ordonner.
+
+**RESTE À FAIRE.** Une ressemblance de bi-mesures invariante par transposition
+(Sunny) ; et le mot ne distingue toujours pas l'intro du premier couplet quand
+ils partagent les accords.
+
+
 ## ★★★ 2026-08-12 — EN PROD : LE MERGE PAR CQT MOYENNÉ + L'EMPILEMENT DES OCCURRENCES ★★★ FOLD · PROD
 
 Louis, après avoir écouté les deux pages : « **Validé partout c'est top avec
