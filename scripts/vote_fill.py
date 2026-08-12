@@ -522,6 +522,20 @@ def matrices_png(R, n, gtb) -> str:
                 ax2.text(j, i, f"{int(T[i, j])}", ha="center", va="center",
                          fontsize=7.5 if K > 9 else 8.5,
                          color="#fffdf6" if T[i, j] > 0.55 * T.max() else "#4a4438")
+    # UNE LIGNE OU UNE COLONNE ENTIÈREMENT VIDE n'est pas une lettre manquante :
+    # c'est une mini-section qui n'a pas de suivante (elle finit le morceau) ou
+    # pas de précédente (elle l'ouvre). Louis, 2026-08-12 : « dans tes matrices
+    # de transition il manque des lettres des fois non ? » — non, aucune, mais
+    # quatre morceaux sur douze ont une telle ligne et ça se lit comme un trou.
+    # On l'écrit donc en toutes lettres au bord.
+    for i in range(K):
+        if not T[i].any():
+            ax2.axhspan(i - 0.5, i + 0.5, color="#efe8d8", lw=0, zorder=0)
+            ax2.text(K - 0.55, i, "finit le morceau", va="center", ha="right",
+                     fontsize=7.5, color="#a89f8c")
+        if not T[:, i].any():
+            ax2.axvspan(i - 0.5, i + 0.5, color="#efe8d8", lw=0, zorder=0)
+            ax2.text(i, -0.58, "ouvre", ha="center", fontsize=7.5, color="#a89f8c")
     ax2.set_xlabel("suivie de…", fontsize=9, color="#8a8371")
     ax2.set_title("transition d'une mini-section à la suivante", fontsize=10.5,
                   color="#4a4438", pad=8)
@@ -679,7 +693,10 @@ def song_page(stem: str, title: str) -> str:
 mini-sections, avec leur nombre d'occurrences. <b>À gauche</b>, à quel point deux
 mini-sections se ressemblent (la diagonale = à quel point une mini-section est
 fidèle à elle-même d'une reprise à l'autre ; vide si elle n'arrive qu'une fois).
-<b>À droite</b>, combien de fois l'une suit l'autre.<br>Les lire ensemble :
+<b>À droite</b>, combien de fois l'une suit l'autre — une ligne <b>entièrement
+vide</b> n'est pas une lettre manquante : c'est une mini-section qui n'a pas de
+suivante parce qu'elle finit le morceau (idem en colonne pour celle qui
+l'ouvre).<br>Les lire ensemble :
 très ressemblantes <b>mais jamais voisines</b> → deux occurrences de la même
 section ailleurs dans le morceau ; très ressemblantes <b>et toujours voisines</b>
 → une boucle interne qu'il ne faut pas couper.</div>
