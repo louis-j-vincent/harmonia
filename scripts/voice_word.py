@@ -63,7 +63,7 @@ from peak_profile import page, fused_profile               # noqa: E402
 from hard_prior_sections import colourmap                  # noqa: E402
 from change_curves import load_curves, draw_curves         # noqa: E402
 from vote_fill import (fill, fig2b64_fixed, SYMCOL, SYM,   # noqa: E402
-                       SYM_THR, PLOT_L, PLOT_R, INK, HARD)
+                       PLOT_L, PLOT_R, INK, HARD)
 import bpe_lab as BP                                       # noqa: E402
 import order_bundle                                        # noqa: E402
 import order_lab as OL                                     # noqa: E402
@@ -72,9 +72,24 @@ OUTDIR = HERE / "docs" / "plots"
 ACC = "#2f7dbd"      # les accords seuls changent
 VOI = "#c07a1e"      # la voix seule change
 MUET_MIN = 0.6       # au-delà de tant de silence, la bi-mesure n'a pas de voix
+VOIX_THR = 0.70      # le seuil de groupage des bi-mesures de voix
+                     #
+                     # LA MATRICE COMPTE PLUS QUE LE SEUIL. Louis, 2026-08-12 :
+                     # « il y a quand même des répétitions dans les chansons, je
+                     # suis surpris que tu n'en trouves pas, montre-moi la matrice
+                     # SSM de la voix. » Il avait raison. La première version
+                     # comparait les bi-mesures sur la matrice de voix du zoo, qui
+                     # est en DEMI-MESURES : un demi-mesure de chant tient deux ou
+                     # trois notes, son profil de 12 hauteurs est presque vide, et
+                     # deux cases voisines se ressemblent au hasard. Résultat, une
+                     # matrice mouchetée où rien ne se groupe. La matrice de la
+                     # PROD (`melody_bars`, par mesure) est la même chaîne agrégée
+                     # une mesure entière : elle est lisse et ses blocs se voient
+                     # à l'œil (le pont de This Love, mesures 49-56, saute aux
+                     # yeux). Les trois matrices sont sur la page pour comparer.
 
 
-def bibar_from(S, spans, res: int, thr=SYM_THR, muets=None):
+def bibar_from(S, spans, res: int, thr=VOIX_THR, muets=None):
     """(mot, sim) — une lettre par bi-mesure, depuis N'IMPORTE quelle matrice.
 
     `res` est le nombre de cases de la matrice par mesure (1 = par mesure,
@@ -159,6 +174,33 @@ def jonctions(acc, cont, seuil):
     return out
 
 
+def matrices_png(Szoo, M, Sacc, n, gtb) -> str:
+    """Les trois matrices côte à côte, sur le même axe de mesures."""
+    from matplotlib.colors import LinearSegmentedColormap
+    cmap = LinearSegmentedColormap.from_list("h", ["#faf6ec", "#9fc0d4", "#1d4d69"])
+    fig, axs = plt.subplots(1, 3, figsize=(13.0, 4.6), facecolor="#fffdf6",
+                            gridspec_kw={"wspace": 0.14})
+    for ax, S, lab in ((axs[0], Szoo, "voix — par DEMI-mesure"),
+                       (axs[1], M, "voix — par mesure (prod)"),
+                       (axs[2], Sacc, "accords — par mesure")):
+        S = np.nan_to_num(np.asarray(S, float))
+        ax.imshow(S, cmap=cmap, vmin=0, vmax=1, extent=[0, n, n, 0],
+                  interpolation="nearest")
+        for g in gtb:
+            ax.axvline(g, color=GT_LINE, lw=0.7, alpha=0.8)
+            ax.axhline(g, color=GT_LINE, lw=0.7, alpha=0.8)
+        step = 16 if n <= 120 else 32
+        ax.set_xticks(np.arange(0, n + 1, step)); ax.set_yticks(np.arange(0, n + 1, step))
+        ax.set_xticklabels([str(i + 1) for i in np.arange(0, n + 1, step)], fontsize=7.5)
+        ax.set_yticklabels([str(i + 1) for i in np.arange(0, n + 1, step)], fontsize=7.5)
+        ax.tick_params(length=2, colors="#8a8371")
+        ax.set_title(lab, fontsize=10, color="#4a4438", pad=6)
+        for sp in ax.spines.values():
+            sp.set_color("#e0d7c2")
+    fig.subplots_adjust(left=0.05, right=0.99, top=0.92, bottom=0.08)
+    return fig2b64_fixed(fig)
+
+
 def song_page(stem: str, title: str) -> str:
     b = order_bundle.get(stem)
     n, grid = b["n"], b["grid"]
@@ -166,13 +208,14 @@ def song_page(stem: str, title: str) -> str:
     spans, x0, word = R["spans"], R["x0"], R["mot"]
     C = load_curves(stem, n)
     _P, _k, _r, lines, _n, extra = fused_profile(stem)
-    Sv = next(d["S"] for d in lines if d["nom"] == "voix")
-    mute = np.asarray(extra["mute"], bool)
+    Szoo = next(d["S"] for d in lines if d["nom"] == "voix")
+    M = np.nan_to_num(np.asarray(b["M"], float))     # la matrice de la PROD
+    mute = np.asarray(b["mute"], bool)
     hb = C["hb"]
 
     muets = {j for j, (p, q) in enumerate(spans)
-             if mute[p * hb:q * hb].mean() >= MUET_MIN}
-    voi, Dv = bibar_from(Sv, spans, hb, muets=muets)
+             if mute[p:q].mean() >= MUET_MIN}
+    voi, Dv = bibar_from(M, spans, 1, muets=muets)
     cont = continuite(Dv, muets, len(spans))
     vals = [v for _j, v in cont if v is not None]
     seuil = float(np.quantile(vals, VOIX_Q)) if vals else 0.0
@@ -262,6 +305,7 @@ def song_page(stem: str, title: str) -> str:
 
     fig.subplots_adjust(left=PLOT_L, right=PLOT_R, top=0.99, bottom=0.07)
     img = fig2b64_fixed(fig)
+    mats = matrices_png(Szoo, M, b["S"], n, gtb)
 
     nvoi = len(set(voi) - {"·"})
     dore = [x0[j] for j, c in jj if c == "v"]
@@ -275,6 +319,14 @@ def song_page(stem: str, title: str) -> str:
 <div class=bar><button class=pp>▶</button><span class=pos>mes. 1 · 0:00</span>
 <span class=hint>touche le graphique pour te déplacer</span></div>
 <div class=lane><span class=lab>voix seule</span>{btns}</div>
+<img src="data:image/png;base64,{mats}" alt="matrices de voix">
+<div class=votes><b>Les trois matrices, mêmes axes de mesures.</b> À gauche la
+voix en <b>demi-mesures</b> : mouchetée, presque vide — un demi-mesure de chant
+ne tient que deux ou trois notes, son profil de hauteurs est trop maigre pour que
+deux cases se ressemblent autrement que par hasard. Au milieu la même chaîne
+agrégée <b>par mesure</b> (celle de la prod) : lisse, et ses blocs se voient (le
+pont de This Love, mesures 49-56). À droite les accords, pour comparer. C'est la
+matrice du milieu qui sert maintenant à construire le mot de la voix.</div>
 <div class=votes><b>mot ACCORDS —</b> <code>{word}</code><br>
 <b>mot VOIX —</b> <code>{voi}</code> — {nvoi} lettres pour
 {len(word)} bi-mesures, contre {len(set(word))} côté accords : <b>le mot de la

@@ -97,7 +97,25 @@ HARD = "#0d2437"
 SYM = "abcdefghijklmnopqrstuvwxyz"
 LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-SYM_THR = 0.90     # deux bi-mesures portent la même lettre au-delà de ça
+SOURCE = "basse"   # LA MATRICE QUI FABRIQUE LE MOT.
+                   #
+                   # Louis, 2026-08-12 : « sur Let It Be, tout simplement on ne
+                   # détecte pas les bons mots ! » Il avait raison, et ce n'était
+                   # pas un seuil. Le couplet de Let It Be est C G Am F | C G F C
+                   # et son refrain Am G F C | C G F C : ils ne diffèrent QUE par
+                   # C contre Am, deux accords qui partagent deux notes sur trois.
+                   # Sur les postérieurs de triades (`b["S"]`) ils sont
+                   # indiscernables et tout le morceau sortait en `a`. Sur la
+                   # BASSE ils sont opposés (do contre la), et le mot devient
+                   # `ababab cb abab cbcb dd abab cb abab cbcbcb d` — soit
+                   # EXACTEMENT ses sections : A = `abab`, B = `cb`, et le pont
+                   # `dd`, seul mot unique du morceau.
+                   #
+                   # Ce que le changement NE règle pas : Chain of Fools (un seul
+                   # accord tenu, la basse y brode et fabrique de faux groupes) et
+                   # Bein' Green y perdent. Blue Lights et She Will Be Loved sont
+                   # inchangés. C'est un échange, pas une victoire partout.
+SYM_THR = 0.90     # plancher, quand la forme de la distribution ne dit rien
 MIN_VOTES = 3      # en dessous, un pic est une hypothèse et ne coupe rien
 SNAP = 1           # un pic se cale sur la grille de deux mesures à ±1 mesure
 WORD_TOL = 0.75    # deux mots de même longueur sont « les mêmes » à partir de là
@@ -195,7 +213,37 @@ def phases(stem, n, ancre, cout=RESET_COST, poids_ancre=ANCRE_W):
     return [(0, ancre % 2), (ev[k]["bar"], par)]
 
 
-def bibar_word(b, stem, thr=SYM_THR):
+def otsu(v, lo=0.30, hi=0.999, n=200) -> float:
+    """Le seuil qui sépare le mieux la distribution du morceau en deux paquets.
+
+    POURQUOI PAS UN SEUIL FIXE. Mesuré le 2026-08-12 : la médiane des
+    ressemblances entre bi-mesures vaut 0,33 sur Sunny, 0,90 sur Let It Be et
+    0,99 sur Blue Lights. Un 0,90 absolu tombe donc au MILIEU de la distribution
+    de Let It Be (la moitié des paires deviennent « la même chose », le morceau
+    entier sort en `a`) alors qu'il est très bas pour Blue Lights. Un quantile
+    fixe échoue symétriquement : à 0,80 il détruit Blue Lights.
+
+    Otsu — le seuil qui maximise la variance inter-classes — lit la FORME de la
+    distribution et non son niveau : il trouve le trou entre le paquet « c'est la
+    même chose » et le paquet « c'est autre chose », là où il est. Blue Lights
+    reste intact, Chain of Fools et Stand By Me deviennent lisibles.
+    """
+    v = np.asarray(v, float)
+    v = v[(v >= lo) & (v <= hi)]
+    if v.size < 8:
+        return SYM_THR
+    best, seuil = -1.0, SYM_THR
+    for t in np.linspace(v.min() + 1e-6, v.max() - 1e-6, n):
+        a, c = v[v <= t], v[v > t]
+        if a.size < 2 or c.size < 2:
+            continue
+        w = a.size * c.size * (a.mean() - c.mean()) ** 2
+        if w > best:
+            best, seuil = w, float(t)
+    return seuil
+
+
+def bibar_word(b, stem, thr=None):
     """(mot, spans, sim) — une lettre minuscule par bi-mesure.
 
     `spans` donne les mesures de chaque bi-mesure : c'est la grille, et elle
@@ -209,7 +257,11 @@ def bibar_word(b, stem, thr=SYM_THR):
     n'entre dans un groupe que s'il ressemble à TOUS ses membres, ce qui évite
     la chaîne où a≈b, b≈c mais a≉c.
     """
-    S, n, a = b["S"], b["n"], b["start"] % 2
+    from peak_profile import fused_profile
+    n, a = b["n"], b["start"] % 2
+    _P, _k, _r, lignes, _n, _e = fused_profile(stem)
+    S = np.nan_to_num(next(d["S"] for d in lignes if d["nom"] == SOURCE))
+    res = max(1, S.shape[0] // n)          # 2 = la matrice est en demi-mesures
     ph = phases(stem, n, a)
     spans, p, seg = [], a, 0
     while p + 1 < n:
@@ -224,9 +276,14 @@ def bibar_word(b, stem, thr=SYM_THR):
     B = np.zeros((J, J))
     for i, (p, _) in enumerate(spans):
         for k, (q, _) in enumerate(spans):
-            B[i, k] = (S[p, q] + S[p + 1, q + 1]) / 2
+            u, w = p * res, q * res
+            v = [S[u + t, w + t] for t in range(2 * res)
+                 if u + t < S.shape[0] and w + t < S.shape[0]]
+            B[i, k] = float(np.mean(v)) if v else 0.0
     d = np.sqrt(np.clip(np.diag(B), 1e-9, None))
     B = B / np.outer(d, d)
+    if thr is None:
+        thr = otsu(B[~np.eye(J, dtype=bool)])
 
     used, lab, k = set(), [-1] * J, 0
     for j in sorted(range(J), key=lambda j: -(B[j] >= thr).sum()):
@@ -512,6 +569,9 @@ def matrices_png(R, n, gtb) -> str:
                          va="center", fontsize=7.5 if K > 9 else 8.5,
                          color="#fffdf6" if Rm[i, j] > lo + 0.62 * (1 - lo)
                          else "#4a4438")
+            else:                      # une case vide se dit, elle ne se devine pas
+                ax1.text(j, i, "—", ha="center", va="center", fontsize=8,
+                         color="#c9c0aa")
     ax1.set_title("ressemblance moyenne entre mini-sections", fontsize=10.5,
                   color="#4a4438", pad=8)
 
@@ -522,6 +582,9 @@ def matrices_png(R, n, gtb) -> str:
                 ax2.text(j, i, f"{int(T[i, j])}", ha="center", va="center",
                          fontsize=7.5 if K > 9 else 8.5,
                          color="#fffdf6" if T[i, j] > 0.55 * T.max() else "#4a4438")
+            else:                      # zéro écrit, pour qu'aucune case ne paraisse
+                ax2.text(j, i, "0", ha="center", va="center", fontsize=7,
+                         color="#d8cfb4")      # manquante (Louis, 2026-08-12)
     # UNE LIGNE OU UNE COLONNE ENTIÈREMENT VIDE n'est pas une lettre manquante :
     # c'est une mini-section qui n'a pas de suivante (elle finit le morceau) ou
     # pas de précédente (elle l'ouvre). Louis, 2026-08-12 : « dans tes matrices
