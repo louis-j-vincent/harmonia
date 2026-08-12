@@ -61,6 +61,8 @@ from peak_profile import page                              # noqa: E402
 from hard_prior_sections import colourmap                  # noqa: E402
 from vote_fill import (fill, fig2b64_fixed, SYMCOL, MIN_VOTES,  # noqa: E402
                        PLOT_L, PLOT_R, INK, HARD)
+from change_curves import (load_curves, draw_curves, pics_bar,   # noqa: E402
+                           COL, TROIS)
 import order_bundle                                        # noqa: E402
 import order_lab as OL                                     # noqa: E402
 
@@ -203,6 +205,8 @@ def song_page(stem: str, title: str) -> str:
     gtb = [s["b0"] for s in gt["sections"][1:]] if gt else []
     kstop = arret(st, R["cuts"])
     ents = entites(st, x0, n, kstop)
+    C = load_curves(stem, n)
+    PK = {nom: pics_bar(C, nom) for nom in TROIS if nom in C["lignes"]}
     today = OL.new_sections(b)[0]
 
     strips = [(f"les entités\n(arrêt tour {kstop})", ents),
@@ -219,11 +223,11 @@ def song_page(stem: str, title: str) -> str:
                 alltypes.append(t)
     col = _colour_of(alltypes)
 
-    rows = len(st) + len(strips)
+    rows = 1 + len(st) + len(strips)
     fig, axs = plt.subplots(
-        rows, 1, figsize=(13.0, 0.42 * len(st) + 0.62 * len(strips) + 0.6),
+        rows, 1, figsize=(13.0, 2.6 + 0.42 * len(st) + 0.62 * len(strips) + 0.6),
         facecolor="#fffdf6",
-        gridspec_kw={"height_ratios": [0.9] * len(st) + [1.3] * len(strips),
+        gridspec_kw={"height_ratios": [6.2] + [0.9] * len(st) + [1.3] * len(strips),
                      "hspace": 0.0})
 
     def deco(ax, lab, colour=INK, last=False):
@@ -243,7 +247,14 @@ def song_page(stem: str, title: str) -> str:
         else:
             ax.set_xticks([])
 
-    for k, (ax, s) in enumerate(zip(axs, st)):
+    # 0 ── les trois profils de changement, TOUJOURS en haut (Louis, 2026-08-12) :
+    #      « c'est d'eux dont on va se servir pour décider de critères d'arrêt
+    #      pour notre merging ». Ils sont sur le même axe de mesures, donc chaque
+    #      soudure se lit directement contre la courbe qu'elle enjambe.
+    deco(axs[0], "profils de\nchangement", INK)   # deco fixe ylim, donc AVANT
+    draw_curves(axs[0], C, n)
+
+    for k, (ax, s) in enumerate(zip(axs[1:1 + len(st)], st)):
         for j0, j1, t in s["jetons"]:
             neuf = s["paire"] is not None and t == s["paire"][0] + s["paire"][1]
             mal = neuf and traverse((j0, j1), R["cuts"])
@@ -253,6 +264,15 @@ def song_page(stem: str, title: str) -> str:
                                        (INK if neuf else "#fffdf6"),
                                        lw=2.0 if mal else (1.4 if neuf else 0.8),
                                        zorder=4 if mal else (3 if neuf else 2)))
+            if neuf:
+                # CE QUE LA SOUDURE AVALE : un trait de la couleur de la courbe
+                # dont elle enjambe un pic. C'est la matière première des règles
+                # d'arrêt qu'on va essayer.
+                for nom, bars in PK.items():
+                    for pb in bars:
+                        if x0[j0] < pb < x0[j1]:
+                            ax.plot([pb, pb], [0.16, 0.84], color=COL[nom],
+                                    lw=1.6, zorder=6, alpha=0.95)
             if (j1 - j0) * 2 >= max(3, n * 0.035):
                 ax.text((x0[j0] + x0[j1]) / 2, 0.5,
                         t if len(t) <= 8 else f"{2 * (j1 - j0)} mes.",
@@ -265,7 +285,7 @@ def song_page(stem: str, title: str) -> str:
         deco(ax, lab, INK if k == kstop else "#4a4438")
 
     cm = colourmap()
-    for k, (ax, (lab, ss)) in enumerate(zip(axs[len(st):], strips)):
+    for k, (ax, (lab, ss)) in enumerate(zip(axs[1 + len(st):], strips)):
         for s_ in ss:
             w = s_["b1"] - s_["b0"] + 1
             ax.add_patch(plt.Rectangle((s_["b0"], 0.08), w, 0.84,
@@ -301,6 +321,12 @@ def song_page(stem: str, title: str) -> str:
 <div class=lane><span class=lab>les soudures</span>{tours}</div>
 <div class=lane><span class=lab>les entités</span>{ent}</div>
 <img src="data:image/png;base64,{mats}" alt="matrices de transition">
+<div class=votes><b>En haut, les trois profils de changement</b> —
+<b style="color:#2f7dbd">basse + harmonie</b>,
+<b style="color:#c07a1e">voix</b>, <b style="color:#8155c6">timbre</b>, avec leurs
+pics (triangles) et le fond doré des passages non chantés. Sur chaque soudure,
+un <b>trait de couleur</b> marque le pic qu'elle vient d'avaler : c'est là que se
+décideront les règles d'arrêt.</div>
 <div class=votes>La matrice de transition <b>au départ</b> (bi-mesures) et
 <b>à l'arrivée</b> (entités soudées). C'est le même comptage à chaque tour : on
 prend la case la plus forte, on soude, on recompte.</div>

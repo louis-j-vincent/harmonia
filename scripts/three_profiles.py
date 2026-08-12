@@ -53,7 +53,9 @@ sys.path.insert(0, str(HERE / "scripts"))
 sys.path.insert(0, str(HERE / "scratchpad"))
 
 from ssm_zoo import SONGS, AUDIO, GT_LINE, gt_sections     # noqa: E402
-from peak_profile import page, fused_profile               # noqa: E402
+from peak_profile import page                              # noqa: E402
+from change_curves import (load_curves, draw_curves, pics_bar,   # noqa: E402
+                           COL, MUET, TROIS)
 from hard_prior_sections import colourmap                  # noqa: E402
 from vote_fill import fill, fig2b64_fixed, PLOT_L, PLOT_R, INK, HARD, MIN_VOTES  # noqa: E402
 import bpe_lab as BP                                       # noqa: E402
@@ -62,18 +64,12 @@ import order_lab as OL                                     # noqa: E402
 
 OUTDIR = HERE / "docs" / "plots"
 
-# palette validée par scripts/validate_palette.js (dataviz) : bande de clarté,
-# plancher de chroma, séparation daltonienne et contraste — les cinq PASS.
-COL = {"basse + harmonie": "#2f7dbd", "voix": "#c07a1e", "timbre": "#8155c6"}
-MUET = "#f2e3c4"       # le fond doré : personne ne chante
-TROIS = list(COL)
-
 
 def song_page(stem: str, title: str) -> str:
     b = order_bundle.get(stem)
     n, grid = b["n"], b["grid"]
-    P, kept, rest, lines, _n, extra = fused_profile(stem)
-    m = len(P); hb = max(1, m // n)
+    C = load_curves(stem, n)
+    m, hb, lines = C["m"], C["hb"], None
     R = fill(b, stem)
     st = BP.merges(R["mot"])
     kstop = BP.arret(st, R["cuts"])
@@ -81,8 +77,7 @@ def song_page(stem: str, title: str) -> str:
     gt = gt_sections(stem)
     gtb = [s["b0"] for s in gt["sections"][1:]] if gt else []
     today = OL.new_sections(b)[0]
-    mute = np.asarray(extra["mute"], bool)[:m] if extra.get("mute") is not None \
-        else np.zeros(m, bool)
+    mute = C["mute"]
 
     strips = [("les entités", ents), ("ce qu'on écrit", today)]
     if gt:
@@ -92,21 +87,7 @@ def song_page(stem: str, title: str) -> str:
         rows, 1, figsize=(13.0, 3.4 + 0.62 * len(strips)), facecolor="#fffdf6",
         gridspec_kw={"height_ratios": [5.2, 0.75] + [1.15] * len(strips),
                      "hspace": 0.0})
-    x = (np.arange(m) + 0.5) / hb
-
-    def muet_bg(ax):
-        """Le fond doré : les demi-mesures où personne ne chante."""
-        i = 0
-        while i < m:
-            if mute[i]:
-                j = i
-                while j + 1 < m and mute[j + 1]:
-                    j += 1
-                if (j - i + 1) / hb >= 1.5:      # au moins une mesure et demie
-                    ax.axvspan(i / hb, (j + 1) / hb, color=MUET, lw=0, zorder=0)
-                i = j + 1
-            else:
-                i += 1
+    x = C["x"]
 
     def deco(ax, lab, colour=INK, last=False, peaks=True):
         ax.set_xlim(0, n); ax.set_yticks([])
@@ -130,21 +111,8 @@ def song_page(stem: str, title: str) -> str:
             ax.set_xticks([])
 
     # 1 ── les trois courbes, superposées
-    ax = axs[0]
-    muet_bg(ax)
-    for k, nom in enumerate(TROIS):
-        d = next((z for z in lines if z["nom"] == nom), None)
-        if d is None:
-            continue
-        y = np.nan_to_num(d["nov"])
-        ax.plot(x, y, color=COL[nom], lw=2.0, label=nom, zorder=3, alpha=0.92)
-        for c in d["cuts"]:                      # les pics propres à la courbe
-            ax.plot([(c + 0.5) / hb], [1.06 + 0.05 * k], marker="v", ms=7,
-                    color=COL[nom], clip_on=False, zorder=6)
-    ax.set_ylim(0, 1.45)          # la légende se pose au-dessus des triangles
-    ax.legend(loc="upper left", ncol=3, fontsize=9.5, frameon=False,
-              bbox_to_anchor=(0.0, 1.0), handlelength=1.6)
-    deco(ax, "profils de\nchangement", INK)
+    draw_curves(axs[0], C, n)
+    deco(axs[0], "profils de\nchangement", INK)
 
     # 2 ── le couloir voix, en dur : muet ou non
     ax = axs[1]
@@ -170,9 +138,8 @@ def song_page(stem: str, title: str) -> str:
     fig.subplots_adjust(left=PLOT_L, right=PLOT_R, top=0.99, bottom=0.07)
     img = fig2b64_fixed(fig)
 
-    poids = " · ".join(
-        f"{nom} {next((z['poids'] for z in lines if z['nom'] == nom), 0):.0%}"
-        for nom in TROIS)
+    poids = " · ".join(f"{nom} {C['lignes'].get(nom, {}).get('poids', 0):.0%}"
+                       for nom in TROIS)
     ent = "".join(
         f'<button class=blk data-p="[{e["b0"]},{e["b1"] + 1}]">{e["label"]}'
         f'<small>mes. {e["b0"] + 1}–{e["b1"] + 1}</small></button>' for e in ents)
