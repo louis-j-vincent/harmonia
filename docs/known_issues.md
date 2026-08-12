@@ -25205,3 +25205,45 @@ découpage fin de Louis n'y est pas. Le coût dit la vérité sur l'évidence
 disponible ; c'est la recherche de reprises qui apporte le grain fin, et c'est
 pour ça que « prod + pics » bat « pics seuls ». Le prototype vit dans
 `scratchpad/proto_vote.py`, non intégré.
+
+### « Cœur pair + queue amovible » (2026-08-12, idée de Louis sur She Will Be Loved)
+
+Louis : « le souci c'est qu'on veut un C de mesure impaire, alors qu'il faudrait
+compter qu'on veut un C de longueur paire + une queue amovible. »
+
+Le diagnostic exact : sur She Will Be Loved les mesures 29 à 33 ne sont
+réclamées par AUCUN bloc de la recherche, elles sortaient donc en un seul
+`C` de **cinq** mesures. Lui écrit `C[29-32]` et laisse la **mesure 33 hors
+section** — c'est la mesure gagnée qui fait basculer la parité de toute la
+seconde moitié du morceau (le phénomène que `voice_sections._pass` contourne
+déjà avec son repli de parité impaire).
+
+Implémenté : un segment que personne n'a réclamé et dont la longueur n'est pas un
+multiple de `TAIL_UNIT` (4) s'écrit **cœur + `queue`**, la queue étant une
+section courte à part qui garde son nom (elle recevait une lettre de
+`merge_letters`, ce qui la rendait indiscernable d'une vraie section). La queue
+est posée à la fin ; le cas symétrique — une levée en tête — n'est pas traité.
+
+Médiane sur les douze : **0,789** (prod seule 0,781 · pics sans la règle 0,776).
+She Will Be Loved 0,753 → 0,783 et écrit maintenant `C4[29-32] | queue1[33]`,
+exactement sa lecture. Coûts : Sunny 0,865 → 0,796, Chain of Fools 0,726 →
+0,676, The Walk 0,525 → 0,511 — la règle coupe aussi des queues là où le segment
+non réclamé était en fait une vraie section un peu longue.
+
+### Blue Lights, mesure 45 : le B est juste, c'est sa LONGUEUR qui ne l'est pas
+
+Louis : « pourquoi à la mesure 45 on détecte un nouveau B alors que c'est un A ? »
+Son annotation dit `B[45-48]` — le B est donc correct. Ce qui est faux est la
+longueur : on écrit `B[45-52]`, huit mesures, et le A qui devrait commencer en 49
+perd ses quatre premières. Cause : la passe de 8 mesures s'exécute AVANT celle de
+4 et réclame 45-52, alors que les cinq B de ce morceau font tous 4 mesures.
+
+Le pic qui l'aurait empêché existe : la mesure 49 est dans les « suivants »
+(valeur de profil 0,304) juste sous le seuil de rétention. En l'ajoutant seule
+aux pics durs, Blue Lights passe de **0,696 à 0,813** et sort `B[45-48] |
+A[49-52]`. Piste : un seuil de rétention par morceau plutôt que global, ou une
+seconde passe qui rouvre les « suivants » là où un bloc de 8 recouvre deux
+sections de 4.
+
+Au passage : le fichier d'annotation de Blue Lights contient un chevauchement —
+`A[33-34]` et `A[33-44]` commencent tous deux mesure 33.

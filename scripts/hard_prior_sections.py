@@ -74,6 +74,8 @@ MUTE_SOLO = 0.8        # part de demi-mesures sans chant au-delà de laquelle le
                        # bloc est un solo / un pont instrumental
 HARD_TOL = 1           # tolérance, en mesures, aux deux bords d'un bloc : nos
                        # pics ne sont exacts qu'une fois sur deux (voir `crosses`)
+TAIL_UNIT = 4          # un segment non réclamé s'écrit « cœur multiple de 4 +
+                       # queue » ; 0 désactive la règle (voir l'assemblage)
 LETTERS = "ABCDEFGHIJKLMNOP"
 
 
@@ -255,9 +257,33 @@ def voice_with_hard(stem: str, hard: list[int], n: int, extra: dict,
         while (z + 1 < n and owner[z + 1] == owner[b] and occid[z + 1] == occid[b]
                and (z + 1) not in cut):                 # (3) on coupe sur le pic
             z += 1
-        out.append({"b0": b, "b1": z, "label": owner[b]})
+        seg = {"b0": b, "b1": z, "label": owner[b]}
+        # CŒUR PAIR + QUEUE AMOVIBLE (Louis, 2026-08-12, sur She Will Be Loved :
+        # « le souci c'est qu'on veut un C de mesure impaire, alors qu'il
+        # faudrait compter qu'on veut un C de longueur paire + une queue
+        # amovible »). Les mesures 29 à 33 n'étaient réclamées par aucun bloc et
+        # sortaient en un seul C de CINQ mesures ; lui écrit C[29-32] et laisse
+        # la mesure 33 hors section — c'est la mesure gagnée qui fait basculer
+        # la parité de toute la seconde moitié du morceau. On ne l'absorbe donc
+        # plus : le reste au-delà du multiple de `TAIL_UNIT` devient une `queue`,
+        # une section courte à part. Seulement sur les segments que PERSONNE n'a
+        # réclamés (`owner < 0`) — un bloc trouvé par la recherche a sa longueur
+        # pour de bonnes raisons, on n'y touche pas. La queue est posée à la FIN
+        # du segment (un turnaround, une mesure de trop avant la section
+        # suivante) ; le cas symétrique — une levée en tête — n'est pas traité.
+        L = z - b + 1
+        if TAIL_UNIT and owner[b] < 0 and L % TAIL_UNIT and L > TAIL_UNIT:
+            core = L - (L % TAIL_UNIT)
+            out.append({"b0": b, "b1": b + core - 1, "label": owner[b]})
+            out.append({"b0": b + core, "b1": z, "label": "queue"})
+        else:
+            out.append(seg)
         b = z + 1
 
+    # Les queues gardent leur nom : `merge_letters` travaille sur des lettres et
+    # leur en donnait une (la queue de la mesure 33 ressortait « D »), ce qui
+    # rend invisible le fait que c'est une mesure en trop et pas une section.
+    tails = {(s["b0"], s["b1"]) for s in out if s["label"] == "queue"}
     ren, k = {}, 0
     for s in out:
         if isinstance(s["label"], (int, np.integer)):
@@ -265,6 +291,9 @@ def voice_with_hard(stem: str, hard: list[int], n: int, extra: dict,
                 ren[s["label"]] = LETTERS[k]; k += 1
             s["label"] = ren[s["label"]]
     VS.merge_letters(S, out, V=V)
+    for s in out:
+        if (s["b0"], s["b1"]) in tails:
+            s["label"] = "queue"
     return out
 
 
@@ -356,6 +385,8 @@ def colourmap():
         lab = str(lab)
         if lab == "solo":
             return "#c9a227"
+        if lab == "queue":
+            return "#e8dcc0"
         if lab.lower().startswith("intro") or lab.lower().startswith("outro"):
             return "#ddd6c4"
         if lab not in seen:
