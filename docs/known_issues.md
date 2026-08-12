@@ -1,5 +1,54 @@
 # Harmonia — Known Issues
 
+## 2026-08-12 — LE MOT DE BI-MESURES VIENT DE LA BASSE, PAS DES ACCORDS ★ CORRIGÉ
+
+Louis : « sur Let It Be, tout simplement on ne détecte pas les bons mots ! »
+
+**LA CAUSE, ET CE N'ÉTAIT PAS UN SEUIL.** Le couplet de Let It Be est
+`C G Am F | C G F C`, son refrain `Am G F C | C G F C` : ils ne diffèrent que par
+**C contre Am**, deux accords qui partagent deux notes sur trois. Sur les
+postérieurs de triades, ils sont indiscernables — le morceau entier sortait en
+`a`. Sur la **basse** ils sont opposés (do contre la) et le mot devient
+`ababab cb abab cbcb dd abab cb abab cbcbcb d`, soit EXACTEMENT ses sections :
+A = `abab`, B = `cb`, pont = `dd` (seul mot unique du morceau).
+
+Échange, pas victoire partout : Blue Lights et She Will Be Loved inchangés,
+This Love / Don't Know Why / Stand By Me nettement mieux, Chain of Fools et
+Bein' Green moins bien (un seul accord tenu, la basse y brode).
+
+**LE SEUIL AUSSI EST FAUX EN ABSOLU.** Médiane des ressemblances entre
+bi-mesures : **0,33 sur Sunny, 0,90 sur Let It Be, 0,99 sur Blue Lights**. Un
+0,90 fixe tombe donc au milieu de la distribution de Let It Be (la moitié des
+paires « identiques ») et très bas pour Blue Lights. Un quantile fixe échoue
+symétriquement (à 0,80 il détruit Blue Lights). **Otsu** — le seuil qui maximise
+la variance inter-classes — lit la forme et non le niveau : Blue Lights reste
+intact, Chain of Fools et Stand By Me deviennent lisibles.
+
+## 2026-08-12 — LA RÈGLE DES QUATRE MOTS, ET LE PRIME
+
+Louis : « critère d'arrêt : quand on n'arrive plus à trouver de sections de 4
+mots bi-barres ; subtilité : `abac` puis `abad`, les 4 premiers mots sont un A,
+les 4 suivants un A′ s'ils ne diffèrent que par le dernier mot. »
+`scripts/quatre_mots.py`, `/plots/quatre_mots.html`.
+
+L'agglomération est plafonnée à quatre bi-mesures et s'arrête dès qu'aucune
+paire soudable ne se répète. Ce qui reste de quatre mots est une section, le
+reste une queue `(q)`. Le prime dit « même section, autre cadence » — l'ouvert et
+le clos.
+
+| morceau | résultat |
+|---|---|
+| Let It Be | quatre soudures suffisent ; toutes ses frontières (16, 24, 32, 44, 48, 56, 64) |
+| Blue Lights | A B A B … de huit mesures, sans exception |
+| Stand By Me | **toutes** ses frontières exactes, seules les lettres diffèrent |
+| Don't Know Why | son découpage sauf l'intro |
+| Every Breath You Take | **les primes tombent sur ses A** (mes. 33, 51, 75) — la règle est juste |
+| Sunny · Grenade · Bein' Green · Chain of Fools | fragmentés en queues |
+
+**CE QUE LA RÈGLE COÛTE, à dire clairement** : plafonner à quatre mots interdit
+les sections de douze mesures. Les A de Blue Lights (mes. 17-28) sortent en deux
+blocs de huit. Ce n'est pas un bug, c'est la conséquence directe du critère.
+
 ## 2026-08-12 — LA VOIX NE SAIT PAS DIRE « C'EST LA MÊME CHOSE » ★ RÉSULTAT NÉGATIF UTILE
 
 Louis : « fais-moi aussi les bi-barres issues de la matrice SSM de la voix, et

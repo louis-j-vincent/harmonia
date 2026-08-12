@@ -11,7 +11,7 @@ que je puisse voir si on peut trancher avec cela. »
 POURQUOI C'EST LA BONNE QUESTION. Le problème qui bloque depuis le début de ce
 chantier est que **deux sections identiques collées sont indiscernables par
 l'harmonie** : un A de 8 mesures et deux A de 4 mesures ont exactement la même
-matrice d'accords. La voix, elle, ne rejoue pas la même mélodie sur le deuxième —
+matrice harmonique. La voix, elle, ne rejoue pas la même mélodie sur le deuxième —
 c'est le seul indice qui puisse trancher, et il n'était jamais mis en face du
 mot des accords.
 
@@ -31,7 +31,7 @@ LA BANDE DES JONCTIONS, entre deux bi-mesures voisines :
 
   * **trait noir plein** — les deux changent : frontière franche, rien à
     arbitrer ;
-  * **trait bleu** — les accords seuls changent : la boucle harmonique tourne,
+  * **trait bleu** — la basse seule change : la boucle harmonique tourne,
     la voix continue sa phrase. C'est typiquement un milieu de section ;
   * **trait doré** — la voix seule change : MÊME harmonie, NOUVELLE mélodie. Le
     cas qui nous manquait — deux sections identiques collées se distinguent là,
@@ -182,7 +182,7 @@ def matrices_png(Szoo, M, Sacc, n, gtb) -> str:
                             gridspec_kw={"wspace": 0.14})
     for ax, S, lab in ((axs[0], Szoo, "voix — par DEMI-mesure"),
                        (axs[1], M, "voix — par mesure (prod)"),
-                       (axs[2], Sacc, "accords — par mesure")):
+                       (axs[2], Sacc, "harmonie — par mesure")):
         S = np.nan_to_num(np.asarray(S, float))
         ax.imshow(S, cmap=cmap, vmin=0, vmax=1, extent=[0, n, n, 0],
                   interpolation="nearest")
@@ -266,7 +266,7 @@ def song_page(stem: str, title: str) -> str:
         if n <= 120:
             ax.text((x0[j] + x0[j + 1]) / 2, 0.5, ch, ha="center", va="center",
                     fontsize=7.5, color="#4a4438")
-    deco(ax, "mot ACCORDS", "#4a4438")
+    deco(ax, "mot BASSE", "#4a4438")
 
     # la VOIX : sa continuité d'une bi-mesure à la suivante, pas ses lettres
     ax = axs[2]
@@ -327,7 +327,7 @@ deux cases se ressemblent autrement que par hasard. Au milieu la même chaîne
 agrégée <b>par mesure</b> (celle de la prod) : lisse, et ses blocs se voient (le
 pont de This Love, mesures 49-56). À droite les accords, pour comparer. C'est la
 matrice du milieu qui sert maintenant à construire le mot de la voix.</div>
-<div class=votes><b>mot ACCORDS —</b> <code>{word}</code><br>
+<div class=votes><b>mot BASSE —</b> <code>{word}</code><br>
 <b>mot VOIX —</b> <code>{voi}</code> — {nvoi} lettres pour
 {len(word)} bi-mesures, contre {len(set(word))} côté accords : <b>le mot de la
 voix ne se groupe pas</b>. Une mélodie ne se rejoue pas note pour note d'un
@@ -342,15 +342,15 @@ window.PLOT=[{PLOT_L},{PLOT_R}]; window.U=1;</script>"""
                 back_label="tous les morceaux")
 
 
-LEDE = f"""<div class=lede>Deux mots sur la même grille de bi-mesures : celui des
-<b>accords</b> (celui qu'on utilise pour les bigrammes) et celui de la
+LEDE = f"""<div class=lede>Deux mots sur la même grille de bi-mesures : celui de la
+<b>basse</b> (celui qu'on utilise pour les bigrammes) et celui de la
 <b>voix</b>. Une bi-mesure où personne ne chante porte <code>·</code> — un trou,
 pas une lettre.<br><br>
 La bande <b>jonctions</b> compare les deux, entre chaque paire de bi-mesures
 voisines :<br>
 <b style="color:#1c1c1c">▮ trait noir</b> — les deux changent : frontière
 franche.<br>
-<b style="color:{ACC}">▮ trait bleu</b> — les accords seuls changent : la boucle
+<b style="color:{ACC}">▮ trait bleu</b> — la basse seule change : la boucle
 harmonique tourne, la voix poursuit sa phrase. En général un milieu de
 section.<br>
 <b style="color:{VOI}">▮ trait doré</b> — <b>la voix seule change</b> : même

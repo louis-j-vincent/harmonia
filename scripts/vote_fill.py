@@ -13,8 +13,9 @@ Louis, 2026-08-12 :
 DEUX INGRÉDIENTS, DEUX RÔLES DISTINCTS.
 
   * **le mot de deux mesures** — chaque bi-mesure reçoit une lettre minuscule
-    d'après la matrice d'accords : deux bi-mesures qui se ressemblent portent la
-    même lettre. Le morceau devient une chaîne de caractères, et c'est là que la
+    d'après la matrice de BASSE (voir `SOURCE` : les accords en triades ne
+    séparent pas C de Am, et Let It Be en mourait) : deux bi-mesures qui se
+    ressemblent portent la même lettre. Le morceau devient une chaîne de caractères, et c'est là que la
     structure se lit à l'œil nu. Blue Lights : `aaaaaabc` cinq fois de suite — le
     `bc` est exactement chacun des B de Louis. This Love : `aaae` cinq fois, à
     chacun de ses B, et le pont sort comme le seul mot unique du morceau
@@ -773,7 +774,7 @@ window.PLOT=[{PLOT_L},{PLOT_R}]; window.U=1;</script>"""
 
 
 LEDE = f"""<div class=lede><b>Bande 1 — le mot de deux mesures.</b> Chaque
-bi-mesure reçoit une lettre d'après la matrice d'accords : deux bi-mesures qui se
+bi-mesure reçoit une lettre d'après la matrice de <b>basse</b> : deux bi-mesures qui se
 ressemblent portent la même lettre. Le morceau devient une chaîne, et la
 structure s'y lit directement — Blue Lights donne <code>aaaaaabc</code> cinq fois
 de suite, et le <code>bc</code> est exactement chacun de tes B.<br><br>
