@@ -1,5 +1,34 @@
 # Harmonia — Known Issues
 
+## 2026-08-12 — LES TROIS PROFILS SUPERPOSÉS : CE QUE CHACUN SAIT ET NE SAIT PAS
+
+Louis : « superpose-moi les profils de changement des matrices SSM basse +
+harmonie, voix et timbre pour voir comment on peut différencier les sections. »
+`scripts/three_profiles.py`, `/plots/three_profiles.html`. Palette validée par
+`dataviz/scripts/validate_palette.js` (cinq PASS, daltonisme compris).
+
+Trois lectures, visibles sans mesurer :
+
+1. **Les trois pointent ensemble** → frontière franche. This Love mesures 17 et
+   25 : les trois courbes montent au même endroit, ce sont ses deux frontières
+   les mieux votées.
+2. **Le timbre pointe seul** → un instrument entre À L'INTÉRIEUR d'une section.
+   The Walk mesures 21 et 41 : deux pics de timbre nets, tous deux au milieu
+   d'un de ses A. C'est la démonstration visuelle de sa règle du 2026-08-12
+   (« le timbre seul ne devrait jamais servir à trancher, il sert à créer des
+   hypothèses confirmées par basse + harmonie ») — elle n'était jusqu'ici pas
+   illustrée.
+3. **La voix s'éteint** → pont, solo ou intro, même quand les deux autres
+   courbes sont plates. Le fond doré de la page marque ces passages ; il ne
+   dépend d'aucun pic et d'aucun seuil.
+
+Un quatrième cas est apparu, non anticipé : **le timbre peut MOURIR**. Sur This
+Love après la mesure 57 (les trois derniers refrains) la courbe de timbre est
+plate à zéro pendant vingt-quatre mesures alors que basse + harmonie continue de
+cycler. L'arrangement ne bouge plus, l'harmonie si. Une frontière n'a donc pas
+besoin des trois — mais il faut savoir laquelle est morte, sinon son silence se
+lit comme « pas de frontière ».
+
 ## 2026-08-12 — LE MORCEAU SE CONSTRUIT TOUT SEUL : BPE SUR LE MOT DE BI-MESURES
 
 Louis : « on peut faire beaucoup avec la matrice de transition de bi-mesure — on
