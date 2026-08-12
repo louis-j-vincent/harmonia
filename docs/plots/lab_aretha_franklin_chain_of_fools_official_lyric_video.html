@@ -29,6 +29,9 @@ button.blk small{display:block;font:500 9.5px ui-monospace,monospace;
   color:#a89f8c;margin-top:1px}
 button.blk.on{background:#0d2437;color:#fff} button.blk.on small{color:#cbd8e0}
 .verdict{font-size:13px;background:#f7f3e9;border-radius:8px;padding:9px 11px;margin:10px 0 0}
+.votes{font-size:12.5px;background:#fbf7ec;border:1px solid #eee5d2;border-radius:8px;
+  padding:9px 11px;margin:9px 0 0}
+.vrow{margin-top:3px;color:#4a4438}
 a{color:#8a2b2b}
 .back{display:inline-block;margin-bottom:12px;font-size:13px;text-decoration:none}
 .idx{border-collapse:collapse;font-size:13.5px;width:100%}
@@ -56,9 +59,17 @@ elles n'entrent dans aucun calcul.<br><br>
 <div class=cur></div><div class=hit></div></div>
 <div class=bar><button class=pp>▶</button><span class=pos>mes. 1 · 0:00</span>
 <span class=hint>touche le graphique pour te déplacer</span></div>
-<div class=lane><span class=lab>les pics durs</span><button class=blk data-p="[6,10]">mes. 9<small>juste</small></button><button class=blk data-p="[35,39]">mes. 38<small>juste</small></button><button class=blk data-p="[44,48]">mes. 47<small>juste</small></button></div>
+<div class=lane><span class=lab>les pics durs</span><button class=blk data-p="[6,10]">mes. 9<small>2 voix · juste</small></button><button class=blk data-p="[35,39]">mes. 38<small>3 voix · juste</small></button><button class=blk data-p="[44,48]">mes. 47<small>6 voix · juste</small></button></div>
 <div class=lane><span class=lab>les sections</span><button class=blk data-p="[0,1]">intro<small>mes. 1–1</small></button><button class=blk data-p="[1,8]">A<small>mes. 2–8</small></button><button class=blk data-p="[8,9]">A<small>mes. 9–9</small></button><button class=blk data-p="[9,11]">A<small>mes. 10–11</small></button><button class=blk data-p="[11,19]">A<small>mes. 12–19</small></button><button class=blk data-p="[19,21]">A<small>mes. 20–21</small></button><button class=blk data-p="[21,25]">A<small>mes. 22–25</small></button><button class=blk data-p="[25,33]">A<small>mes. 26–33</small></button><button class=blk data-p="[33,37]">A<small>mes. 34–37</small></button><button class=blk data-p="[37,43]">A<small>mes. 38–43</small></button><button class=blk data-p="[43,46]">A<small>mes. 44–46</small></button><button class=blk data-p="[46,47]">A<small>mes. 47–47</small></button><button class=blk data-p="[47,55]">A<small>mes. 48–55</small></button><button class=blk data-p="[55,70]">A<small>mes. 56–70</small></button><button class=blk data-p="[70,78]">A<small>mes. 71–78</small></button></div>
 <div class=verdict><b>Poids dans la fusion —</b> timbre 27% · basse + harmonie 25% · basse 16% · rythme 15% · accords 9% · harmonie 6% · voix 3%<br>contre ton découpage : <b>prod + pics 0.726</b> · prod seule 0.728 — la contrainte <b>fait pareil</b> ici</div>
+<div class=votes><b>Qui a voté pour chaque pic</b>
+<span class=hint>— une matrice vote si elle propose un pic à ±1 mesure. Le
+nombre de voix est une CONFIANCE, pas une position : mesuré sur les douze
+morceaux, un pic à 1 voix tombe juste 9 % du temps, à 7 voix 60 % (et 90 % à une
+mesure près). Faire la moyenne des positions votées ne recentre PAS le pic
+(29 % de justes contre 56 % pour le profil) — les matrices se trompent
+ensemble.</span>
+<div class=vrow><b>mes. 9</b> — 2 voix : basse, basse + harmonie</div><div class=vrow><b>mes. 38</b> — 3 voix : basse, basse + harmonie, rythme</div><div class=vrow><b>mes. 47</b> — 6 voix : accords, basse, harmonie, basse + harmonie, rythme, timbre</div></div>
 </section>
 <audio id=au preload=metadata playsinline src="/audio/aretha_franklin_chain_of_fools_official_lyric_video.m4a"></audio>
 <script>window.GRID=[3.66, 5.84, 7.94, 10.02, 12.08, 14.12, 16.2, 18.28, 20.38, 22.46, 24.54, 26.6, 28.68, 30.74, 32.8, 34.86, 36.94, 39.0, 41.06, 43.12, 45.18, 47.24, 49.28, 51.34, 53.4, 55.42, 57.5, 59.56, 61.58, 63.64, 65.68, 67.74, 69.8, 71.88, 73.96, 76.02, 78.1, 80.14, 82.24, 84.28, 86.32, 88.38, 90.42, 92.44, 94.48, 96.52, 98.62, 100.7, 102.76, 104.8, 106.84, 108.86, 110.9, 112.92, 114.94, 116.98, 119.04, 121.08, 123.14, 125.18, 127.22, 129.28, 131.32, 133.36, 135.42, 137.46, 139.48, 141.5, 143.54, 145.56, 147.58, 149.6, 151.64, 153.68, 155.74, 157.78, 159.82, 161.86, 163.88];

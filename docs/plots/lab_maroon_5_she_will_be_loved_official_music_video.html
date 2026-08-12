@@ -29,6 +29,9 @@ button.blk small{display:block;font:500 9.5px ui-monospace,monospace;
   color:#a89f8c;margin-top:1px}
 button.blk.on{background:#0d2437;color:#fff} button.blk.on small{color:#cbd8e0}
 .verdict{font-size:13px;background:#f7f3e9;border-radius:8px;padding:9px 11px;margin:10px 0 0}
+.votes{font-size:12.5px;background:#fbf7ec;border:1px solid #eee5d2;border-radius:8px;
+  padding:9px 11px;margin:9px 0 0}
+.vrow{margin-top:3px;color:#4a4438}
 a{color:#8a2b2b}
 .back{display:inline-block;margin-bottom:12px;font-size:13px;text-decoration:none}
 .idx{border-collapse:collapse;font-size:13.5px;width:100%}
@@ -56,9 +59,17 @@ elles n'entrent dans aucun calcul.<br><br>
 <div class=cur></div><div class=hit></div></div>
 <div class=bar><button class=pp>▶</button><span class=pos>mes. 1 · 0:00</span>
 <span class=hint>touche le graphique pour te déplacer</span></div>
-<div class=lane><span class=lab>les pics durs</span><button class=blk data-p="[18,22]">mes. 21<small>juste</small></button><button class=blk data-p="[31,35]">mes. 34<small>juste</small></button><button class=blk data-p="[46,50]">mes. 49<small>juste</small></button><button class=blk data-p="[71,75]">mes. 74<small>à juger</small></button><button class=blk data-p="[77,81]">mes. 80<small>juste</small></button></div>
+<div class=lane><span class=lab>les pics durs</span><button class=blk data-p="[18,22]">mes. 21<small>3 voix · juste</small></button><button class=blk data-p="[31,35]">mes. 34<small>5 voix · juste</small></button><button class=blk data-p="[46,50]">mes. 49<small>3 voix · juste</small></button><button class=blk data-p="[71,75]">mes. 74<small>4 voix · à juger</small></button><button class=blk data-p="[77,81]">mes. 80<small>3 voix · juste</small></button></div>
 <div class=lane><span class=lab>les sections</span><button class=blk data-p="[0,4]">intro<small>mes. 1–4</small></button><button class=blk data-p="[4,12]">A<small>mes. 5–12</small></button><button class=blk data-p="[12,20]">A<small>mes. 13–20</small></button><button class=blk data-p="[20,28]">B<small>mes. 21–28</small></button><button class=blk data-p="[28,33]">C<small>mes. 29–33</small></button><button class=blk data-p="[33,41]">A<small>mes. 34–41</small></button><button class=blk data-p="[41,48]">A<small>mes. 42–48</small></button><button class=blk data-p="[48,49]">A<small>mes. 49–49</small></button><button class=blk data-p="[49,57]">B<small>mes. 50–57</small></button><button class=blk data-p="[57,58]">C<small>mes. 58–58</small></button><button class=blk data-p="[58,66]">D<small>mes. 59–66</small></button><button class=blk data-p="[66,70]">E<small>mes. 67–70</small></button><button class=blk data-p="[70,73]">C<small>mes. 71–73</small></button><button class=blk data-p="[73,74]">C<small>mes. 74–74</small></button><button class=blk data-p="[74,78]">E<small>mes. 75–78</small></button><button class=blk data-p="[78,79]">C<small>mes. 79–79</small></button><button class=blk data-p="[79,87]">B<small>mes. 80–87</small></button><button class=blk data-p="[87,88]">C<small>mes. 88–88</small></button><button class=blk data-p="[88,96]">D<small>mes. 89–96</small></button><button class=blk data-p="[96,107]">C<small>mes. 97–107</small></button></div>
 <div class=verdict><b>Poids dans la fusion —</b> timbre 49% · harmonie 16% · rythme 14% · basse 7% · basse + harmonie 6% · accords 6% · voix 2%<br>contre ton découpage : <b>prod + pics 0.753</b> · prod seule 0.754 — la contrainte <b>fait pareil</b> ici</div>
+<div class=votes><b>Qui a voté pour chaque pic</b>
+<span class=hint>— une matrice vote si elle propose un pic à ±1 mesure. Le
+nombre de voix est une CONFIANCE, pas une position : mesuré sur les douze
+morceaux, un pic à 1 voix tombe juste 9 % du temps, à 7 voix 60 % (et 90 % à une
+mesure près). Faire la moyenne des positions votées ne recentre PAS le pic
+(29 % de justes contre 56 % pour le profil) — les matrices se trompent
+ensemble.</span>
+<div class=vrow><b>mes. 21</b> — 3 voix : harmonie, rythme, timbre</div><div class=vrow><b>mes. 34</b> — 5 voix : accords, basse, harmonie, basse + harmonie, timbre</div><div class=vrow><b>mes. 49</b> — 3 voix : harmonie, basse + harmonie, timbre</div><div class=vrow><b>mes. 74</b> — 4 voix : basse, harmonie, basse + harmonie, timbre</div><div class=vrow><b>mes. 80</b> — 3 voix : harmonie, rythme, timbre</div></div>
 </section>
 <audio id=au preload=metadata playsinline src="/audio/maroon_5_she_will_be_loved_official_music_video.m4a"></audio>
 <script>window.GRID=[11.94, 14.3, 16.66, 19.0, 21.36, 23.7, 26.06, 28.42, 30.76, 33.12, 35.48, 37.82, 40.18, 42.54, 44.88, 47.24, 49.6, 51.94, 54.3, 56.66, 59.0, 61.36, 63.7, 66.06, 68.4, 70.76, 73.12, 75.48, 77.82, 80.18, 82.52, 84.88, 87.24, 89.58, 91.94, 94.3, 96.66, 99.02, 101.36, 103.72, 106.06, 108.42, 110.78, 113.12, 115.48, 117.84, 120.18, 122.54, 124.9, 127.24, 129.6, 131.96, 134.3, 136.66, 139.0, 141.36, 143.72, 146.08, 148.42, 150.78, 153.14, 155.48, 157.84, 160.2, 162.54, 164.9, 167.24, 169.6, 171.96, 174.3, 176.66, 179.02, 181.38, 183.74, 186.08, 188.44, 190.8, 193.14, 195.5, 197.86, 200.2, 202.56, 204.9, 207.26, 209.6, 211.96, 214.32, 216.68, 219.02, 221.38, 223.74, 226.08, 228.44, 230.78, 233.14, 235.5, 237.86, 240.2, 242.56, 244.92, 247.26, 249.62, 251.96, 254.32, 256.68, 259.02, 261.4, 263.74];

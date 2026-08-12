@@ -55,7 +55,7 @@ sys.path.insert(0, str(HERE / "scripts"))
 sys.path.insert(0, str(HERE / "scratchpad"))
 
 from ssm_zoo import SONGS, AUDIO, GT_LINE, gt_sections       # noqa: E402
-from peak_profile import fused_profile, page                 # noqa: E402
+from peak_profile import fused_profile, page, peak_votes                 # noqa: E402
 from hard_prior_sections import (sections_from_peaks, score,  # noqa: E402
                                  colourmap)
 
@@ -188,10 +188,19 @@ def song_page(stem: str, title: str) -> str:
         f'<button class=blk data-p="[{s["b0"]},{s["b1"]+1}]">{s["label"]}'
         f'<small>mes. {s["b0"]+1}–{s["b1"]+1}</small></button>'
         for s in r["sections"])
+    # Le VOTE de chaque pic : combien de matrices le proposent aussi (±1 mesure).
+    # C'est une confiance, pas une position — voir `peak_profile.peak_votes`.
+    votes = {v["cut"]: v for v in peak_votes(kept, lines)}
+    by_bar = {int(round(v["cut"] * n / m)): v for v in votes.values()}
     peak_btns = "".join(
         f'<button class=blk data-p="[{max(0, h-2)},{min(n, h+2)}]">mes. {h+1}'
-        f'<small>{"juste" if any(abs(h-g) <= 1 for g in gtb) else "à juger"}</small>'
+        f'<small>{by_bar.get(h, {}).get("votes", 0)} voix · '
+        f'{"juste" if any(abs(h-g) <= 1 for g in gtb) else "à juger"}</small>'
         "</button>" for h in hard)
+    vote_lines = "".join(
+        f'<div class=vrow><b>mes. {h+1}</b> — {by_bar.get(h, {}).get("votes", 0)} voix : '
+        f'{", ".join(by_bar.get(h, {}).get("voters", [])) or "—"}</div>'
+        for h in hard)
 
     poids = " · ".join(f"{d['nom']} {d['poids']:.0%}" for d in votants
                        if d["poids"] >= 0.01)
@@ -212,6 +221,14 @@ def song_page(stem: str, title: str) -> str:
 <div class=lane><span class=lab>les pics durs</span>{peak_btns or '<span class=hint>aucun</span>'}</div>
 <div class=lane><span class=lab>les sections</span>{sec_btns}</div>
 <div class=verdict><b>Poids dans la fusion —</b> {poids}<br>{cmp_}</div>
+<div class=votes><b>Qui a voté pour chaque pic</b>
+<span class=hint>— une matrice vote si elle propose un pic à ±1 mesure. Le
+nombre de voix est une CONFIANCE, pas une position : mesuré sur les douze
+morceaux, un pic à 1 voix tombe juste 9 % du temps, à 7 voix 60 % (et 90 % à une
+mesure près). Faire la moyenne des positions votées ne recentre PAS le pic
+(29 % de justes contre 56 % pour le profil) — les matrices se trompent
+ensemble.</span>
+{vote_lines}</div>
 </section>
 <audio id=au preload=metadata playsinline src="/audio/{stem}.m4a"></audio>
 <script>window.GRID={[round(t, 3) for t in grid]};

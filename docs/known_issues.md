@@ -25140,3 +25140,68 @@ la position du pic.
 0,543 → 0,696, The Walk 0,430 → 0,525, Sunny 0,808 → 0,865, Stand By Me 0,771 →
 0,798 ; plus rien ne casse sauf **Grenade** (0,790 → 0,674), dont les pics
 tombent à 2–4 mesures des frontières. C'est le morceau à regarder ensuite.
+
+### Le vote inter-matrices : une CONFIANCE, pas un correcteur de position (2026-08-12)
+
+Louis : « chaque matrice propose des pics, on classe chaque pic selon combien
+d'autres matrices le proposent aussi », puis : « sur chaque pic certains votent
+avant, d'autres après, ça se compense ? Il faudrait que les pics soient plus
+exacts. »
+
+**Le vote prédit la justesse, très bien.** Sur les douze morceaux annotés, en
+groupant à ±1 mesure les pics proposés par les sept matrices :
+
+| voix | n | tombent juste | à ±1 mesure |
+|---|---|---|---|
+| 1 | 67 | 9 % | 28 % |
+| 2 | 30 | 30 % | 47 % |
+| 4 | 12 | 50 % | 67 % |
+| 5 | 19 | 58 % | 68 % |
+| 7 | 10 | **60 %** | **90 %** |
+
+**Mais il ne recentre pas — hypothèse testée, RÉFUTÉE.** Prendre la position
+médiane (ou moyenne, ou pondérée par le contraste) d'une grappe de votes donne
+**29 %** de pics exacts contre **56 %** pour le pic du profil fusionné ; à ±2
+mesures de tolérance de grappe, 32 %. Raison : les erreurs ne sont pas
+indépendantes. Toutes les matrices passent le MÊME noyau en damier de 8 mesures
+sur la MÊME grille — elles se trompent ensemble, il n'y a rien à moyenner.
+
+**Deuxième piste testée, RÉFUTÉE aussi** : recaler chaque pic dans une fenêtre de
+±2 mesures avec un noyau plus court (coarse-to-fine). Contexte de 4 mesures →
+52 % d'exacts, 2 mesures → 44 %, 1 mesure → 36 %, contre 56 % sans recalage. Un
+noyau court localise mieux en théorie et est plus bruité en pratique.
+
+**Ce qu'il reste à essayer pour la précision** (non fait) : le résidu vient
+probablement d'ailleurs que du détecteur — de la grille de mesures elle-même, et
+de la LEVÉE (un chanteur qui entre une mesure avant la barre, phénomène déjà
+documenté sur quatre morceaux dans `voice_sections`). Tant que ces deux-là ne
+sont pas traités, 79 % à ±1 mesure est peut-être proche du plafond.
+
+**Le vote est affiché** sur chaque page `lab_<stem>.html` : nombre de voix et
+liste des matrices votantes, par pic.
+
+### Le vote comme SÉLECTEUR de pics durs : moins bon que le profil
+
+Prendre comme pics durs tous les candidats à ≥ V voix, au lieu des pics du profil
+fusionné (médiane du score sections sur les douze) : V≥2 0,652 · V≥3 0,700 ·
+V≥4 0,721 · V≥5 0,722, contre **0,776** pour les pics du profil et 0,781 pour la
+prod seule. Le profil pondéré par le contraste reste le meilleur sélecteur — le
+vote sert à qualifier un pic, pas à en dresser la liste.
+
+### L'ajout itératif au coût MDL : implémenté, il sous-découpe
+
+Deuxième moitié de l'idée de Louis (« tu rajoutes les autres pics de manière
+itérative et tu regardes la config de sections la moins coûteuse
+épistémiquement »). Prototype : candidats classés par voix, ajoutés un par un,
+coût BIC sur la matrice fusionnée (`P·log(EQM) + k·log(P)`, l'écart entre la
+matrice observée et la matrice « idéale » où deux mesures de même lettre valent
+1). Le minimum du coût tombe au bon k sur This Love (6), Blue Lights (9) et
+Grenade (8) — et beaucoup trop tôt sur Let It Be (1 au lieu de 16), Chain of
+Fools (1 au lieu de 7), Every Breath You Take (2 au lieu de 10).
+
+Ce n'est pas forcément un défaut du critère : sur ces morceaux la matrice
+fusionnée ne CONTIENT que la grande échelle (le timbre y voit deux blocs), et le
+découpage fin de Louis n'y est pas. Le coût dit la vérité sur l'évidence
+disponible ; c'est la recherche de reprises qui apporte le grain fin, et c'est
+pour ça que « prod + pics » bat « pics seuls ». Le prototype vit dans
+`scratchpad/proto_vote.py`, non intégré.

@@ -99,6 +99,43 @@ KEEP_PROM = 0.25   # on garde tout pic dont la proéminence vaut au moins ce
 _MEMO: dict = {}
 
 
+VOTE_TOL_HB = 2    # ±1 mesure : deux matrices qui pointent à une mesure l'une de
+                   # l'autre parlent du même endroit
+
+
+def peak_votes(cuts, lines, tol=VOTE_TOL_HB) -> list[dict]:
+    """Pour chaque pic du profil : QUI l'a proposé. `[{cut, votes, voters}]`.
+
+    Louis, 2026-08-12 : « on classe chaque pic selon combien d'autres matrices le
+    proposent aussi ». Le vote est une CONFIANCE, pas une position — mesuré sur
+    les douze morceaux annotés, la justesse d'un pic monte avec ses voix :
+
+        1 voix   9 % tombent juste · 28 % à ±1 mesure
+        2 voix  30 % · 47 %          4 voix  50 % · 67 %
+        5 voix  58 % · 68 %          7 voix  60 % · 90 %
+
+    Ce que le vote ne fait PAS, et Louis posait la question directement (« sur
+    chaque pic certains votent avant, d'autres après, ça se compense ? ») :
+    recentrer. Prendre la médiane des positions votées donne **29 %** de pics
+    exacts contre **56 %** pour le pic du profil fusionné ; à ±2 mesures de
+    tolérance de grappe, 32 %. Les erreurs ne se compensent pas parce qu'elles ne
+    sont pas indépendantes : toutes les matrices passent le MÊME noyau en damier
+    sur la MÊME grille de mesures, donc elles se trompent ensemble. Recaler le
+    pic avec un noyau plus court (coarse-to-fine, 4 puis 2 puis 1 mesure de
+    contexte) a aussi été mesuré et fait pire : 52 %, 44 %, 36 %.
+    """
+    out = []
+    for c in cuts:
+        voters = []
+        for d in lines:
+            if d["nom"] == "fusion":
+                continue
+            if any(abs(x - c) <= tol for x in d["cuts"]):
+                voters.append(d["nom"])
+        out.append({"cut": c, "votes": len(voters), "voters": voters})
+    return out
+
+
 def select_peaks(P: np.ndarray, keep=KEEP_PROM, extra=SHOW_EXTRA):
     """(retenus, suivants) — les pics du profil, en cases de demi-mesure."""
     from scipy.signal import find_peaks, peak_prominences
@@ -306,6 +343,9 @@ button.blk small{{display:block;font:500 9.5px ui-monospace,monospace;
   color:#a89f8c;margin-top:1px}}
 button.blk.on{{background:#0d2437;color:#fff}} button.blk.on small{{color:#cbd8e0}}
 .verdict{{font-size:13px;background:#f7f3e9;border-radius:8px;padding:9px 11px;margin:10px 0 0}}
+.votes{{font-size:12.5px;background:#fbf7ec;border:1px solid #eee5d2;border-radius:8px;
+  padding:9px 11px;margin:9px 0 0}}
+.vrow{{margin-top:3px;color:#4a4438}}
 a{{color:#8a2b2b}}
 .back{{display:inline-block;margin-bottom:12px;font-size:13px;text-decoration:none}}
 .idx{{border-collapse:collapse;font-size:13.5px;width:100%}}

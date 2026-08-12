@@ -29,6 +29,9 @@ button.blk small{display:block;font:500 9.5px ui-monospace,monospace;
   color:#a89f8c;margin-top:1px}
 button.blk.on{background:#0d2437;color:#fff} button.blk.on small{color:#cbd8e0}
 .verdict{font-size:13px;background:#f7f3e9;border-radius:8px;padding:9px 11px;margin:10px 0 0}
+.votes{font-size:12.5px;background:#fbf7ec;border:1px solid #eee5d2;border-radius:8px;
+  padding:9px 11px;margin:9px 0 0}
+.vrow{margin-top:3px;color:#4a4438}
 a{color:#8a2b2b}
 .back{display:inline-block;margin-bottom:12px;font-size:13px;text-decoration:none}
 .idx{border-collapse:collapse;font-size:13.5px;width:100%}
@@ -56,9 +59,17 @@ elles n'entrent dans aucun calcul.<br><br>
 <div class=cur></div><div class=hit></div></div>
 <div class=bar><button class=pp>▶</button><span class=pos>mes. 1 · 0:00</span>
 <span class=hint>touche le graphique pour te déplacer</span></div>
-<div class=lane><span class=lab>les pics durs</span><button class=blk data-p="[15,19]">mes. 18<small>juste</small></button><button class=blk data-p="[30,34]">mes. 33<small>juste</small></button><button class=blk data-p="[46,50]">mes. 49<small>juste</small></button><button class=blk data-p="[62,66]">mes. 65<small>juste</small></button><button class=blk data-p="[78,82]">mes. 81<small>juste</small></button></div>
+<div class=lane><span class=lab>les pics durs</span><button class=blk data-p="[15,19]">mes. 18<small>2 voix · juste</small></button><button class=blk data-p="[30,34]">mes. 33<small>6 voix · juste</small></button><button class=blk data-p="[46,50]">mes. 49<small>3 voix · juste</small></button><button class=blk data-p="[62,66]">mes. 65<small>4 voix · juste</small></button><button class=blk data-p="[78,82]">mes. 81<small>3 voix · juste</small></button></div>
 <div class=lane><span class=lab>les sections</span><button class=blk data-p="[0,1]">intro<small>mes. 1–1</small></button><button class=blk data-p="[1,9]">A<small>mes. 2–9</small></button><button class=blk data-p="[9,17]">B<small>mes. 10–17</small></button><button class=blk data-p="[17,25]">A<small>mes. 18–25</small></button><button class=blk data-p="[25,32]">B<small>mes. 26–32</small></button><button class=blk data-p="[32,33]">B<small>mes. 33–33</small></button><button class=blk data-p="[33,37]">C<small>mes. 34–37</small></button><button class=blk data-p="[37,41]">C<small>mes. 38–41</small></button><button class=blk data-p="[41,48]">D<small>mes. 42–48</small></button><button class=blk data-p="[48,49]">D<small>mes. 49–49</small></button><button class=blk data-p="[49,53]">C<small>mes. 50–53</small></button><button class=blk data-p="[53,57]">C<small>mes. 54–57</small></button><button class=blk data-p="[57,64]">D<small>mes. 58–64</small></button><button class=blk data-p="[64,65]">D<small>mes. 65–65</small></button><button class=blk data-p="[65,69]">C<small>mes. 66–69</small></button><button class=blk data-p="[69,73]">C<small>mes. 70–73</small></button><button class=blk data-p="[73,80]">D<small>mes. 74–80</small></button><button class=blk data-p="[80,88]">D<small>mes. 81–88</small></button></div>
 <div class=verdict><b>Poids dans la fusion —</b> timbre 24% · accords 22% · harmonie 21% · basse + harmonie 15% · rythme 11% · voix 6%<br>contre ton découpage : <b>prod + pics 0.865</b> · prod seule 0.808 — la contrainte <b>gagne</b> ici</div>
+<div class=votes><b>Qui a voté pour chaque pic</b>
+<span class=hint>— une matrice vote si elle propose un pic à ±1 mesure. Le
+nombre de voix est une CONFIANCE, pas une position : mesuré sur les douze
+morceaux, un pic à 1 voix tombe juste 9 % du temps, à 7 voix 60 % (et 90 % à une
+mesure près). Faire la moyenne des positions votées ne recentre PAS le pic
+(29 % de justes contre 56 % pour le profil) — les matrices se trompent
+ensemble.</span>
+<div class=vrow><b>mes. 18</b> — 2 voix : rythme, timbre</div><div class=vrow><b>mes. 33</b> — 6 voix : accords, harmonie, basse + harmonie, voix, rythme, timbre</div><div class=vrow><b>mes. 49</b> — 3 voix : accords, harmonie, basse + harmonie</div><div class=vrow><b>mes. 65</b> — 4 voix : accords, harmonie, basse + harmonie, voix</div><div class=vrow><b>mes. 81</b> — 3 voix : basse, basse + harmonie, timbre</div></div>
 </section>
 <audio id=au preload=metadata playsinline src="/audio/bobby_hebb_sunny_official_audio.m4a"></audio>
 <script>window.GRID=[0.34, 2.2, 4.1, 6.0, 7.9, 9.82, 11.74, 13.66, 15.54, 17.42, 19.3, 21.18, 23.08, 24.94, 26.82, 28.74, 30.64, 32.48, 34.36, 36.26, 38.1, 39.98, 41.84, 43.68, 45.52, 47.38, 49.26, 51.12, 52.98, 54.86, 56.74, 58.62, 60.48, 62.32, 64.2, 66.08, 67.94, 69.8, 71.68, 73.54, 75.4, 77.24, 79.1, 80.98, 82.88, 84.72, 86.6, 88.48, 90.34, 92.22, 94.12, 96.0, 97.9, 99.72, 101.58, 103.44, 105.32, 107.14, 109.0, 110.88, 112.72, 114.58, 116.46, 118.34, 120.22, 122.02, 123.88, 125.76, 127.6, 129.44, 131.28, 133.14, 135.02, 136.82, 138.68, 140.56, 142.46, 144.34, 146.2, 148.06, 149.94, 151.78, 153.64, 155.48, 157.32, 159.16, 161.0, 162.82, 164.66];
