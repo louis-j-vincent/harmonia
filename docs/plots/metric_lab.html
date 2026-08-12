@@ -1,0 +1,171 @@
+<!DOCTYPE html><html lang=fr><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>D'où vient le score des sections</title><style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:#e7e0d0;font:16px/1.55 -apple-system,system-ui,sans-serif;color:#1c1c1c}
+.wrap{max-width:1120px;margin:0 auto;padding:20px 12px calc(40px + env(safe-area-inset-bottom))}
+h1{font:italic 600 24px Georgia,serif;margin:0 0 3px}
+.lede{color:#6f6858;font-size:13.5px;margin-bottom:18px}
+.lede b{color:#1c1c1c}
+section{background:#fffdf6;border:1px solid #e5dcc6;border-radius:14px;padding:14px 13px;margin-bottom:16px}
+h2{font:700 18px system-ui;margin:0 0 10px;color:#8a2b2b}
+.sub{font:500 12px system-ui;color:#8a8371}
+img{width:100%;border-radius:8px;display:block;margin-bottom:8px}
+.plot{position:relative;margin-bottom:8px}
+.plot img{margin:0}
+.cur{position:absolute;top:0;bottom:0;width:2px;background:#111;opacity:.8;
+  display:none;pointer-events:none;box-shadow:0 0 0 1px rgba(255,255,255,.55)}
+.hit{position:absolute;top:0;bottom:0;cursor:crosshair}
+.bar{display:flex;align-items:center;gap:10px;margin:0 0 10px}
+.pp{width:42px;height:42px;border-radius:50%;border:1px solid #d8cfb4;
+  background:#f7f3e9;font-size:15px;cursor:pointer;flex:none}
+.pos{font:600 12.5px ui-monospace,monospace}
+.hint{font:500 11.5px system-ui;color:#a89f8c}
+.lane{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:0 0 6px}
+.lab{font:600 11px system-ui;color:#8a8371;width:96px;flex:none}
+button.blk{border:1px solid #d8cfb4;background:#f7f3e9;border-radius:7px;
+  padding:5px 8px;cursor:pointer;font:600 12px system-ui;color:#6f6858}
+button.blk small{display:block;font:500 9.5px ui-monospace,monospace;
+  color:#a89f8c;margin-top:1px}
+button.blk.on{background:#0d2437;color:#fff} button.blk.on small{color:#cbd8e0}
+.verdict{font-size:13px;background:#f7f3e9;border-radius:8px;padding:9px 11px;margin:10px 0 0}
+.votes{font-size:12.5px;background:#fbf7ec;border:1px solid #eee5d2;border-radius:8px;
+  padding:9px 11px;margin:9px 0 0}
+.vrow{margin-top:3px;color:#4a4438}
+a{color:#8a2b2b}
+.back{display:inline-block;margin-bottom:12px;font-size:13px;text-decoration:none}
+.idx{border-collapse:collapse;font-size:13.5px;width:100%}
+.idx td{border-bottom:1px solid #e5dcc6;padding:8px 9px}
+.idx td a{font-weight:600;text-decoration:none}
+</style><style>
+h3{font:700 14px system-ui;margin:16px 0 6px;color:#6f6858}
+table.sum,table.idx{width:100%;border-collapse:collapse;
+  font:500 12.5px system-ui;margin:8px 0;table-layout:fixed}
+table.sum td,table.idx td{padding:5px 6px;border-top:1px solid #efe7d4;
+  vertical-align:top;overflow-wrap:anywhere}
+table.sum td.k{width:33%;color:#6f6858}
+table.sum td.v{width:19%;font:700 13px ui-monospace,monospace;text-align:right}
+table.sum td.c{color:#8a8371;font-size:11.5px}
+table.idx td:first-child{width:40%}
+table.idx td:not(:first-child){width:15%;text-align:right;
+  font:600 12px ui-monospace,monospace}
+table.idx .hint{display:block;font-size:10px}
+tr.tot td{background:#faf6ea}
+tr.fin td{background:#f2ecdc;font-size:13.5px}
+tr.fin td.v{font-size:16px;color:#8a2b2b}
+div.leak{border-top:1px solid #efe7d4;padding:7px 2px}
+.lk1{display:flex;justify-content:space-between;align-items:baseline;
+  font:600 13px system-ui}
+.lk1 .cost{font:700 13px ui-monospace,monospace;color:#8a2b2b}
+.lk2{font:500 12px system-ui;color:#6f6858;margin:1px 0 5px}
+.lk3{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.lk3 span{font:600 10.5px ui-monospace,monospace;color:#8a8371;
+  background:#f7f3e9;border:1px solid #e5dcc6;border-radius:6px;padding:2px 6px}
+p.read{font:500 13px system-ui;color:#4a4437;background:#faf6ea;
+  border-left:3px solid #c9a227;border-radius:0 8px 8px 0;padding:8px 10px;
+  margin:6px 0 12px}
+p.leg{font:600 11.5px system-ui;color:#6f6858;margin:2px 0 10px}
+.sw{display:inline-block;width:13px;height:13px;border-radius:3px;
+  vertical-align:-2px;margin:0 4px 0 12px;border:1px solid #d8cfb4}
+p.map{font:500 12px system-ui;color:#6f6858;background:#faf6ea;border-radius:8px;
+  padding:8px 10px}
+section.case h2{font-size:15.5px}
+p.note{font:500 12.5px system-ui;color:#6f6858;margin:6px 0 8px}
+p.chip{margin:0;display:flex;gap:6px;flex-wrap:wrap}
+p.chip span{font:600 11.5px system-ui;color:#6f6858;background:#f7f3e9;
+  border:1px solid #e5dcc6;border-radius:7px;padding:4px 8px}
+p.chip span.hi{background:#f2ecdc;color:#8a2b2b}
+p.chip b{font:700 12.5px ui-monospace,monospace}
+</style></head><body><div class=wrap>
+
+<h1>D'où vient le score des sections</h1>
+<div class=lede>Le score répond à une seule question :
+<b>est-ce que notre découpage dit la même chose que le tien ?</b> Il vaut 1 quand
+c'est identique.<br><br>
+Il se fabrique en deux moitiés, et le score est leur <b>produit</b>.
+<b>Segments</b> apparie les blocs et regarde s'ils couvrent le même espace — il
+voit les longueurs, les frontières, et tes deux A qu'on aurait écrits en un seul.
+<b>Lettres</b> regarde si la traduction de tes noms vers les nôtres est la même
+d'un bout à l'autre — renommer ne coûte rien, être incohérent coûte.<br><br>
+Chaque moitié est calculée <b>dans les deux sens</b> (nous→toi, toi→nous) puis
+moyennée en harmonique : sur-découper et sous-découper ne sont pas la même faute,
+et aucune des deux ne peut se rattraper sur l'autre.<br><br>
+Deux remises : une <b>queue</b> de deux mesures en litige coûte 0,35 au lieu de
+1, et un <b>sur-découpage constant</b> aussi — parce que les deux lectures se
+défendent.</div>
+<section class=case><h2>Changer les noms ne coûte rien</h2>
+<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAsQAAAB5CAMAAAAJQMczAAABgFBMVEX+/PWoyNzgyabIv6kDAwMbGhonKCfk4ts4ODWpp6O4trGLioZpaGVJSEaWiHLW1M52cWjb2dPKtpZZWFb18+yat8m2o4iDmqmYlpLKyMJYUUh5eHSkk3tCPjbt6+SLpLR1iZbZw6HSvZxOWWEtMTNETVN9k6FVY2vl0bM9RUpRXWU4PkLx7+i30eCBgHyGemdLVVySkY1yaFiRrL1rfYkyMC1dbHbDwbxhcXxCQDugvtFVTkNiYV7g3tgqLjB7kZ+wrqmAf3sfICFnXlGzsayhn5tjWk2Qj4uHoK/Cr5GfvdCrmoBtgIxwb2wgIB8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAqSdz6AAAD20lEQVR42u3dWVPaUBiA4RjPOQmYiBD2VRGkWOtS96V1t3v//8/pSUpdLnph0g58zPvOEJIZrpxnznwkxDgOERERERERERERERERERERSWtxkb/B1Hu3QBlKELuUujf/AjEOQTzVQAxiEIMYxCAGMYhBDGIQgxjEIAYxiEEMYhCDGMQgTpdX74IYxLIQF+tbL47zqiAA8ego3vaGNRCnqtRsx29rzZ25QJxTxRfHhcATgLimV+3WH7MSp+y9KT1uxSMuBmq7Xi/bMSJ3XxA0TmyaysKRfYE4XWt+03WrenkuxolGqKIg2HK2VWj3xIwTC2eD3V6yGoM4XRZwAnmOxok7VbegVUsMYjtQmCFf7DINFLczPUy8HnFo4v1Iy0G8MNb7IM40UMz2MPF6xKYZ7y+prqSVeB3EWVrR7nwh1tFvxJ4UxF8Huxt6A8QgjrtKEJ/68X6gxIwT6x8ryQvEIHacY9Ww27o6tmfX1IUUxJfaXuaomE0Qg9hW1v6ePU8cqta1Nl0hiCtmFL9taK7YgTi53LEdnyd27lo/7stSrthVJtNwrQfi1H1p8ys24gdAIAYxgRjEIAYxiEFMIAYxiAnEIAYxiEEMYgIxiEFMIAYxiEEMYhATiGcZMc/sALEr/ZkdxNOTiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiBxuFKWpxC373LIv/pZ9HIKY/wAEYhCDGMQgBjGIQUwgBjGICcQgBjGIQQxiAjGIQUwg/mv7PRCnr1+19UE85Yz+DOLULWu/45vzPoin2eqNvwniDIhLrlsyDxIR51Qx0DqIdwuhUn7e7iyp+HBFO055RSuzJAPxcPfAgDgbYvf2UCbiKLd1pfYcx9Nh0QtU/jniwDTKxVZeAuKKvqzoVRBnQ9z0ZSLettvIt2BV1+4Z/zniw0DMOHFil+HhGMTpEber1Z2fyzIRN+y2ZcGaMD5uqfIzxJHe84QgHozsWKwrIM7wxa5jzksyEXuTKVhH8fEne/yEuHuhhMzENf2916vdnIA4yzix9mD6ohE/rcR1+4pX4eQDjRV1LQDxpnlrGwxAnGkmruq2aMRPM3E+HjHKWk8+4oezj/jMHCTXO3QNxFkQt/U30Yg/PJ6dsIuy9yEKLeIw55Xzamn2Ef+Zhv11EGf4Yrd82FkTjfjpPLHT8JXJxzNxIxJynng0wXswBnG62p1O57S5wxU74gdAIAYxgRjEIAYxiEFMIAYxiAnEIAYxiEEMYgIxiEFMIAYxiEEMYhATiEEMYvpviHnwDIhd6Q+eIR4BRkRERERERERERERERERENAf9Au7+RrUAIVgFAAAAAElFTkSuQmCC">
+<p class=note>On apparie avant de comparer, dans les deux sens. Ton A peut être notre B.</p>
+<p class=chip><span>segments <b>1.000</b></span>
+<span>lettres <b>1.000</b></span>
+<span class=hi>score <b>1.000</b></span></p></section><section class=case><h2>Tes deux A écrits comme un seul A de 16</h2>
+<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAsQAAAB5CAMAAAAJQMczAAABgFBMVEWoyNz+/PXIv6kDAwMaGhomJyfk4tu4trGpp6OLioY0NzdpaGWat8lJSEbW1M5+lKLb2dOLpbX18+xZWFY3PUFETVNpeoaYlpLKyMJJU1q30eBycW7t6+Rca3SDm6p5eHQ8REl0iZVWZG3x7+iBgHwtMjQqLjCSrb5icn2SkY0fICGAf3vDwbxSXmZiYV6wrqmhn5tgb3ng3tizsayTr8Chv9JSUU+HoK9wb2wwMC5AQD57kZ+Qj4tugY0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABO5ikhAAADuUlEQVR42u3d2VIiSRiAUejMAi1A9q1VFrdWe51eZp/3f63JUnu0L4cltKrPFyFURXj1ewKSBKxaXSp5NSMQxBLEEsSCWIJYgliCWBBLEEsQ/3y9emUGz474dU1bdIfYGDbv9S4QGyPEzztBiCGG2B8AYoghhhhiiCGGGGKITRFiiCE2Q4ghhngjxI3pCcQQlwtxb3r+w3kzHJUD8dm4DfE2Tcb9qiA+CL0fzo9ajVIgfhPjBOIt+pbFs4og7rXCxXQ6SMuIg09HZVpOnF6+H0G8Revsl6wiiGedMGy1zusXoZOOSrScyK4XsQ/x5q3m7biu1HLiS5gm0GFZGsTd+LV2eQrxxn2N3dp4XCnEnaw4HsbSIJ6v0ooig3jz5Vga3jq2q4Q4+7U4PgwnJUHcvv2neG33F8SbdlW8qssmVUIch/eIGyVBPImr8Xh8O4d4wxZxlAaY5dVA/PEO8Z95cdwKZVlO5PNu6volPx2+bMTzUTHAdfytEojfhVm6nYZ3aXctfCgJ4n5c3G9RTCDebDn2MLn8fSUQD2J+k/aJO2H5NmYnJUF89vCSbp5DvOFy7P457EVvFf+Pz070Lop94vqX5e+fBmV5x27xsEPc7kK82VPZ4vsA2z7FJh8AghhiQQwxxBBDDLEghhhiQQwxxBBDDLEghhhiQQwxxBBDDLEgfqGIXbMD4lrZr9khV09yCTAJYgliQSxBLEEsQSyIJYgliCWIBbEEsQSxBLEgliCWIBbEEsQSxNLzIPaVfZX+K/vGKP8BSIJYEEMsiCWIJYgFMcSCWIJYgri89dtmAHG5W8eRIUBc7laj2DeFfSA+CL1WjK3i8KgTQt5MB4ehOD2O9frgOIbsEOJd9CYu8jNj2A/i4cH5x3BTrzdip9doheZTxK1sNugtmxDvoNOr2nVmDPtBfJFuh3kCG07SUZY/RfxHy3JiV12d1tpxbQ57QTxLt8sENusU58sweIJ4GG8aEO+kbrEgXo0NYi+IGw+r4Dgszv9O54+ITz4Ea+LdNL/s9/un0S7bXhE/PhJP00/xKHz3C7Pj8BbirWvf5qNUNjGKfSJ+XBM3iyXGIMaHX8k7EG/dJPtW3J3lRrFPxJ//251ID8qNz8NOQtw5aAya4RDirRvN7+4Wtor3ivhxn7g+y0PWLNbEs6F94t2sJkbd+4OV9YR37AQxxIJYgliCWBBDLIgliCWIBTHEgliCWIJYEEOsnxWxC8+oVvYLz0iuYydBLEEsiCWIJYgliAWxBLEEsQSxKtC/yjC0Q2F5ATMAAAAASUVORK5CYII=">
+<p class=note>Mesure par mesure les lettres sont IDENTIQUES — les lettres valent 1,000. C'est l'appairage des segments qui voit la reprise effacée. Voilà pourquoi il faut les deux moitiés.</p>
+<p class=chip><span>segments <b>0.667</b></span>
+<span>lettres <b>1.000</b></span>
+<span class=hi>score <b>0.667</b></span></p></section><section class=case><h2>Une frontière posée deux mesures trop loin</h2>
+<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAsQAAAB5CAMAAAAJQMczAAABgFBMVEX+/PWoyNzgyabIv6kDAwMaGhonJya4pYk3NzaYiXPk4ttKSEWpp6O4trGklHxpaGWLiobW1M7b2dPKtZb18+xZWFabuMpUTUPKyMKLpbWYlpJ9k6FycW5JU1l5eHTt6+RCPjbTvZxETVM7Q0hoeoWDm6o3PkJzaVmBgHzl0bNmYVhHQzy30eBbanPx7+h0iJVYUkktMTOSkY2FeGVVY2vcxaM0Mi6RrLxicnwfICFgb3mwrqmzsaxRXWXDwbzg3tiAf3tugY2hn5uQj4ufkHgwLip7kZ+sm4FnXlGQg27Cr5GOgWxwb2yUr8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAApstUCAAAD6UlEQVR42u3daW+iQByAcbQzwwhaWhW86q3Vtdv7vo+9r+//dXawZtu+24VNdMjzJCVD0lfNL+bPCMVxiIiIiIiIiIiIiIiIiIiIyLbW1vgbLL33OUrRHHGeEvfufyDGIYiXGohBDGIQgxjEIAYxiEEMYhCDGMQgBjGIQQxiEIMYxMnyml0Qg9guxOXm3pvzkti0A/HJIAJx4r7UarWDiZsRxEVRfnO+GXhWID6XcgTixBVkYf3jTBYygbgciGmzWTVjRPFp06ZxYvfwdhvEKRBXzLHWywTiui/CINhzpsI3K4vGCXUxlg0Qp0M8+5SlceJGNA1o0bEGcUv+yh3ugjgV4v7ZQZYQ+ypeh9IaxO2hmSgUiJMj9mu+qvWzhFgdxOsN0bUEcXT5GF/bfQZxigu79WM1yRJiGT4j9ixBPJLDwWBw2QZxqpm4IN1MIL6eI97R8ToQtowTut0yXcgIxGkQuyu9x/b3iO9E3Ryb4s7sromZJYgbcvy8RTECcQrEp5M5ZfsRV6U+MvvEvug8SNW1BPHJ4pKurUGc/MKudqYKGbl3ojyN94mdm87Pp6ot39iNFzvEUQvEyaqsm9xT7mIjbgACMYgJxCAGMYhBDGICMYhBTCAGMYhBDGIQE4hBDGICMYhBDGIQg5hAvLqIeWcHiPO2v7ODeHsSERERERERERERERERERERERERERERERERERERETk8ULqUeGSfR/utf2QfXyDmPwARiEEMYhCDGMQgJhCDmEAMYhCDGMQgBjGBGMQEYhD/U1EDxMnru6Y+iJfcoWyBOHHrUve02qmAeJmNpW6DOAViN5+v6NqqIy6KciBlEC83fSF0ySw2RHy6JR2nuiWF2rAXcXu4LyMQp0Kcn6jVRxwW967FkeN40i97gSi9RhyoerXcKdmKOFL7OTUCcTrEXy1APDXHUBuwomtWSr9GfBZYPU48qih3q0GcHHHBdY/Vj9VHXDfHjgGr/Pi8I6qvEIfyyLMY8bAdj8UNEKe4sOupHXf1EXuLKViG8fkHc/6CuDsTFs/E53LUaDTUCYjTjBOnE1WxBvHLJ3HT/MSfwvNfqG+JB0sR76ptk1YgTjUTf5ffrEH8MhOX4hGjKuXiV7RvKWJ1Nb+6k/sgToPYlQVrEN//2Z0wH8refegbxH7Rq5bEhp2IW4tpeDgAcYoLu4LWfWsQv+wTO3UtVCmeieuhxfvEVwu8+8MIxIlye73ezsFxn2/siBuAQAxiAjGIQQxiEIOYQAxiEBOIQQxiEIMYxARiEIOYQAxiEIMYxCAmEIMYxMSLZ0Cc58UzxCvAiIiIiIiIiIiIiIiIiIiIMtFvLlJCTsDPlw8AAAAASUVORK5CYII=">
+<p class=note>Le coût est proportionnel au nombre de mesures déplacées, et il se paie des deux côtés.</p>
+<p class=chip><span>segments <b>0.938</b></span>
+<span>lettres <b>1.000</b></span>
+<span class=hi>score <b>0.938</b></span></p></section><section class=case><h2>Une queue de deux mesures en litige</h2>
+<img src="data:image/png;base64,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">
+<p class=note>Deux mesures de fin dont personne ne veut vraiment : 0.35 au lieu de 1,00. C'est le désaccord de goût, pas une erreur de frontière.</p>
+<p class=chip><span>segments <b>0.989</b></span>
+<span>lettres <b>1.000</b></span>
+<span class=hi>score <b>0.989</b></span></p></section><section class=case><h2>Ton B toujours écrit « B puis C » chez nous</h2>
+<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAsQAAAB5CAMAAAAJQMczAAABgFBMVEX+/PWoyNzgyabD177J28PIv6kDAwMaGhonJyY3ODVJSEXk4tuXiHNcVUqpp6O4trFpaGWLiobW1M5YWFXb2dP18+zItJW3pYlyc27KyMKYlpJ0alpVTkOklHxCPjd4eHSZtcdmYlft6+TbxKJETVM1My5+lKKEnKuLpbVqfIhIUlg3PkKKl4e2ybEtMjRhcXx5hXc9RElWY2uyxK4fICGRrL2BgHy30eB1iZbx7+hca3RRXWWSkY3l0bOFeGWAf3vTvZ0fIB+nt6NtgIzDwbyerppNWWCrmoGhn5t7kZ/g3thEQj2wrqkwLiqzsayxn4WQj4tqc2gvMS+hv9KfkHghIB9PVU5wb2x8cF/CrpDWwJ+isp6Ur8CHoK+vwas+Qj0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACFA5hfAAAEZklEQVR42u3daXPaRhyAccVudlcSh2wB4jI35ojBZ9w4dnPfV8+kd/v9v0VXhNbOuwRc2JWeZ8ZCmvELxvMbzV+LsByHiIiIiIiIiIiIiIiIiIiIbOvmTf4Ga+/rG7REM8QbtHDfXAdiHIJ4rYEYxCAGMYhBDGIQgxjEIAYxiEEMYhCDGMQgBjGIQbxYfrUDYhDbhbhQPfvkOC+27UB81GuBeOGe1+v1bC1KCOKcKHxyvB34ViC+LeUIxAuXkZmdn9oykwjEhUCcVqtFPUbkXmzbNE7cnZ7fAvESiEt6W28kAnHFE2EQnDmnwtN7Fo0Tan8ghyBeDnH7bZLGiXeiqkGLpjWId+UfN6Z3QbwU4gf9bJIQeyreD6U1iMeHeqJQIF4csVf3VP1BkhCrbLy/JTqWIG6dPI6v7V6CeIkLu517qpYkxDL8iNi3BPFIHvZ6vZMxiJeaiTMySgTiNzPEr914PxC2jBPueFe3L1sgXgZxZPQa2+cjfiIqelsVT/TqmmhbgngoBx+XKEYgXgJxtzajbD/ionQv9DqxJ5r3pepYgvhofkk3dkG8+IVdva8yCbl3onAarxM775o/vyja8ondYL5C3NoF8WKVdnRRl7vYiBuAQAxiAjGIQQxiEIOYQAxiEBOIQQxiEIMYxARiEIOYQAxiEIMYxCAmEJuLmGd2gHjD9md2EE9PIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiInL4oijvby3xlf1Ef2V/9v6+MjmHf54C4s9AvGlwIAYxiEEMYhATiEEMYhCDGMQgBjGIQQxiEIMYxCAGMYhBbDiS28M0IS5FUfRr12zEx48mIP6ylPwzRYizqtHoq5rBiPdc5SrVBPEXdOfEPU8TYldvdmTGWMQHDw9iyer4/0ecE4VAyiDe3faEcPN6Z0vEh2XpOMWyFGrLDsS98UilDfHG27apiP96WJ69/j5ZBeIwd/ZGXDiOL72CH4j8VcSBqhQLzbwNiFvyZUveSRni7nXOE9eL+EBOVnZhlxOnehu6Gqzo6D3lXkXcD6wZJ/b1abh3mCLE/Sh6nlUlUxGHanOFiCt629RglRcfN0XxCuJQXviWIJ4e6bFYtlJ1YeeqWtdUxFl3lYj9+RQsw/j4O318ibjTFpbMxAP5eDgcnOyna5wouVlTEbfVOhBfnomr+ic+C89+oVIW9y1AfK5u6abTlF3Y/SJ/MxTxnny6BsSXM3E+HjGKUs5/xfXMR/yjGs0+75CDdCFuq66pS2yuN3v5/niViF/9tzqhT8r+q9DTiL2cX8yLLfMR/zsNu8/SdGH37b33xq5ObD764e+9p3uemqwS8eU6sVNxhcrHM3EltGSd+GiOd3SYFsS1RqPxOpvpmvuJ3eTggxeWj/nEjhuAuAEIxCAGMYhBDGICMYhBDGIQgxjEIAYxiAnEIAYxiEEMYhCDGMQgJhCDGMQgBjGIQcyDZ3jwTFIePEM8AoyIiIiIiIiIiIiIiIiIiCgB/QMkaXJyDmbsWwAAAABJRU5ErkJggg==">
+<p class=note>Sur-découper ne coûte presque rien TANT QUE c'est fait pareil à chaque reprise — la traduction reste une fonction. Découper ici et pas là, si.</p>
+<p class=chip><span>segments <b>0.857</b></span>
+<span>lettres <b>1.000</b></span>
+<span class=hi>score <b>0.857</b></span></p></section><section class=case><h2>Tout le morceau sous une seule lettre</h2>
+<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAsQAAAB5CAMAAAAJQMczAAABgFBMVEX+/PWoyNzgyabD177J28PIv6kDAwMaGholJiY1Nzbk4ttISEdpaWWpp6O4trGLioaMpbV+lKJYWFXW1M7b2dOzoYaZtsg3PUFETVP18+xKVFtycm7KyMKYlpKtnIJWY2xpe4aEeGWCmaiklHvt6+RcanR5eHRVTkO30eBlZFt1ipdGQTu5zLSBg3x5hHbx7+iNmok9REmgv9KZqJVXUkrbxKKxw60qLjCouaSSkY1jc30fICCTr8Czsay+0bmwrqmhn5uRrL0zMi7RvJvDwbyAf3vg3tg9QTwsMDLWwJ5OWWCQj4svMS9CPTZrdGjGspSjs59wb2x5bl5cZFogIB97kJ6cjXYwLiptgIwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD3kP/GAAAEUUlEQVR42u3dZ3PaSByAcXG5bEEyFjIWxRCKKQEb98Sxc+n1SnK9fP9Pcitgzs69PGtHf7jnN2OQZnjBrJ8RqxW2ggAAAAAAAAAAAAAAAPzL/fu8wc0ewDw8LEm2+B18JdjiDUofwK8lyyPiEhFvfMT3BCNiIiZiIiZiIiZiIiZiIiZiIiZiIiZiIiZiIiZiIiZiIv6Pyp0hERPxekVc6xx/sV9RO14iThtdwRHvTiaTi+kD0RG3WrIjPpkm0/lhIRFvqdoX+ztR2UvEPa2/ERyx7u/v//JbX3DEVa2rgiN+bO3RyZE1hwVEXIvUvNNpumnE1ssdn9MJ2/04khxxdhSeGsERt8KwJTjiDx8W+f76uICI26FKoug4mKvQbfmbTsQ6Hl1Kj7ivH4mNODWz2dNUbMQn+rzAOfFyOvFMdVzQauwt4q4tvdID2RE/Ovgk90jcM2dnpic24sjcKzzi0GTbifYWsbkuleotwREfTCZ/HvwoN+Js8L6zYiNObPERm4tse1sNPUU802l2MElFn9j1X1+InU7E2VndQMdiIxZwJNbJMuKyp4gbptFonOq/ZM+Jd/UfUiMeaTeADd2VGvGePiww4heLiA9sth0pT9OJVF9XnVZddsRvdF9qxKabDWDXSI34iT5aPhexxBa8VW332FFv3eqamnqKuLcc/Dw/Dv2sTjwQGvHvy0X2VM+kLrF9Nifu8fyHIpbYgqa2V26dOFTjd9oMPUVsV6d0ZiT5xM4asRc7GqvPsHpD7BW7I2NDa6LnhXx3ojbP1omDZ+OfXzZ9XbGrrs7o4oHQiN/sO7vfir3sPIj9DGCuk9ifzp8851tsfAGILwARMRETMRETMRETMRETMRETMRETMRETMRETMRETMRETMRETMRETMRETMRETMRETMRETcW4Rc88O7tmx9vfs4OZE3D0JAAAAAAAAAAAAAAAAAAAAAAAAAAAAKIbsP9nHpnsYbPw/T8HGI2IQMRGDiAEiBhETMYiYiEHEABGDiIkYRIw7iVPGgIjX20zXGQQiXm+ndR0zCj4i3lK1SOso29wJlbIVt7Gtst09HQTNPa3MNhHn4ZUe2C7D4CfiZOv4hboKgrIOa+VIVW5HHJl2szauEHEORpela8Mw+Il47h4T64JVQ7dl7O2IX0dMJ/JyOSqlesY4eIm47R7HLlgTZvtj1bwVcaKvykSci2o2IT5tMBBeIi6vZsE6yfa/d/s3EQ+nijlxPlof4zgeaVbZvEZ8cyTuuJ/sKLx4QXtPvSPiO0uf2rpjegyFz4hv5sSVbIrR1Hr1EhsS8Z31zFn21LUMhc+I3/+zOuEOyuX3SegiDrfKzYraJuI7q7cWTwOWir1GfLNOHLStMpVsTtxOWCfOZzZRry43TplPcMUOREzEIGKAiAEiBhETMYgYIGKAiEHERAwiBogYIGIQMRHj/xoxN55Bad1vPAMAAAAAAAAAAAAAALAB/gYBAz6/tYlS0gAAAABJRU5ErkJggg==">
+<p class=note>Le garde-fou : les lettres semblent « constantes » (une seule, rien pour la contredire). Le produit tient le score à 0,400, là où leur moyenne aurait donné 0,700 à un découpage qui ne dit rien.</p>
+<p class=chip><span>segments <b>0.400</b></span>
+<span>lettres <b>1.000</b></span>
+<span class=hi>score <b>0.400</b></span></p></section><section><h2>Les dix-huit morceaux</h2><table class=idx><tr><td>morceau</td><td>segm.</td><td>lettr.</td><td>score</td><td>remises</td></tr><tr><td><a href="metric_maroon_5_this_love.html">This Love</a></td><td>1.000</td><td>1.000</td><td><b>1.000</b></td><td>0</td></tr><tr><td><a href="metric_norah_jones_don_t_know_why.html">Don't Know Why</a></td><td>0.995</td><td>0.985</td><td><b>0.979</b></td><td>2</td></tr><tr><td><a href="metric_bein_green.html">Bein' Green</a></td><td>1.000</td><td>1.000</td><td><b>1.000</b></td><td>0</td></tr><tr><td><a href="metric_let_it_be_remastered_2009.html">Let It Be</a></td><td>0.913</td><td>0.783</td><td><b>0.716</b></td><td>0</td></tr><tr><td><a href="metric_bobby_hebb_sunny_official_audio.html">Sunny</a></td><td>0.895</td><td>0.909</td><td><b>0.814</b></td><td>0</td></tr><tr><td><a href="metric_jorja_smith_blue_lights_a_colors_show.html">Blue Lights</a></td><td>0.833</td><td>0.976</td><td><b>0.813</b></td><td>0</td></tr><tr><td><a href="metric_ben_e_king_stand_by_me_audio.html">Stand By Me</a></td><td>1.000</td><td>0.771</td><td><b>0.771</b></td><td>0</td></tr><tr><td><a href="metric_maroon_5_she_will_be_loved_official_music_video.html">She Will Be Loved</a></td><td>0.895</td><td>0.877</td><td><b>0.785</b></td><td>4</td></tr><tr><td><a href="metric_the_police_every_breath_you_take_official_music_video.html">Every Breath You Take</a></td><td>0.931</td><td>0.920</td><td><b>0.856</b></td><td>9</td></tr><tr><td><a href="metric_aretha_franklin_chain_of_fools_official_lyric_video.html">Chain of Fools</a></td><td>0.822</td><td>0.824</td><td><b>0.678</b></td><td>2</td></tr><tr><td><a href="metric_mayer_hawthorne_the_walk.html">The Walk</a></td><td>0.888</td><td>0.726</td><td><b>0.645</b></td><td>12</td></tr><tr><td><a href="metric_bruno_mars_grenade_official_music_video.html">Grenade</a></td><td>0.877</td><td>0.833</td><td><b>0.731</b></td><td>1</td></tr><tr><td><a href="metric_bruno_mars_the_lazy_song_official_music_video.html">The Lazy Song</a> <span class=hint>(hors conception)</span></td><td>0.855</td><td>0.905</td><td><b>0.774</b></td><td>4</td></tr><tr><td><a href="metric_pharrell_williams_happy_official_video.html">Happy</a> <span class=hint>(hors conception)</span></td><td>0.970</td><td>1.000</td><td><b>0.970</b></td><td>0</td></tr><tr><td><a href="metric_the_commodores_easy_1977.html">Easy</a> <span class=hint>(hors conception)</span></td><td>0.736</td><td>0.567</td><td><b>0.417</b></td><td>2</td></tr><tr><td><a href="metric_the_jackson_5_abc.html">ABC</a> <span class=hint>(hors conception)</span></td><td>0.751</td><td>0.551</td><td><b>0.414</b></td><td>11</td></tr><tr><td><a href="metric_the_ronettes_be_my_baby_music_video.html">Be My Baby</a> <span class=hint>(hors conception)</span></td><td>0.971</td><td>0.963</td><td><b>0.935</b></td><td>0</td></tr><tr><td><a href="metric_yesterday_remastered_2009.html">Yesterday</a> <span class=hint>(hors conception)</span></td><td>0.833</td><td>0.769</td><td><b>0.641</b></td><td>5</td></tr></table><p class=hint>Ouvre un morceau pour voir l'addition mesure par mesure et l'écouter.</p></section></div>
+<script>
+(function(){
+  const au=document.getElementById("au"); if(!au) return;
+  const G=window.GRID, n=G.length-1, L0=window.PLOT[0], W=window.PLOT[1]-L0;
+  const plot=document.querySelector(".plot"), cur=plot.querySelector(".cur"),
+        hit=plot.querySelector(".hit"), pp=document.querySelector(".pp"),
+        pos=document.querySelector(".pos");
+  hit.style.left=(L0*100)+"%"; hit.style.width=(W*100)+"%";
+  const t2b=t=>{ if(t<=G[0])return 0; if(t>=G[n])return n;
+    let lo=0,hi=n; while(hi-lo>1){const m=(lo+hi)>>1; G[m]<=t?lo=m:hi=m;}
+    return lo+(t-G[lo])/(G[lo+1]-G[lo]); };
+  const b2t=f=>{ const i=Math.max(0,Math.min(n-1,Math.floor(f)));
+    return G[i]+(f-i)*(G[i+1]-G[i]); };
+  const fmt=s=>Math.floor(s/60)+":"+String(Math.floor(s%60)).padStart(2,"0");
+  let stopAt=null, raf=null, onBtn=null;
+  function draw(){
+    const f=t2b(au.currentTime);
+    cur.style.display="block";
+    cur.style.left="calc("+((L0+W*f/n)*100)+"% - 1px)";
+    pos.textContent="mes. "+(Math.floor(f)+1)+" · "+fmt(au.currentTime);
+  }
+  function clear(){ if(onBtn){ onBtn.classList.remove("on"); onBtn=null; } }
+  function tick(){ draw();
+    if(stopAt!=null && au.currentTime>=stopAt){ au.pause(); stopAt=null; clear(); }
+    if(!au.paused) raf=requestAnimationFrame(tick); }
+  function go(t0,t1,btn){
+    clear(); stopAt=t1;
+    if(btn){ onBtn=btn; btn.classList.add("on"); }
+    const seek=()=>{ try{ au.currentTime=t0; }catch(e){} draw(); };
+    if(au.readyState>=1) seek();
+    else au.addEventListener("loadedmetadata",seek,{once:true});
+    au.play().catch(()=>{ clear(); });
+  }
+  au.addEventListener("play",()=>{ pp.textContent="❚❚"; tick(); });
+  au.addEventListener("pause",()=>{ pp.textContent="▶";
+    cancelAnimationFrame(raf); draw(); });
+  pp.onclick=()=>{ if(au.paused){ stopAt=null; clear(); au.play().catch(()=>{}); }
+                    else au.pause(); };
+  hit.onclick=e=>{ const r=hit.getBoundingClientRect();
+    go(b2t(n*(e.clientX-r.left)/r.width), null, null); };
+  document.querySelectorAll("[data-p]").forEach(b=>{
+    const d=JSON.parse(b.dataset.p);
+    b.onclick=()=>go(G[d[0]], G[Math.min(n,d[1])], b); });
+})();
+</script></body></html>

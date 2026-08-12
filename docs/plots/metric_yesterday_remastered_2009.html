@@ -1,0 +1,166 @@
+<!DOCTYPE html><html lang=fr><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Yesterday — d'où vient le score</title><style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:#e7e0d0;font:16px/1.55 -apple-system,system-ui,sans-serif;color:#1c1c1c}
+.wrap{max-width:1120px;margin:0 auto;padding:20px 12px calc(40px + env(safe-area-inset-bottom))}
+h1{font:italic 600 24px Georgia,serif;margin:0 0 3px}
+.lede{color:#6f6858;font-size:13.5px;margin-bottom:18px}
+.lede b{color:#1c1c1c}
+section{background:#fffdf6;border:1px solid #e5dcc6;border-radius:14px;padding:14px 13px;margin-bottom:16px}
+h2{font:700 18px system-ui;margin:0 0 10px;color:#8a2b2b}
+.sub{font:500 12px system-ui;color:#8a8371}
+img{width:100%;border-radius:8px;display:block;margin-bottom:8px}
+.plot{position:relative;margin-bottom:8px}
+.plot img{margin:0}
+.cur{position:absolute;top:0;bottom:0;width:2px;background:#111;opacity:.8;
+  display:none;pointer-events:none;box-shadow:0 0 0 1px rgba(255,255,255,.55)}
+.hit{position:absolute;top:0;bottom:0;cursor:crosshair}
+.bar{display:flex;align-items:center;gap:10px;margin:0 0 10px}
+.pp{width:42px;height:42px;border-radius:50%;border:1px solid #d8cfb4;
+  background:#f7f3e9;font-size:15px;cursor:pointer;flex:none}
+.pos{font:600 12.5px ui-monospace,monospace}
+.hint{font:500 11.5px system-ui;color:#a89f8c}
+.lane{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:0 0 6px}
+.lab{font:600 11px system-ui;color:#8a8371;width:96px;flex:none}
+button.blk{border:1px solid #d8cfb4;background:#f7f3e9;border-radius:7px;
+  padding:5px 8px;cursor:pointer;font:600 12px system-ui;color:#6f6858}
+button.blk small{display:block;font:500 9.5px ui-monospace,monospace;
+  color:#a89f8c;margin-top:1px}
+button.blk.on{background:#0d2437;color:#fff} button.blk.on small{color:#cbd8e0}
+.verdict{font-size:13px;background:#f7f3e9;border-radius:8px;padding:9px 11px;margin:10px 0 0}
+.votes{font-size:12.5px;background:#fbf7ec;border:1px solid #eee5d2;border-radius:8px;
+  padding:9px 11px;margin:9px 0 0}
+.vrow{margin-top:3px;color:#4a4438}
+a{color:#8a2b2b}
+.back{display:inline-block;margin-bottom:12px;font-size:13px;text-decoration:none}
+.idx{border-collapse:collapse;font-size:13.5px;width:100%}
+.idx td{border-bottom:1px solid #e5dcc6;padding:8px 9px}
+.idx td a{font-weight:600;text-decoration:none}
+</style><style>
+h3{font:700 14px system-ui;margin:16px 0 6px;color:#6f6858}
+table.sum,table.idx{width:100%;border-collapse:collapse;
+  font:500 12.5px system-ui;margin:8px 0;table-layout:fixed}
+table.sum td,table.idx td{padding:5px 6px;border-top:1px solid #efe7d4;
+  vertical-align:top;overflow-wrap:anywhere}
+table.sum td.k{width:33%;color:#6f6858}
+table.sum td.v{width:19%;font:700 13px ui-monospace,monospace;text-align:right}
+table.sum td.c{color:#8a8371;font-size:11.5px}
+table.idx td:first-child{width:40%}
+table.idx td:not(:first-child){width:15%;text-align:right;
+  font:600 12px ui-monospace,monospace}
+table.idx .hint{display:block;font-size:10px}
+tr.tot td{background:#faf6ea}
+tr.fin td{background:#f2ecdc;font-size:13.5px}
+tr.fin td.v{font-size:16px;color:#8a2b2b}
+div.leak{border-top:1px solid #efe7d4;padding:7px 2px}
+.lk1{display:flex;justify-content:space-between;align-items:baseline;
+  font:600 13px system-ui}
+.lk1 .cost{font:700 13px ui-monospace,monospace;color:#8a2b2b}
+.lk2{font:500 12px system-ui;color:#6f6858;margin:1px 0 5px}
+.lk3{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.lk3 span{font:600 10.5px ui-monospace,monospace;color:#8a8371;
+  background:#f7f3e9;border:1px solid #e5dcc6;border-radius:6px;padding:2px 6px}
+p.read{font:500 13px system-ui;color:#4a4437;background:#faf6ea;
+  border-left:3px solid #c9a227;border-radius:0 8px 8px 0;padding:8px 10px;
+  margin:6px 0 12px}
+p.leg{font:600 11.5px system-ui;color:#6f6858;margin:2px 0 10px}
+.sw{display:inline-block;width:13px;height:13px;border-radius:3px;
+  vertical-align:-2px;margin:0 4px 0 12px;border:1px solid #d8cfb4}
+p.map{font:500 12px system-ui;color:#6f6858;background:#faf6ea;border-radius:8px;
+  padding:8px 10px}
+section.case h2{font-size:15.5px}
+p.note{font:500 12.5px system-ui;color:#6f6858;margin:6px 0 8px}
+p.chip{margin:0;display:flex;gap:6px;flex-wrap:wrap}
+p.chip span{font:600 11.5px system-ui;color:#6f6858;background:#f7f3e9;
+  border:1px solid #e5dcc6;border-radius:7px;padding:4px 8px}
+p.chip span.hi{background:#f2ecdc;color:#8a2b2b}
+p.chip b{font:700 12.5px ui-monospace,monospace}
+</style></head><body><div class=wrap>
+<a class=back href="metric_lab.html">← tous les morceaux</a>
+<h1>Yesterday — d'où vient le score</h1>
+<div class=lede>Ton découpage, le nôtre, puis <b>ce que chaque
+mesure coûte</b>, dans les deux sens. Touche le graphique pour te déplacer,
+touche un tronçon pour l'écouter.<br>
+<a href="metric_lab.html">Comment le score est fabriqué →</a></div>
+<section><h2>Yesterday <span class=sub>48 mesures ·
+score 0.641</span></h2>
+<div class=plot><img src="data:image/png;base64,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">
+<div class=cur></div><div class=hit></div></div>
+<div class=bar><button class=pp>▶</button><span class=pos>mes. 1 · 0:00</span>
+<span class=hint>touche le graphique pour te déplacer</span></div>
+<p class=leg><span class=sw style="background:#eae4d4"></span> gratuit
+<span class=sw style="background:#9fb9cc"></span> remise (0.35)
+<span class=sw style="background:#2f5d80"></span> plein tarif (1,00)</p>
+<p class=read>Ce qui coûte le plus : mes. 33–35 : tu écris <b>B</b>, on écrit <b>C</b> — à lui seul 38% de ce qu'on perd sur les segments.</p>
+<table class=sum>
+<tr><td class=k>nous → toi</td><td class=v>0.791</td>
+    <td class=c>la part de NOS mesures que leur partenaire chez toi couvre aussi
+    — ce qui chute quand on sur-découpe</td></tr>
+<tr><td class=k>toi → nous</td><td class=v>0.881</td>
+    <td class=c>l'inverse — ce qui chute quand on sous-découpe</td></tr>
+<tr class=tot><td class=k>segments</td><td class=v>0.833</td>
+    <td class=c>moyenne harmonique : 2×0.791×0.881 ÷ (0.791+0.881)</td></tr>
+<tr><td class=k>lettres nous → toi</td><td class=v>1.000</td>
+    <td class=c>la part de nos mesures dont la lettre traduit TOUJOURS la même
+    chose chez toi</td></tr>
+<tr><td class=k>lettres toi → nous</td><td class=v>0.625</td>
+    <td class=c>l'inverse</td></tr>
+<tr class=tot><td class=k>lettres</td><td class=v>0.769</td>
+    <td class=c>moyenne harmonique : 2×1.000×0.625 ÷ (1.000+0.625)</td></tr>
+<tr class=fin><td class=k>score</td><td class=v>0.641</td>
+    <td class=c><b>segments × lettres</b> = 0.833 × 0.769
+    — un produit, pour qu'une moitié ne puisse pas racheter l'autre</td></tr>
+</table>
+<p class=map><b>la correspondance trouvée</b><br>notre A → ton A · notre B → ton A · notre C → ton B · notre intro → ton intro · notre queue → ton B<br>ton A → notre A · ton B → notre C · ton intro → notre intro · ton outro → notre B</p>
+<h3>où partent les points</h3>
+<div class=leak><div class=lk1><b>mes. 33–35</b><span class=cost>−0.062</span></div><div class=lk2>tu écris <b>B</b>, on écrit <b>C</b> — nos mesures tombent dans un bloc à toi que rien n'apparie</div><div class=lk3><span>nous→toi</span><span>3 mes. × 1.00</span><button class=blk data-p="[32,35]">écouter</button></div></div><div class=leak><div class=lk1><b>mes. 17–18</b><span class=cost>−0.042</span></div><div class=lk2>tu écris <b>B</b>, on écrit <b>B</b> — frontière décalée — ça déborde sur le bloc voisin</div><div class=lk3><span>nous→toi</span><span>2 mes. × 1.00</span><button class=blk data-p="[16,18]">écouter</button></div></div><div class=leak><div class=lk1><b>mes. 21–22</b><span class=cost>−0.042</span></div><div class=lk2>tu écris <b>B</b>, on écrit <b>C</b> — frontière décalée — ça déborde sur le bloc voisin</div><div class=lk3><span>nous→toi</span><span>2 mes. × 1.00</span><button class=blk data-p="[20,22]">écouter</button></div></div><div class=leak><div class=lk1><b>mes. 19–20</b><span class=cost>−0.042</span></div><div class=lk2>tu écris <b>B</b>, on écrit <b>C</b> — frontière décalée — ça déborde sur le bloc voisin</div><div class=lk3><span>toi→nous</span><span>2 mes. × 1.00</span><button class=blk data-p="[18,20]">écouter</button></div></div><div class=leak><div class=lk1><b>mes. 10–10</b><span class=cost>−0.021</span></div><div class=lk2>tu écris <b>A</b>, on écrit <b>A</b> — frontière décalée — ça déborde sur le bloc voisin</div><div class=lk3><span>nous→toi</span><span>1 mes. × 1.00</span><button class=blk data-p="[9,10]">écouter</button></div></div><div class=leak><div class=lk1><b>mes. 10–10</b><span class=cost>−0.021</span></div><div class=lk2>tu écris <b>A</b>, on écrit <b>A</b> — frontière décalée — ça déborde sur le bloc voisin</div><div class=lk3><span>toi→nous</span><span>1 mes. × 1.00</span><button class=blk data-p="[9,10]">écouter</button></div></div><div class=leak><div class=lk1><b>mes. 32–32</b><span class=cost>−0.021</span></div><div class=lk2>tu écris <b>B</b>, on écrit <b>A</b> — frontière décalée — ça déborde sur le bloc voisin</div><div class=lk3><span>toi→nous</span><span>1 mes. × 1.00</span><button class=blk data-p="[31,32]">écouter</button></div></div><div class=leak><div class=lk1><b>mes. 40–40</b><span class=cost>−0.021</span></div><div class=lk2>tu écris <b>A</b>, on écrit <b>C</b> — frontière décalée — ça déborde sur le bloc voisin</div><div class=lk3><span>toi→nous</span><span>1 mes. × 1.00</span><button class=blk data-p="[39,40]">écouter</button></div></div>
+</section>
+<audio id=au preload=metadata playsinline src="/audio/yesterday_remastered_2009.m4a"></audio>
+<script>window.GRID=[0.42, 2.92, 5.4, 7.86, 10.34, 12.8, 15.22, 17.66, 20.12, 22.62, 25.06, 27.54, 30.0, 32.38, 34.84, 37.32, 39.88, 42.32, 44.8, 47.26, 49.74, 52.2, 54.66, 57.16, 59.66, 62.14, 64.72, 67.3, 69.78, 72.3, 74.82, 77.38, 79.86, 82.38, 84.84, 87.26, 89.74, 92.2, 94.7, 97.34, 99.84, 102.38, 104.9, 107.36, 109.86, 112.36, 114.92, 117.8, 120.5];
+window.PLOT=[0.085,0.995]; window.U=1;</script></div>
+<script>
+(function(){
+  const au=document.getElementById("au"); if(!au) return;
+  const G=window.GRID, n=G.length-1, L0=window.PLOT[0], W=window.PLOT[1]-L0;
+  const plot=document.querySelector(".plot"), cur=plot.querySelector(".cur"),
+        hit=plot.querySelector(".hit"), pp=document.querySelector(".pp"),
+        pos=document.querySelector(".pos");
+  hit.style.left=(L0*100)+"%"; hit.style.width=(W*100)+"%";
+  const t2b=t=>{ if(t<=G[0])return 0; if(t>=G[n])return n;
+    let lo=0,hi=n; while(hi-lo>1){const m=(lo+hi)>>1; G[m]<=t?lo=m:hi=m;}
+    return lo+(t-G[lo])/(G[lo+1]-G[lo]); };
+  const b2t=f=>{ const i=Math.max(0,Math.min(n-1,Math.floor(f)));
+    return G[i]+(f-i)*(G[i+1]-G[i]); };
+  const fmt=s=>Math.floor(s/60)+":"+String(Math.floor(s%60)).padStart(2,"0");
+  let stopAt=null, raf=null, onBtn=null;
+  function draw(){
+    const f=t2b(au.currentTime);
+    cur.style.display="block";
+    cur.style.left="calc("+((L0+W*f/n)*100)+"% - 1px)";
+    pos.textContent="mes. "+(Math.floor(f)+1)+" · "+fmt(au.currentTime);
+  }
+  function clear(){ if(onBtn){ onBtn.classList.remove("on"); onBtn=null; } }
+  function tick(){ draw();
+    if(stopAt!=null && au.currentTime>=stopAt){ au.pause(); stopAt=null; clear(); }
+    if(!au.paused) raf=requestAnimationFrame(tick); }
+  function go(t0,t1,btn){
+    clear(); stopAt=t1;
+    if(btn){ onBtn=btn; btn.classList.add("on"); }
+    const seek=()=>{ try{ au.currentTime=t0; }catch(e){} draw(); };
+    if(au.readyState>=1) seek();
+    else au.addEventListener("loadedmetadata",seek,{once:true});
+    au.play().catch(()=>{ clear(); });
+  }
+  au.addEventListener("play",()=>{ pp.textContent="❚❚"; tick(); });
+  au.addEventListener("pause",()=>{ pp.textContent="▶";
+    cancelAnimationFrame(raf); draw(); });
+  pp.onclick=()=>{ if(au.paused){ stopAt=null; clear(); au.play().catch(()=>{}); }
+                    else au.pause(); };
+  hit.onclick=e=>{ const r=hit.getBoundingClientRect();
+    go(b2t(n*(e.clientX-r.left)/r.width), null, null); };
+  document.querySelectorAll("[data-p]").forEach(b=>{
+    const d=JSON.parse(b.dataset.p);
+    b.onclick=()=>go(G[d[0]], G[Math.min(n,d[1])], b); });
+})();
+</script></body></html>

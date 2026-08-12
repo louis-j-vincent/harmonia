@@ -154,7 +154,8 @@ def _best(A, B):
     return out
 
 
-def _span_one(A, B, n, tail=TAIL, tail_w=TAIL_W, systematic=frozenset()):
+def _span_one(A, B, n, tail=TAIL, tail_w=TAIL_W, systematic=frozenset(),
+              trace=None):
     """Sens A -> B : la part des mesures de A que son partenaire couvre aussi.
 
     C'est la distance de Hamming dirigée (Abdallah 2005), plus les deux remises.
@@ -164,6 +165,11 @@ def _span_one(A, B, n, tail=TAIL, tail_w=TAIL_W, systematic=frozenset()):
     de ses B en deux de la MÊME façon coûterait autant que le découper une seule
     fois — la métrique dirait que la cohérence ne sert à rien, alors que c'est
     exactement ce que Louis demande de récompenser.
+
+    `trace`, s'il est fourni, reçoit `{mesure: (coût, raison)}` — c'est ce qui
+    permet à `metric_lab.py` de DESSINER l'addition au lieu de la paraphraser.
+    Il ne change rien au calcul ; les pages sont donc tenues de rester d'accord
+    avec le score par construction.
     """
     if not A or not B:
         return 0.0, 0
@@ -173,6 +179,9 @@ def _span_one(A, B, n, tail=TAIL, tail_w=TAIL_W, systematic=frozenset()):
     for (a0, a1, _), k in zip(A, best):
         if k < 0:
             cost += a1 - a0 + 1
+            if trace is not None:
+                for i in range(a0, a1 + 1):
+                    trace[i] = (1.0, "sans partenaire")
             continue
         b0, b1, _ = B[k]
         miss = [i for i in range(a0, a1 + 1) if not (b0 <= i <= b1)]
@@ -195,8 +204,16 @@ def _span_one(A, B, n, tail=TAIL, tail_w=TAIL_W, systematic=frozenset()):
             if orphan and flush and (len(r) <= tail or const):
                 cost += len(r) * tail_w
                 forgiven += len(r)
+                why = "sur-découpage constant" if const else "queue"
+                if trace is not None:
+                    for i in r:
+                        trace[i] = (tail_w, why)
             else:
                 cost += len(r)
+                if trace is not None:
+                    why = "chez le voisin apparié" if not orphan else "section en trop"
+                    for i in r:
+                        trace[i] = (1.0, why)
     return max(0.0, 1.0 - cost / n), forgiven
 
 
@@ -326,8 +343,9 @@ def compare(pred, ref, n, tail=TAIL, tail_w=TAIL_W):
     A, B = segs(pred, n), segs(ref, n)
     lp, lb = bars(pred, n), bars(ref, n)
     sys_p, sys_r = _systematic(A, lb, n, tail), _systematic(B, lp, n, tail)
-    sp, sf = _span_one(A, B, n, tail, tail_w, sys_r)
-    sr, srf = _span_one(B, A, n, tail, tail_w, sys_p)
+    tr_p2r, tr_r2p = {}, {}
+    sp, sf = _span_one(A, B, n, tail, tail_w, sys_r, tr_p2r)
+    sr, srf = _span_one(B, A, n, tail, tail_w, sys_p, tr_r2p)
     tp_, mp = _letter_one(A, lb, n, tail)
     tr_, mr = _letter_one(B, lp, n, tail)
     spans, letters = _h(sp, sr), _h(tp_, tr_)
@@ -338,6 +356,12 @@ def compare(pred, ref, n, tail=TAIL, tail_w=TAIL_W):
         "letter_p2r": tp_, "letter_r2p": tr_,
         "pairwise": _pairwise(lp, lb, n),
         "mapping": {k: "+".join(v) for k, v in mp.items()},
+        "mapping_ref": {k: "+".join(v) for k, v in mr.items()},
         "forgiven": sf + srf,
         "n_pred": len(A), "n_ref": len(B), "n": n,
+        # l'addition, mesure par mesure — de quoi la DESSINER (metric_lab.py)
+        "bars_p2r": tr_p2r, "bars_r2p": tr_r2p,
+        "pairs_p2r": _best(A, B), "pairs_r2p": _best(B, A),
+        "segs_pred": A, "segs_ref": B,
+        "systematic_pred": sorted(sys_p), "systematic_ref": sorted(sys_r),
     }
