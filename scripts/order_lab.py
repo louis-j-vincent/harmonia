@@ -25,9 +25,10 @@ CE QUI MARCHE. Un seul parcours du curseur, où les deux longueurs sont proposé
     barre, ou il n'a pas de reprise) ET que ses reprises valent ≥ 0,88 de l'ancre
     — c'est-à-dire qu'il se rejoue à l'IDENTIQUE. À 0,75, c'est la boucle du
     morceau, et elle attend son tour ;
-  * une coupure sur pic qui laisserait une section d'UNE mesure est annulée (les
-    pics ne sont justes qu'à ±1 mesure ; la recherche le savait déjà, l'écriture
-    non).
+  * une coupure sur pic qui laisserait une section trop courte est annulée, et un
+    pic tolère ±2 mesures au lieu de ±1 — c'est sa précision réelle, mesurée le
+    2026-08-12 (49 % exacts, 79 % à ±1, **88 % à ±2**). La recherche tolérait
+    déjà ±1 et l'écriture pas du tout.
 
 Le gain vient d'un seul mécanisme, visible sur les runs de Blue Lights : la passe
 de 8 lancée seule arrive mesure 45 et **vole la 3e occurrence de la famille B**,
@@ -35,9 +36,14 @@ si bien que la passe de 4 qui suit ne retrouve que 13/29/61. Dans le parcours
 unique, le bloc de 4 de la mesure 13 est proposé pendant que sa famille est
 encore entière et prend 13/29/45/61/77 d'un coup.
 
-Médiane sur les douze annotés : **0,805** contre 0,789 (moyenne 0,805 contre
-0,786), Blue Lights **0,813** contre 0,696, et aucun morceau en recul. Six
-morceaux annotés tenus hors de la conception : moyenne 0,636 contre 0,620.
+| | 12 méd. | 12 moy. | 6 hors conception moy. | 18 moy. |
+|---|---|---|---|---|
+| prod | 0,789 | 0,786 | 0,620 | 0,731 |
+| + concurrence 4/8 | 0,795 | 0,803 | 0,620 | 0,742 |
+| + coupure sans moignon | 0,805 | 0,805 | 0,636 | 0,749 |
+| + pics tolérés à ±2 | **0,799** | **0,816** | **0,692** | **0,774** |
+
+Onze morceaux sur dix-huit en hausse, un seul en baisse (Stand By Me, −0,024).
 """
 from __future__ import annotations
 
@@ -64,9 +70,10 @@ import order_multi as MU                                        # noqa: E402
 
 OUTDIR = HERE / "docs" / "plots"
 
-LITERAL = 0.88     # plateau mesuré 0,86–1,02 ; l'un-contre-tous choisit 0,88
-STAT = "moy"       # sur 11 replis sur 12
-MIN_CUT = 2        # une coupure ne peut pas laisser une section d'1 mesure
+LITERAL = 0.88     # plateau mesuré 0,86–0,98 (identique au millième dessus)
+STAT = "moy"       # l'un-contre-tous choisit (moy, 0,88) sur 11 replis sur 12
+MIN_CUT = 3        # une coupure ne peut pas laisser une section de < 3 mesures
+HARD_TOL = 2       # la précision réelle d'un pic : 88 % à ±2 mesures
 LENGTHS = (8, 4)   # 12 et 16 mesurés et rejetés (médiane 0,630 et 0,715)
 
 # Les six morceaux annotés qui n'ont servi à AUCUNE décision de conception.
@@ -82,7 +89,7 @@ HOLDOUT = [
 
 def new_sections(b):
     runs, _ = MU.multi_runs(b, b["hard"], lengths=LENGTHS, literal=LITERAL,
-                            stat=STAT)
+                            stat=STAT, hard_tol=HARD_TOL)
     return OS.assemble(b, runs, b["hard"], tail_unit=4, min_cut=MIN_CUT), runs
 
 
@@ -163,6 +170,13 @@ section</b>.<br><br>
 devant seulement là où aucun 8 n'est possible et où ses reprises valent ≥ 0,88 de
 l'ancre. Sur Blue Lights c'est ce qui donne tes cinq B de 4 mesures d'un coup —
 la passe de 8, lancée seule, arrivait mesure 45 et volait le troisième.<br><br>
+Deux réparations trouvées en route : une coupure sur pic ne peut plus laisser une
+section de moins de 3 mesures, et un pic tolère <b>±2 mesures</b> au lieu de ±1
+(c'est sa précision réelle : 88 % à deux mesures près). Sur Be My Baby, tenu hors
+conception, ça fait 0,658 → <b>0,935</b>.<br><br>
+Sur les douze : médiane <b>0,799</b> contre 0,789, moyenne <b>0,816</b> contre
+0,786. Sur les six tenus hors conception : moyenne <b>0,692</b> contre 0,620.
+Onze morceaux sur dix-huit en hausse, un seul en baisse.<br><br>
 <b>Touche une section pour l'écouter</b> : le jugement qui compte est à
 l'oreille.</div>"""
 

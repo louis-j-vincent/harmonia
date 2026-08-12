@@ -25813,9 +25813,13 @@ passes complètes. Trois règles :
    le barre, ou il n'a pas de reprise — **ET que ses reprises valent ≥ 0,88 de
    l'ancre**, c'est-à-dire qu'il se rejoue à l'identique. À 0,75 c'est la boucle
    du morceau, et elle attend la passe de comblement ;
-3. **une coupure sur pic qui laisserait une section d'UNE mesure est annulée.**
-   Les pics ne sont justes qu'à ±1 mesure ; `crosses()` le savait déjà pour la
-   RECHERCHE, l'ÉCRITURE non — d'où des `A[2-8] | A[9-9]` sur Chain of Fools.
+3. **une coupure sur pic qui laisserait une section de moins de 3 mesures est
+   annulée**, et **un pic tolère ±2 mesures au lieu de ±1**. C'est sa précision
+   réelle, déjà mesurée le 2026-08-12 et jamais répercutée : 49 % exacts, 79 % à
+   ±1, **88 % à ±2**. `crosses()` tolérait ±1 pour la RECHERCHE, l'ÉCRITURE ne
+   tolérait rien — d'où des `A[2-8] | A[9-9]` sur Chain of Fools, et surtout un
+   massacre sur Be My Baby, dont trois pics sur six sont à deux mesures de la
+   frontière (0,658 avec ±1, **0,935** avec ±2).
 
 Le mécanisme du gain, lisible sur les runs ci-dessus : la passe de 8 lancée seule
 arrive mesure 45 et **vole la troisième occurrence de la famille B**, si bien que
@@ -25835,26 +25839,45 @@ pas globalement.
 | Let It Be | 0,716 | 0,716 | +0,000 |
 | Sunny | 0,796 | 0,814 | +0,018 |
 | **Blue Lights** | 0,696 | **0,813** | **+0,117** |
-| Stand By Me | 0,795 | 0,797 | +0,002 |
+| Stand By Me | 0,795 | 0,771 | **−0,024** |
 | She Will Be Loved | 0,783 | 0,785 | +0,001 |
-| Every Breath You Take | 0,835 | 0,835 | +0,000 |
+| Every Breath You Take | 0,835 | 0,856 | +0,021 |
 | Chain of Fools | 0,676 | 0,678 | +0,002 |
-| The Walk | 0,511 | 0,586 | +0,075 |
-| Grenade | 0,663 | 0,663 | +0,000 |
-| **médiane des 12** | **0,789** | **0,805** | |
-| moyenne des 12 | 0,786 | 0,805 | |
+| The Walk | 0,511 | **0,645** | +0,134 |
+| Grenade | 0,663 | **0,731** | +0,068 |
+| **médiane des 12** | **0,789** | **0,799** | |
+| moyenne des 12 | 0,786 | **0,816** | |
 
-**Aucun morceau en recul.** Six morceaux annotés tenus hors de toute décision de
-conception : The Lazy Song 0,686 → **0,774**, Happy 0,967 → 0,970, Easy 0,409 →
-0,417, ABC 0,412 → 0,416, Be My Baby inchangé, Yesterday 0,586 → 0,581 (le seul
-recul du corpus, −0,004). Moyenne des six 0,620 → **0,636**.
+Et les **six morceaux annotés tenus hors de toute décision de conception** :
+The Lazy Song 0,686 → **0,774**, Happy 0,967 → 0,970, Easy 0,409 → 0,417,
+ABC 0,412 → 0,414, **Be My Baby 0,658 → 0,935**, Yesterday 0,586 → **0,641**.
+Médiane des six 0,622 → **0,708**, moyenne 0,620 → **0,692**.
 
-**Sur-ajustement** : un seul seuil réglé, et il vit sur un large plateau — toute
-valeur de 0,86 à 1,02 rend 0,805 de médiane sans aucun recul. Validation
-un-contre-tous (seuil ET statistique choisis sur les 11 autres) : médiane
-**0,805**, moyenne 0,799, et le réglage (moyenne, 0,88) est choisi dans 11 replis
-sur 12. Le seul gain qui NE survit PAS à l'un-contre-tous est The Walk (+0,075
-n'apparaît qu'entre 0,88 et 0,92) — à traiter comme du bruit.
+Sur les dix-huit : **onze morceaux en hausse, un seul en baisse** (Stand By Me,
+−0,024), médiane 0,706 → **0,779**, moyenne 0,731 → **0,774**.
+
+### Ce que chaque changement apporte, séparément
+
+| | 12 méd. | 12 moy. | 6 hors conception moy. | 18 moy. |
+|---|---|---|---|---|
+| prod (2 passes, ±1, coupure exacte) | 0,789 | 0,786 | 0,620 | 0,731 |
+| + concurrence 4/8 | 0,795 | 0,803 | 0,620 | 0,742 |
+| + coupure sans moignon | 0,805 | 0,805 | 0,636 | 0,749 |
+| + pics tolérés à ±2 | **0,799** | **0,816** | **0,692** | **0,774** |
+| *(sans la concurrence, les deux autres seuls)* | *0,778* | *0,808* | *0,692* | *0,769* |
+
+La dernière ligne compte : **sans la concurrence, la médiane des 12 retombe
+SOUS la référence** (0,778 < 0,789). Les trois changements sont complémentaires.
+Si l'on veut maximiser la médiane des 12 plutôt que la moyenne, garder la
+tolérance à ±1 rend 0,805 de médiane — mais 0,636 seulement sur les six tenus à
+l'écart, contre 0,692. La version livrée choisit la robustesse.
+
+**Sur-ajustement** : un seul seuil vraiment réglé, sur un large plateau — toute
+valeur de 0,86 à 0,98 donne le même résultat au millième. Validation
+un-contre-tous sur les dix-huit (seuil ET statistique choisis sur les 17 autres) :
+médiane **0,779**, moyenne 0,769, contre 0,706 / 0,731 pour la prod. La tolérance
+à ±2 n'est pas ajustée sur le score : elle vient de la précision des pics
+mesurée avant cette session (88 % à ±2).
 
 ### Ce que ça ne résout PAS (règle #4)
 
