@@ -17,10 +17,19 @@ Quatre exigences, et chacune tue une métrique plus simple.
   APPAIRAGE — comparer les noms directement ne veut rien dire : son A peut être
   notre B. On apparie donc, dans les deux sens, et on ne compare qu'ensuite.
 
-  MÊME ESPACE — un accord sur les lettres seul est aveugle au cas le plus
-  fréquent chez nous : ses deux A de 8 mesures écrits comme un seul A de 16.
-  Mesure par mesure les lettres sont identiques, et pourtant ce n'est pas le
-  même découpage. Il faut donc apparier les SEGMENTS, pas seulement les lettres.
+  MÊME ESPACE — un accord sur les lettres seul est aveugle à la fusion : son A
+  et son B écrits comme un seul bloc gardent des lettres plausibles mesure par
+  mesure. Il faut donc apparier les SEGMENTS, pas seulement les lettres.
+
+  RÉVISÉ LE 2026-08-12 : la fusion de deux occurrences de la MÊME lettre (ses
+  deux A de 8 écrits comme un seul A de 16) ne coûte plus rien. Louis, devant
+  `/plots/metric_lab.html` : « le score devrait être de 1 ici ». Les deux
+  écritures désignent la même musique sous le même nom.
+  CE QUE ÇA ABANDONNE : la métrique ne distingue plus « un A de 16 » de
+  « A A ». Le compte des reprises se juge donc au repli, plus ici. Sur les 18
+  annotés la moyenne passe de 0,774 à 0,802 (dix en hausse, zéro en baisse,
+  Blue Lights 0,813 → 0,976) — les scores d'avant cette date ne sont pas
+  comparables à ceux d'après.
 
   DÉSALIGNEMENT — une frontière posée une mesure trop loin doit coûter, et
   coûter proportionnellement au nombre de mesures qu'elle déplace.
@@ -201,6 +210,17 @@ def _span_one(A, B, n, tail=TAIL, tail_w=TAIL_W, systematic=frozenset(),
             #     défaut le plus fréquent. Plein tarif.
             const = bool(owners) and all(
                 B[j][2] in systematic and B[j][2] != B[k][2] for j in owners)
+            # MÊME LETTRE, GRANULARITÉ DIFFÉRENTE — gratuit (Louis, 2026-08-12).
+            # Ses deux A collés écrits comme un seul A de 16 : les deux
+            # écritures désignent la même musique sous le même nom, et il
+            # tranche que ce n'est pas une faute. Ce que ça abandonne est écrit
+            # en tête de fichier.
+            same = bool(owners) and all(B[j][2] == B[k][2] for j in owners)
+            if orphan and same:
+                if trace is not None:
+                    for i in r:
+                        trace[i] = (0.0, "même lettre, autre granularité")
+                continue
             if orphan and flush and (len(r) <= tail or const):
                 cost += len(r) * tail_w
                 forgiven += len(r)
@@ -267,16 +287,24 @@ def _letter_one(A, other, n, tail=TAIL):
     mesures de la minorité — et c'est l'autre sens qui l'attrape.
     """
     if not A:
-        return 0.0, {}
-    sig = {}
+        return 0.0, {}, []
+    sig, per_seg = {}, []
     for a0, a1, l in A:
         k = _sig(a0, a1, other, tail)
+        per_seg.append((a0, a1, l, k))
         sig.setdefault(l, {})
         sig[l][k] = sig[l].get(k, 0) + (a1 - a0 + 1)
     stable = sum(max(d.values()) for d in sig.values())
     total = sum(a1 - a0 + 1 for a0, a1, _ in A)
     keep = {l: max(d, key=lambda k: d[k]) for l, d in sig.items()}
-    return (stable / total if total else 0.0), keep
+    # Les reprises qui n'ont pas la signature majoritaire de leur lettre : c'est
+    # EXACTEMENT ce que ce sens perd, segment par segment. Sans ça, une page qui
+    # ne montre que les coûts de `spans` annonce « rien à payer » sur un score
+    # de 0,976 — le défaut trouvé sur Blue Lights le 2026-08-12.
+    odd = [{"b0": a0, "b1": a1, "label": l, "sig": "+".join(k),
+            "kept": "+".join(keep[l])}
+           for a0, a1, l, k in per_seg if k != keep[l]]
+    return (stable / total if total else 0.0), keep, odd
 
 
 def _systematic(A, other, n, tail=TAIL):
@@ -346,8 +374,8 @@ def compare(pred, ref, n, tail=TAIL, tail_w=TAIL_W):
     tr_p2r, tr_r2p = {}, {}
     sp, sf = _span_one(A, B, n, tail, tail_w, sys_r, tr_p2r)
     sr, srf = _span_one(B, A, n, tail, tail_w, sys_p, tr_r2p)
-    tp_, mp = _letter_one(A, lb, n, tail)
-    tr_, mr = _letter_one(B, lp, n, tail)
+    tp_, mp, odd_p = _letter_one(A, lb, n, tail)
+    tr_, mr, odd_r = _letter_one(B, lp, n, tail)
     spans, letters = _h(sp, sr), _h(tp_, tr_)
     return {
         "score": spans * letters,
@@ -361,6 +389,7 @@ def compare(pred, ref, n, tail=TAIL, tail_w=TAIL_W):
         "n_pred": len(A), "n_ref": len(B), "n": n,
         # l'addition, mesure par mesure — de quoi la DESSINER (metric_lab.py)
         "bars_p2r": tr_p2r, "bars_r2p": tr_r2p,
+        "letter_odd_p2r": odd_p, "letter_odd_r2p": odd_r,
         "pairs_p2r": _best(A, B), "pairs_r2p": _best(B, A),
         "segs_pred": A, "segs_ref": B,
         "systematic_pred": sorted(sys_p), "systematic_ref": sorted(sys_r),

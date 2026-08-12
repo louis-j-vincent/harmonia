@@ -55,18 +55,31 @@ def test_renommage():
 
 # ── ce que chaque moitié voit, et l'autre pas ───────────────────────────────
 
-def test_fusion_de_reprises_adjacentes():
-    """Ses deux A collés écrits comme un seul A de 16 mesures.
+def test_fusion_de_reprises_adjacentes_est_gratuite():
+    """Ses deux A collés écrits comme un seul A de 16 mesures : GRATUIT.
 
-    C'est notre défaut le plus fréquent (`voice_sections` ne sait pas séparer
-    deux occurrences adjacentes d'un même bloc) et il est INVISIBLE mesure par
-    mesure : les lettres sont identiques partout. Seul l'appairage des segments
-    l'attrape — c'est la raison d'être de la moitié `spans`.
+    Louis, 2026-08-12, en regardant `/plots/metric_lab.html` : « le score
+    devrait être de 1 ici ». Les deux écritures désignent la même musique sous
+    le même nom ; le nombre d'occurrences qu'on écrit est une convention, pas
+    une lecture différente du morceau.
+
+    CE QUE ÇA ABANDONNE, et c'est le prix à connaître : la métrique ne
+    distingue plus « un A de 16 » de « A A ». Le compte des reprises se mesure
+    donc ailleurs (le repli), plus ici. Renversement explicite de la version du
+    2026-08-07, où ce cas était la raison d'être de la moitié `spans`.
     """
     r = sc("intro:0-7 A:8-23 B:24-31 A:32-39")
-    assert r["letters"] == pytest.approx(1.0)
-    assert r["spans"] < 0.95
-    assert r["score"] < 0.95
+    assert r["score"] == pytest.approx(1.0)
+
+
+def test_fusion_de_lettres_differentes_coute_toujours():
+    """La contrepartie : coller son A et son B en un seul bloc reste une faute.
+
+    C'est ce qui empêche la remise de dégénérer — elle ne vaut que pour des
+    occurrences de la MÊME lettre.
+    """
+    r = sc("intro:0-7 A:8-15 A:16-23 A:24-39")     # son B avalé par un A
+    assert r["score"] < 0.9
 
 
 def test_mauvais_nom_sur_une_reprise():
@@ -78,8 +91,13 @@ def test_mauvais_nom_sur_une_reprise():
 
 def test_dissymetrie():
     """LE test anti-inversion. Sur-découper et fusionner touchent des sens
-    OPPOSÉS ; si un jour ils bougent ensemble, deux sens ont été échangés."""
-    fus = sc("intro:0-7 A:8-23 B:24-31 A:32-39")          # on colle
+    OPPOSÉS ; si un jour ils bougent ensemble, deux sens ont été échangés.
+
+    La fusion se mesure ici sur des lettres DIFFÉRENTES (son A et son B collés
+    en un seul A) : depuis le 2026-08-12 la fusion de deux occurrences de la
+    même lettre est gratuite, donc symétrique, donc inutilisable comme témoin.
+    """
+    fus = sc("intro:0-7 A:8-15 A:16-23 A:24-39")          # on colle A et B
     dec = sc("intro:0-7 A:8-11 A2:12-15 A:16-23 B:24-31 A:32-39")  # on coupe
     assert fus["span_p2r"] < fus["span_r2p"]
     assert dec["span_r2p"] < dec["span_p2r"]

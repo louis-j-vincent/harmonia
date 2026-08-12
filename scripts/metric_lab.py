@@ -198,10 +198,33 @@ def leaks(r, n, ours, theirs, k=4):
     return sorted(out, key=lambda x: -x["tot"])
 
 
-def leak_html(items, n, playable=True):
-    if not items:
-        return "<p class=hint>aucune mesure ne coûte quoi que ce soit.</p>"
+def letter_leaks(r):
+    """Ce que perd la moitié LETTRES : les reprises dont la traduction n'est
+    pas celle que leur lettre a d'habitude."""
+    out = []
+    for sens, key in (("nous→toi", "letter_odd_p2r"), ("toi→nous", "letter_odd_r2p")):
+        who, other = ("notre", "ton") if sens == "nous→toi" else ("ton", "notre")
+        for x in r[key]:
+            out.append({**x, "sens": sens, "n_bars": x["b1"] - x["b0"] + 1,
+                        "txt": f"{who} {x['label']} de ces mesures se traduit par "
+                               f"« {other} {x['sig']} », alors que les autres "
+                               f"{x['label']} donnent « {other} {x['kept']} »"})
+    return sorted(out, key=lambda x: -x["n_bars"])
+
+
+def leak_html(items, n, letters=(), playable=True):
     cards = []
+    for x in letters:
+        btn = (f'<button class=blk data-p="[{x["b0"]},{x["b1"] + 1}]">écouter</button>'
+               if playable else "")
+        cards.append(
+            f'<div class=leak><div class=lk1><b>mes. {x["b0"] + 1}–{x["b1"] + 1}</b>'
+            f'<span class=cost>lettres</span></div>'
+            f'<div class=lk2>{x["txt"]}</div>'
+            f'<div class=lk3><span>{x["sens"]}</span>'
+            f'<span>{x["n_bars"]} mes.</span>{btn}</div></div>')
+    if not items and not cards:
+        return "<p class=hint>aucune mesure ne coûte quoi que ce soit.</p>"
     for x in items:
         nb = x["b1"] - x["b0"] + 1
         btn = (f'<button class=blk data-p="[{x["b0"]},{x["b1"] + 1}]">écouter</button>'
@@ -216,10 +239,14 @@ def leak_html(items, n, playable=True):
     return "".join(cards)
 
 
-def reading(items, r, n) -> str:
+def reading(items, r, n, letters=()) -> str:
     """Une phrase : ce que ce score dit du morceau, pas de la métrique."""
-    if not items:
+    if not items and not letters:
         return "Découpage identique au tien."
+    if not items:
+        x = letters[0]
+        return (f"Les frontières sont justes — tout le coût est dans les noms : "
+                f"{x['txt']} (mes. {x['b0'] + 1}–{x['b1'] + 1}).")
     big = items[0]
     where = f"mes. {big['b0'] + 1}–{big['b1'] + 1}"
     if big["why"] == "chez le voisin apparié":
@@ -252,6 +279,7 @@ def song_page(stem: str, title: str) -> str:
     r = compare(ours, theirs, n)
     img = song_fig(ours, theirs, r, n, b["hard"])
     items = leaks(r, n, ours, theirs)
+    lets = letter_leaks(r)
 
     body = f"""<section><h2>{title} <span class=sub>{n} mesures ·
 score {r['score']:.3f}</span></h2>
@@ -262,11 +290,11 @@ score {r['score']:.3f}</span></h2>
 <p class=leg><span class=sw style="background:{FREE}"></span> gratuit
 <span class=sw style="background:{PART}"></span> remise ({TAIL_W:.2f})
 <span class=sw style="background:{FULL}"></span> plein tarif (1,00)</p>
-<p class=read>{reading(items, r, n)}</p>
+<p class=read>{reading(items, r, n, lets)}</p>
 {sums_html(r)}
 {mapping_html(r)}
 <h3>où partent les points</h3>
-{leak_html(items, n)}
+{leak_html(items, n, lets)}
 </section>
 <audio id=au preload=metadata playsinline src="/audio/{stem}.m4a"></audio>
 <script>window.GRID={[round(t, 3) for t in grid]};
@@ -287,9 +315,15 @@ CASES = [
      "On apparie avant de comparer, dans les deux sens. Ton A peut être notre B."),
     ("Tes deux A écrits comme un seul A de 16",
      32, S((0, 31, "A")), S((0, 15, "A"), (16, 31, "A")),
-     "Mesure par mesure les lettres sont IDENTIQUES — les lettres valent 1,000. "
-     "C'est l'appairage des segments qui voit la reprise effacée. Voilà pourquoi "
-     "il faut les deux moitiés."),
+     "<b>Gratuit</b> (ta décision du 12/08). Les deux écritures désignent la "
+     "même musique sous le même nom ; combien d'occurrences on écrit est une "
+     "convention. En échange, le score ne distingue plus « un A de 16 » de "
+     "« A A » — ça se juge au repli, plus ici."),
+    ("Ton A et ton B collés en un seul bloc",
+     32, S((0, 31, "A")), S((0, 15, "A"), (16, 31, "B")),
+     "La contrepartie, et ce qui empêche la remise de dégénérer : la fusion "
+     "n'est gratuite qu'entre occurrences de la MÊME lettre. Avaler une autre "
+     "section reste une faute pleine."),
     ("Une frontière posée deux mesures trop loin",
      32, S((0, 17, "A"), (18, 31, "B")), S((0, 15, "A"), (16, 31, "B")),
      "Le coût est proportionnel au nombre de mesures déplacées, et il se paie "
@@ -336,9 +370,10 @@ d'un bout à l'autre — renommer ne coûte rien, être incohérent coûte.<br><
 Chaque moitié est calculée <b>dans les deux sens</b> (nous→toi, toi→nous) puis
 moyennée en harmonique : sur-découper et sous-découper ne sont pas la même faute,
 et aucune des deux ne peut se rattraper sur l'autre.<br><br>
-Deux remises : une <b>queue</b> de deux mesures en litige coûte 0,35 au lieu de
-1, et un <b>sur-découpage constant</b> aussi — parce que les deux lectures se
-défendent.</div>"""
+Trois remises, parce que les deux lectures se défendent : une <b>queue</b> de
+deux mesures en litige et un <b>sur-découpage constant</b> coûtent 0,35 au lieu
+de 1 — et depuis le 12/08, écrire tes deux A collés comme un seul A de 16 ne
+coûte <b>rien</b>.</div>"""
 
 LEDE_SONG = """<div class=lede>Ton découpage, le nôtre, puis <b>ce que chaque
 mesure coûte</b>, dans les deux sens. Touche le graphique pour te déplacer,
