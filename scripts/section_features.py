@@ -237,6 +237,28 @@ def song_features(stem: str) -> tuple[np.ndarray, np.ndarray, list[str], int]:
     return X, y, names, n
 
 
+def sung_start_bar(stem: str, grid, n: int) -> int:
+    """La mesure où le chant commence — la règle de la prod, réutilisée ailleurs.
+
+    `voice_sections` s'en sert pour finir l'intro. On s'en sert ici pour donner
+    sa PHASE à la grille métrique : la forme commence là où le chant commence, et
+    tout est un multiple de 4 mesures à partir de là. Mesuré (±0 mesure, budget
+    1/8, couverture 12 %) : la phase du chant rend 60 % de rappel médian contre
+    48 % pour la phase choisie par le score du modèle, et l'oracle est à 61 %.
+    Elle répare exactement les trois morceaux où la phase du modèle était fausse
+    — Sunny 0 -> 73 %, Stand By Me 0 -> 60 %, Chain of Fools 0 -> 22 % — et
+    n'abîme aucun des autres.
+    """
+    import harmonia_min.voice_sections as VS
+    VA, VM, MS, _ = VS._scripts()
+    voc = VA.separate_vocals(HERE / f"docs/audio/{stem}.m4a")
+    tt, ff, vv, rr = VM.track_f0(voc)
+    notes, _ = VM.melody_notes(tt, ff, vv, rr)
+    notes, _ = VM.clean(notes)
+    _M, mute = MS.melody_bars(notes, grid, n)
+    return int(VS.sung_start(notes, grid, mute))
+
+
 def build(stems=None) -> dict:
     stems = stems or [s for s, _ in SONGS]
     out = {}
@@ -245,6 +267,8 @@ def build(stems=None) -> dict:
         X, y, names, n = song_features(stem)
         out[f"X:{stem}"] = X.astype(np.float32)
         out[f"y:{stem}"] = y.astype(np.float32)
+        _P, _k, _r, _l, _n, extra = fused_profile(stem)
+        out[f"sung:{stem}"] = np.array([sung_start_bar(stem, extra["grid"], n)])
         print(f"  ok {stem[:34]:34s} {X.shape[0]:3d} mesures × {X.shape[1]} features "
               f"· {int(y.sum())} frontières")
     out["names"] = np.array(names)

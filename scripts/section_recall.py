@@ -62,7 +62,7 @@ def couverture(pred, n, tol=TOL) -> float:
     return len(cov & set(range(n))) / max(1, n)
 
 
-def grille(score, n, k, period=PERIOD, gap=MIN_GAP):
+def grille(score, n, k, period=PERIOD, gap=MIN_GAP, phase=None):
     """La GRILLE MÉTRIQUE : on choisit la phase modulo `period` dont les k
     meilleures mesures totalisent le plus haut score, et on ne propose que des
     mesures de cette phase.
@@ -75,9 +75,10 @@ def grille(score, n, k, period=PERIOD, gap=MIN_GAP):
     """
     sc = np.asarray(score)
     def cand(p):
-        return [i for i in range(p, n, period) if 0 < i < n]
-    best = max(range(period),
-               key=lambda p: float(np.sort(sc[cand(p)])[::-1][:k].sum()) if cand(p) else -1)
+        return [i for i in range(p % period, n, period) if 0 < i < n]
+    best = (phase % period) if phase is not None else max(
+        range(period),
+        key=lambda p: float(np.sort(sc[cand(p)])[::-1][:k].sum()) if cand(p) else -1)
     idx = cand(best)
     idx.sort(key=lambda i: -sc[i])
     return sorted(idx[:k])
@@ -151,7 +152,8 @@ def main():
     titles = dict(SONGS)
     names = list(S)
 
-    names = names + ["grille"]
+    d = SF.load()
+    names = names + ["grille", "grille+chant"]
     for tol in (0, 1):
         for K in BUDGETS:
             print(f"\n=== tolérance ±{tol} mesure · budget une proposition "
@@ -164,8 +166,12 @@ def main():
                 k = max(1, int(round(n_bars / K)))
                 row = ""
                 for nm in names:
-                    src = S["linéaire"][s] if nm == "grille" else S[nm][s]
-                    pred = grille(src, n_bars, k) if nm == "grille" else topk(src, k)
+                    if nm.startswith("grille"):
+                        src = S["linéaire"][s]
+                        ph = int(d[f"sung:{s}"][0]) if nm == "grille+chant" else None
+                        pred = grille(src, n_bars, k, phase=ph)
+                    else:
+                        src = S[nm][s]; pred = topk(src, k)
                     r, p = recall(pred, gt, tol), precision(pred, gt, tol)
                     agg[nm].append((r, p)); cov[nm].append(couverture(pred, n_bars, tol))
                     row += f"{r:8.0%}{p:8.0%}"

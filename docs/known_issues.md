@@ -25886,3 +25886,47 @@ n'apparaît qu'entre 0,88 et 0,92) — à traiter comme du bruit.
 Page à écouter : **`/plots/order_lab.html`** + une page par morceau (18), avec les
 blocs posés par chaque version et le détail par section.
 Journal complet : `docs/research_sessions/sections_small_first_2026-08-12.md`.
+
+### LA PHASE VIENT DU CHANT — et c'est le résultat de la journée
+
+La grille métrique échouait en entier sur trois morceaux parce qu'elle choisissait
+sa phase avec le score du modèle. Remplacé par **la mesure où le chant commence**
+(`voice_sections.sung_start`, la règle que la prod utilise déjà pour finir
+l'intro) : la forme commence là où le chant commence, et tout est un multiple de
+4 mesures à partir de là.
+
+Mesuré directement, sans modèle :
+
+| | frontières sur la grille |
+|---|---|
+| grille de **4** ancrée au chant | **101/132 = 77 %** |
+| grille de **2** ancrée au chant | **119/132 = 90 %** |
+
+Huit morceaux sur douze sont à 100 % sur la grille de 4. Les quatre autres
+tombent tous sur la grille de 2 (Don't Know Why 3/10 → 10/10, Every Breath 9/13 →
+13/13, Chain of Fools 6/9 → 9/9, Grenade 6/10 → 10/10) : ce sont les morceaux à
+unités de 2 mesures.
+
+**La seule vraie exception est She Will Be Loved, 4/17 même sur la grille de 2** —
+c'est le morceau qui gagne une mesure en route (la `queue1[33]` déjà rencontrée),
+donc sa seconde moitié vit sur l'autre phase. Une remise à zéro de la phase sur
+la queue le récupérerait ; non fait.
+
+Effet sur le rappel, à couverture égale et à la mesure exacte :
+
+| budget 1/8 (12 % du morceau) | rappel | précision |
+|---|---|---|
+| profil fusionné | 30 % | 31 % |
+| logistique | 39 % | 35 % |
+| logistique + grille (phase du modèle) | 48 % | 42 % |
+| **logistique + grille (phase du chant)** | **60 %** | **52 %** |
+
+Et au budget 1/4 (24 % du morceau) : **100 % de rappel médian à la mesure exacte**,
+précision 45 %. Ce n'est pas un artefact de tolérance — la comparaison est à
+l'exactitude et la couverture est publiée.
+
+**Conséquence pour le modèle** : le problème change de forme. Il ne s'agit plus de
+trouver des frontières n'importe où, mais de **classer les mesures d'une grille
+connue**. L'espace de recherche est divisé par deux (grille de 2) ou par quatre
+(grille de 4), et le modèle n'a plus qu'à dire lesquelles sont de vraies
+frontières. C'est ce qu'il faut coder ensuite.
