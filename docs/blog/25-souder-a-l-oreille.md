@@ -52,6 +52,36 @@ constant décalait tout l'audio après cette mesure. La page accepte donc des
 bornes de jetons explicites (`SONG.jetons`) et retombe sur le pas constant quand
 on ne lui en donne pas.
 
+## Le son ne sortait pas — et c'était un bug déjà payé
+
+Première réaction de Louis : « ça ne play pas les morceaux, je n'entends rien ».
+
+La page pilotait la tête de lecture avec une boucle `requestAnimationFrame` qui
+écrit dans le DOM soixante fois par seconde. C'est exactement le motif que
+`harmonia_min/app_shell.html` documente depuis le 2026-07-20 : sur iPhone, cette
+boucle empêche le moteur audio de WebKit de démarrer — `currentTime` reste gelé
+à 0 tant que la page est au premier plan, et le son ne revient qu'une fois
+l'onglet mis en arrière-plan. L'app a été corrigée en passant le tic sur
+l'événement `timeupdate`, c'est-à-dire sur l'horloge du média elle-même.
+
+La page fait maintenant pareil : plus une seule boucle d'animation. La fin de
+plage est armée par un `setTimeout` calculé sur l'horloge du média et
+re-corrigée à chaque `timeupdate`. Vérifié sur le rendu servi : la tête avance
+de 1,61 s en 1,6 s de temps réel, `readyState` 4, et la boucle repart bien de
+21,0 s à 11,6 s en fin d'entité.
+
+Deux garde-fous ajoutés au passage. Un chien de garde : si au bout d'une
+seconde et demie la tête n'a pas bougé, on réessaie avec le blob, et si ça ne
+part toujours pas **la page le dit** — une page muette ne doit pas faire
+semblant de jouer (le `.catch(() => {})` qui avalait le refus était exactement
+le silence qu'on s'interdit ici). Et les liens de l'index portent l'empreinte de
+la page : Safari garde les pages en cache avec entêtement, et une correction
+invisible parce qu'on relit l'ancienne version coûte un aller-retour pour rien.
+
+**La leçon, pour la prochaine fois :** avant d'écrire une boucle de rendu dans
+une page qui joue du son, lire ce que l'app a déjà appris. Le commentaire de
+`app_shell.html` était là, daté, avec la cause et la correction.
+
 ## Ce que ça ne résout pas
 
 **Rien du critère d'arrêt.** La page déplace la décision vers l'oreille au lieu

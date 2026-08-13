@@ -21,6 +21,7 @@ lieu de l'automatiser, et c'est exactement l'intention.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -106,7 +107,8 @@ def main():
         [(s, s) for s in args] if args else list(SONGS))
     gabarit = GABARIT.read_text(encoding="utf-8")
 
-    liens = ['<a href="soudure.html">Exemple<small>84 mesures</small></a>']
+    vex = hashlib.sha1(gabarit.encode('utf-8')).hexdigest()[:8]
+    liens = [f'<a href="soudure.html?v={vex}">Exemple<small>84 mesures</small></a>']
     for stem, titre in todo:
         if not (AUDIO / f"{stem}.m4a").exists():
             print(f"  ?? pas d'audio {stem}")
@@ -116,9 +118,13 @@ def main():
         except Exception as e:                       # noqa: BLE001
             print(f"  !! {stem}: {e}")
             continue
-        (OUTDIR / f"soudure_{stem}.html").write_text(page(gabarit, song),
-                                                     encoding="utf-8")
-        liens.append(f'<a href="soudure_{stem}.html">{titre}'
+        html = page(gabarit, song)
+        (OUTDIR / f"soudure_{stem}.html").write_text(html, encoding="utf-8")
+        # L'empreinte de la page dans le lien : Safari sur iPhone garde les
+        # pages en cache avec entêtement, et une correction de son invisible
+        # parce qu'on relit l'ancienne page coûte un aller-retour pour rien.
+        v = hashlib.sha1(html.encode("utf-8")).hexdigest()[:8]
+        liens.append(f'<a href="soudure_{stem}.html?v={v}">{titre}'
                      f'<small>{song["n_mesures"]} mesures · '
                      f'{len(song["mot"])} jetons</small></a>')
         print(f"  ok {titre}: {song['n_mesures']} mes., mot {song['mot']}")

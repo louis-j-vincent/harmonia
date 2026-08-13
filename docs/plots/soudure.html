@@ -206,7 +206,7 @@ function combien(ents, x, y){
 function meilleure(ents){
   var vus = {}, best = null;
   for (var i=0;i<ents.length-1;i++){
-    var x = ents[i].c, y = ents[i+1].c, k = x + " " + y;
+    var x = ents[i].c, y = ents[i+1].c, k = x + "|" + y;
     if (vus[k]) continue;
     vus[k] = 1;
     var c = combien(ents, x, y);
@@ -304,7 +304,7 @@ var AU = (function(){
   var ctx = null, master = null;
   var seq = [], boucle = false, pompe = null;
   var idx = 0, quand = 0, marques = [], en = false;
-  var el = null, spans = [], si = 0, rafid = 0, lien = null;
+  var el = null, spans = [], si = 0, lien = null, saut = null, garde = null;
 
   var VOIX = [            // huit couleurs, une par lettre (a, b, c…)
     {r:0,  q:[0,4,7,11]},  {r:9,  q:[0,3,7,10]},
@@ -322,16 +322,35 @@ var AU = (function(){
   function element(){
     if (!el){
       el = new Audio();
-      el.preload = "auto"; el.playsInline = true;
-      el.setAttribute("playsinline", "");
-      el.style.display = "none";
+      el.preload = "auto";                       // sinon le chargement reste IDLE
+      el.playsInline = true;
+      try { el.setAttribute("playsinline", "");
+            el.setAttribute("webkit-playsinline", ""); } catch(e){}
       el.src = lien || SONG.audio_url;
+      /* L'horloge du média, et elle seule, fait avancer la tête de lecture et
+         corrige la dérive du saut de fin de plage. */
+      el.addEventListener("timeupdate", function(){
+        if (!en) return;
+        if (API.tic) API.tic();
+        arme();
+      });
+      el.addEventListener("error", function(){
+        if (API.mal) API.mal("le fichier audio n'a pas pu être lu");
+      });
+      /* posé dans la page (sans `controls`, il n'occupe rien) : un élément
+         détaché ne se laisse pas inspecter quand le son ne sort pas. */
       document.body.appendChild(el);
     } else if (lien && el.src !== lien && !en){
       el.src = lien;
     }
     return el;
   }
+
+  /* Le disque est téléchargé en entier et rejoué depuis un blob : le lecteur
+     média d'iOS ne bufferise parfois JAMAIS un fichier servi en Range
+     (readyState bloqué, rafale de 206 jetés) — même diagnostic et même
+     correction que harmonia_min. La source directe reste posée en attendant
+     que le blob arrive, et chaque tap replace la tête instantanément. */
   function precharge(){
     if (!SONG.audio_url || !window.fetch) return;
     fetch(SONG.audio_url).then(function(r){ return r.ok ? r.blob() : null; })
@@ -340,6 +359,27 @@ var AU = (function(){
         lien = URL.createObjectURL(b);
         if (el && !en) el.src = lien;
       })["catch"](function(){});
+  }
+
+  /* Si au bout d'une seconde et demie la tête n'a pas bougé, on le DIT — on ne
+     laisse pas une page muette faire semblant de jouer. */
+  function veille(essai){
+    clearTimeout(garde);
+    if (!el) return;
+    var depart = el.currentTime, n = essai || 0;
+    garde = setTimeout(function(){
+      if (!en || !el) return;
+      if (el.currentTime > depart + 0.05) return;      // ça avance, tout va bien
+      if (lien && el.src !== lien){                    // le blob est arrivé : on réessaie
+        el.src = lien;
+        try { el.currentTime = T[spans[si].m0]; } catch(e){}
+        var p = el.play(); if (p && p["catch"]) p["catch"](function(){});
+        veille(n + 1);
+        return;
+      }
+      if (el.readyState < 2 && n < 2){ veille(n + 1); return; }   // encore en train de charger
+      if (API.mal) API.mal("le son ne démarre pas sur ce téléphone");
+    }, 1500);
   }
 
   function reveil(){
@@ -398,24 +438,33 @@ var AU = (function(){
       API.stop(); if (API.fin) API.fin();
     }
     while (marques.length && marques[0].b < ctx.currentTime - 0.2) marques.shift();
+    if (API.tic) API.tic();
   }
 
-  function rafAudio(){
+  /* La fin de la plage courante, armée sur l'horloge du média. PAS de boucle
+     requestAnimationFrame : sur iPhone une boucle rAF qui écrit dans le DOM
+     empêche le moteur audio de WebKit de démarrer — le son reste gelé à 0 tant
+     que la page est au premier plan. C'est le bug documenté dans
+     harmonia_min/app_shell.html (2026-07-20, « iPhone no-sound »), et sa
+     correction est la même ici : l'horloge du média pilote, rien d'autre. */
+  function arme(){
+    clearTimeout(saut);
+    if (!en || !el || !spans[si]) return;
+    var reste = (T[spans[si].m1] - el.currentTime) * 1000;
+    saut = setTimeout(suivante, Math.max(30, reste));
+  }
+  function suivante(){
     if (!en || !el) return;
-    var sp = spans[si];
-    if (sp && el.currentTime >= T[sp.m1] - 0.01){
-      si++;
-      if (si >= spans.length){
-        if (!boucle){ API.stop(); if (API.fin) API.fin(); return; }
-        si = 0;
-      }
-      el.currentTime = T[spans[si].m0];
+    si++;
+    if (si >= spans.length){
+      if (!boucle){ API.stop(); if (API.fin) API.fin(); return; }
+      si = 0;
     }
-    rafid = requestAnimationFrame(rafAudio);
+    try { el.currentTime = T[spans[si].m0]; } catch(e){}
+    arme();
   }
 
   var API = {};
-  API.dispo = function(){ return true; };
 
   /* Un programme = une suite de plages de mesures [{m0, m1}] (m1 exclu). */
   API.joue = function(prog, loop){
@@ -426,11 +475,16 @@ var AU = (function(){
       spans = prog; si = 0;
       el = element();
       try { el.currentTime = T[prog[0].m0]; } catch(e){}
-      var p = el.play(); if (p && p.catch) p.catch(function(){});
-      cancelAnimationFrame(rafid); rafid = requestAnimationFrame(rafAudio);
+      var p = el.play();
+      if (p && p["catch"]) p["catch"](function(e){
+        en = false;
+        if (API.mal) API.mal("le téléphone a refusé de démarrer le son (" + e + ")");
+      });
+      arme();
+      veille();
       return;
     }
-    if (!reveil()) return;
+    if (!reveil()){ en = false; if (API.mal) API.mal("pas de son sur ce navigateur"); return; }
     seq = [];
     for (var i=0;i<prog.length;i++)
       for (var m=prog[i].m0; m<prog[i].m1; m++) seq.push(m);
@@ -442,13 +496,13 @@ var AU = (function(){
   API.stop = function(){
     en = false; boucle = false;
     if (pompe){ clearInterval(pompe); pompe = null; }
+    clearTimeout(saut); clearTimeout(garde);
     if (ctx){
       try { master.disconnect(); } catch(e){}
       master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination);
     }
     marques = []; seq = []; idx = 0;
     if (el){ el.pause(); }
-    cancelAnimationFrame(rafid); rafid = 0;
   };
 
   API.enCours = function(){ return en; };
@@ -490,6 +544,8 @@ var AU = (function(){
 
 /* ═══ état ════════════════════════════════════════════════════════════ */
 
+var panne = null;                 // ce que le son a refusé de faire, s'il a refusé
+
 var S = {
   mode: "ecouter",
   hist: [depart()],
@@ -522,9 +578,13 @@ function dessine(){
   /* mode */
   $("m-ecouter").setAttribute("aria-pressed", S.mode === "ecouter");
   $("m-souder").setAttribute("aria-pressed", S.mode === "souder");
-  $("aide").textContent = S.mode === "ecouter"
-    ? "Touche une entité pour l’écouter en boucle. Une deuxième, et les deux s’enchaînent — c’est comme ça qu’on entend si c’est le même endroit."
-    : "Touche une entité, puis sa voisine : la soudure s’applique partout dans la chanson d’un coup.";
+  var aide = $("aide");
+  aide.style.color = panne ? "var(--accent)" : "";
+  aide.textContent = panne
+    ? "Son : " + panne + "."
+    : (S.mode === "ecouter"
+       ? "Touche une entité pour l’écouter en boucle. Une deuxième, et les deux s’enchaînent — c’est comme ça qu’on entend si c’est le même endroit."
+       : "Touche une entité, puis sa voisine : la soudure s’applique partout dans la chanson d’un coup.");
 
   /* la bande */
   var W = bande.clientWidth || 358, G = 6, maxN = 1;
@@ -644,27 +704,32 @@ function dessine(){
 
 /* ═══ tête de lecture ═════════════════════════════════════════════════ */
 
+/* Appelée par l'horloge du son (timeupdate côté disque, la pompe côté
+   synthèse) — jamais par une boucle d'animation, voir le commentaire dans AU.
+   Elle n'écrit dans le DOM que quand l'entité change. */
 var teteEnt = -1;
-function suit(){
+function tete(){
   var m = AU.mesure(), E = ents(), cible = -1;
   if (m >= 0){
     for (var i=0;i<E.length;i++)
       if (m >= m0de(E[i]) && m < m1de(E[i])){ cible = i; break; }
   }
-  if (cible !== teteEnt){
-    var vieux = bande.querySelector(".tete");
-    if (vieux) vieux.parentNode.removeChild(vieux);
-    if (cible >= 0){
-      var pl = bande.children[cible];
-      if (pl && pl.classList.contains("jeton")){
-        var t = document.createElement("i"); t.className = "tete";
-        pl.appendChild(t);
-      }
+  if (cible === teteEnt) return;
+  var vieux = bande.querySelector(".tete");
+  if (vieux) vieux.parentNode.removeChild(vieux);
+  if (cible >= 0){
+    var pl = bande.children[cible];
+    if (pl && pl.classList.contains("jeton")){
+      var t = document.createElement("i"); t.className = "tete";
+      pl.appendChild(t);
     }
-    teteEnt = cible;
   }
-  requestAnimationFrame(suit);
+  teteEnt = cible;
 }
+AU.tic = tete;
+
+/* Une page muette ne fait pas semblant de jouer : elle le dit. */
+AU.mal = function(msg){ panne = msg; dessine(); };
 
 /* ═══ gestes ══════════════════════════════════════════════════════════ */
 
@@ -675,6 +740,7 @@ function programme(idx){                     // les plages de mesures à jouer
 }
 
 function ecoute(){
+  panne = null;
   if (!S.sel.length){ AU.stop(); }
   else AU.joue(programme(S.sel), true);
 }
@@ -717,6 +783,7 @@ $("m-ecouter").onclick = function(){ S.mode = "ecouter"; S.sel = []; AU.stop(); 
 $("m-souder").onclick  = function(){ S.mode = "souder";  S.sel = []; AU.stop(); dessine(); };
 
 $("pp").onclick = function(){
+  panne = null;
   if (AU.enCours()){ AU.stop(); }
   else { S.sel = []; AU.joue([{m0:0, m1:NM}], false); }
   dessine();
@@ -760,7 +827,6 @@ window.addEventListener("resize", function(){
 });
 
 dessine();
-requestAnimationFrame(suit);
 })();
 </script>
 </body>
