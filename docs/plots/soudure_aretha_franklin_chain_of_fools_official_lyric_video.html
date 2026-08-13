@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f7f3e9">
+<title>Soudure — Chain of Fools</title>
+<style>
+:root{
+  --papier:#f7f3e9; --carte:#fffdf6; --filet:#e5dcc6;
+  --encre:#1c1c1c; --second:#8a8371; --accent:#8a2b2b;
+  --r1:9px; --r2:14px; --r3:20px;
+  --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --serif:Georgia,"Times New Roman",serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{
+  background:var(--papier); color:var(--encre); font-family:var(--ui);
+  font-size:16px; line-height:1.45;
+  padding:18px 16px calc(24px + env(safe-area-inset-bottom));
+  max-width:520px; margin:0 auto;
+  -webkit-text-size-adjust:100%;
+}
+
+/* 1 ── titre ─────────────────────────────────────────────────────────── */
+h1{font:italic 400 27px/1.15 var(--serif); margin:0 0 3px}
+.sous{color:var(--second); font-size:13.5px; margin:0 0 16px; letter-spacing:.01em}
+
+/* 2 ── sélecteur de mode ─────────────────────────────────────────────── */
+.modes{display:flex; height:44px; background:#efe8d8; border-radius:var(--r2);
+       padding:3px; gap:3px; border:1px solid var(--filet)}
+.modes button{flex:1; border:0; border-radius:11px; background:transparent;
+       font:600 15px/1 var(--ui); color:var(--second); cursor:pointer;
+       transition:background .16s, color .16s, box-shadow .16s}
+.modes button[aria-pressed="true"]{background:var(--carte); color:var(--encre);
+       box-shadow:0 1px 3px rgba(90,70,40,.18)}
+.aide{color:var(--second); font-size:13px; margin:8px 2px 14px; min-height:2.6em}
+
+/* 3 ── la bande ──────────────────────────────────────────────────────── */
+.bande{position:relative; display:flex; flex-wrap:wrap; gap:6px;
+       align-content:flex-start; margin-bottom:16px; min-height:52px}
+.jeton{position:relative; flex:0 0 auto; display:flex; align-items:center;
+       justify-content:center; background:var(--carte); border:2px solid var(--c);
+       border-radius:var(--r2); overflow:hidden; cursor:pointer;
+       font-family:var(--serif); font-style:italic; color:var(--c);
+       transition:background .15s, box-shadow .15s, transform .12s;
+       user-select:none; -webkit-user-select:none}
+.jeton.sel{background:var(--tint); box-shadow:0 0 0 3px var(--halo)}
+.jeton .rang{position:absolute; top:3px; left:5px; font:600 10px/1 var(--ui);
+       font-style:normal; color:var(--c); opacity:.75}
+.jeton .tete{position:absolute; left:0; right:0; bottom:0; height:3px;
+       background:var(--c)}
+.jeton .eclat{position:absolute; inset:0; pointer-events:none;
+       background:linear-gradient(100deg,transparent 20%,rgba(255,255,255,.96) 45%,
+                  rgba(255,244,206,.9) 56%,transparent 80%);
+       animation:eclat .52s ease-out both}
+@keyframes eclat{0%{transform:translateX(-130%);opacity:0}
+                 18%{opacity:1} 100%{transform:translateX(130%);opacity:0}}
+.jeton.neuf{animation:soude .44s cubic-bezier(.22,1.08,.32,1) both}
+@keyframes soude{0%{transform:translateY(7px) scale(.9);opacity:.25}
+                 58%{transform:translateY(0) scale(1.045);opacity:1}
+                 100%{transform:none;opacity:1}}
+.badge{position:absolute; left:50%; top:42%; transform:translate(-50%,0);
+       background:var(--encre); color:var(--carte); border-radius:var(--r3);
+       padding:8px 16px; font:600 14px/1 var(--ui); white-space:nowrap;
+       pointer-events:none; z-index:5; box-shadow:0 10px 24px -10px rgba(40,28,12,.6);
+       animation:monte 1.15s ease-out both}
+@keyframes monte{0%{transform:translate(-50%,14px);opacity:0}
+                 18%{transform:translate(-50%,0);opacity:1}
+                 66%{opacity:1} 100%{transform:translate(-50%,-42px);opacity:0}}
+
+/* 4 ── le compagnon ──────────────────────────────────────────────────── */
+.comp{display:flex; align-items:center; gap:12px; background:var(--carte);
+      border:1px solid var(--filet); border-radius:var(--r3);
+      padding:10px 10px 10px 14px; margin-bottom:14px}
+.comp .quoi{flex:1; min-width:0}
+.comp .paire{font-family:var(--serif); font-style:italic; font-size:19px;
+      display:flex; align-items:center; gap:7px; flex-wrap:wrap}
+.comp .paire b{font-weight:400}
+.comp .plus{color:var(--second); font-family:var(--ui); font-style:normal;
+      font-size:14px}
+.comp .fois{color:var(--second); font:13px/1.3 var(--ui); margin-top:2px}
+.comp .rien{color:var(--second); font-size:14px}
+.comp button{height:48px; padding:0 20px; border:0; border-radius:var(--r2);
+      background:var(--accent); color:#fff8ee; font:600 15px/1 var(--ui);
+      cursor:pointer; flex:0 0 auto}
+.comp button:disabled{background:#e3dbc9; color:#a79f8c}
+
+/* 5 ── transport ─────────────────────────────────────────────────────── */
+.trans{display:flex; align-items:center; gap:10px; margin-bottom:22px}
+.rond{width:56px; height:56px; flex:0 0 auto; border-radius:50%; border:0;
+      background:var(--encre); color:var(--carte); font-size:21px; cursor:pointer;
+      display:flex; align-items:center; justify-content:center; padding:0}
+.plat{width:48px; height:48px; flex:0 0 auto; border-radius:var(--r2);
+      border:1px solid var(--filet); background:var(--carte); color:var(--encre);
+      font-size:19px; cursor:pointer; display:flex; align-items:center;
+      justify-content:center; padding:0}
+.plat:disabled{color:#c6bda8}
+.regl{flex:1; min-width:0; display:flex; flex-direction:column; gap:2px}
+.regl input{width:100%; margin:0; accent-color:var(--accent)}
+.regl .cpt{font:12.5px/1 var(--ui); color:var(--second); text-align:right;
+      font-variant-numeric:tabular-nums}
+
+/* 6 ── résultat ──────────────────────────────────────────────────────── */
+.res-t{font:600 12.5px/1 var(--ui); color:var(--second); letter-spacing:.06em;
+      text-transform:uppercase; margin:0 0 8px}
+.res{display:flex; gap:2px; height:38px; margin-bottom:12px}
+.res span{display:flex; align-items:center; justify-content:center;
+      background:var(--c); color:#fffdf6; font-family:var(--serif);
+      font-style:italic; font-size:15px; overflow:hidden}
+.res span:first-child{border-radius:var(--r1) 0 0 var(--r1)}
+.res span:last-child{border-radius:0 var(--r1) var(--r1) 0}
+.expo{width:100%; height:48px; border:1px solid var(--filet); border-radius:var(--r2);
+      background:var(--carte); color:var(--encre); font:600 15px/1 var(--ui);
+      cursor:pointer}
+</style>
+</head>
+<body>
+<script>window.SONG = {"titre":"Chain of Fools","n_mesures":77,"temps_par_mesure":[2.18,2.1,2.08,2.06,2.04,2.08,2.08,2.1,2.08,2.08,2.06,2.08,2.06,2.06,2.06,2.08,2.06,2.06,2.06,2.06,2.06,2.04,2.06,2.06,2.02,2.08,2.06,2.02,2.06,2.04,2.06,2.06,2.08,2.08,2.06,2.08,2.04,2.1,2.04,2.04,2.06,2.04,2.02,2.04,2.04,2.1,2.08,2.06,2.04,2.04,2.02,2.04,2.02,2.02,2.04,2.06,2.04,2.06,2.04,2.04,2.06,2.04,2.04,2.06,2.04,2.02,2.02,2.04,2.02,2.02,2.02,2.04,2.04,2.06,2.04,2.04,2.04],"mot":"aaabbbbbbbbbbbbbbaccdceafeffffeeefaeff","jetons":[1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59,61,63,65,67,69,71,73,75,77],"t0":3.66,"audio_url":"/audio/aretha_franklin_chain_of_fools_official_lyric_video.m4a"};</script>
+
+
+<h1 id="titre">Soudure</h1>
+<p class="sous" id="sous"></p>
+
+<div class="modes" role="group" aria-label="mode">
+  <button id="m-ecouter" aria-pressed="true">Écouter</button>
+  <button id="m-souder"  aria-pressed="false">Souder</button>
+</div>
+<p class="aide" id="aide"></p>
+
+<div class="bande" id="bande"></div>
+
+<div class="comp" id="comp"></div>
+
+<div class="trans">
+  <button class="rond" id="pp" aria-label="lecture">▶</button>
+  <button class="plat" id="undo" aria-label="annuler">↺</button>
+  <div class="regl">
+    <input type="range" id="regl" min="0" max="0" value="0" step="1" aria-label="historique">
+    <span class="cpt" id="cpt">0/0</span>
+  </div>
+</div>
+
+<p class="res-t">Résultat</p>
+<div class="res" id="res"></div>
+<button class="expo" id="expo">Exporter JSON</button>
+
+<script>
+(function(){
+"use strict";
+
+/* ═══ la chanson ══════════════════════════════════════════════════════ */
+
+var DEMO = {
+  titre: "Exemple",
+  n_mesures: 84,
+  temps_par_mesure: (function(){ var a=[]; for(var i=0;i<84;i++) a.push(1.9); return a; })(),
+  mot: "aaaaaabc aaaaaabc aaaaaabc aaaaaabc aaaaaabc aa".replace(/ /g,""),
+  audio_url: null
+};
+
+var SONG = (window.SONG && window.SONG.mot) ? window.SONG : DEMO;
+var MOT = String(SONG.mot);
+var NM  = SONG.n_mesures || MOT.length * 2;          // mesures
+var DUR = (SONG.temps_par_mesure && SONG.temps_par_mesure.length === NM)
+        ? SONG.temps_par_mesure.slice()
+        : (function(){ var a=[]; for(var i=0;i<NM;i++) a.push(2); return a; })();
+var MPJ = NM / MOT.length;                            // mesures par jeton
+var T   = [SONG.t0 || 0];                             // T[i] = début mesure i
+for (var i=0;i<NM;i++) T.push(T[i] + DUR[i]);
+
+/* X0[j] = 1re mesure du jeton j. Les jetons font tous la même longueur, sauf
+   quand la chanson porte une mesure en trop quelque part — d'où `SONG.jetons`,
+   qui donne les bornes exactes si on les a. */
+var X0 = (SONG.jetons && SONG.jetons.length === MOT.length + 1)
+       ? SONG.jetons.slice()
+       : (function(){ var a=[]; for (var k=0;k<=MOT.length;k++) a.push(Math.round(k*MPJ)); return a; })();
+var LET = [];                                         // la lettre de chaque mesure
+for (var k=0;k<MOT.length;k++)
+  for (var m=X0[k]; m<X0[k+1]; m++) LET[m] = MOT[k];
+
+function m0de(e){ return X0[e.j]; }                   // 1re mesure (0-indexée)
+function m1de(e){ return X0[e.j + e.n]; }             // 1re mesure APRÈS
+
+/* ═══ modèle : entités et soudures ════════════════════════════════════ */
+/* Une entité = {c: contenu, j: jeton de départ, n: nombre de jetons}.
+   Deux entités de même contenu sont le même endroit de la chanson. */
+
+function depart(){
+  var out = [];
+  for (var k=0;k<MOT.length;k++) out.push({c: MOT[k], j: k, n: 1});
+  return out;
+}
+
+/* Combien de fois la soudure (x,y) s'appliquera vraiment : de gauche à
+   droite, sans chevauchement — sinon `aaa` se mangerait lui-même. */
+function combien(ents, x, y){
+  var c=0, i=0;
+  while (i < ents.length-1){
+    if (ents[i].c===x && ents[i+1].c===y){ c++; i+=2; } else i++;
+  }
+  return c;
+}
+
+/* La paire la plus fréquente restante. À égalité : la plus courte, puis la
+   plus à gauche. Une paire qui ne se répète pas (1 seule fois) ne compte pas. */
+function meilleure(ents){
+  var vus = {}, best = null;
+  for (var i=0;i<ents.length-1;i++){
+    var x = ents[i].c, y = ents[i+1].c, k = x + " " + y;
+    if (vus[k]) continue;
+    vus[k] = 1;
+    var c = combien(ents, x, y);
+    if (c < 2) continue;
+    var l = x.length + y.length;
+    if (!best || c > best.c || (c === best.c && l < best.l)) best = {x:x, y:y, c:c, l:l};
+  }
+  return best;
+}
+
+/* Souder : une seule opération, N fusions, partout à la fois. */
+function souder(ents, x, y){
+  var out=[], neufs=[], i=0;
+  while (i < ents.length){
+    if (i+1 < ents.length && ents[i].c===x && ents[i+1].c===y){
+      neufs.push(out.length);
+      out.push({c: x+y, j: ents[i].j, n: ents[i].n + ents[i+1].n});
+      i += 2;
+    } else {
+      out.push({c: ents[i].c, j: ents[i].j, n: ents[i].n});
+      i++;
+    }
+  }
+  return {ents: out, neufs: neufs};
+}
+
+/* ═══ couleurs et lettres ═════════════════════════════════════════════ */
+
+var COLS = ["#8a2b2b","#2a6fb0","#6b7a3a","#b07d2a",
+            "#6d4670","#3d7a72","#a4552a","#4a5c86"];
+var ALPHA = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+function hache(s){                       // FNV-1a : stable d'un état à l'autre
+  var h = 0x811c9dc5;
+  for (var i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return h >>> 0;
+}
+
+/* Distance perçue entre deux couleurs (formule « redmean »). La palette
+   contient deux bleus (71 d'écart) : sans garde-fou ils tombent côte à côte et
+   on ne lit plus « même couleur = même endroit ». Les paires les plus proches
+   sont à 71–94, la médiane à 167 — le seuil est mis juste au-dessus. */
+var SEUIL = 120;
+function loin(a, b){
+  var A = parseInt(a.slice(1),16), B = parseInt(b.slice(1),16);
+  var r1=(A>>16)&255, g1=(A>>8)&255, b1=A&255;
+  var r2=(B>>16)&255, g2=(B>>8)&255, b2=B&255;
+  var rm=(r1+r2)/2, dr=r1-r2, dg=g1-g2, db=b1-b2;
+  return Math.sqrt((2+rm/256)*dr*dr + 4*dg*dg + (2+(255-rm)/256)*db*db);
+}
+
+/* Couleur par hachage du contenu — donc stable d'un état à l'autre. On ne
+   s'en écarte que si la case est prise, ou si la couleur serait confondue
+   avec une déjà posée : deux endroits différents ne doivent jamais se
+   ressembler, c'est tout ce que la couleur a à dire. */
+function couleurs(ents){
+  var pris = [], map = {}, ordre = [], mis = [], i;
+  for (i=0;i<COLS.length;i++) pris.push(false);
+  for (i=0;i<ents.length;i++)
+    if (!(ents[i].c in map)){ map[ents[i].c] = null; ordre.push(ents[i].c); }
+
+  for (var o=0;o<ordre.length;o++){
+    var pref = hache(ordre[o]) % COLS.length, best = -1, note = -1;
+    for (var t=0;t<COLS.length;t++){
+      var k = (pref + t) % COLS.length;
+      if (pris[k]) continue;
+      var d = 999;
+      for (var m=0;m<mis.length;m++) d = Math.min(d, loin(COLS[k], mis[m]));
+      if (t === 0 && d >= SEUIL){ best = k; break; }   // le hachage suffit
+      if (d - t * 0.001 > note){ note = d - t * 0.001; best = k; }
+    }
+    if (best < 0) best = pref;
+    pris[best] = true; map[ordre[o]] = COLS[best]; mis.push(COLS[best]);
+  }
+  return map;
+}
+
+/* Une lettre par contenu, dans l'ordre où on les rencontre. Minuscule tant que
+   l'entité est brute, majuscule dès qu'elle est soudée. */
+function lettres(ents){
+  var map = {}, k = 0;
+  for (var i=0;i<ents.length;i++){
+    var c = ents[i].c;
+    if (!map[c]) map[c] = ALPHA[(k++) % 26];
+  }
+  return map;
+}
+function etiq(lab, c){ return c.length === 1 ? lab[c].toLowerCase() : lab[c]; }
+
+/* ═══ son ═════════════════════════════════════════════════════════════ */
+/* Pas d'audio externe par défaut : une couleur de son par lettre. Si la
+   chanson porte un audio_url, on joue le vrai disque à la place. */
+
+var AU = (function(){
+  var ctx = null, master = null;
+  var seq = [], boucle = false, pompe = null;
+  var idx = 0, quand = 0, marques = [], en = false;
+  var el = null, spans = [], si = 0, rafid = 0, lien = null;
+
+  var VOIX = [            // huit couleurs, une par lettre (a, b, c…)
+    {r:0,  q:[0,4,7,11]},  {r:9,  q:[0,3,7,10]},
+    {r:5,  q:[0,4,7,11]},  {r:7,  q:[0,4,7,10]},
+    {r:2,  q:[0,3,7,10]},  {r:4,  q:[0,3,7,10]},
+    {r:10, q:[0,4,7,11]},  {r:11, q:[0,3,6,10]}
+  ];
+
+  /* Le disque, quand la chanson en porte un. On le télécharge en entier et on
+     le rejoue depuis un blob : dans l'app installée (PWA iOS) le lecteur média
+     ne bufferise jamais un fichier servi en Range et s'étrangle en rafale de
+     206 — c'est le bug déjà rencontré et déjà corrigé comme ça dans
+     harmonia_min. Bénéfice ici en plus : chaque tap replace la tête de lecture
+     instantanément, sans re-télécharger la plage. */
+  function element(){
+    if (!el){
+      el = new Audio();
+      el.preload = "auto"; el.playsInline = true;
+      el.setAttribute("playsinline", "");
+      el.style.display = "none";
+      el.src = lien || SONG.audio_url;
+      document.body.appendChild(el);
+    } else if (lien && el.src !== lien && !en){
+      el.src = lien;
+    }
+    return el;
+  }
+  function precharge(){
+    if (!SONG.audio_url || !window.fetch) return;
+    fetch(SONG.audio_url).then(function(r){ return r.ok ? r.blob() : null; })
+      .then(function(b){
+        if (!b) return;
+        lien = URL.createObjectURL(b);
+        if (el && !en) el.src = lien;
+      })["catch"](function(){});
+  }
+
+  function reveil(){
+    if (!ctx){
+      var C = window.AudioContext || window.webkitAudioContext;
+      if (!C) return null;
+      ctx = new C();
+      master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination);
+    }
+    if (ctx.state === "suspended") ctx.resume();
+    return ctx;
+  }
+  function freq(midi){ return 440 * Math.pow(2, (midi-69)/12); }
+
+  function note(midi, at, dur, gain, type){
+    var o = ctx.createOscillator(), g = ctx.createGain(), f = ctx.createBiquadFilter();
+    o.type = type || "triangle"; o.frequency.value = freq(midi);
+    f.type = "lowpass"; f.frequency.value = 1900; f.Q.value = 0.6;
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(gain, at + 0.018);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    o.connect(f); f.connect(g); g.connect(master);
+    o.start(at); o.stop(at + dur + 0.05);
+  }
+
+  /* Une mesure sonnée : la couleur de sa lettre, frappée au 1 puis rappelée
+     à mi-mesure pour donner le pouls. */
+  function mesure(m, at){
+    var lettre = LET[m] || MOT[0];
+    var v = VOIX[((((lettre.charCodeAt(0) - 97) % 26) + 26) % 26) % VOIX.length];
+    var d = DUR[m], tenue = Math.min(d * 0.92, 1.7);
+    note(36 + v.r, at, Math.min(d*0.8, 1.1), 0.22, "sine");
+    for (var i=0;i<v.q.length;i++){
+      note(60 + v.r + v.q[i] - (v.r > 6 ? 12 : 0), at + i*0.012, tenue, 0.085);
+    }
+    if (d > 1.0){
+      for (var k=1;k<v.q.length;k++)
+        note(60 + v.r + v.q[k] - (v.r > 6 ? 12 : 0), at + d*0.5, Math.min(d*0.4,0.7), 0.035);
+    }
+  }
+
+  function tourne(){
+    if (!en) return;
+    var horizon = ctx.currentTime + 0.5;
+    while (quand < horizon){
+      if (idx >= seq.length){
+        if (!boucle) break;
+        idx = 0;
+      }
+      var m = seq[idx];
+      mesure(m, quand);
+      marques.push({m:m, a:quand, b:quand + DUR[m]});
+      quand += DUR[m]; idx++;
+    }
+    if (!boucle && idx >= seq.length && ctx.currentTime > quand + 0.15){
+      API.stop(); if (API.fin) API.fin();
+    }
+    while (marques.length && marques[0].b < ctx.currentTime - 0.2) marques.shift();
+  }
+
+  function rafAudio(){
+    if (!en || !el) return;
+    var sp = spans[si];
+    if (sp && el.currentTime >= T[sp.m1] - 0.01){
+      si++;
+      if (si >= spans.length){
+        if (!boucle){ API.stop(); if (API.fin) API.fin(); return; }
+        si = 0;
+      }
+      el.currentTime = T[spans[si].m0];
+    }
+    rafid = requestAnimationFrame(rafAudio);
+  }
+
+  var API = {};
+  API.dispo = function(){ return true; };
+
+  /* Un programme = une suite de plages de mesures [{m0, m1}] (m1 exclu). */
+  API.joue = function(prog, loop){
+    API.stop();
+    if (!prog.length) return;
+    boucle = !!loop; en = true;
+    if (SONG.audio_url){
+      spans = prog; si = 0;
+      el = element();
+      try { el.currentTime = T[prog[0].m0]; } catch(e){}
+      var p = el.play(); if (p && p.catch) p.catch(function(){});
+      cancelAnimationFrame(rafid); rafid = requestAnimationFrame(rafAudio);
+      return;
+    }
+    if (!reveil()) return;
+    seq = [];
+    for (var i=0;i<prog.length;i++)
+      for (var m=prog[i].m0; m<prog[i].m1; m++) seq.push(m);
+    idx = 0; marques = []; quand = ctx.currentTime + 0.06;
+    tourne();
+    pompe = setInterval(tourne, 60);
+  };
+
+  API.stop = function(){
+    en = false; boucle = false;
+    if (pompe){ clearInterval(pompe); pompe = null; }
+    if (ctx){
+      try { master.disconnect(); } catch(e){}
+      master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination);
+    }
+    marques = []; seq = []; idx = 0;
+    if (el){ el.pause(); }
+    cancelAnimationFrame(rafid); rafid = 0;
+  };
+
+  API.enCours = function(){ return en; };
+
+  /* La mesure qui sonne, pour la tête de lecture. */
+  API.mesure = function(){
+    if (!en) return -1;
+    if (SONG.audio_url && el){
+      var t = el.currentTime;
+      for (var m=0;m<NM;m++) if (t >= T[m] && t < T[m+1]) return m;
+      return -1;
+    }
+    if (!ctx) return -1;
+    var now = ctx.currentTime;
+    for (var i=0;i<marques.length;i++)
+      if (now >= marques[i].a && now < marques[i].b) return marques[i].m;
+    return -1;
+  };
+
+  /* La cascade : un blip montant par fusion, à 45 ms d'intervalle. */
+  API.blips = function(nb){
+    if (!reveil()) return;
+    var t0 = ctx.currentTime + 0.02;
+    for (var i=0;i<nb;i++){
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.value = 620 * Math.pow(2, Math.min(i, 22) / 14);
+      var at = t0 + i * 0.045;
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.16, at + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.1);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(at); o.stop(at + 0.14);
+    }
+  };
+  precharge();
+  return API;
+})();
+
+/* ═══ état ════════════════════════════════════════════════════════════ */
+
+var S = {
+  mode: "ecouter",
+  hist: [depart()],
+  hi: 0,
+  sel: [],              // index d'entités sélectionnées (0, 1 ou 2)
+  neufs: null,          // index des entités nées de la dernière soudure
+  flash: 0,             // nombre de fusions à annoncer
+  precedents: null      // contenus de l'état dessiné juste avant
+};
+function ents(){ return S.hist[S.hi]; }
+
+/* ═══ rendu ═══════════════════════════════════════════════════════════ */
+
+var $ = function(id){ return document.getElementById(id); };
+var bande = $("bande");
+
+function rgba(hex, a){
+  var n = parseInt(hex.slice(1), 16);
+  return "rgba(" + ((n>>16)&255) + "," + ((n>>8)&255) + "," + (n&255) + "," + a + ")";
+}
+
+function dessine(){
+  var E = ents(), col = couleurs(E), lab = lettres(E);
+
+  /* titre */
+  $("titre").textContent = SONG.titre || "Soudure";
+  $("sous").textContent = NM + " mesures · " + E.length +
+                          (E.length > 1 ? " entités" : " entité");
+
+  /* mode */
+  $("m-ecouter").setAttribute("aria-pressed", S.mode === "ecouter");
+  $("m-souder").setAttribute("aria-pressed", S.mode === "souder");
+  $("aide").textContent = S.mode === "ecouter"
+    ? "Touche une entité pour l’écouter en boucle. Une deuxième, et les deux s’enchaînent — c’est comme ça qu’on entend si c’est le même endroit."
+    : "Touche une entité, puis sa voisine : la soudure s’applique partout dans la chanson d’un coup.";
+
+  /* la bande */
+  var W = bande.clientWidth || 358, G = 6, maxN = 1;
+  for (var i=0;i<E.length;i++) if (E[i].n > maxN) maxN = E[i].n;
+  var u = Math.min(52, Math.max(13, (W + G) / maxN));
+
+  bande.innerHTML = "";
+  var frag = document.createDocumentFragment();
+  var neufs = S.neufs, rang = 0;
+  var anime = neufs ? null : S.precedents;      // à l'entrée : tout ondule
+  var nAnim = 0;
+  if (!neufs && anime){
+    for (var q=0;q<E.length;q++) if (!anime[E[q].c]) nAnim++;
+  }
+
+  for (var k=0;k<E.length;k++){
+    var e = E[k], c = col[e.c];
+    var w = Math.max(30, Math.min(W, Math.round(e.n * u) - G));
+    var h = e.n === 1 ? 46 : (e.n <= 3 ? 54 : 62);
+    var fs = e.n === 1 ? 19 : (e.n <= 3 ? 25 : 31);
+
+    var d = document.createElement("div");
+    d.className = "jeton";
+    d.style.cssText = "--c:" + c + ";--tint:" + rgba(c,.13) + ";--halo:" + rgba(c,.28) +
+                      ";width:" + w + "px;height:" + h + "px;font-size:" + fs + "px";
+    d.dataset.i = k;
+    d.textContent = etiq(lab, e.c);
+
+    var choisi = S.sel.indexOf(k);
+    if (choisi >= 0){
+      d.classList.add("sel");
+      if (S.sel.length === 2){
+        var r = document.createElement("span");
+        r.className = "rang"; r.textContent = String(choisi + 1);
+        d.appendChild(r);
+      }
+    }
+
+    var neuf = neufs ? (neufs.indexOf(k) >= 0)
+                     : (anime ? !anime[e.c] : true);
+    if (neuf){
+      var pas = neufs ? 45 : Math.min(45, 600 / Math.max(1, nAnim || E.length));
+      var dl = (rang++) * pas;
+      d.classList.add("neuf");
+      d.style.animationDelay = dl + "ms";
+      if (neufs){
+        var ec = document.createElement("i");
+        ec.className = "eclat";
+        ec.style.animationDelay = (dl + 60) + "ms";
+        d.appendChild(ec);
+      }
+    }
+    frag.appendChild(d);
+  }
+  bande.appendChild(frag);
+
+  if (S.flash){
+    var b = document.createElement("div");
+    b.className = "badge";
+    b.textContent = S.flash + (S.flash > 1 ? " soudures" : " soudure");
+    bande.appendChild(b);
+    var mort = b;
+    setTimeout(function(){ if (mort.parentNode) mort.parentNode.removeChild(mort); }, 1250);
+    S.flash = 0;
+  }
+  S.neufs = null;
+  S.precedents = {};
+  for (var p=0;p<E.length;p++) S.precedents[E[p].c] = 1;
+
+  /* le compagnon */
+  var comp = $("comp"), best = meilleure(E);
+  comp.innerHTML = "";
+  var quoi = document.createElement("div"); quoi.className = "quoi";
+  if (best){
+    var pr = document.createElement("div"); pr.className = "paire";
+    var bx = document.createElement("b"); bx.textContent = etiq(lab, best.x);
+    bx.style.color = col[best.x];
+    var pl = document.createElement("span"); pl.className = "plus"; pl.textContent = "+";
+    var by = document.createElement("b"); by.textContent = etiq(lab, best.y);
+    by.style.color = col[best.y];
+    pr.appendChild(bx); pr.appendChild(pl); pr.appendChild(by);
+    var fo = document.createElement("div"); fo.className = "fois";
+    fo.textContent = best.c + " fois dans la chanson";
+    quoi.appendChild(pr); quoi.appendChild(fo);
+  } else {
+    var ri = document.createElement("div"); ri.className = "rien";
+    ri.textContent = "Plus aucune répétition";
+    quoi.appendChild(ri);
+  }
+  comp.appendChild(quoi);
+  var bt = document.createElement("button");
+  bt.textContent = "Souder"; bt.disabled = !best;
+  bt.onclick = function(){ if (best) applique(best.x, best.y); };
+  comp.appendChild(bt);
+
+  /* transport */
+  $("undo").disabled = S.hist.length < 2;
+  var reg = $("regl");
+  reg.max = String(S.hist.length - 1);
+  reg.value = String(S.hi);
+  $("cpt").textContent = S.hi + "/" + (S.hist.length - 1);
+  $("pp").textContent = AU.enCours() && !S.sel.length ? "❙❙" : "▶";
+
+  /* résultat — la chanson entière tient sur une ligne : la bande devient
+     lisible à mesure qu'on soude, c'est ça la récompense. */
+  var res = $("res"); res.innerHTML = "";
+  for (var r2=0;r2<E.length;r2++){
+    var e2 = E[r2];
+    var sp = document.createElement("span");
+    sp.style.cssText = "--c:" + col[e2.c] + ";flex:" + e2.n + " 1 0";
+    sp.textContent = (W * e2.n / MOT.length) >= 16 ? lab[e2.c] : "";
+    res.appendChild(sp);
+  }
+
+  teteEnt = -1;
+}
+
+/* ═══ tête de lecture ═════════════════════════════════════════════════ */
+
+var teteEnt = -1;
+function suit(){
+  var m = AU.mesure(), E = ents(), cible = -1;
+  if (m >= 0){
+    for (var i=0;i<E.length;i++)
+      if (m >= m0de(E[i]) && m < m1de(E[i])){ cible = i; break; }
+  }
+  if (cible !== teteEnt){
+    var vieux = bande.querySelector(".tete");
+    if (vieux) vieux.parentNode.removeChild(vieux);
+    if (cible >= 0){
+      var pl = bande.children[cible];
+      if (pl && pl.classList.contains("jeton")){
+        var t = document.createElement("i"); t.className = "tete";
+        pl.appendChild(t);
+      }
+    }
+    teteEnt = cible;
+  }
+  requestAnimationFrame(suit);
+}
+
+/* ═══ gestes ══════════════════════════════════════════════════════════ */
+
+function programme(idx){                     // les plages de mesures à jouer
+  var E = ents(), out = [];
+  for (var i=0;i<idx.length;i++) out.push({m0: m0de(E[idx[i]]), m1: m1de(E[idx[i]])});
+  return out;
+}
+
+function ecoute(){
+  if (!S.sel.length){ AU.stop(); }
+  else AU.joue(programme(S.sel), true);
+}
+
+function applique(x, y){
+  AU.stop();
+  if (S.hi < S.hist.length - 1) S.hist = S.hist.slice(0, S.hi + 1);
+  var r = souder(ents(), x, y);
+  if (!r.neufs.length) return;
+  S.hist.push(r.ents); S.hi = S.hist.length - 1;
+  S.sel = []; S.neufs = r.neufs; S.flash = r.neufs.length;
+  AU.blips(r.neufs.length);
+  dessine();
+}
+
+bande.addEventListener("click", function(ev){
+  var t = ev.target;
+  while (t && t !== bande && !t.classList.contains("jeton")) t = t.parentNode;
+  if (!t || t === bande) return;
+  var i = parseInt(t.dataset.i, 10), E = ents();
+
+  if (S.mode === "souder"){
+    if (!S.sel.length){ S.sel = [i]; }
+    else if (S.sel[0] === i){ S.sel = []; }
+    else if (Math.abs(S.sel[0] - i) === 1){
+      var g = Math.min(S.sel[0], i), d = Math.max(S.sel[0], i);
+      applique(E[g].c, E[d].c);
+      return;
+    } else S.sel = [i];
+  } else {
+    if (S.sel.length === 1 && S.sel[0] === i) S.sel = [];
+    else if (S.sel.length === 1) S.sel = [S.sel[0], i];
+    else S.sel = [i];
+  }
+  dessine();
+  ecoute();
+});
+
+$("m-ecouter").onclick = function(){ S.mode = "ecouter"; S.sel = []; AU.stop(); dessine(); };
+$("m-souder").onclick  = function(){ S.mode = "souder";  S.sel = []; AU.stop(); dessine(); };
+
+$("pp").onclick = function(){
+  if (AU.enCours()){ AU.stop(); }
+  else { S.sel = []; AU.joue([{m0:0, m1:NM}], false); }
+  dessine();
+};
+
+$("undo").onclick = function(){
+  if (S.hist.length < 2) return;
+  AU.stop();
+  S.hist.pop();
+  if (S.hi > S.hist.length - 1) S.hi = S.hist.length - 1;
+  S.sel = []; S.neufs = null;
+  dessine();
+};
+
+$("regl").oninput = function(){
+  var v = parseInt(this.value, 10);
+  if (v === S.hi) return;
+  AU.stop(); S.hi = v; S.sel = []; S.neufs = null;
+  dessine();
+};
+
+$("expo").onclick = function(){
+  var E = ents(), lab = lettres(E), out = [];
+  for (var i=0;i<E.length;i++)
+    out.push({label: lab[E[i].c], mesure_debut: m0de(E[i]) + 1, mesure_fin: m1de(E[i])});
+  var txt = JSON.stringify(out, null, 2);
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([txt], {type:"application/json"}));
+  a.download = "soudure_" + String(SONG.titre || "chanson")
+               .toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"") + ".json";
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 400);
+};
+
+AU.fin = function(){ S.neufs = null; dessine(); };
+
+var redim = null;
+window.addEventListener("resize", function(){
+  clearTimeout(redim);
+  redim = setTimeout(function(){ S.neufs = null; dessine(); }, 120);
+});
+
+dessine();
+requestAnimationFrame(suit);
+})();
+</script>
+</body>
+</html>
