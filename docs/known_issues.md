@@ -1,5 +1,45 @@
 # Harmonia — Known Issues
 
+## 2026-08-12 — LES LICKS : POURQUOI LA MATRICE DE VOIX ACTUELLE NE PEUT PAS LES VOIR
+
+Louis : « j'aimerais pouvoir détecter les licks des refrains, tu peux m'aider à
+trouver la bonne matrice de distance voix ? comment la computes-tu pour
+l'instant ? » `scripts/licks.py`, `/plots/licks.html`.
+
+**CE QU'ON CALCULE AUJOURD'HUI**, et c'est identique dans les deux matrices de
+voix du projet (`ssm_zoo.sub_voix` par demi-mesure, `melody_ssm.melody_bars` par
+mesure) : demucs → pyin → notes ; **chaque note est versée dans la case où elle
+COMMENCE, pondérée par sa durée**, dans un vecteur de 12 demi-tons ; cosinus.
+C'est un **sac de notes par case**. Pour segmenter en sections c'est suffisant.
+Pour un lick c'est structurellement aveugle :
+
+| ce qui est perdu | conséquence |
+|---|---|
+| l'**ordre** | `mi ré do` = `do ré mi` — or un lick EST un ordre |
+| le **rythme** | seule la durée totale par classe compte |
+| l'**octave et la transposition** (mod 12, pas d'intervalles) | un lick monté d'un ton ne se reconnaît pas ; Sunny module |
+| la **résolution** (une mesure) | un lick tient 6 à 15 notes sur 1-2 mesures |
+| les **notes tenues** | comptées dans leur seule case de départ, les suivantes paraissent muettes |
+
+**CE QUI EST ÉCRIT À LA PLACE.** Chaque note est décrite par deux nombres
+relatifs à la précédente : `(intervalle en demi-tons, écart d'attaque en temps)`.
+Les intervalles rendent la transposition gratuite, les écarts gardent la figure
+rythmique. Une fenêtre de 8 temps est une séquence, et deux fenêtres se comparent
+par **alignement** (distance d'édition, insertions et suppressions permises) —
+pas par produit scalaire, parce qu'un lick rejoué a rarement le même nombre de
+notes. Grille au TEMPS, pas à la mesure.
+
+**CE QUE ÇA DONNE, à regarder.** La matrice montre des diagonales hors diagonale
+principale — les reprises. Sur This Love, quatre licks disjoints ; le violet
+(mes. 22, 43, 66) tombe dans deux de ses B. **Ce qui manque encore : rien ne dit
+lequel est le lick DU REFRAIN.** Piste immédiate : croiser avec les sections
+déjà détectées (un lick de refrain a ses occurrences dans les B), ou retenir
+celui dont les occurrences sont les plus régulièrement espacées.
+
+Piège de sélection corrigé au passage : les quatre premiers licks étaient le
+MÊME, vu depuis quatre fenêtres voisines — mêmes reprises, départs décalés d'un
+temps. Les licks retenus sont maintenant disjoints, occurrences comprises.
+
 ## 2026-08-12 — LE MORCEAU CHOISIT SON LIEN DE GROUPAGE (longueur de description)
 
 Le lien complet ou moyen n'est plus un réglage que je pose : chaque morceau
