@@ -1,5 +1,68 @@
 # Harmonia — Known Issues
 
+## 2026-08-12 — LES MOTS DE QUATRE LETTRES, ET LA DISTANCE ENTRE LETTRES
+
+Louis : « la matrice de transition au carré me donne-t-elle les transitions de
+niveau 2 ? quelle opération mathématique me permet de représenter tous les mots
+de 4 lettres ? sinon on peut juste scanner toutes les phrases de 4 mots » — puis
+« il faudrait une notion de distance entre chaque lettre afin d'établir la
+distance harmonique entre 2 phrases de 4 mots ». `scripts/mots4.py`,
+`/plots/mots4.html`.
+
+**LA RÉPONSE MATHÉMATIQUE.** Non : `T²[x,z] = Σ_y T[x,y]·T[y,z]` **somme sur la
+lettre du milieu**, donc elle l'oublie. On obtient le nombre de chemins de
+longueur 2, jamais leur identité — vrai aussi en probabilités, `P²` est une
+marginale. L'objet exact est un **tenseur d'ordre 4** `N[w,x,y,z]`, ou en forme
+matricielle le **graphe de de Bruijn** (nœuds = triplets, arêtes = quadruplets,
+K³×K³). Aucune puissance d'une K×K ne peut le contenir. Sa deuxième idée est donc
+la bonne : scanner les 4-grammes, c'est linéaire.
+
+**LA DISTANCE ENTRE LETTRES, ET POURQUOI ELLE DOIT ÊTRE RELATIVE.** `D[x,y] =
+1 − ressemblance moyenne` entre les bi-mesures de x et celles de y. Louis dit
+que sur Bein' Green `b` et `e` sont « en fait les mêmes mots » ; mesuré,
+**d(b,e) = 0,31 alors que b est à 0,22 de LUI-MÊME**. En absolu 0,31 paraît loin ;
+rapporté à ce que vaut « la même lettre » dans ce morceau, c'est tout près. Le
+seuil de regroupement des phrases est donc 1,5 × la distance interne moyenne du
+morceau, jamais une constante. (Piège corrigé au passage : une lettre qui
+n'apparaît qu'une fois n'a pas de distance à elle-même ; la laisser à 0 en
+faisait la lettre la plus fidèle du morceau.)
+
+**LE DÉCOUPAGE** essaie les quatre décalages et garde celui qui minimise le
+nombre de phrases distinctes, à égalité celui qui tombe sur le plus de pics
+votés. Sur **Bein' Green le résultat est exactement son découpage** :
+`aa | abca abca badc abca eadc | fghi` → intro 1-4, A 5-12, A 13-20, B 21-28,
+A 29-36, B 37-44, A 45-52, lettre pour lettre. Chain of Fools retrouve sa
+frontière de B (mes. 38) ; Don't Know Why six frontières sur huit.
+
+## 2026-08-12 — LE CRITÈRE DE VOIX : JUSTE, MAIS PAS AUTOMATISABLE — SOUS LE COUDE
+
+Louis : « quand on hésite sur où trancher, tu prends la matrice SSM de la voix et
+tu regardes la moyenne des valeurs sur la diagonale correspondant au bloc de la
+section de base et de la nouvelle section hypothétique → celui qui a la plus
+grande diagonale gagne. » Puis : « on le garde sous le coude pour l'instant. »
+
+**IL DÉPARTAGE JUSTE.** Sur les deux cas qu'il a nommés (moyenne du bloc
+diagonal de la matrice de voix par mesure) :
+
+| hésitation | notre coupe | la sienne |
+|---|---|---|
+| This Love, 2e A | 25-32 → 0,369 | 29-36 → **0,552** |
+| Let It Be, 1er A | 1-8 → 0,139 | 5-12 → **0,411** |
+
+Et le cas inverse le confirme : sa queue 25-28 tombe à **0,10**, la plus basse du
+morceau — une queue est justement l'endroit où le chant ne se ressemble pas.
+
+**IL N'EST PAS AUTOMATISABLE TEL QUEL.** Branché comme déplaceur de frontières,
+il dégrade dans les TROIS variantes essayées (score global du morceau ; minimum
+des deux blocs voisins ; seuils de gain 2 % et 3 %) : Let It Be perd sept de ses
+dix frontières justes, This Love gonfle son premier A à douze mesures. Raison
+structurelle : **déplacer une frontière change la LONGUEUR des deux sections**, et
+une section plus longue peut faire monter sa moyenne en absorbant du chant
+voisin. Comparer deux placements d'une section à longueur ÉGALE — ce qu'il
+décrit — et déplacer librement une frontière ne sont pas la même opération.
+Débranché (`quatre_mots.caler_voix`, garde `if False`), score affiché par section
+sur `/plots/mots4.html` et `/plots/quatre_mots.html`.
+
 ## 2026-08-12 — LE MOT DE BI-MESURES VIENT DE LA BASSE, PAS DES ACCORDS ★ CORRIGÉ
 
 Louis : « sur Let It Be, tout simplement on ne détecte pas les bons mots ! »
