@@ -98,17 +98,30 @@ HARD = "#0d2437"
 SYM = "abcdefghijklmnopqrstuvwxyz"
 LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-SOURCE = "basse + harmonie"   # LA MATRICE QUI FABRIQUE LE MOT.
+SOURCE = "basse"   # LA MATRICE QUI FABRIQUE LE MOT.
                    #
-                   # Louis, 2026-08-12 : « attends, pour les matrices des
-                   # bi-mesures, on ne prend que le NNLS de la basse, pas de
-                   # l'harmonie ?? » — c'était bien le cas, et c'était un
-                   # raccourci pris pour réparer Let It Be. Les 24 cases (basse
-                   # ET harmonie, chaque moitié normalisée à part) font mieux :
-                   # Let It Be retrouve son mot exact `ababab cb abab cbcb dd…`
-                   # que la basse seule perdait (elle confondait b et c), et
-                   # Don't Know Why retrouve A=`abab` / B=`cdcd`. La basse seule
-                   # reste meilleure sur Every Breath You Take.
+                   # ARBITRÉ UNE VARIABLE À LA FOIS le 2026-08-12, après que
+                   # Louis a vu Bein' Green se décaler : « tout à l'heure on
+                   # chopait bien les bonnes sections, qu'est-ce que tu as
+                   # changé ? » J'avais changé la matrice ET le lien dans la même
+                   # passe — l'erreur type n°6 du projet. Les quatre
+                   # combinaisons, mesurées séparément :
+                   #
+                   #   Bein' Green  basse/complet -> mes. 5 13 21 29 37 45,
+                   #                EXACTEMENT son découpage ; les trois autres
+                   #                combinaisons décalent tout de 2 mesures.
+                   #   The Walk     basse (complet ou moyen) -> ses frontières ;
+                   #                basse+harmonie les perd.
+                   #   Grenade      basse/MOYEN -> 1 9 17 25 … 65 77 85, contre
+                   #                ses 1 9 17 25 … 65 77 85 (dérive de 2 mesures
+                   #                au milieu, à cause de son C de 10 mesures).
+                   #   Let It Be    les deux matrices donnent le même mot.
+                   #
+                   # Trois morceaux sur quatre veulent la BASSE. La note
+                   # précédente de ce bloc disait le contraire ; elle avait été
+                   # écrite sur une passe où les deux variables bougeaient
+                   # ensemble.
+                   #
                    #
                    # Louis, 2026-08-12 : « sur Let It Be, tout simplement on ne
                    # détecte pas les bons mots ! » Il avait raison, et ce n'était
@@ -126,6 +139,26 @@ SOURCE = "basse + harmonie"   # LA MATRICE QUI FABRIQUE LE MOT.
                    # accord tenu, la basse y brode et fabrique de faux groupes) et
                    # Bein' Green y perdent. Blue Lights et She Will Be Loved sont
                    # inchangés. C'est un échange, pas une victoire partout.
+LIEN = "complet"   # LE LIEN DU GROUPAGE — « complet » ou « moyen ».
+                   #
+                   # Complet : une bi-mesure ne rejoint un groupe que si elle
+                   # ressemble à TOUS ses membres. Moyen : à leur moyenne.
+                   #
+                   # Le défaut est COMPLET, et c'est un arbitrage mesuré, pas une
+                   # préférence. Le moyen répare Grenade (17 % de ses paires
+                   # intra-couplet sont sous le seuil : son couplet est rejoué à
+                   # chaque fois, pas copié-collé) mais casse Bein' Green — qui
+                   # sortait EXACTEMENT le découpage de Louis —, The Walk, Every
+                   # Breath You Take et She Will Be Loved, où il fusionne des
+                   # sections voisines. Quatre morceaux contre un.
+                   #
+                   # La leçon de méthode, elle, coûte plus cher que le réglage :
+                   # j'avais changé la matrice ET le lien dans la même passe, et
+                   # Louis a vu Bein' Green se décaler sans que je puisse dire
+                   # lequel des deux en était la cause. C'est l'erreur type n°6
+                   # du projet (« un échange de composant change plus que la
+                   # métrique visée ») ; les deux bandes sont maintenant
+                   # dessinées côte à côte sur /plots/mots4.html.
 SYM_THR = 0.90     # plancher, quand la forme de la distribution ne dit rien
 MIN_VOTES = 3      # en dessous, un pic est une hypothèse et ne coupe rien
 SNAP = 1           # un pic se cale sur la grille de deux mesures à ±1 mesure
@@ -254,7 +287,7 @@ def otsu(v, lo=0.30, hi=0.999, n=200) -> float:
     return seuil
 
 
-def bibar_word(b, stem, thr=None, lien="moyen"):
+def bibar_word(b, stem, thr=None, lien=LIEN):
     """(mot, spans, sim) — une lettre minuscule par bi-mesure.
 
     `spans` donne les mesures de chaque bi-mesure : c'est la grille, et elle
@@ -376,7 +409,7 @@ def contraste(w: str, mini=MIN_PIECE):
 
 # ── le remplissage, par ordre de voix ───────────────────────────────────────
 
-def fill(b, stem, min_votes=MIN_VOTES, snap=SNAP, lien="moyen"):
+def fill(b, stem, min_votes=MIN_VOTES, snap=SNAP, lien=LIEN):
     """{blocs, sections, coupures, mot, ancre} — le remplissage vote-ordonné.
 
     `blocs` garde la TRACE de l'ordre : chaque entrée dit combien de voix a porté

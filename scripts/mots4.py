@@ -391,7 +391,7 @@ def song_page(stem: str, title: str) -> str:
     b = order_bundle.get(stem)
     n, grid = b["n"], b["grid"]
     Sv = np.nan_to_num(np.asarray(b["M"], float))
-    R = fill(b, stem, lien="moyen")
+    R = fill(b, stem, lien="complet")
     word, x0, B = R["mot"], R["x0"], R["sim"]
     secs, d = sections(word, x0, n, B, b["start"], cuts=set(R["cuts"]), Sv=Sv)
     # LES DEUX LIENS CÔTE À CÔTE (demande de Louis, 2026-08-12). Le lien complet
@@ -399,7 +399,7 @@ def song_page(stem: str, title: str) -> str:
     # moyen à leur moyenne. Grenade a besoin du moyen (son couplet est rejoué
     # différemment, 17 % de ses paires sont sous le seuil) ; The Walk et Every
     # Breath You Take préfèrent le complet. C'est à l'oreille de trancher.
-    Rc = fill(b, stem, lien="complet")
+    Rc = fill(b, stem, lien="moyen")
     secs_c, _dc = sections(Rc["mot"], Rc["x0"], n, Rc["sim"], b["start"],
                            cuts=set(Rc["cuts"]), Sv=Sv)
     Sv = np.nan_to_num(np.asarray(b["M"], float))
@@ -408,7 +408,7 @@ def song_page(stem: str, title: str) -> str:
     gtb = [s["b0"] for s in gt["sections"][1:]] if gt else []
     today = OL.new_sections(b)[0]
 
-    strips = [("lien MOYEN", secs), ("lien COMPLET", secs_c),
+    strips = [("lien COMPLET", secs), ("lien moyen", secs_c),
               ("ce qu'on écrit", today)]
     if gt:
         strips.append(("toi", gt["sections"]))
@@ -501,8 +501,8 @@ def song_page(stem: str, title: str) -> str:
 <div class=bar><button class=pp>▶</button><span class=pos>mes. 1 · 0:00</span>
 <span class=hint>touche le graphique pour te déplacer</span></div>
 <div class=lane><span class=lab>les phrases</span>{btns}</div>
-<div class=votes><b>Le mot (lien moyen) —</b> <code>{word}</code><br>
-<b>Le mot (lien complet) —</b> <code>{Rc["mot"]}</code><br>
+<div class=votes><b>Le mot (lien complet, par défaut) —</b> <code>{word}</code><br>
+<b>Le mot (lien moyen) —</b> <code>{Rc["mot"]}</code><br>
 <b>Le découpage —</b> {" ".join(d["phrases"])}</div>
 <img src="data:image/png;base64,{mat}" alt="distances">
 <div class=votes><b>À gauche</b>, la distance entre lettres : 0 = c'est le même
