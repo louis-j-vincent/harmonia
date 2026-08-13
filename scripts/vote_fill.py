@@ -98,7 +98,17 @@ HARD = "#0d2437"
 SYM = "abcdefghijklmnopqrstuvwxyz"
 LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-SOURCE = "basse"   # LA MATRICE QUI FABRIQUE LE MOT.
+SOURCE = "basse + harmonie"   # LA MATRICE QUI FABRIQUE LE MOT.
+                   #
+                   # Louis, 2026-08-12 : « attends, pour les matrices des
+                   # bi-mesures, on ne prend que le NNLS de la basse, pas de
+                   # l'harmonie ?? » — c'était bien le cas, et c'était un
+                   # raccourci pris pour réparer Let It Be. Les 24 cases (basse
+                   # ET harmonie, chaque moitié normalisée à part) font mieux :
+                   # Let It Be retrouve son mot exact `ababab cb abab cbcb dd…`
+                   # que la basse seule perdait (elle confondait b et c), et
+                   # Don't Know Why retrouve A=`abab` / B=`cdcd`. La basse seule
+                   # reste meilleure sur Every Breath You Take.
                    #
                    # Louis, 2026-08-12 : « sur Let It Be, tout simplement on ne
                    # détecte pas les bons mots ! » Il avait raison, et ce n'était
@@ -244,7 +254,7 @@ def otsu(v, lo=0.30, hi=0.999, n=200) -> float:
     return seuil
 
 
-def bibar_word(b, stem, thr=None):
+def bibar_word(b, stem, thr=None, lien="moyen"):
     """(mot, spans, sim) — une lettre minuscule par bi-mesure.
 
     `spans` donne les mesures de chaque bi-mesure : c'est la grille, et elle
@@ -286,6 +296,15 @@ def bibar_word(b, stem, thr=None):
     if thr is None:
         thr = otsu(B[~np.eye(J, dtype=bool)])
 
+    # LIEN MOYEN, PAS COMPLET. Louis, 2026-08-12, sur Grenade : « les bi-mesures
+    # ne sont pas bonnes ». Mesuré : ses trois B (un refrain copié-collé) se
+    # ressemblent à 0,98 et passent tous le seuil ; ses quatre A (un couplet
+    # rejoué à chaque fois, la basse suivant le phrasé du chant) sont à 0,86 de
+    # médiane avec un minimum à 0,60, soit **17 % de paires sous le seuil**. En
+    # lien complet — une bi-mesure ne rejoint un groupe que si elle ressemble à
+    # TOUS ses membres — une seule paire ratée sur six suffit à empêcher le
+    # groupe : les A sortaient en `aaaa`, `babb`, `bfbd`, `gfge`. En lien moyen,
+    # ses deux premiers A redeviennent identiques et les B restent intacts.
     used, lab, k = set(), [-1] * J, 0
     for j in sorted(range(J), key=lambda j: -(B[j] >= thr).sum()):
         if j in used:
@@ -294,7 +313,10 @@ def bibar_word(b, stem, thr=None):
         for q in range(J):
             if q in used or q == j:
                 continue
-            if all(B[q, x] >= thr for x in mem):
+            v = [B[q, x] for x in mem]
+            ok = all(x >= thr for x in v) if lien == "complet" \
+                else float(np.mean(v)) >= thr
+            if ok:
                 mem.append(q)
         for q in mem:
             lab[q] = k
@@ -354,14 +376,14 @@ def contraste(w: str, mini=MIN_PIECE):
 
 # ── le remplissage, par ordre de voix ───────────────────────────────────────
 
-def fill(b, stem, min_votes=MIN_VOTES, snap=SNAP):
+def fill(b, stem, min_votes=MIN_VOTES, snap=SNAP, lien="moyen"):
     """{blocs, sections, coupures, mot, ancre} — le remplissage vote-ordonné.
 
     `blocs` garde la TRACE de l'ordre : chaque entrée dit combien de voix a porté
     le bloc, dans quel ordre il a été traité et par quelle règle il a été rempli.
     C'est ce que la page dessine.
     """
-    word, spans, B = bibar_word(b, stem)
+    word, spans, B = bibar_word(b, stem, lien=lien)
     J, a = len(spans), spans[0][0]
     x0 = [sp[0] for sp in spans] + [spans[-1][1]]   # mesure de début de chaque bi-mesure
     n = b["n"]

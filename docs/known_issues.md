@@ -1,5 +1,37 @@
 # Harmonia — Known Issues
 
+## 2026-08-12 — LE MOT VIENT DE BASSE+HARMONIE, ET LE LIEN EST À ARBITRER
+
+**Correction d'une décision non justifiée, la mienne.** Louis : « on utilisait
+basse + harmonie avant, je ne comprends pas comment on a switché à juste
+basse ». Historique exact : le mot venait des **triades**
+(`harmonic_vectors`) ; en réparant Let It Be j'ai testé la basse, ça marchait, et
+j'ai basculé — alors que **la même sortie contenait `basse + harmonie`, qui
+donnait le mot correct à l'identique**. J'ai retenu la plus étroite des deux sans
+raison. `basse + harmonie` (les 24 cases, chaque moitié normalisée à part) est
+maintenant la source. Elle est meilleure que la basse seule sur Let It Be (qui
+confondait `b` et `c`) et Don't Know Why (A=`abab`, B=`cdcd`) ; la basse seule
+reste meilleure sur Every Breath You Take.
+
+**LE LIEN DU GROUPAGE EST UN VRAI ARBITRAGE, pas un réglage.** Grenade, mesuré :
+
+| | ressemblance interne | au-dessus du seuil (0,738) |
+|---|---|---|
+| ses **B** (refrain copié-collé) | médiane 0,98, min 0,97 | **100 %** |
+| ses **A** (couplet rejoué à chaque fois) | médiane 0,86, min **0,60** | **83 %** |
+
+En **lien complet** (une bi-mesure ne rejoint un groupe que si elle ressemble à
+TOUS ses membres), une seule paire ratée sur six suffit à casser le groupe : les
+quatre A de Grenade sortaient `aaaa`, `babb`, `bfbd`, `gfge`. En **lien moyen**
+ils se rejoignent — mais The Walk, Every Breath You Take et She Will Be Loved se
+dégradent, le moyen y fusionnant des sections voisines.
+
+Les deux sont donc dessinés **côte à côte** sur `/plots/mots4.html`, une bande
+chacun, pour arbitrage à l'oreille. Aucun n'est meilleur partout, et la variable
+qui les sépare est musicale : **un morceau dont les couplets sont rejoués
+(Grenade, Sunny) veut le lien moyen ; un morceau bâti sur des boucles copiées
+(The Walk, Every Breath) veut le complet.**
+
 ## 2026-08-12 — A ET A′ : LA RÈGLE DU PRIME, ET LES TROIS BOGUES QU'ELLE A RÉVÉLÉS
 
 Louis : « lorsque 2 sections ne divergent que par la dernière barre, appelle-les
