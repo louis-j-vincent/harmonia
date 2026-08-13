@@ -49,6 +49,7 @@ import mots4                                               # noqa: E402
 import order_bundle                                        # noqa: E402
 
 OUT = HERE / "docs" / "plots" / "lien_lab.html"
+PLOT_L, PLOT_R = 0.13, 0.995      # marges du tracé : la tête de lecture s'y cale
 
 
 def song_png(stem: str):
@@ -101,20 +102,32 @@ def song_png(stem: str):
             ax.tick_params(length=2, colors="#c9c0aa")
         else:
             ax.set_xticks([])
-    fig.subplots_adjust(left=0.13, right=0.995, top=0.97, bottom=0.16)
-    return fig2b64(fig), choisi, res
+    fig.subplots_adjust(left=PLOT_L, right=PLOT_R, top=0.97, bottom=0.16)
+    return fig2b64(fig), choisi, res, b["grid"], n
 
 
 def main():
     body = []
     for stem, title in SONGS:
-        img, choisi, res = song_png(stem)
+        img, choisi, res, grid, n = song_png(stem)
         ecart = abs(res["complet"][0] - res["moyen"][0])
         note = ("les deux se valent — on garde le complet" if ecart == 0
                 else f"le {choisi} coûte {ecart:.0f} de moins")
+        g = [round(t, 3) for t in grid]
+        # CHAQUE MORCEAU EST JOUABLE SUR PLACE (Louis, 2026-08-12 : « chansons
+        # jouables »). Un lecteur par section, sa propre tête de lecture, et le
+        # graphique cliquable pour se déplacer — la coquille partagée de
+        # `peak_profile` n'en gère qu'un seul par page, donc c'est écrit ici.
         body.append(
-            f'<section><h2>{title} <span class=sub>lien {choisi} · {note}</span></h2>'
-            f'<img src="data:image/png;base64,{img}" alt="{title}"></section>')
+            f'<section data-grid=\'{g}\'>'
+            f'<h2>{title} <span class=sub>lien {choisi} · {note}</span></h2>'
+            f'<div class=plot><img src="data:image/png;base64,{img}" alt="{title}">'
+            '<div class=cur></div><div class=hit></div></div>'
+            '<div class=bar><button class=pp>▶</button>'
+            '<span class=pos>mes. 1 · 0:00</span>'
+            '<span class=hint>touche le graphique pour te déplacer</span></div>'
+            f'<audio preload=metadata playsinline src="../audio/{stem}.m4a"></audio>'
+            '</section>')
         print(f"  ok {title} -> {choisi}")
     OUT.write_text(f"""<!DOCTYPE html><html lang=fr><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
@@ -128,6 +141,16 @@ section{{background:#fffdf6;border:1px solid #e5dcc6;border-radius:14px;padding:
 h2{{font:700 17px system-ui;margin:0 0 8px;color:#8a2b2b}}
 .sub{{font:500 12px system-ui;color:#8a8371}}
 img{{width:100%;border-radius:8px;display:block}}
+.plot{{position:relative}}
+.cur{{position:absolute;top:0;bottom:0;width:2px;background:#111;opacity:.8;
+  display:none;pointer-events:none;box-shadow:0 0 0 1px rgba(255,255,255,.55)}}
+.hit{{position:absolute;top:0;bottom:0;cursor:crosshair}}
+.bar{{display:flex;align-items:center;gap:10px;margin:8px 0 0}}
+.pp{{width:38px;height:38px;border-radius:50%;border:1px solid #d8cfb4;
+  background:#f7f3e9;font-size:14px;cursor:pointer;flex:none}}
+.pos{{font:600 12px ui-monospace,monospace}}
+.hint{{font:500 11.5px system-ui;color:#a89f8c}}
+audio{{display:none}}
 </style></head><body><div class=wrap>
 <h1>Le lien de groupage, choisi par le morceau</h1>
 <div class=lede>Une bi-mesure rejoint un groupe de bi-mesures semblables selon
@@ -145,7 +168,38 @@ est encadrée. Traits rouges : tes frontières.<br><br>
 Sur les douze morceaux, <b>Grenade et Sunny prennent le moyen, les dix autres le
 complet</b> — exactement l'arbitrage qu'on faisait à la main avant d'avoir ce
 critère.</div>
-{''.join(body)}</div></body></html>""")
+{''.join(body)}</div>
+<script>
+document.querySelectorAll("section[data-grid]").forEach(function(sec){{
+  var G = JSON.parse(sec.dataset.grid), n = G.length - 1;
+  var L0 = {PLOT_L}, W = {PLOT_R} - {PLOT_L};
+  var au = sec.querySelector("audio"), cur = sec.querySelector(".cur"),
+      hit = sec.querySelector(".hit"), pp = sec.querySelector(".pp"),
+      pos = sec.querySelector(".pos"), raf = null;
+  hit.style.left = (L0*100)+"%"; hit.style.width = (W*100)+"%";
+  function t2b(t){{ if(t<=G[0])return 0; if(t>=G[n])return n;
+    var lo=0,hi=n; while(hi-lo>1){{var m=(lo+hi)>>1; G[m]<=t?lo=m:hi=m;}}
+    return lo+(t-G[lo])/(G[lo+1]-G[lo]); }}
+  function b2t(f){{ var i=Math.max(0,Math.min(n-1,Math.floor(f)));
+    return G[i]+(f-i)*(G[i+1]-G[i]); }}
+  function fmt(s){{ return Math.floor(s/60)+":"+String(Math.floor(s%60)).padStart(2,"0"); }}
+  function draw(){{ var f=t2b(au.currentTime); cur.style.display="block";
+    cur.style.left="calc("+((L0+W*f/n)*100)+"% - 1px)";
+    pos.textContent="mes. "+(Math.floor(f)+1)+" · "+fmt(au.currentTime); }}
+  function tick(){{ draw(); if(!au.paused) raf=requestAnimationFrame(tick); }}
+  au.addEventListener("play", function(){{
+    document.querySelectorAll("audio").forEach(function(a){{ if(a!==au) a.pause(); }});
+    pp.textContent="❚❚"; tick(); }});
+  au.addEventListener("pause", function(){{ pp.textContent="▶";
+    cancelAnimationFrame(raf); draw(); }});
+  pp.onclick=function(){{ au.paused ? au.play().catch(function(){{}}) : au.pause(); }};
+  hit.onclick=function(e){{ var r=hit.getBoundingClientRect();
+    var t=b2t(n*(e.clientX-r.left)/r.width);
+    var seek=function(){{ try{{ au.currentTime=t; }}catch(err){{}} draw(); }};
+    if(au.readyState>=1) seek(); else au.addEventListener("loadedmetadata",seek,{{once:true}});
+    au.play().catch(function(){{}}); }};
+}});
+</script></body></html>""")
     print(f"wrote {OUT}  ({OUT.stat().st_size // 1024} KB)")
 
 
