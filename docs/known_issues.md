@@ -26457,3 +26457,49 @@ trouver des frontières n'importe où, mais de **classer les mesures d'une grill
 connue**. L'espace de recherche est divisé par deux (grille de 2) ou par quatre
 (grille de 4), et le modèle n'a plus qu'à dire lesquelles sont de vraies
 frontières. C'est ce qu'il faut coder ensuite.
+
+## Le critère de Louis : bloc DIAGONAL contre bloc CROISÉ (2026-08-13)
+
+`scripts/match_bloc.py` -> `docs/plots/match_bloc.html` (démo pas à pas, This Love).
+
+**La règle, telle qu'il l'a posée.** Matrice de voix **hauteur réelle au temps**
+(la variante n°6 de `voix_variantes.py`). Pour comparer la section A à la
+position B : on prend le carré de A **sur** la diagonale (son portrait
+intérieur : quel temps de A ressemble à quel autre temps de A), le bloc A×B
+**hors** diagonale, on normalise chacun par sa norme de Frobenius, et on fait
+leur produit scalaire.
+
+    score(A -> B) = <S[A,A] , S[A,B]> / (‖S[A,A]‖ · ‖S[A,B]‖)
+
+Ce n'est PAS « B ressemble à A en moyenne » : c'est « B rejoue A **de la même
+façon que A se ressemble à lui-même** ». La différence est visible sur la page :
+la moyenne du bloc croisé (critère naïf) monte partout où le chant est dense.
+
+**Ce que ça donne sur This Love**, A = mes. 9–16 :
+
+| comparé à | ton critère | la moyenne du bloc |
+|---|---|---|
+| A (mes. 29) — la vraie reprise | **0,814** | 0,287 |
+| B (mes. 17) — autre section | 0,232 | 0,088 |
+
+Et entre les onze sections annotées, **le meilleur match hors soi-même est le bon
+pour toutes les lignes** : A9→A29 (0,81), B17→B37 (0,91), queue25→queue45
+(0,78), B57→B17 (0,80), B65→B17 (0,75), B73→B57 (0,56). Le pont (mes. 49)
+plafonne à 0,43 — il n'a pas de jumeau, et le critère le dit.
+
+**Trois propriétés à retenir avant de le brancher.**
+
+1. **Il est ASYMÉTRIQUE.** A9→A29 = 0,81 mais A29→A9 = 0,77 : la référence est
+   toujours le carré diagonal de la ligne. Le critère répond « est-ce que B
+   rejoue A », pas « A et B se ressemblent-ils ».
+2. **Il est sensible au décalage d'UN temps.** Sa sélectivité vient de la
+   diagonale pleine du bloc croisé, qui n'existe que si les deux passages sont
+   alignés temps à temps. C'est une force pour trancher, un risque sur les
+   morceaux à mesure insérée (Grenade, Blue Lights).
+3. **Il est muet là où personne ne chante.** L'intro de This Love (mes. 1–8) n'a
+   littéralement aucune note : les lignes correspondantes de la SSM de voix sont
+   nulles, donc toute la ligne/colonne intro vaut 0. Ce n'est pas un bug, mais
+   un critère de voix ne peut pas arbitrer une section instrumentale.
+
+**Pas encore branché** sur `mots4.sections` — c'est une démo à valider à l'œil
+d'abord (Louis, 2026-08-13 : « pour être sûr qu'on est bons »).
