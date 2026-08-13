@@ -1,5 +1,39 @@
 # Harmonia — Known Issues
 
+## 2026-08-12 — A ET A′ : LA RÈGLE DU PRIME, ET LES TROIS BOGUES QU'ELLE A RÉVÉLÉS
+
+Louis : « lorsque 2 sections ne divergent que par la dernière barre, appelle-les
+A et A′ ; fais-en une règle implémentée partout. » Puis : « comme dans Every
+Breath You Take ».
+
+La règle est simple à énoncer et il a fallu **trois corrections** pour qu'elle se
+déclenche, toutes du même genre — une comparaison faite au mauvais endroit :
+
+1. **Elle se jugeait entre TYPES.** Or deux phrases qui ne diffèrent que par leur
+   dernière lettre sont exactement celles que le groupage réunit en premier (leur
+   distance vaut le quart d'une distance de lettre). Elles ne survivent donc pas
+   comme deux types — elles survivent comme deux OCCURRENCES d'une même famille.
+   Le prime se juge par occurrence, contre la référence de sa famille.
+2. **La référence d'une famille était son premier membre.** Sur Every Breath You
+   Take la famille contient `abdb` une fois et `abcb` trois fois : la référence
+   `abdb` diffère de `abca` par l'avant-dernière lettre aussi, donc la règle ne
+   pouvait pas se déclencher. La référence est maintenant la forme la PLUS
+   FRÉQUENTE.
+3. **Une lettre comparée à elle-même ne valait pas 0** mais sa distance interne
+   (~0,08). Deux têtes identiques (`abc` contre `abc`) sortaient donc à 0,08, au
+   dessus du seuil. C'est la troisième fois aujourd'hui que la diagonale d'une
+   matrice de distance se venge.
+
+**Résultat sur Every Breath You Take** : `intro · A′ A B A′ C · A′ A B A′ · …` —
+les primes tombent sur les mesures 9, 33, 51 et 75, et son annotation met un A
+partout là. Les deux cadences du couplet sont donc reconnues comme la même
+section avec deux fins. This Love gagne un `C′` : sa deuxième queue est une
+variante de la première.
+
+**La chronologie est sur la page** (sa demande, pour Sunny et Grenade) : une
+ligne par famille posée, dans l'ordre — la plus fréquente d'abord, en couleur ce
+qu'on vient de poser, en pâle ce qui l'était déjà.
+
 ## 2026-08-12 — LA PHRASE LA PLUS FRÉQUENTE D'ABORD, PARTOUT OÙ ELLE EST ★
 
 Louis, sur This Love : « je ne comprends pas pourquoi on ne crée pas tous les B

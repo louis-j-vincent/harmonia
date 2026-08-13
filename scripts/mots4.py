@@ -155,9 +155,67 @@ def familles(word, B, L=L4):
     lab, groupes = grouper(ph, lets, D, seuil)
     fam = []
     for g, mem in enumerate(groupes):
-        fam.append({"type": ph[mem[0]], "occ": [pos[m] for m in mem],
-                    "membres": [ph[m] for m in mem]})
+        membres = [ph[m] for m in mem]
+        # LA RÉFÉRENCE D'UNE FAMILLE EST SA FORME LA PLUS FRÉQUENTE, pas son
+        # premier membre. Sur Every Breath You Take la famille contient `abdb`
+        # une fois et `abcb` trois fois : prendre le premier venu donnait `abdb`
+        # comme référence, et la règle du prime (« elles ne diffèrent que par la
+        # dernière lettre ») ne se déclenchait jamais contre `abca`, puisque
+        # `abdb` en diffère aussi par l'avant-dernière.
+        ref = max(set(membres), key=lambda t: (membres.count(t), -membres.index(t)))
+        fam.append({"type": ref, "occ": [pos[m] for m in mem], "membres": membres})
     return fam, lets, S, D, seuil
+
+
+def nommer_primes(types, lets, D, tol=0.5):
+    """{type: lettre} — A et A′ quand deux sections ne diffèrent que par la fin.
+
+    Louis, 2026-08-12 : « lorsque 2 sections ne divergent que par la dernière
+    barre, appelle-les A et A′ par exemple ; fais-en une règle implémentée
+    partout. »
+
+    Deux sections portent la même lettre, la seconde marquée d'un prime, quand
+    elles ont la MÊME longueur, le même début (toutes les lettres sauf la
+    dernière, à la distance près) et une dernière lettre différente. C'est
+    l'ouvert et le clos d'une même période : la première et la deuxième cadence.
+    Sans cette règle, la deuxième prend une lettre neuve et le morceau paraît
+    avoir deux fois plus de sections qu'il n'en a.
+
+    `tol` est en unités de distance entre lettres : le début doit correspondre
+    à mieux que la moitié de la distance interne moyenne du morceau — sinon ce
+    n'est pas la même section avec une autre fin, c'est une autre section.
+    """
+    idx = {c: i for i, c in enumerate(lets)}
+    interne = float(np.mean([D[i, i] for i in range(len(lets))]))
+    seuil = tol * max(interne, 1e-3)
+    noms: dict[str, str] = {}
+    bases: list[tuple[str, str]] = []          # (type de référence, lettre)
+    k = 0
+    for t in types:
+        mis = None
+        for u, lab in bases:
+            if len(u) != len(t) or len(t) < 2:
+                continue
+            # une lettre comparée à ELLE-MÊME vaut 0, pas sa distance interne :
+            # sinon deux têtes identiques (`abc` contre `abc`) sortent à 0,08 et
+            # dépassent le seuil — c'est ce qui empêchait la règle de se
+            # déclencher sur Every Breath You Take.
+            tete = [0.0 if a == b else D[idx[a], idx[b]]
+                    for a, b in zip(u[:-1], t[:-1])]
+            # la dernière lettre doit seulement être AUTRE : si elle était
+            # proche, les deux phrases seraient déjà la même famille. Exiger en
+            # plus qu'elle soit LOIN (ce que faisait la première version) empêche
+            # la règle de se déclencher sur Every Breath You Take, où `abca` et
+            # `abcb` ne diffèrent que par une lettre voisine — le cas même que
+            # Louis a nommé.
+            if tete and float(np.mean(tete)) <= seuil and u[-1] != t[-1]:
+                mis = lab + "′"
+                break
+        if mis is None:
+            mis = LETTERS[k % len(LETTERS)]; k += 1
+            bases.append((t, mis))
+        noms[t] = mis
+    return noms
 
 
 def placer(word, x0, B, Sv=None, L=L4, cuts=()):
@@ -197,7 +255,7 @@ def placer(word, x0, B, Sv=None, L=L4, cuts=()):
 
     pris = [None] * len(word)
     placees = []
-    for f in fam:
+    for tour, f in enumerate(fam):
         # DE GAUCHE À DROITE à l'intérieur d'une famille : ses occurrences sont
         # régulièrement espacées, les poser dans l'ordre garde la grille. Les
         # poser par score de voix décroissant part d'une occurrence quelconque et
@@ -210,7 +268,9 @@ def placer(word, x0, B, Sv=None, L=L4, cuts=()):
                 continue
             for q in range(p, min(p + L, len(word))):
                 pris[q] = len(placees)
-            placees.append({"j0": p, "j1": min(p + L, len(word)), "fam": f})
+            placees.append({"j0": p, "j1": min(p + L, len(word)), "fam": f,
+                            "mot": word[p:min(p + L, len(word))],
+                            "tour": tour})
     # NE PAS trier `placees` : `pris` contient leurs indices d'insertion.
 
     # ce qui n'est entré dans aucune phrase forme des blocs (Louis, même jour)
@@ -223,8 +283,8 @@ def placer(word, x0, B, Sv=None, L=L4, cuts=()):
             j = i
             while j + 1 < len(word) and pris[j + 1] is None:
                 j += 1
-            out.append({"j0": i, "j1": j + 1, "fam": None,
-                        "type": word[i:j + 1]})
+            out.append({"j0": i, "j1": j + 1, "fam": None, "tour": -1,
+                        "mot": word[i:j + 1], "type": word[i:j + 1]})
             i = j + 1
 
     types = []
@@ -232,11 +292,23 @@ def placer(word, x0, B, Sv=None, L=L4, cuts=()):
         t = s["fam"]["type"] if s["fam"] else s["type"]
         if t not in types:
             types.append(t)
+    noms = nommer_primes(types, lets, D)
     for s in out:
         t = s["fam"]["type"] if s["fam"] else s["type"]
         s["type"] = t
-        s["label"] = LETTERS[types.index(t) % 26]
+        s["label"] = noms[t]
         s["reste"] = s["fam"] is None
+        # LE PRIME SE JUGE PAR OCCURRENCE, contre la référence de sa famille.
+        # Louis : « lorsque 2 sections ne divergent que par la dernière barre,
+        # appelle-les A et A′ ». La première version comparait les TYPES entre
+        # eux et ne se déclenchait jamais : deux phrases qui ne diffèrent que par
+        # leur dernière lettre sont justement celles que le groupage réunit en
+        # premier (leur distance vaut le quart d'une distance de lettre), donc
+        # elles ne survivent pas comme deux types. Elles survivent comme deux
+        # OCCURRENCES d'une même famille — et c'est là qu'on les distingue.
+        if s["fam"] and s.get("mot") and s["mot"] != t and len(s["mot"]) == len(t) \
+                and s["mot"][:-1] == t[:-1] and s["mot"][-1] != t[-1]:
+            s["label"] = s["label"] + "′"
     return out, {"fam": fam, "lets": lets, "S": S, "D": D, "seuil": seuil,
                  "types": types}
 
@@ -248,7 +320,8 @@ def sections(word, x0, n, B, start_bar=0, L=L4, cuts=(), Sv=None):
     for s in pl:
         out.append({"b0": x0[s["j0"]], "b1": x0[s["j1"]] - 1,
                     "label": s["label"] + (" (reste)" if s["reste"] else ""),
-                    "nu": s["label"], "type": s["type"]})
+                    "nu": s["label"].rstrip("′"), "type": s["type"],
+                    "mot": s.get("mot", s["type"]), "tour": s.get("tour", -1)})
     for s in out:
         if s["b1"] < start_bar:
             s["label"], s["nu"] = "intro", "intro"
@@ -330,11 +403,16 @@ def song_page(stem: str, title: str) -> str:
     strips = [(f"phrases de {L4} mots", secs), ("ce qu'on écrit", today)]
     if gt:
         strips.append(("toi", gt["sections"]))
-    rows = 2 + len(strips)
+    # LA CHRONOLOGIE : un tour par famille posée, dans l'ordre où on les pose.
+    # Louis : « montre-moi toutes les étapes qu'il y a eues chronologiquement
+    # pour le choix des sections ».
+    tours = sorted({s["tour"] for s in secs if s["tour"] >= 0})
+    rows = 2 + len(tours) + len(strips)
     fig, axs = plt.subplots(
-        rows, 1, figsize=(13.0, 3.0 + 0.62 * len(strips)), facecolor="#fffdf6",
-        gridspec_kw={"height_ratios": [5.6, 0.95] + [1.25] * len(strips),
-                     "hspace": 0.0})
+        rows, 1, figsize=(13.0, 3.0 + 0.34 * len(tours) + 0.62 * len(strips)),
+        facecolor="#fffdf6",
+        gridspec_kw={"height_ratios": [5.6, 0.95] + [0.7] * len(tours)
+                     + [1.25] * len(strips), "hspace": 0.0})
 
     def deco(ax, lab, colour=INK, last=False):
         ax.set_xlim(0, n); ax.set_ylim(0, 1); ax.set_yticks([])
@@ -369,12 +447,30 @@ def song_page(stem: str, title: str) -> str:
     deco(ax, "le mot", "#4a4438")
 
     cm = colourmap()
-    for k, (ax, (lab, ss)) in enumerate(zip(axs[2:], strips)):
+    for k, (ax, t) in enumerate(zip(axs[2:2 + len(tours)], tours)):
+        for s in secs:
+            if s["tour"] < 0 or s["tour"] > t:
+                continue
+            neuf = s["tour"] == t
+            ax.add_patch(plt.Rectangle(
+                (s["b0"], 0.14), s["b1"] - s["b0"] + 1, 0.72,
+                facecolor=cm(s["nu"]), alpha=1.0 if neuf else 0.25,
+                edgecolor="#fffdf6", lw=0.9,
+                hatch="///" if (neuf and "′" in s["label"]) else None))
+            if neuf and s["b1"] - s["b0"] + 1 >= max(4, n * 0.04):
+                ax.text((s["b0"] + s["b1"] + 1) / 2, 0.5, s["label"], ha="center",
+                        va="center", fontsize=7.5, color=INK)
+        prem = next(s for s in secs if s["tour"] == t)
+        nb = sum(1 for s in secs if s["tour"] == t)
+        deco(ax, f"{k + 1}. {prem['type']} × {nb}", "#6f6858")
+
+    for k, (ax, (lab, ss)) in enumerate(zip(axs[2 + len(tours):], strips)):
         for s in ss:
             w = s["b1"] - s["b0"] + 1
-            ax.add_patch(plt.Rectangle((s["b0"], 0.08), w, 0.84,
-                                       facecolor=cm(s.get("nu", s["label"])),
-                                       edgecolor="#fffdf6", lw=1.1))
+            ax.add_patch(plt.Rectangle(
+                (s["b0"], 0.08), w, 0.84, facecolor=cm(s.get("nu", s["label"])),
+                edgecolor="#fffdf6", lw=1.1,
+                hatch="///" if "′" in str(s["label"]) else None))
             if w >= max(4, n * 0.04):
                 ax.text(s["b0"] + w / 2, 0.5, str(s["label"]), ha="center",
                         va="center", fontsize=8.5, color=INK)
