@@ -122,6 +122,44 @@ def plots(name):
     return send_from_directory(REPO / "docs" / "plots", name)
 
 
+@app.get("/soudure/<file>")
+def soudure(file):
+    """Le jeu de soudure sur UNE chanson de la bibliothèque (Louis,
+    2026-08-13 : « mets le moi comme une option sur chaque chanson »).
+
+    La page est `docs/plots/soudure.html`, autonome et inchangée : on lui pose
+    simplement son `window.SONG` devant, comme le fait déjà
+    `scripts/soudure_pages.py` pour les morceaux du banc. Un seul fichier, une
+    seule page — pas de copie du moteur ici.
+    """
+    from harmonia_min.soudure import song_du_chart
+    p = CHARTS_DIR / f"{Path(file).stem}.json"
+    if not p.exists():
+        return jsonify({"error": "no such chart"}), 404
+    chart = json.loads(p.read_text(encoding="utf-8"))
+    song = song_du_chart(chart, audio_dir=AUDIO_DIR)
+    if not song:
+        return ("<!doctype html><meta charset=utf-8><div style=\"font:16px "
+                "-apple-system,system-ui,sans-serif;max-width:26rem;"
+                "margin:22vh auto;padding:0 1.5rem;color:#1c1c1c\">"
+                "<p>Ce chart n’a pas assez de mesures pour faire une bande.</p>"
+                f"<a href=\"/?open={file}\" style=\"color:#8a2b2b\">"
+                "Retour au chart</a></div>"), 404
+    gabarit = (REPO / "docs" / "plots" / "soudure.html").read_text(encoding="utf-8")
+    tete = ("<script>window.SONG = "
+            + json.dumps(song, ensure_ascii=False, separators=(",", ":"))
+            + ";</script>\n")
+    page = gabarit.replace("<body>", "<body>\n" + tete, 1)
+    page = page.replace("<title>Soudure</title>",
+                        f"<title>Soudure — {song['titre']}</title>", 1)
+    resp = app.make_response(page)
+    resp.headers["Content-Type"] = "text/html; charset=utf-8"
+    # Le gabarit change quand on corrige la page : pas de cache, sinon Safari
+    # ressert une version périmée (déjà payé le 2026-08-13 sur le son).
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
 @app.get("/min/<file>")
 def minimal(file):
     """The minimalist representation (Louis, 2026-08-02): one block per

@@ -1029,6 +1029,19 @@ window.APP = (function(){
         {inline:true, height:SZ.control, font:13});
       row.appendChild(sg); return row;
     }
+    // Soudure (Louis, 2026-08-13): le découpage joué à la main — la chanson en
+    // bande de jetons, on soude deux voisins et ça s'applique partout. EN TÊTE
+    // de la feuille: c'est une ACTION, pas une préférence, et sous les neuf
+    // réglages elle tombait hors de l'écran à 390px. Page à part
+    // (/soudure/<file>), donc navigation pleine page: elle porte son propre
+    // retour vers ce chart.
+    if(S.model && S.model.file){
+      const soudRow=kitButton("Souder les sections", ()=>{
+        window.location = "/soudure/" + encodeURIComponent(S.model.file);
+      });
+      soudRow.style.width="100%";
+      body.appendChild(soudRow);
+    }
     body.appendChild(seg("Theme",[["light","Light"],["dark","Dark"]],()=>PREF.theme,v=>{ PREF.theme=v; try{localStorage.setItem("harmTheme",v);}catch(e){} applyTheme(); }));
     body.appendChild(seg("Notation",[["normal","Normal"],["compact","Compact"]],()=>PREF.notation,v=>{ PREF.notation=v; try{localStorage.setItem("harmNotation",v);}catch(e){} }));
     body.appendChild(seg("Key colours",[["on","On"],["off","Off"]],()=>PREF.cof?"on":"off",v=>{ PREF.cof=(v==="on"); try{localStorage.setItem("harmCof",PREF.cof?"1":"0");}catch(e){} }));

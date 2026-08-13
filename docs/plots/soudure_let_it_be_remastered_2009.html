@@ -24,6 +24,8 @@ body{
 }
 
 /* 1 ── titre ─────────────────────────────────────────────────────────── */
+.retour{display:inline-flex; align-items:center; min-height:44px; margin:-10px 0 2px;
+       color:var(--accent); text-decoration:none; font:600 14px/1 var(--ui)}
 h1{font:italic 400 27px/1.15 var(--serif); margin:0 0 3px}
 .sous{color:var(--second); font-size:13.5px; margin:0 0 16px; letter-spacing:.01em}
 
@@ -117,9 +119,10 @@ h1{font:italic 400 27px/1.15 var(--serif); margin:0 0 3px}
 </style>
 </head>
 <body>
-<script>window.SONG = {"titre":"Let It Be","n_mesures":70,"temps_par_mesure":[3.32,3.3,3.26,3.36,3.2,3.14,3.12,3.24,3.18,3.16,3.2,3.26,3.34,3.32,3.24,3.32,3.2,3.26,3.26,3.32,3.3,3.36,3.38,3.38,3.44,3.34,3.32,3.3,3.38,3.34,3.32,3.36,3.44,3.6,3.42,3.5,3.44,3.46,3.42,3.44,3.48,3.48,3.42,3.46,3.56,3.56,3.54,3.58,3.48,3.5,3.46,3.52,3.48,3.46,3.46,3.42,3.5,3.52,3.48,3.42,3.5,3.52,3.48,3.44,3.5,3.48,3.54,3.56,3.64,3.84],"mot":"abababcbababcbcbddababcbababcbcbcbd","jetons":[0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54,56,58,60,62,64,66,68,70],"t0":0.04,"audio_url":"/audio/let_it_be_remastered_2009.m4a"};</script>
+<script>window.SONG = {"titre":"Let It Be","n_mesures":70,"temps_par_mesure":[3.32,3.3,3.26,3.36,3.2,3.14,3.12,3.24,3.18,3.16,3.2,3.26,3.34,3.32,3.24,3.32,3.2,3.26,3.26,3.32,3.3,3.36,3.38,3.38,3.44,3.34,3.32,3.3,3.38,3.34,3.32,3.36,3.44,3.6,3.42,3.5,3.44,3.46,3.42,3.44,3.48,3.48,3.42,3.46,3.56,3.56,3.54,3.58,3.48,3.5,3.46,3.52,3.48,3.46,3.46,3.42,3.5,3.52,3.48,3.42,3.5,3.52,3.48,3.44,3.5,3.48,3.54,3.56,3.64,3.84],"mot":"abababcbababcbcbddababcbababcbcbcbd","jetons":[0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54,56,58,60,62,64,66,68,70],"mot_source":"basse","t0":0.04,"audio_url":"/audio/let_it_be_remastered_2009.m4a"};</script>
 
 
+<a class="retour" id="retour" hidden></a>
 <h1 id="titre">Soudure</h1>
 <p class="sous" id="sous"></p>
 
@@ -572,10 +575,18 @@ function rgba(hex, a){
 function dessine(){
   var E = ents(), col = couleurs(E), lab = lettres(E);
 
-  /* titre */
+  /* titre — et la porte de sortie, quand la page est ouverte depuis l'app */
+  if (SONG.retour && SONG.retour.href){
+    var r = $("retour");
+    r.href = SONG.retour.href;
+    r.textContent = "‹ " + (SONG.retour.label || "retour");
+    r.hidden = false;
+  }
   $("titre").textContent = SONG.titre || "Soudure";
+  /* Le mot est nommé : on ne juge pas un découpage sans savoir d'où il sort. */
   $("sous").textContent = NM + " mesures · " + E.length +
-                          (E.length > 1 ? " entités" : " entité");
+                          (E.length > 1 ? " entités" : " entité") +
+                          (SONG.mot_source ? " · mot : " + SONG.mot_source : "");
 
   /* mode */
   $("m-ecouter").setAttribute("aria-pressed", S.mode === "ecouter");

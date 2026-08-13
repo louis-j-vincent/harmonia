@@ -24,6 +24,8 @@ body{
 }
 
 /* 1 ── titre ─────────────────────────────────────────────────────────── */
+.retour{display:inline-flex; align-items:center; min-height:44px; margin:-10px 0 2px;
+       color:var(--accent); text-decoration:none; font:600 14px/1 var(--ui)}
 h1{font:italic 400 27px/1.15 var(--serif); margin:0 0 3px}
 .sous{color:var(--second); font-size:13.5px; margin:0 0 16px; letter-spacing:.01em}
 
@@ -117,9 +119,10 @@ h1{font:italic 400 27px/1.15 var(--serif); margin:0 0 3px}
 </style>
 </head>
 <body>
-<script>window.SONG = {"titre":"Chain of Fools","n_mesures":77,"temps_par_mesure":[2.18,2.1,2.08,2.06,2.04,2.08,2.08,2.1,2.08,2.08,2.06,2.08,2.06,2.06,2.06,2.08,2.06,2.06,2.06,2.06,2.06,2.04,2.06,2.06,2.02,2.08,2.06,2.02,2.06,2.04,2.06,2.06,2.08,2.08,2.06,2.08,2.04,2.1,2.04,2.04,2.06,2.04,2.02,2.04,2.04,2.1,2.08,2.06,2.04,2.04,2.02,2.04,2.02,2.02,2.04,2.06,2.04,2.06,2.04,2.04,2.06,2.04,2.04,2.06,2.04,2.02,2.02,2.04,2.02,2.02,2.02,2.04,2.04,2.06,2.04,2.04,2.04],"mot":"aaabbbbbbbbbbbbbbaccdceafeffffeeefaeff","jetons":[1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59,61,63,65,67,69,71,73,75,77],"t0":3.66,"audio_url":"/audio/aretha_franklin_chain_of_fools_official_lyric_video.m4a"};</script>
+<script>window.SONG = {"titre":"Chain of Fools","n_mesures":77,"temps_par_mesure":[2.18,2.1,2.08,2.06,2.04,2.08,2.08,2.1,2.08,2.08,2.06,2.08,2.06,2.06,2.06,2.08,2.06,2.06,2.06,2.06,2.06,2.04,2.06,2.06,2.02,2.08,2.06,2.02,2.06,2.04,2.06,2.06,2.08,2.08,2.06,2.08,2.04,2.1,2.04,2.04,2.06,2.04,2.02,2.04,2.04,2.1,2.08,2.06,2.04,2.04,2.02,2.04,2.02,2.02,2.04,2.06,2.04,2.06,2.04,2.04,2.06,2.04,2.04,2.06,2.04,2.02,2.02,2.04,2.02,2.02,2.02,2.04,2.04,2.06,2.04,2.04,2.04],"mot":"aaabbbbbbbbbbbbbbaccdceafeffffeeefaeff","jetons":[1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59,61,63,65,67,69,71,73,75,77],"mot_source":"basse","t0":3.66,"audio_url":"/audio/aretha_franklin_chain_of_fools_official_lyric_video.m4a"};</script>
 
 
+<a class="retour" id="retour" hidden></a>
 <h1 id="titre">Soudure</h1>
 <p class="sous" id="sous"></p>
 
@@ -572,10 +575,18 @@ function rgba(hex, a){
 function dessine(){
   var E = ents(), col = couleurs(E), lab = lettres(E);
 
-  /* titre */
+  /* titre — et la porte de sortie, quand la page est ouverte depuis l'app */
+  if (SONG.retour && SONG.retour.href){
+    var r = $("retour");
+    r.href = SONG.retour.href;
+    r.textContent = "‹ " + (SONG.retour.label || "retour");
+    r.hidden = false;
+  }
   $("titre").textContent = SONG.titre || "Soudure";
+  /* Le mot est nommé : on ne juge pas un découpage sans savoir d'où il sort. */
   $("sous").textContent = NM + " mesures · " + E.length +
-                          (E.length > 1 ? " entités" : " entité");
+                          (E.length > 1 ? " entités" : " entité") +
+                          (SONG.mot_source ? " · mot : " + SONG.mot_source : "");
 
   /* mode */
   $("m-ecouter").setAttribute("aria-pressed", S.mode === "ecouter");

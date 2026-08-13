@@ -82,6 +82,51 @@ invisible parce qu'on relit l'ancienne version coûte un aller-retour pour rien.
 une page qui joue du son, lire ce que l'app a déjà appris. Le commentaire de
 `app_shell.html` était là, daté, avec la cause et la correction.
 
+## Sur chaque chanson de l'app
+
+Louis, après avoir joué avec : « mets le moi comme une option sur chaque
+chanson dans le chart, car c'est vraiment une interface hyper pratique. »
+
+C'est `/soudure/<file>` : la feuille `Aa` d'un chart ouvre le jeu sur cette
+chanson-là, et la page porte son retour vers le chart. La page ne bouge pas —
+le serveur lui pose son `window.SONG` devant, exactement comme
+`scripts/soudure_pages.py` le fait pour les morceaux du banc.
+
+Toute la question était : **d'où vient le mot** pour une chanson quelconque de
+la bibliothèque ? Le mot de recherche (`vote_fill.fill`) n'existe que pour les
+douze morceaux du banc et demande l'analyse audio complète.
+
+`section_tool.py` avait déjà posé la règle : « écrire un second scorer de
+similarité aurait créé deux vérités divergentes pour la même question ». Donc
+pas de nouveau détecteur. Deux candidats, tous les deux faits de pièces
+existantes, et une mesure pour trancher — non pas le taux de lettres répétées
+(qui ne dit rien : le jeu soude des **paires**), mais ce que le compagnon peut
+réellement enchaîner :
+
+| mot | soudures | 1re paire | jetons restants à la fin |
+|---|---|---|---|
+| basse par mesure, égalité stricte | 7 | ×6 | 47 % |
+| harmonie, substrat de l'app | 6 | ×12 | **19 %** |
+
+Autant de soudures, mais des paires deux fois plus fréquentes et un morceau
+qui se replie deux fois plus loin. L'égalité stricte sous-groupe — c'était
+prévisible, c'est maintenant mesuré. Sur Virtual Insanity elle ne donnait que
+2 soudures et laissait 37 entités sur 42 : le jeu n'avait rien à jouer.
+
+Le mot servi est donc celui de la ressemblance harmonique : la matrice de
+`section_tool.substrates` (vecteurs chord-tone sur les postérieures musx —
+le substrat sur lequel l'app répond déjà « où ce bloc se rejoue-t-il ? »), la
+comparaison bloc-à-bloc de `voice_sections._diag`, le seuil d'Otsu et le
+groupage en **lien moyen** que Louis a validé le 2026-08-12 sur Grenade. Ne
+sont nouveaux que le grain — la bi-mesure — et le fait d'en tirer des lettres.
+Les 45 charts passent, en 1,7 s pour l'ensemble (les postérieures sont en
+cache) ; le mot par la basse reste comme repli si l'audio manque, et la page
+**nomme le mot dont elle sort** (`84 mesures · 42 entités · mot : harmonie`) —
+on ne juge pas un découpage sans savoir de quel mot il vient.
+
+Le bouton est en TÊTE de la feuille `Aa` : c'est une action, pas une
+préférence, et sous les neuf réglages il tombait hors de l'écran à 390 px.
+
 ## Ce que ça ne résout pas
 
 **Rien du critère d'arrêt.** La page déplace la décision vers l'oreille au lieu
@@ -96,8 +141,21 @@ entités (`A A A A B C A A A B C d e f g f h B C B C B C`), pas à 5 : les derni
 tours de `bpe_lab` soudent des entités qui ne se répètent qu'une fois. La page ne
 les propose pas ; rien n'empêche de les souder à la main.
 
-**Le mot est celui de la basse**, avec tout ce que ça implique — la page hérite
-de la qualité du mot, elle ne la répare pas.
+**Le mot est celui de la basse** sur les pages du banc, **celui de l'harmonie**
+dans l'app : deux mots pour la même chanson, donc deux découpages de départ.
+C'est assumé et affiché, mais ce n'est pas résolu — on ne sait pas lequel des
+deux est le bon point de départ, et personne ne l'a écouté côte à côte.
+
+**Le découpage ne se sauvegarde pas.** `Exporter JSON` télécharge, rien de
+plus. Écrire dans `state/sections/` serait écrire dans la vérité terrain du
+projet — les 19 annotations faites à la main, que l'app elle-même n'écrit
+jamais. Tant que Louis n'a pas dit où ces découpages doivent atterrir, ils
+n'atterrissent nulle part.
+
+**Le mot de l'app peut SUR-grouper.** Otsu s'adapte au morceau, donc sur un
+morceau très homogène il peut décider que presque tout se ressemble : quatre
+charts sortent avec 2 ou 3 lettres seulement. C'est l'inverse du défaut de
+l'égalité stricte, et ce n'est pas arbitré à l'oreille.
 
 ## Où c'est
 

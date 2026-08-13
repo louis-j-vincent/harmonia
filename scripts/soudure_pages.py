@@ -61,6 +61,10 @@ def song_json(stem: str, titre: str) -> dict:
         "temps_par_mesure": [round(grid[i + 1] - grid[i], 4) for i in range(nm)],
         "mot": mot,
         "jetons": [int(v) for v in x0],
+        # Le mot de recherche lit la BASSE (commit c3802b1) ; celui que l'app
+        # sert sur /soudure/<file> lit l'harmonie complète. Deux mots, deux
+        # découpages — la page le dit, pour qu'on sache lequel on juge.
+        "mot_source": "basse",
         "t0": round(grid[0], 4),
         "audio_url": f"/audio/{stem}.m4a",
     }
