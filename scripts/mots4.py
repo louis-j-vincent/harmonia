@@ -387,28 +387,59 @@ def matrice_png(d, word) -> str:
     return fig2b64_fixed(fig)
 
 
+def cout(secs) -> float:
+    """Le coût épistémique d'un découpage : ce qu'il faut écrire pour le dire.
+
+        dictionnaire : la somme des longueurs des types DISTINCTS
+      + partition    : un renvoi par section
+      + restes       : leur longueur ENTIÈRE, car ils ne s'expliquent par rien.
+
+    C'est la même longueur de description que dans `quatre_mots.cout`, et elle
+    sert ici à une question que Louis n'a pas eu à trancher lui-même : **quel
+    lien de groupage ce morceau veut-il ?** Un morceau dont les couplets sont
+    rejoués (Grenade) paie cher en lien complet — ses quatre A y prennent quatre
+    entrées de dictionnaire au lieu d'une. Un morceau bâti sur des boucles
+    copiées (Bein' Green, The Walk) paie cher en lien moyen — le moyen y fusionne
+    des sections voisines, donc gonfle les restes. Le moins cher gagne.
+    """
+    types = {s["type"] for s in secs if "reste" not in s["label"]}
+    d = sum(len(t) for t in types)
+    p = len(secs)
+    r = sum(1 for s in secs if "reste" in s["label"])
+    long_restes = sum((s["b1"] - s["b0"] + 1) // 2 for s in secs
+                      if "reste" in s["label"])
+    return d + p + long_restes
+
+
 def song_page(stem: str, title: str) -> str:
     b = order_bundle.get(stem)
     n, grid = b["n"], b["grid"]
     Sv = np.nan_to_num(np.asarray(b["M"], float))
-    R = fill(b, stem, lien="complet")
+    essais = {}
+    for lien in ("complet", "moyen"):
+        Ri = fill(b, stem, lien=lien)
+        si, di = sections(Ri["mot"], Ri["x0"], n, Ri["sim"], b["start"],
+                          cuts=set(Ri["cuts"]), Sv=Sv)
+        essais[lien] = (cout(si), Ri, si, di)
+    # LE MORCEAU CHOISIT SON LIEN, par coût épistémique. Le nôtre n'entre plus
+    # dans la boucle : c'est la longueur de description qui tranche.
+    lien = min(essais, key=lambda k: (essais[k][0], k != "complet"))
+    _c, R, secs, d = essais[lien]
     word, x0, B = R["mot"], R["x0"], R["sim"]
-    secs, d = sections(word, x0, n, B, b["start"], cuts=set(R["cuts"]), Sv=Sv)
     # LES DEUX LIENS CÔTE À CÔTE (demande de Louis, 2026-08-12). Le lien complet
     # exige qu'une bi-mesure ressemble à TOUS les membres de son groupe, le lien
     # moyen à leur moyenne. Grenade a besoin du moyen (son couplet est rejoué
     # différemment, 17 % de ses paires sont sous le seuil) ; The Walk et Every
     # Breath You Take préfèrent le complet. C'est à l'oreille de trancher.
-    Rc = fill(b, stem, lien="moyen")
-    secs_c, _dc = sections(Rc["mot"], Rc["x0"], n, Rc["sim"], b["start"],
-                           cuts=set(Rc["cuts"]), Sv=Sv)
+    autre = "moyen" if lien == "complet" else "complet"
+    _ca, Rc, secs_c, _dc = essais[autre]
     Sv = np.nan_to_num(np.asarray(b["M"], float))
     C = load_curves(stem, n)
     gt = gt_sections(stem)
     gtb = [s["b0"] for s in gt["sections"][1:]] if gt else []
     today = OL.new_sections(b)[0]
 
-    strips = [("lien COMPLET", secs), ("lien moyen", secs_c),
+    strips = [(f"lien {lien.upper()}\n(choisi)", secs), (f"lien {autre}", secs_c),
               ("ce qu'on écrit", today)]
     if gt:
         strips.append(("toi", gt["sections"]))
@@ -501,8 +532,8 @@ def song_page(stem: str, title: str) -> str:
 <div class=bar><button class=pp>▶</button><span class=pos>mes. 1 · 0:00</span>
 <span class=hint>touche le graphique pour te déplacer</span></div>
 <div class=lane><span class=lab>les phrases</span>{btns}</div>
-<div class=votes><b>Le mot (lien complet, par défaut) —</b> <code>{word}</code><br>
-<b>Le mot (lien moyen) —</b> <code>{Rc["mot"]}</code><br>
+<div class=votes><b>Le mot ({lien}, choisi — coût {essais[lien][0]:.0f}) —</b> <code>{word}</code><br>
+<b>Le mot ({autre} — coût {essais[autre][0]:.0f}) —</b> <code>{Rc["mot"]}</code><br>
 <b>Le découpage —</b> {" ".join(d["phrases"])}</div>
 <img src="data:image/png;base64,{mat}" alt="distances">
 <div class=votes><b>À gauche</b>, la distance entre lettres : 0 = c'est le même

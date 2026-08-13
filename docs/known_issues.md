@@ -1,5 +1,25 @@
 # Harmonia — Known Issues
 
+## 2026-08-12 — LE MORCEAU CHOISIT SON LIEN DE GROUPAGE (longueur de description)
+
+Le lien complet ou moyen n'est plus un réglage que je pose : chaque morceau
+prend celui qui rend son découpage le plus court à décrire.
+
+    coût = Σ longueurs des types distincts  +  1 par section  +  la longueur
+           entière de chaque bloc « reste » (il ne s'explique par rien)
+
+Un morceau dont les couplets sont REJOUÉS paie cher en lien complet : ses quatre
+A y prennent quatre entrées de dictionnaire au lieu d'une. Un morceau bâti sur
+des boucles COPIÉES paie cher en lien moyen : le moyen y fusionne des sections
+voisines et gonfle les restes.
+
+Sur les douze morceaux : **Grenade (43 → 42) et Sunny (42 → 36) prennent le lien
+moyen, les dix autres le complet**, ce qui est exactement l'arbitrage qu'on
+faisait à la main. Bein' Green reste exact (mes. 5 13 21 29 37 45), Sunny gagne
+ses trois premières frontières (A2 B10 A18, jamais obtenues jusqu'ici), Grenade
+retrouve 1 9 17 25 puis 65 77 85. Les deux bandes restent dessinées côte à côte
+sur `/plots/mots4.html`, celle qui est choisie en premier.
+
 ## 2026-08-12 — LE MOT VIENT DE LA BASSE, LE LIEN EST À ARBITRER ★ ISOLÉ
 
 Louis : « tout à l'heure on chopait bien les bonnes sections sur Bein' Green, là
