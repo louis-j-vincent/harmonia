@@ -60,7 +60,9 @@ sys.path.insert(0, str(HERE / "scripts"))
 sys.path.insert(0, str(HERE / "scratchpad"))
 
 from ssm_zoo import SONGS, AUDIO, GT_LINE, gt_sections, fig2b64   # noqa: E402
-from vote_fill import INK                                          # noqa: E402
+from hard_prior_sections import colourmap                          # noqa: E402
+from vote_fill import fill, INK                                    # noqa: E402
+import mots4                                                       # noqa: E402
 import order_bundle                                                # noqa: E402
 
 OUT = HERE / "docs" / "plots" / "licks.html"
@@ -200,20 +202,38 @@ def song_png(stem, title):
     x = np.asarray([temps[f[0]] for f in fens])          # en secondes
     mes = np.asarray([f[0] / 4.0 for f in fens])         # en mesures
 
+    # NOS SECTIONS, sous la matrice : Louis veut « identifier les sections quand
+    # je clique dessus », donc les trois panneaux partagent EXACTEMENT le même
+    # axe de mesures et une seule tête de lecture les traverse.
+    Sv = np.nan_to_num(np.asarray(b["M"], float))
+    R = fill(b, stem)
+    secs, _d = mots4.sections(R["mot"], R["x0"], n, R["sim"], b["start"],
+                              cuts=set(R["cuts"]), Sv=Sv)
+
     from matplotlib.colors import LinearSegmentedColormap
     cmap = LinearSegmentedColormap.from_list("h", ["#1d4d69", "#9fc0d4", "#faf6ec"])
-    fig, (ax1, ax2) = plt.subplots(
-        2, 1, figsize=(12.6, 8.4), facecolor="#fffdf6",
-        gridspec_kw={"height_ratios": [4.2, 1.0], "hspace": 0.16})
+    bandes = 3 if gt else 2
+    fig, axs = plt.subplots(
+        2 + bandes - 1, 1, figsize=(12.6, 7.6 + 0.5 * bandes), facecolor="#fffdf6",
+        gridspec_kw={"height_ratios": [7.0, 1.4] + [0.9] * (bandes - 1),
+                     "hspace": 0.06})
+    ax1, ax2 = axs[0], axs[1]
 
+    # aspect="auto" : la matrice remplit exactement son rectangle, donc son axe
+    # des mesures coïncide au pixel près avec celui des bandes du dessous. Avec
+    # l'aspect carré (le défaut d'imshow) elle est centrée dans un rectangle plus
+    # étroit et la tête de lecture ne tombe plus au bon endroit.
     ax1.imshow(M, cmap=cmap, vmin=0, vmax=float(np.quantile(M, 0.6)),
-               extent=[mes[0], mes[-1], mes[-1], mes[0]], interpolation="nearest")
+               extent=[mes[0], mes[-1], mes[-1], mes[0]], interpolation="nearest",
+               aspect="auto")
+    ax1.set_xlim(0, n); ax1.set_ylim(n, 0)
     for g in gtb:
         ax1.axvline(g, color=GT_LINE, lw=0.6, alpha=0.55)
         ax1.axhline(g, color=GT_LINE, lw=0.6, alpha=0.55)
     ax1.set_title("distance entre licks — sombre = le même lick", fontsize=10.5,
                   color="#4a4438", pad=8)
-    ax1.set_xlabel("mesure", fontsize=9, color="#8a8371")
+    ax1.set_ylabel("mesure", fontsize=9, color="#8a8371")
+    ax1.set_xticklabels([])
 
     COL = ["#2f7dbd", "#c07a1e", "#8155c6", "#2f8f6b"]
     ax2.set_xlim(0, n); ax2.set_ylim(0, 1); ax2.set_yticks([])
@@ -225,14 +245,37 @@ def song_png(stem, title):
                                         edgecolor="none", alpha=0.9))
     for g in gtb:
         ax2.axvline(g, color=GT_LINE, lw=0.7, alpha=0.6)
-    ax2.set_xlabel("mesure", fontsize=9, color="#8a8371")
-    ax2.set_title(f"les licks les plus repris (seuil {seuil:.2f})", fontsize=10.5,
-                  color="#4a4438", pad=6)
-    for ax in (ax1, ax2):
-        ax.tick_params(labelsize=7.5, colors="#8a8371")
+    ax2.set_ylabel(f"licks\n(seuil {seuil:.2f})", rotation=0, ha="right",
+                   va="center", fontsize=9, color="#4a4438")
+    ax2.set_xticklabels([])
+
+    cm = colourmap()
+    strips = [("nos sections", secs)] + ([("toi", gt["sections"])] if gt else [])
+    for k, (ax, (lab, ss)) in enumerate(zip(axs[2:], strips)):
+        for sc in ss:
+            w = sc["b1"] - sc["b0"] + 1
+            ax.add_patch(plt.Rectangle(
+                (sc["b0"], 0.08), w, 0.84, facecolor=cm(sc.get("nu", sc["label"])),
+                edgecolor="#fffdf6", lw=1.0,
+                hatch="///" if "′" in str(sc["label"]) else None))
+            if w >= max(4, n * 0.04):
+                ax.text(sc["b0"] + w / 2, 0.5, str(sc["label"]), ha="center",
+                        va="center", fontsize=8, color=INK)
+        ax.set_xlim(0, n); ax.set_ylim(0, 1); ax.set_yticks([])
+        ax.set_ylabel(lab, rotation=0, ha="right", va="center", fontsize=9,
+                      color=INK)
+        if k == len(strips) - 1:
+            step = 8 if n <= 120 else 16
+            ax.set_xticks(np.arange(0, n + 1, step))
+            ax.set_xticklabels([str(i + 1) for i in np.arange(0, n + 1, step)],
+                               fontsize=7.5, color="#8a8371")
+        else:
+            ax.set_xticks([])
+    for ax in axs:
+        ax.tick_params(labelsize=7.5, colors="#8a8371", length=2)
         for sp in ax.spines.values():
             sp.set_color("#e0d7c2")
-    fig.subplots_adjust(left=PLOT_L, right=PLOT_R, top=0.95, bottom=0.07)
+    fig.subplots_adjust(left=PLOT_L, right=PLOT_R, top=0.955, bottom=0.055)
     img = fig2b64(fig)
 
     btns = "".join(
@@ -240,7 +283,7 @@ def song_png(stem, title):
         f' style="border-color:{COL[k % len(COL)]}">lick {k + 1}'
         f'<small>mes. {fens[i][0] // 4 + 1} · {len(rep) + 1} fois</small></button>'
         for k, (i, rep, d) in enumerate(lk))
-    return img, btns, len(fens), len(lk)
+    return img, btns, len(fens), len(lk), b["grid"], n
 
 
 def main():
@@ -255,10 +298,16 @@ def main():
         if r is None:
             print(f"  ?? {title} : pas assez de chant")
             continue
-        img, btns, nf, nl = r
+        img, btns, nf, nl, grid, n = r
+        g = [round(t, 3) for t in grid]
         body.append(
-            f'<section><h2>{title} <span class=sub>{nf} fenêtres · {nl} lick(s)'
-            f'</span></h2><img src="data:image/png;base64,{img}" alt="{title}">'
+            f'<section data-grid=\'{g}\'><h2>{title} <span class=sub>{nf} fenêtres'
+            f' · {nl} lick(s)</span></h2>'
+            f'<div class=plot><img src="data:image/png;base64,{img}" alt="{title}">'
+            '<div class=cur></div><div class=hit></div></div>'
+            '<div class=bar><button class=pp>▶</button>'
+            '<span class=pos>mes. 1 · 0:00</span>'
+            '<span class=hint>touche la matrice pour te placer</span></div>'
             f'<div class=lane>{btns or "<span class=hint>aucun lick repris</span>"}</div>'
             f'<audio preload=metadata playsinline src="../audio/{stem}.m4a"></audio>'
             '</section>')
@@ -281,6 +330,14 @@ button.blk{{border:2px solid #d8cfb4;background:#f7f3e9;border-radius:8px;
 button.blk small{{display:block;font:500 10px ui-monospace,monospace;color:#a89f8c}}
 button.blk.on{{background:#0d2437;color:#fff}}
 .hint{{font:500 11.5px system-ui;color:#a89f8c}}
+.plot{{position:relative}}
+.cur{{position:absolute;top:0;bottom:0;width:2px;background:#c1121f;opacity:.85;
+  display:none;pointer-events:none;box-shadow:0 0 0 1px rgba(255,255,255,.6)}}
+.hit{{position:absolute;top:0;bottom:0;cursor:crosshair}}
+.bar{{display:flex;align-items:center;gap:10px;margin:8px 0 0}}
+.pp{{width:38px;height:38px;border-radius:50%;border:1px solid #d8cfb4;
+  background:#f7f3e9;font-size:14px;cursor:pointer;flex:none}}
+.pos{{font:600 12px ui-monospace,monospace}}
 audio{{display:none}}
 </style></head><body><div class=wrap>
 <h1>Les licks du chant</h1>
@@ -303,7 +360,38 @@ rouges : tes frontières de sections. <b>Touche un lick pour entendre ses repris
 <script>
 document.querySelectorAll("section").forEach(function(sec){{
   var au = sec.querySelector("audio"); if(!au) return;
-  var file = null, stop = null, raf = null;
+  var stop = null, raf = null;
+  // LA TÊTE DE LECTURE TRAVERSE LA MATRICE ET LES BANDES : les trois panneaux
+  // partagent le même axe de mesures, donc un seul trait vertical suffit à dire
+  // « on est ici » dans la matrice ET dans la section.
+  var G = JSON.parse(sec.dataset.grid), n = G.length - 1;
+  var L0 = {PLOT_L}, W = {PLOT_R} - {PLOT_L};
+  var cur = sec.querySelector(".cur"), hit = sec.querySelector(".hit"),
+      pp = sec.querySelector(".pp"), pos = sec.querySelector(".pos");
+  hit.style.left = (L0*100)+"%"; hit.style.width = (W*100)+"%";
+  function t2b(t){{ if(t<=G[0])return 0; if(t>=G[n])return n;
+    var lo=0,hi=n; while(hi-lo>1){{var m=(lo+hi)>>1; G[m]<=t?lo=m:hi=m;}}
+    return lo+(t-G[lo])/(G[lo+1]-G[lo]); }}
+  function b2t(f){{ var i=Math.max(0,Math.min(n-1,Math.floor(f)));
+    return G[i]+(f-i)*(G[i+1]-G[i]); }}
+  function fmt(s){{ return Math.floor(s/60)+":"+String(Math.floor(s%60)).padStart(2,"0"); }}
+  function draw(){{ var f=t2b(au.currentTime); cur.style.display="block";
+    cur.style.left="calc("+((L0+W*f/n)*100)+"% - 1px)";
+    pos.textContent="mes. "+(Math.floor(f)+1)+" · "+fmt(au.currentTime); }}
+  function tick(){{ draw(); if(!au.paused) raf=requestAnimationFrame(tick); }}
+  au.addEventListener("play", function(){{
+    document.querySelectorAll("audio").forEach(function(a){{ if(a!==au) a.pause(); }});
+    pp.textContent="❚❚"; tick(); }});
+  au.addEventListener("pause", function(){{ pp.textContent="▶";
+    cancelAnimationFrame(raf); draw(); }});
+  pp.onclick=function(){{ clearInterval(stop);
+    au.paused ? au.play().catch(function(){{}}) : au.pause(); }};
+  hit.onclick=function(e){{ clearInterval(stop);
+    var r=hit.getBoundingClientRect();
+    var t=b2t(n*(e.clientX-r.left)/r.width);
+    var seek=function(){{ try{{ au.currentTime=t; }}catch(err){{}} draw(); }};
+    if(au.readyState>=1) seek(); else au.addEventListener("loadedmetadata",seek,{{once:true}});
+    au.play().catch(function(){{}}); }};
   function jouer(ts, btn){{
     sec.querySelectorAll("button.blk").forEach(function(b){{ b.classList.remove("on"); }});
     btn.classList.add("on");
