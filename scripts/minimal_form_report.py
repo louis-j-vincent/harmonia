@@ -201,7 +201,7 @@ def song_html(stem, d) -> tuple[str, dict]:
     <span class="ratio"><b>{form.written}</b> écrites / <b>{form.played}</b>
       jouées · <b>÷{x:.1f}</b></span>
   </div>
-  <audio controls preload="none" src="/audio/{html.escape(stem)}.m4a"></audio>
+  <audio controls preload="none" src="../audio/{html.escape(stem)}.m4a"></audio>
   <div class="cols">
     <div class="col"><h3>Forme minimale</h3>{mini}</div>
     <div class="col"><h3>Déplié · {n} mesures</h3>

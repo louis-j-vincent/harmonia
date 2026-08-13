@@ -277,7 +277,7 @@ def song_page(stem: str, title: str) -> str:
 <div class=verdict><b>Poids de la fusion —</b> {weights}<br>
 <b>Vérification (elle n'entre pas dans le calcul) —</b> {verif}.</div>
 </section>
-<audio id=au preload=metadata playsinline src="/audio/{stem}.m4a"></audio>
+<audio id=au preload=metadata playsinline src="../audio/{stem}.m4a"></audio>
 <script>window.GRID={[round(t, 3) for t in grid]};
 window.PLOT=[{PLOT_L},{PLOT_R}]; window.U=2;</script>"""
     return page(f"{title} — profil de pics", body, back=True)

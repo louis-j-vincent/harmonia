@@ -72,6 +72,36 @@ def collect(stems, net, device):
     return recs
 
 
+def score_quality_only(recs, weight):
+    """Root FROZEN to what the chart wrote; the LM picks only the family.
+
+    Two independent measurements say this is the right shape. The harmonic-prior
+    session measured 44/44 of Blue Bossa's true errors keeping the root and only
+    changing the quality, and their root-free corrector scored 0% top-1. This
+    session measured 85% of the LM's disagreements changing the root, and the
+    bass plane contradicting it there on Louis's ear-verified cases.
+
+    So the question is not "which chord" but "which quality on this root" — and
+    unlike the scale-snap, the LM needs no key: it learned the grammar from
+    2,172 charts, which is exactly the step (the Db bridge) their tonic tracker
+    misses.
+    """
+    ok = tot = changed = 0
+    for r in recs:
+        fused = bassmod.fuse(r["lm"], r["bass"], r["tokens"], r["abs"], weight)
+        for k in range(len(r["tokens"])):
+            t, shown = r["truth"][k], r["abs"][k]
+            if t is None or shown is None or not vocab.is_chord(shown):
+                continue
+            root = vocab.split_chord(shown)[0]
+            cands = [vocab.chord_id(root, f) for f in vocab.FAMILIES]
+            best = max(cands, key=lambda c: fused[k, c])
+            tot += 1
+            ok += int(best == t)
+            changed += int(best != shown)
+    return ok / max(tot, 1), changed, tot
+
+
 def score(recs, weight):
     """Top-1 and top-3 accuracy of the fused distribution, on ABSOLUTE chords."""
     ok1 = ok3 = tot = 0
@@ -211,6 +241,35 @@ def main() -> None:
                 broke += int(prop != t and shown == t)
         prec = fixed / max(fixed + broke, 1)
         print(f"  {label:<26} {fixed:>6} {broke:>6} {fixed-broke:>+6} {prec:>6.2f} {acted:>6}")
+
+    # ── root frozen: the LM chooses only the quality ────────────────────────
+    print("\n" + "=" * 62)
+    print("ROOT FROZEN — the LM picks only the family (held-out)")
+    print("=" * 62)
+    base_ok = base_tot = 0
+    for r in held:
+        for k in range(len(r["tokens"])):
+            t, shown = r["truth"][k], r["abs"][k]
+            if t is None or shown is None or not vocab.is_chord(shown):
+                continue
+            base_tot += 1
+            base_ok += int(shown == t)
+    print(f"  {'chart as shipped':<34} {base_ok/max(base_tot,1):.4f}  ({base_tot} slots)")
+    for w in (0.0, best_w):
+        a, ch, n = score_quality_only(held, w)
+        tag = "LM alone" if w == 0 else f"LM + bass (w={w})"
+        print(f"  {'root frozen, ' + tag:<34} {a:.4f}  "
+              f"({ch} qualities changed, {100*ch/max(n,1):.1f}%)")
+    # and the ceiling: how much is even available on this axis?
+    ceil_ok = 0
+    for r in held:
+        for k in range(len(r["tokens"])):
+            t, shown = r["truth"][k], r["abs"][k]
+            if t is None or shown is None or not vocab.is_chord(shown):
+                continue
+            ceil_ok += int(vocab.split_chord(shown)[0] == vocab.split_chord(t)[0])
+    print(f"  {'ceiling (root already right)':<34} {ceil_ok/max(base_tot,1):.4f}"
+          "   <- nothing on this axis can beat it")
 
     Path("docs/research_sessions").mkdir(parents=True, exist_ok=True)
     Path("docs/research_sessions/chord_lm_bass_fusion.json").write_text(json.dumps(

@@ -154,7 +154,7 @@ def song_page(stem: str, title: str) -> str:
 Le poids est le contraste : « si je coupe à ses pics, est-ce que ça sépare
 vraiment ses blocs ». Une matrice à 0 % ne dit rien sur ce morceau.</div>
 </section>
-<audio id=au preload=metadata playsinline src="/audio/{stem}.m4a"></audio>
+<audio id=au preload=metadata playsinline src="../audio/{stem}.m4a"></audio>
 <script>window.GRID={[round(t, 3) for t in grid]};
 window.PLOT=[{PLOT_L},{PLOT_R}]; window.U=1;</script>"""
     return page(f"{title} — trois profils superposés", body, back=True,

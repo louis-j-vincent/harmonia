@@ -65,6 +65,19 @@ import channels as CN                                                    # noqa:
 # court (ABC), du standard jazz (Autumn Leaves, Georgia), et deux morceaux à
 # harmonie plate comme The Walk (Happy, Lazy Song) — c'est là que nos scores
 # échouent, donc c'est là qu'une vérité sert le plus.
+# LA BANDE QUI DÉCIDE. 2026-08-07 : la règle de la levée (décaler d'une mesure
+# quand la 1re note chantée tombe tard dans sa mesure) est juste 7 fois sur 7
+# quand la phase est < 0.40 ou > 0.80, et 2 fois sur 4 entre les deux. Seuls des
+# morceaux de cette bande apportent donc encore de l'information ; ceux-ci en
+# sont, phase mesurée entre parenthèses.
+BAND = [
+    "carpenters_close_to_you",                              # 0.42
+    "lgHGU8gqz9U",                                          # 0.48
+    "maroon_5_girls_like_you_ft_cardi_b_official_music_video",   # 0.63
+    "jorja_smith_blue_lights_a_colors_show",                # 0.63
+    "sam_smith_i_m_not_the_only_one_official_music_video",  # 0.65
+]
+
 MORE = [
     "ben_e_king_stand_by_me_audio",
     "the_ronettes_be_my_baby_music_video",
@@ -83,7 +96,8 @@ MORE = [
     "autumn_leaves",
     "ray_charles_georgia_on_my_mind_official_video",
 ]
-DEFAULT = B8.DEFAULT + [m for m in MORE if m not in B8.DEFAULT]
+DEFAULT = (B8.DEFAULT + [m for m in BAND if m not in B8.DEFAULT]
+           + [m for m in MORE if m not in B8.DEFAULT + BAND])
 UNIT = 2           # « ça snap to grid à la double barre la plus proche »
 # …sauf quand la musique dit autre chose. Louis, 2026-08-07 : « sur She Will Be
 # Loved il y a une pause d'une barre, je veux bien que tu me fasses le snap à la

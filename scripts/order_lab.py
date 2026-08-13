@@ -150,7 +150,7 @@ def song_page(stem: str, title: str) -> str:
 <span class=hint>touche le graphique pour te déplacer</span></div>
 <div class=lane><span class=lab>écouter</span>{btns}</div>
 <div class=verdict>{verdict}</div></section>
-<audio id=au preload=metadata playsinline src="/audio/{stem}.m4a"></audio>
+<audio id=au preload=metadata playsinline src="../audio/{stem}.m4a"></audio>
 <script>window.GRID={[round(t, 3) for t in grid]};
 window.PLOT=[{PLOT_L},{PLOT_R}]; window.U=1;</script>"""
     return page(f"{title} — petites sections d'abord", body, back=True,

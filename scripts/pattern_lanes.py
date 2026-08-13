@@ -405,7 +405,7 @@ def song_html(stem, u=1):
 <th>placements retenus (mesures, 1-indexé)</th><th>origine</th>
 <th>retirés (déjà solides)</th></tr>{rows}</table>
 <p class=verdict>sections écrites aujourd'hui : {wsec}</p></section>
-<audio id=au preload=metadata playsinline src="/audio/{stem}.m4a"></audio>
+<audio id=au preload=metadata playsinline src="../audio/{stem}.m4a"></audio>
 <script>window.GRID={[round(t, 3) for t in grid]};
 window.PLOT=[{PLOT_L},{PLOT_R}]; window.U={u};</script>""", stats
 

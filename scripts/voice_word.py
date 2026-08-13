@@ -334,7 +334,7 @@ voix ne se groupe pas</b>. Une mélodie ne se rejoue pas note pour note d'un
 couplet à l'autre, une grille d'accords si. C'est pourquoi on lit la voix en
 CONTINUITÉ (« ça continue » / « ça repart ») et non en lettres.</div>
 </section>
-<audio id=au preload=metadata playsinline src="/audio/{stem}.m4a"></audio>
+<audio id=au preload=metadata playsinline src="../audio/{stem}.m4a"></audio>
 <script>window.GRID={[round(t, 3) for t in grid]};
 window.PLOT=[{PLOT_L},{PLOT_R}]; window.U=1;</script>"""
     return page(f"{title} — accords contre voix", body, back=True,

@@ -296,7 +296,7 @@ score {r['score']:.3f}</span></h2>
 <h3>où partent les points</h3>
 {leak_html(items, n, lets)}
 </section>
-<audio id=au preload=metadata playsinline src="/audio/{stem}.m4a"></audio>
+<audio id=au preload=metadata playsinline src="../audio/{stem}.m4a"></audio>
 <script>window.GRID={[round(t, 3) for t in grid]};
 window.PLOT=[{PLOT_L},{PLOT_R}]; window.U=1;</script>"""
     return page(f"{title} — d'où vient le score", body, back=True,

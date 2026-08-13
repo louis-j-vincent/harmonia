@@ -323,7 +323,7 @@ def song(stem):
 frontières écrites — donc les trois lanes sont jugées à nombre de propositions
 égal. Vert = le pic tombe à {NEAR} mesures ou moins de la frontière.</p>
 {'<div class=lane><span class=lab>pics du rythme SANS frontière en face — écoute 2 mesures avant / 2 après</span>' + btns + '</div>' if btns else ''}
-<audio preload=none playsinline src="/audio/{stem}.m4a"></audio></section>"""
+<audio preload=none playsinline src="../audio/{stem}.m4a"></audio></section>"""
     # Repère de lecture : combien de frontières un tirage AU HASARD de k pics
     # attraperait à ± NEAR mesures. Sur une chanson découpée en 26 sections,
     # c'est presque tout — la colonne « touchées » n'y veut plus rien dire.

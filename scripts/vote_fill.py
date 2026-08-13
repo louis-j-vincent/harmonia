@@ -765,7 +765,7 @@ très ressemblantes <b>mais jamais voisines</b> → deux occurrences de la même
 section ailleurs dans le morceau ; très ressemblantes <b>et toujours voisines</b>
 → une boucle interne qu'il ne faut pas couper.</div>
 </section>
-<audio id=au preload=metadata playsinline src="/audio/{stem}.m4a"></audio>
+<audio id=au preload=metadata playsinline src="../audio/{stem}.m4a"></audio>
 <script>window.GRID={[round(t, 3) for t in grid]};
 window.PLOT=[{PLOT_L},{PLOT_R}]; window.U=1;</script>"""
     return page(f"{title} — voix et bi-mesures", body, back=True,
