@@ -139,66 +139,122 @@ def grouper(phrases, lets, D, seuil):
     return lab, groupes
 
 
-def decoupe(word, B, L=L4, cuts=()):
-    """Le décalage qui minimise le nombre de phrases DISTINCTES.
+def familles(word, B, L=L4):
+    """Toutes les phrases de L mots, à TOUTES les positions, groupées.
 
-    « Distinctes » au sens de la distance entre phrases, pas de l'égalité
-    stricte : c'est ce qui fait que `badc` et `eadc` comptent pour une seule.
-    Le seuil vient d'Otsu sur la distribution du morceau, comme partout ailleurs
-    ici — une distance de phrase est une moyenne de distances de lettres, donc
-    elle vit sur la même échelle.
+    On ne découpe rien encore : on glisse une fenêtre de L mots sur le morceau
+    entier et on range les fenêtres par ressemblance. Une famille est donc « ce
+    motif de quatre mots, partout où il apparaît », y compris à des positions qui
+    se chevauchent — c'est le placement qui tranchera.
     """
     lets, S, D = dist_lettres(word, B)
-    # LE SEUIL EST RELATIF, pas absolu — c'est la leçon de Bein' Green. Louis :
-    # « b et e sont très similaires, ce sont en fait les mêmes mots ». Mesuré :
-    # d(b,e) = 0,31 alors que b est à 0,22 de LUI-MÊME. En absolu 0,31 paraît
-    # loin ; rapporté à ce que vaut « la même lettre » dans ce morceau-là, c'est
-    # tout près. On compare donc à la distance interne moyenne des lettres qui se
-    # répètent.
     interne = float(np.mean([D[i, i] for i in range(len(lets))]))
     seuil = RATIO * max(interne, 1e-3)
-    best = None
-    for off in range(L):
-        ph = [word[i:i + L] for i in range(off, len(word) - L + 1, L)]
-        if not ph:
-            continue
-        lab, groupes = grouper(ph, lets, D, seuil)
-        k = len(groupes)
-        # À NOMBRE DE PHRASES ÉGAL, c'est le décalage qui tombe sur le plus de
-        # pics votés qui gagne. Sans ce départage, Let It Be et Blue Lights
-        # partaient une mesure trop tôt : deux décalages donnaient exactement
-        # deux phrases distinctes, et on prenait le premier par défaut. Les pics
-        # à trois voix ou plus sont la seule information extérieure au mot, donc
-        # la seule qui puisse trancher un choix que le mot laisse ouvert.
-        bornes = {off + i * L for i in range(len(ph) + 1)}
-        v = sum(1 for c in cuts if c in bornes)
-        cle = (k, -v, off)
-        if best is None or cle < best["cle"]:
-            best = {"cle": cle, "k": k, "off": off, "phrases": ph, "lab": lab,
-                    "pics": v, "queue": len(word) - (off + L * len(ph))}
-    best.update({"lets": lets, "S": S, "D": D, "seuil": seuil})
-    return best
+    pos = list(range(0, len(word) - L + 1))
+    ph = [word[i:i + L] for i in pos]
+    lab, groupes = grouper(ph, lets, D, seuil)
+    fam = []
+    for g, mem in enumerate(groupes):
+        fam.append({"type": ph[mem[0]], "occ": [pos[m] for m in mem],
+                    "membres": [ph[m] for m in mem]})
+    return fam, lets, S, D, seuil
 
 
-def sections(word, x0, n, B, start_bar=0, L=L4, cuts=()):
-    """Les sections en mesures : la tête, les phrases, la queue."""
-    d = decoupe(word, B, L, cuts)
+def placer(word, x0, B, Sv=None, L=L4, cuts=()):
+    """LA PHRASE LA PLUS FRÉQUENTE D'ABORD, partout où elle est.
+
+    Louis, 2026-08-12, sur This Love : « je ne comprends pas pourquoi on ne crée
+    pas tous les B avant les C : c'est exactement pour ça qu'on rate un B et
+    qu'on décale le A et le C. L'ordre des choses devrait être : on fusionne la
+    phrase de 4 avec le plus d'occurrences, puis la deuxième phrase de 4 avec le
+    plus d'occurrences, en cas d'égalité la matrice SSM de la voix tranche. »
+
+    Il a raison, et c'est un défaut de MÉTHODE, pas de réglage : la version
+    précédente choisissait un décalage puis pavait de gauche à droite. Un pavage
+    de gauche à droite décide de la place d'un B en fonction de ce qui le
+    précède, jamais en fonction de ses propres reprises — donc il en rate un, et
+    tout ce qui suit se décale.
+
+    Ici : on classe les familles par nombre d'occurrences, on pose la plus
+    fréquente à toutes ses positions libres, puis la suivante, etc. Deux familles
+    à égalité sont départagées par la VOIX — la moyenne du bloc diagonal de la
+    matrice de voix sur leurs occurrences —, ce qui est exactement l'emploi qu'il
+    lui a assigné : arbitrer une hésitation, jamais décider seule.
+    """
+    fam, lets, S, D, seuil = familles(word, B, L)
+
+    def voix_fam(f):
+        if Sv is None:
+            return 0.0
+        v = [bloc_voix(Sv, x0[p], x0[min(p + L, len(x0) - 1)] - 1) for p in f["occ"]]
+        return float(np.mean(v)) if v else 0.0
+
+    for f in fam:
+        f["voix"] = voix_fam(f)
+    # le plus d'occurrences d'abord ; à égalité, la voix tranche ; puis la
+    # position, pour rester déterministe.
+    fam.sort(key=lambda f: (-len(f["occ"]), -f["voix"], f["occ"][0]))
+
+    pris = [None] * len(word)
+    placees = []
+    for f in fam:
+        # DE GAUCHE À DROITE à l'intérieur d'une famille : ses occurrences sont
+        # régulièrement espacées, les poser dans l'ordre garde la grille. Les
+        # poser par score de voix décroissant part d'une occurrence quelconque et
+        # décale toutes les suivantes d'un ou deux mots — Blue Lights s'y
+        # fragmentait en `bca` / `abc`. La voix sert à ordonner les FAMILLES,
+        # pas les occurrences d'une même famille.
+        occ = sorted(f["occ"])
+        for p in occ:
+            if any(pris[q] is not None for q in range(p, min(p + L, len(word)))):
+                continue
+            for q in range(p, min(p + L, len(word))):
+                pris[q] = len(placees)
+            placees.append({"j0": p, "j1": min(p + L, len(word)), "fam": f})
+    # NE PAS trier `placees` : `pris` contient leurs indices d'insertion.
+
+    # ce qui n'est entré dans aucune phrase forme des blocs (Louis, même jour)
+    out, i = [], 0
+    while i < len(word):
+        if pris[i] is not None:
+            k = pris[i]
+            out.append(placees[k]); i = placees[k]["j1"]
+        else:
+            j = i
+            while j + 1 < len(word) and pris[j + 1] is None:
+                j += 1
+            out.append({"j0": i, "j1": j + 1, "fam": None,
+                        "type": word[i:j + 1]})
+            i = j + 1
+
+    types = []
+    for s in out:
+        t = s["fam"]["type"] if s["fam"] else s["type"]
+        if t not in types:
+            types.append(t)
+    for s in out:
+        t = s["fam"]["type"] if s["fam"] else s["type"]
+        s["type"] = t
+        s["label"] = LETTERS[types.index(t) % 26]
+        s["reste"] = s["fam"] is None
+    return out, {"fam": fam, "lets": lets, "S": S, "D": D, "seuil": seuil,
+                 "types": types}
+
+
+def sections(word, x0, n, B, start_bar=0, L=L4, cuts=(), Sv=None):
+    """Les sections en mesures."""
+    pl, d = placer(word, x0, B, Sv, L, cuts)
     out = []
-    if d["off"]:
-        out.append({"b0": x0[0], "b1": x0[d["off"]] - 1, "label": "tête",
-                    "nu": "intro", "type": word[:d["off"]]})
-    for i, p in enumerate(d["phrases"]):
-        j0 = d["off"] + i * L
-        out.append({"b0": x0[j0], "b1": x0[j0 + L] - 1,
-                    "label": LETTERS[d["lab"][i] % 26],
-                    "nu": LETTERS[d["lab"][i] % 26], "type": p})
-    if d["queue"]:
-        j0 = d["off"] + L * len(d["phrases"])
-        out.append({"b0": x0[j0], "b1": n - 1, "label": "queue", "nu": "outro",
-                    "type": word[j0:]})
+    for s in pl:
+        out.append({"b0": x0[s["j0"]], "b1": x0[s["j1"]] - 1,
+                    "label": s["label"] + (" (reste)" if s["reste"] else ""),
+                    "nu": s["label"], "type": s["type"]})
     for s in out:
         if s["b1"] < start_bar:
             s["label"], s["nu"] = "intro", "intro"
+    d["k"] = len(d["types"]); d["off"] = pl[0]["j0"]; d["pics"] = 0
+    d["phrases"] = [s["type"] for s in pl]
+    d["queue"] = 0
     return out, d
 
 
@@ -229,24 +285,31 @@ def matrice_png(d, word) -> str:
     ax1.set_title("distance entre lettres  (0 = le même mot)", fontsize=10.5,
                   color="#4a4438", pad=8)
 
-    ph, lb = d["phrases"], d["lab"]
-    ax2.set_xlim(0, 1); ax2.set_ylim(len(ph), -1)
-    for i, (p, g) in enumerate(zip(ph, lb)):
-        ax2.add_patch(plt.Rectangle((0.04, i - 0.34), 0.30, 0.68,
-                                    facecolor=SYMCOL[g % len(SYMCOL)],
-                                    edgecolor="#fffdf6", lw=1.0))
-        ax2.text(0.19, i, p, ha="center", va="center", fontsize=10,
-                 family="monospace", color="#1c1c1c")
-        ax2.text(0.40, i, LETTERS[g % 26], ha="center", va="center", fontsize=10,
-                 color="#4a4438")
-        dd = [dist_phrases(p, q, d["lets"], d["D"]) for q in ph]
-        ax2.text(0.52, i, "  ".join(f"{x:.2f}".lstrip("0") for x in dd),
-                 va="center", fontsize=6.5, family="monospace", color="#a89f8c")
-    ax2.axis("off")
-    ax2.set_title(f"les phrases de {L4} mots, et leur distance à toutes les autres"
-                  f"  (seuil {d['seuil']:.2f})", fontsize=10.5, color="#4a4438", pad=8)
-    for sp in ax1.spines.values():
-        sp.set_color("#e0d7c2")
+    T = d["types"]
+    KT = len(T)
+    M = np.zeros((KT, KT))
+    for i, p in enumerate(T):
+        for j, q in enumerate(T):
+            m = min(len(p), len(q))
+            M[i, j] = dist_phrases(p[:m], q[:m], d["lets"], d["D"])
+    ax2.imshow(M, cmap=cmap, vmin=0, vmax=max(0.5, float(M.max())),
+               interpolation="nearest")
+    for i in range(KT):
+        for j in range(KT):
+            ax2.text(j, i, f"{M[i, j]:.2f}".lstrip("0"), ha="center", va="center",
+                     fontsize=7 if KT > 9 else 8.5,
+                     color="#fffdf6" if M[i, j] < 0.35 * max(M.max(), 1e-6)
+                     else "#4a4438")
+    ax2.set_xticks(range(KT)); ax2.set_yticks(range(KT))
+    lab2 = [f"{LETTERS[i % 26]}·{t}" for i, t in enumerate(T)]
+    ax2.set_xticklabels(lab2, fontsize=7.5, rotation=90, family="monospace")
+    ax2.set_yticklabels(lab2, fontsize=7.5, family="monospace")
+    ax2.tick_params(length=0, colors="#4a4438")
+    ax2.set_title(f"distance entre les phrases retenues  (seuil {d['seuil']:.2f})",
+                  fontsize=10.5, color="#4a4438", pad=8)
+    for ax in (ax1, ax2):
+        for sp in ax.spines.values():
+            sp.set_color("#e0d7c2")
     fig.subplots_adjust(left=0.06, right=0.99, top=0.9, bottom=0.06)
     return fig2b64_fixed(fig)
 
@@ -256,7 +319,8 @@ def song_page(stem: str, title: str) -> str:
     n, grid = b["n"], b["grid"]
     R = fill(b, stem)
     word, x0, B = R["mot"], R["x0"], R["sim"]
-    secs, d = sections(word, x0, n, B, b["start"], cuts=set(R["cuts"]))
+    Sv = np.nan_to_num(np.asarray(b["M"], float))
+    secs, d = sections(word, x0, n, B, b["start"], cuts=set(R["cuts"]), Sv=Sv)
     Sv = np.nan_to_num(np.asarray(b["M"], float))
     C = load_curves(stem, n)
     gt = gt_sections(stem)
@@ -326,16 +390,14 @@ def song_page(stem: str, title: str) -> str:
         "</button>" for s in secs)
 
     body = f"""<section><h2>{title} <span class=sub>{n} mesures ·
-décalage {d["off"]} · {d["k"]} phrases distinctes sur {len(d["phrases"])} · {d["pics"]} pic(s) sur une frontière</span></h2>
+{d["k"]} phrases distinctes · {len(d["phrases"])} sections</span></h2>
 <div class=plot><img src="data:image/png;base64,{img}">
 <div class=cur></div><div class=hit></div></div>
 <div class=bar><button class=pp>▶</button><span class=pos>mes. 1 · 0:00</span>
 <span class=hint>touche le graphique pour te déplacer</span></div>
 <div class=lane><span class=lab>les phrases</span>{btns}</div>
 <div class=votes><b>Le mot —</b> <code>{word}</code><br>
-<b>Le découpage —</b> tête <code>{word[:d["off"]] or "–"}</code> ·
-{" ".join(d["phrases"])} · queue <code>{word[d["off"] + L4 * len(d["phrases"]):] or "–"}</code>
-</div>
+<b>Le découpage —</b> {" ".join(d["phrases"])}</div>
 <img src="data:image/png;base64,{mat}" alt="distances">
 <div class=votes><b>À gauche</b>, la distance entre lettres : 0 = c'est le même
 mot. <b>À droite</b>, chaque phrase de quatre mots avec sa distance à toutes les
@@ -377,8 +439,9 @@ def main():
     if "--dump" in sys.argv:
         for stem, title in todo:
             b = order_bundle.get(stem); R = fill(b, stem)
+            Sv = np.nan_to_num(np.asarray(b["M"], float))
             secs, d = sections(R["mot"], R["x0"], b["n"], R["sim"], b["start"],
-                               cuts=set(R["cuts"]))
+                               cuts=set(R["cuts"]), Sv=Sv)
             lets, D = d["lets"], d["D"]
             proches = [(f"{x}~{y}", f"{D[i, j]:.2f}")
                        for i, x in enumerate(lets) for j, y in enumerate(lets)

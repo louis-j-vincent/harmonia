@@ -1,5 +1,34 @@
 # Harmonia — Known Issues
 
+## 2026-08-12 — LA PHRASE LA PLUS FRÉQUENTE D'ABORD, PARTOUT OÙ ELLE EST ★
+
+Louis, sur This Love : « je ne comprends pas pourquoi on ne crée pas tous les B
+avant les C : c'est exactement pour ça qu'on rate un B et qu'on décale le A et le
+C. L'ordre devrait être : on fusionne la phrase de 4 avec le plus d'occurrences,
+puis la deuxième, en cas d'égalité la matrice SSM de la voix tranche. »
+
+**C'ÉTAIT UN DÉFAUT DE MÉTHODE, PAS DE RÉGLAGE.** La version précédente
+choisissait un décalage puis pavait de gauche à droite. Un pavage gauche→droite
+décide de la place d'un B d'après ce qui le PRÉCÈDE, jamais d'après ses propres
+reprises : il en rate un, et tout ce qui suit se décale. Remplacé par un
+placement par fréquence : fenêtre glissante de 4 mots à TOUTES les positions,
+familles groupées par distance, la famille la plus fréquente posée à toutes ses
+positions libres, puis la suivante ; à égalité d'occurrences, la voix départage
+(moyenne du bloc diagonal). Les positions d'une MÊME famille se posent de gauche
+à droite — les trier par score de voix décale la grille et fragmentait Blue
+Lights en `bca`/`abc`.
+
+**This Love sort alors sa structure, frontière pour frontière** : `intro A B ·
+A B · bridge B B B`, avec le pont (`fgfh`) et les deux queues comme blocs de
+reste. Bein' Green et Blue Lights sont exacts, The Walk retrouve son pont
+(mes. 65-72). La seule erreur qui reste sur This Love est le A de la mesure 25 —
+et c'est précisément le cas où son critère de voix, mis sous le coude, désigne
+sa réponse (0,55 contre 0,37).
+
+**La heatmap des phrases** (sa demande du même message) montre pourquoi ça tient :
+sur This Love, `A·abab` et le reste `C·ab` sont à 0,08 — le reste est un demi-A ;
+`E·fgfh` est à 0,39-0,56 de tout le monde, c'est le pont, et il se voit comme tel.
+
 ## 2026-08-12 — LES MOTS DE QUATRE LETTRES, ET LA DISTANCE ENTRE LETTRES
 
 Louis : « la matrice de transition au carré me donne-t-elle les transitions de
