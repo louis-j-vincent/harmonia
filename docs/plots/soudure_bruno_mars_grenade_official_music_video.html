@@ -18,13 +18,20 @@ html,body{margin:0}
 body{
   background:var(--papier); color:var(--encre); font-family:var(--ui);
   font-size:16px; line-height:1.45;
-  padding:18px 16px calc(24px + env(safe-area-inset-bottom));
+  /* Le HAUT compte autant que le bas (Louis, 2026-08-14 : « le bouton retour
+     au chart est trop haut et intersecte avec l'heure en plein écran »). Le
+     bas avait son encoche, le haut non : en plein écran le lien passait sous
+     l'horloge de l'iPhone, donc hors d'atteinte. */
+  padding:calc(18px + env(safe-area-inset-top)) 16px
+          calc(24px + env(safe-area-inset-bottom));
   max-width:520px; margin:0 auto;
   -webkit-text-size-adjust:100%;
 }
 
 /* 1 ── titre ─────────────────────────────────────────────────────────── */
-.retour{display:inline-flex; align-items:center; min-height:44px; margin:-10px 0 2px;
+/* Cible de 44 px SANS marge négative : le -10px d'origine remontait le lien
+   par-dessus l'encoche que le padding du body venait de dégager. */
+.retour{display:inline-flex; align-items:center; min-height:44px; margin:0 0 2px;
        color:var(--accent); text-decoration:none; font:600 14px/1 var(--ui)}
 h1{font:italic 400 27px/1.15 var(--serif); margin:0 0 3px}
 .sous{color:var(--second); font-size:13.5px; margin:0 0 16px; letter-spacing:.01em}

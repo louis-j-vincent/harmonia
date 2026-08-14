@@ -5252,7 +5252,17 @@ window.APP = (function(){
       // WATCHDOG fallback everywhere else — see togglePlay, which fires it when
       // playback hasn't advanced.
       S._blobTried=false;
-      if(navigator.standalone===true) swapToBlob();
+      // EAGER SUR TOUS LES APPAREILS (Louis, 2026-08-14 : « ça galère à jouer
+      // les débuts de morceau sur iPhone »). Le verrou `navigator.standalone`
+      // ne couvrait que l'app installée, alors que le constat du 2026-08-05
+      // juste au-dessus dit l'inverse : le stall arrive AUSSI dans un onglet
+      // Safari. Dans un onglet, le blob ne partait donc qu'au filet de
+      // secours, 2,5 s APRÈS le premier tap — et il fallait encore attendre
+      // le fichier (3,5 Mo en médiane, 8,7 Mo au pire). D'où « ça galère au
+      // début » : c'est le tout premier tap sur chaque morceau qui paie.
+      // Maintenant le téléchargement part à l'OUVERTURE du chart, pendant
+      // qu'il lit la grille, et il est là quand il appuie.
+      swapToBlob();
       S.audio.addEventListener("loadedmetadata",()=>{ paintDockTime(S.audio.currentTime||0, S.audio.duration); });
       S.audio.addEventListener("ended",()=>{ S.playing=false; setPlayBtn(); stopTick(); setPlayhead(-1); });
       // Diagnostic event log (2026-07-20, iPhone no-sound bug): confirmed the
@@ -5376,10 +5386,17 @@ window.APP = (function(){
   function swapToBlob(resumeAt){
     if(!S.audio || !S.audioUrl) return;
     S._blobTried=true;
+    // `_blobLoading` distingue « on n'a rien tenté » de « c'est en route ».
+    // Sans cette nuance, rendre le téléchargement anticipé (ci-dessous) ferait
+    // monter le panneau de diagnostic à CHAQUE tap donné avant l'arrivée du
+    // blob : le filet de secours voyait `_blobTried` déjà vrai et concluait
+    // que la voie blob avait échoué, alors qu'elle était simplement en cours.
+    S._blobLoading=true;
     const url=S.audioUrl;
     S._audioBlobTok=(S._audioBlobTok||0)+1; const tok=S._audioBlobTok;
     if(S._audioEvents) S._audioEvents.push(`${(performance.now()/1000).toFixed(2)}s blob fetch start`);
     fetch(url).then(r=>{ if(!r.ok) throw new Error("HTTP "+r.status); return r.blob(); }).then(b=>{
+      S._blobLoading=false;
       if(tok!==S._audioBlobTok || !S.audio || S.audioUrl!==url) return;  // song changed
       if(S._audioBlobUrl){ try{ URL.revokeObjectURL(S._audioBlobUrl); }catch(e){} }
       S._audioBlobUrl=URL.createObjectURL(b);
@@ -5394,7 +5411,8 @@ window.APP = (function(){
       };
       if(S.audio.readyState>=1) go(); else S.audio.addEventListener("loadedmetadata", go, {once:true});
       if(S._audioEvents) S._audioEvents.push(`${(performance.now()/1000).toFixed(2)}s blob-src swapped (${(b.size/1048576).toFixed(1)}MB)`);
-    }).catch(e=>{ if(S._audioEvents) S._audioEvents.push("blob fetch failed: "+e); });
+    }).catch(e=>{ S._blobLoading=false;
+      if(S._audioEvents) S._audioEvents.push("blob fetch failed: "+e); });
   }
   function togglePlay(){
     if(!S.audio) return;
@@ -5432,13 +5450,23 @@ window.APP = (function(){
     // blob path also fails to advance do we surface the numbers.
     S._diagTimer=setTimeout(()=>{
       if(!(S.playing && S.audio && S.audio.currentTime<=t0+0.1)) return;
+      if(S._blobLoading){
+        // Le son arrive, il n'a juste pas fini. On le DIT — une page muette
+        // qui fait semblant de jouer est le pire des deux mondes — et on
+        // laisse au téléchargement le temps d'atterrir avant de crier au feu.
+        toast("Chargement du son…");
+        S._diagTimer=setTimeout(()=>{
+          if(S.playing && S.audio && S.audio.currentTime<=t0+0.1) showAudioDiag();
+        },8000);
+        return;
+      }
       if(!S._blobTried){
         swapToBlob(t0);
         S._diagTimer=setTimeout(()=>{
           if(S.playing && S.audio && S.audio.currentTime<=t0+0.1) showAudioDiag();
         },6000);
       } else showAudioDiag();
-    },2500);
+    },1200);
     startTick();
   }
   function seekFrac(f){ f=Math.max(0,Math.min(1,f)); if(!S.audio) return; const t=f*totalDur();
