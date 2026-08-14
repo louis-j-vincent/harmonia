@@ -1,5 +1,47 @@
 # Harmonia — Known Issues
 
+## 2026-08-14 (nuit) — LE MÉLANGE, ÉTAPE 1 : LE DÉCOUPAGE PAR LES SIGNAUX EST MORT
+
+`scripts/mixage.py`. Louis : « chaque outil rajoute une information, toutes
+seules elles sont incomplètes, ensemble elles forment un prior solide. Trouve
+comment les mixer. » Étape 1 telle que je l'avais posée : une programmation
+dynamique avec les ancres dures en contrainte, le vote des 39 critères en terme
+de données, et un prior de longueur de section appris en leave-one-song-out.
+
+**Résultat, contre la ligne de base de `bench_sections.py` (précision 71 %,
+rappel 72 %, mêmes 12 morceaux, même métrique — frontière juste = à la mesure
+exacte) :**
+
+| réglage | précision | rappel |
+|---|---|---|
+| ligne de base (`mots4`) | **71 %** | **72 %** |
+| PD, prix de frontière bas | 44 % | 33 % |
+| PD, prix de frontière haut | 52 % | 16 % |
+
+**Le diagnostic, et il invalide ma conception, pas le réglage.** La ligne de base
+ne tire pas sa force de la détection de changement : elle vient de la
+RÉPÉTITION — `mots4` groupe des mots de bi-mesures qui reviennent. Or le meilleur
+critère de changement du projet marque 51 % des frontières, et le vote des sept
+signaux n'atteint 92 % de justesse que sur 1,4 mesure par morceau. **Un terme de
+données à 51 % ne peut pas porter un découpage à 71 %, quel que soit le prior
+au-dessus.**
+
+**Et c'est exactement ce que Louis avait dit, que j'avais inversé** : « ces
+frontières servent à TRANCHER lorsqu'il y a une ambiguïté sur où on coupe […]
+avec la règle qu'on ne peut pas couper ces frontières ». Les ancres sont un
+ARBITRE et une CONTRAINTE, jamais la colonne vertébrale. J'en avais fait le
+squelette.
+
+**Le mélange corrigé**, et le point d'injection est déjà là : `mots4.placer()`
+prend un paramètre `cuts`. L'étape 1 à mesurer n'est donc pas « une PD à partir
+des signaux » mais « `mots4` inchangé, plus les ancres dures en coupures
+forcées ». Elle ne peut que laisser la ligne de base intacte ou l'améliorer, ce
+qui est la bonne forme pour un ingrédient à 92 %.
+
+Les étapes 2 à 4 (phase des cadences, étendues de zones_voix, forme du LLM)
+gardent le même statut : chacune s'ajoute à `mots4`, aucune ne le remplace.
+
+
 ## 2026-08-14 (soir) — FILLS, CADENCES, ET LE PIÈGE DU LA-EN-PREMIER
 
 Trois travaux lancés en parallèle sur la même question : quel signal marque une
