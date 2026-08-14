@@ -1,5 +1,30 @@
 # Harmonia — Known Issues
 
+## 2026-08-14 — RÉSOLU : deux sections différentes portaient la MÊME lettre
+
+`scripts/quatre_mots.grouper_restes`, donc toutes les pages de sections faites
+depuis le 2026-08-12, et `harmonia_min/phrases4.py` qui en vient. Trouvé en
+branchant le bouton « Appliquer » de l'outil Soudure sur Lost Without U : la
+bi-mesure isolée du début (type `a`) et les huit sections `baba` du morceau
+sortaient TOUTES marquées **B**.
+
+**Le mécanisme.** `nommer` pose A sur `a`, B sur `baba`, C sur `c`. Puis
+`grouper_restes` retire leur lettre aux restes et la réattribue par COMPTAGE :
+
+    k = len({v for v in base.values()})      # ici {B} -> 1
+    base[t] = LETTERS[k % len(LETTERS)]      # -> LETTERS[1] = "B", déjà prise
+
+Le comptage suppose les lettres posées contiguës depuis A. Elles ne le sont
+plus dès qu'un reste a emporté la sienne : A part avec le reste, il ne demeure
+que B, le compteur dit « une lettre posée » et repart de la deuxième.
+
+**Le correctif** prend la première lettre LIBRE au lieu de la n-ième.
+Rouge d'abord : `tests/test_phrases4_lettres.py`, trois tests.
+
+**Ce que ça ne résout pas.** Les lettres des pages `quatre_mots.html` déjà
+produites sont à refaire — la STRUCTURE y était juste, seuls les noms
+collisionnaient.
+
 ## 2026-08-14 (nuit) — LE MÉLANGE, ÉTAPE 1 : LE DÉCOUPAGE PAR LES SIGNAUX EST MORT
 
 `scripts/mixage.py`. Louis : « chaque outil rajoute une information, toutes

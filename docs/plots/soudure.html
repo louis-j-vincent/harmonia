@@ -62,10 +62,12 @@ h1{font:italic 400 27px/1.15 var(--serif); margin:0 0 3px}
 .jeton.couture::before{content:""; position:absolute; left:0; top:0; bottom:0;
    width:7px; background:repeating-linear-gradient(135deg, var(--c) 0 2px,
    transparent 2px 5px); opacity:.5}
-.jeton .rang{position:absolute; top:3px; left:5px; font:600 10px/1 var(--ui);
-       font-style:normal; color:var(--c); opacity:.75}
-.jeton .tete{position:absolute; left:0; right:0; bottom:0; height:3px;
-       background:var(--c)}
+/* La tête de lecture : un trait qui se remplit de gauche à droite pendant que
+   la plaque sonne. La transition comble entre deux battements de l'horloge du
+   média (~250 ms sur Safari) — c'est elle qui rend le geste fluide sans
+   boucle d'animation, laquelle empêcherait le son de démarrer sur iPhone. */
+.jeton .tete{position:absolute; left:0; bottom:0; height:3px; width:0;
+       background:var(--c); transition:width .26s linear}
 .jeton .eclat{position:absolute; inset:0; pointer-events:none;
        background:linear-gradient(100deg,transparent 20%,rgba(255,255,255,.96) 45%,
                   rgba(255,244,206,.9) 56%,transparent 80%);
@@ -128,7 +130,13 @@ h1{font:italic 400 27px/1.15 var(--serif); margin:0 0 3px}
 .res span:last-child{border-radius:0 var(--r1) var(--r1) 0}
 .expo{width:100%; height:48px; border:1px solid var(--filet); border-radius:var(--r2);
       background:var(--carte); color:var(--encre); font:600 15px/1 var(--ui);
-      cursor:pointer}
+      cursor:pointer; margin-bottom:8px}
+#appl{background:var(--encre); color:var(--carte); border-color:var(--encre)}
+#appl:disabled{background:#e3dbc9; color:#a79f8c; border-color:var(--filet)}
+.note{color:var(--second); font:13px/1.4 var(--ui); margin:0 2px 10px; min-height:1.2em}
+/* Les sections inférées : la lettre, et son prime quand la section ne diffère
+   que par sa dernière bi-mesure (l'ouvert et le clos d'une même période). */
+.res span.nom{font-size:16px; font-weight:600}
 </style>
 </head>
 <body>
@@ -158,6 +166,8 @@ h1{font:italic 400 27px/1.15 var(--serif); margin:0 0 3px}
 
 <p class="res-t">Résultat</p>
 <div class="res" id="res"></div>
+<button class="expo" id="appl">Appliquer — inférer les sections</button>
+<p class="note" id="note"></p>
 <button class="expo" id="expo">Exporter JSON</button>
 
 <script>
@@ -550,6 +560,27 @@ var AU = (function(){
     return -1;
   };
 
+  /* La mesure EN COURS, avec sa fraction : 12.4 = on est à 40 % de la mesure
+     12. C'est ce qui permet une vraie tête de lecture, qui avance dans la
+     plaque, et pas seulement une plaque allumée. */
+  API.position = function(){
+    if (!en) return -1;
+    if (SONG.audio_url && el){
+      var t = el.currentTime;
+      for (var m=0;m<NM;m++)
+        if (t >= T[m] && t < T[m+1])
+          return m + (t - T[m]) / Math.max(1e-6, T[m+1] - T[m]);
+      return -1;
+    }
+    if (!ctx) return -1;
+    var now = ctx.currentTime;
+    for (var i=0;i<marques.length;i++)
+      if (now >= marques[i].a && now < marques[i].b)
+        return marques[i].m + (now - marques[i].a) /
+               Math.max(1e-6, marques[i].b - marques[i].a);
+    return -1;
+  };
+
   /* La cascade : un blip montant par fusion, à 45 ms d'intervalle. */
   API.blips = function(nb){
     if (!reveil()) return;
@@ -581,7 +612,8 @@ var S = {
   sel: [],              // index d'entités sélectionnées (0, 1 ou 2)
   neufs: null,          // index des entités nées de la dernière soudure
   flash: 0,             // nombre de fusions à annoncer
-  precedents: null      // contenus de l'état dessiné juste avant
+  precedents: null,     // contenus de l'état dessiné juste avant
+  phrases: null         // les sections nommées par « Appliquer », si on l'a pressé
 };
 function ents(){ return S.hist[S.hi]; }
 
@@ -619,7 +651,7 @@ function dessine(){
   aide.textContent = panne
     ? "Son : " + panne + "."
     : (S.mode === "ecouter"
-       ? "Touche une entité pour l’écouter en boucle. Une deuxième, et les deux s’enchaînent — c’est comme ça qu’on entend si c’est le même endroit."
+       ? "Touche une plaque : elle joue en boucle, et la tête de lecture la traverse. Touche-en une autre, c’est elle qui joue."
        : "Touche une entité, puis sa voisine : la soudure s’applique partout dans la chanson d’un coup.");
 
   /* la bande */
@@ -654,15 +686,10 @@ function dessine(){
     for (var q=0;q<COUTURES.length;q++)
       if (COUTURES[q] >= e.j && COUTURES[q] < e.j + e.n){ d.classList.add("couture"); break; }
 
-    var choisi = S.sel.indexOf(k);
-    if (choisi >= 0){
-      d.classList.add("sel");
-      if (S.sel.length === 2){
-        var r = document.createElement("span");
-        r.className = "rang"; r.textContent = String(choisi + 1);
-        d.appendChild(r);
-      }
-    }
+    // Une seule plaque peut être choisie a la fois, dans les deux modes : le
+    // petit chiffre 1/2 de l'ancienne comparaison a deux entites n'a plus de
+    // cas ou l'afficher.
+    if (S.sel.indexOf(k) >= 0) d.classList.add("sel");
 
     var neuf = neufs ? (neufs.indexOf(k) >= 0)
                      : (anime ? !anime[e.c] : true);
@@ -731,14 +758,35 @@ function dessine(){
 
   /* résultat — la chanson entière tient sur une ligne : la bande devient
      lisible à mesure qu'on soude, c'est ça la récompense. */
+  /* Le résultat : les entités telles quelles, ou — si on a appliqué l'algo
+     des phrases — les SECTIONS qu'il a nommées, avec leurs primes. */
   var res = $("res"); res.innerHTML = "";
-  for (var r2=0;r2<E.length;r2++){
-    var e2 = E[r2];
-    var sp = document.createElement("span");
-    sp.style.cssText = "--c:" + col[e2.c] + ";flex:" + e2.n + " 1 0";
-    sp.textContent = (W * e2.n / MOT.length) >= 16 ? lab[e2.c] : "";
-    res.appendChild(sp);
+  if (S.phrases){
+    for (var q=0;q<S.phrases.length;q++){
+      var ph = S.phrases[q], nm = ph.label + (ph.prime ? "′" : "");
+      if (ph.reste) nm = nm.toLowerCase();      // un reste s'écrit en minuscule
+      var sq = document.createElement("span");
+      sq.className = "nom";
+      sq.style.cssText = "--c:" + col[MOT[ph.j0]] + ";flex:" + (ph.j1-ph.j0) + " 1 0";
+      sq.textContent = (W * (ph.j1-ph.j0) / MOT.length) >= 16 ? nm : "";
+      sq.title = nm + " · mesures " + ph.mesure_debut + "–" + ph.mesure_fin;
+      res.appendChild(sq);
+    }
+  } else {
+    for (var r2=0;r2<E.length;r2++){
+      var e2 = E[r2];
+      var sp = document.createElement("span");
+      sp.style.cssText = "--c:" + col[e2.c] + ";flex:" + e2.n + " 1 0";
+      sp.textContent = (W * e2.n / MOT.length) >= 16 ? lab[e2.c] : "";
+      res.appendChild(sp);
+    }
   }
+  var note = $("note");
+  note.textContent = S.phrases
+    ? S.phrases.length + " sections, en phrases de " + (S.cible || 4)
+      + " bi-mesures — A′ est un A qui finit autrement, « reste » ce qui "
+      + "n'arrive qu'une fois."
+    : "";
 
   teteEnt = -1;
 }
@@ -748,24 +796,39 @@ function dessine(){
 /* Appelée par l'horloge du son (timeupdate côté disque, la pompe côté
    synthèse) — jamais par une boucle d'animation, voir le commentaire dans AU.
    Elle n'écrit dans le DOM que quand l'entité change. */
-var teteEnt = -1;
+/* LA TÊTE DE LECTURE. Elle ne dit plus seulement QUELLE plaque sonne, elle
+   dit OÙ on en est dedans : un trait qui traverse la plaque de gauche à
+   droite pendant qu'elle joue. Sans ça, sur une entité de seize mesures, la
+   plaque restait allumée dix secondes sans qu'on sache où on en était.
+
+   Elle avance par pas d'horloge du média (~4 par seconde sur Safari), et
+   c'est une TRANSITION CSS qui comble entre deux pas. Surtout pas de boucle
+   requestAnimationFrame : c'est elle qui empêchait le son de démarrer sur
+   iPhone (voir le module audio plus haut). */
+var teteEnt = -1, teteEl = null;
 function tete(){
-  var m = AU.mesure(), E = ents(), cible = -1;
-  if (m >= 0){
-    for (var i=0;i<E.length;i++)
-      if (m >= m0de(E[i]) && m < m1de(E[i])){ cible = i; break; }
-  }
-  if (cible === teteEnt) return;
-  var vieux = bande.querySelector(".tete");
-  if (vieux) vieux.parentNode.removeChild(vieux);
-  if (cible >= 0){
-    var pl = bande.children[cible];
-    if (pl && pl.classList.contains("jeton")){
-      var t = document.createElement("i"); t.className = "tete";
-      pl.appendChild(t);
+  var p = AU.position(), E = ents(), cible = -1, frac = 0;
+  if (p >= 0){
+    for (var i=0;i<E.length;i++){
+      var a = m0de(E[i]), b = m1de(E[i]);
+      if (p >= a && p < b){ cible = i; frac = (p - a) / Math.max(1e-6, b - a); break; }
     }
   }
-  teteEnt = cible;
+  if (cible !== teteEnt){
+    if (teteEl && teteEl.parentNode) teteEl.parentNode.removeChild(teteEl);
+    teteEl = null;
+    if (cible >= 0){
+      var pl = bande.children[cible];
+      if (pl && pl.classList.contains("jeton")){
+        teteEl = document.createElement("i");
+        teteEl.className = "tete";
+        teteEl.style.width = "0%";
+        pl.appendChild(teteEl);
+      }
+    }
+    teteEnt = cible;
+  }
+  if (teteEl) teteEl.style.width = Math.max(0, Math.min(100, frac * 100)) + "%";
 }
 AU.tic = tete;
 
@@ -792,7 +855,9 @@ function applique(x, y){
   var r = souder(ents(), x, y);
   if (!r.neufs.length) return;
   S.hist.push(r.ents); S.hi = S.hist.length - 1;
-  S.sel = []; S.neufs = r.neufs; S.flash = r.neufs.length;
+  // Les sections inférées portaient sur la bande d'AVANT : elles ne veulent
+  // plus rien dire dès qu'on soude ou qu'on remonte l'historique.
+  S.sel = []; S.neufs = r.neufs; S.flash = r.neufs.length; S.phrases = null;
   AU.blips(r.neufs.length);
   dessine();
 }
@@ -812,9 +877,12 @@ bande.addEventListener("click", function(ev){
       return;
     } else S.sel = [i];
   } else {
-    if (S.sel.length === 1 && S.sel[0] === i) S.sel = [];
-    else if (S.sel.length === 1) S.sel = [S.sel[0], i];
-    else S.sel = [i];
+    // Écouter = UNE section, jamais deux (Louis, 2026-08-14 : « on ne
+    // sélectionne rien, juste la section sur laquelle on clique, jamais 2-3
+    // sections à la fois »). L'ancien geste empilait une deuxième entité et
+    // les enchaînait en boucle pour comparer ; on touche une plaque, elle
+    // joue, on en touche une autre, c'est elle qui joue.
+    S.sel = (S.sel.length === 1 && S.sel[0] === i) ? [] : [i];
   }
   dessine();
   ecoute();
@@ -835,21 +903,60 @@ $("undo").onclick = function(){
   AU.stop();
   S.hist.pop();
   if (S.hi > S.hist.length - 1) S.hi = S.hist.length - 1;
-  S.sel = []; S.neufs = null;
+  S.sel = []; S.neufs = null; S.phrases = null;
   dessine();
 };
 
 $("regl").oninput = function(){
   var v = parseInt(this.value, 10);
   if (v === S.hi) return;
-  AU.stop(); S.hi = v; S.sel = []; S.neufs = null;
+  AU.stop(); S.hi = v; S.sel = []; S.neufs = null; S.phrases = null;
   dessine();
+};
+
+/* APPLIQUER — l'algo des phrases à quatre mots, reparti de MES soudures.
+   Louis, 2026-08-14 : « quand on a soudé des sections, il faut un bouton
+   appliquer qui re-infère les sections via l'algo des phrases à 4 mots, mais
+   avec nos sections déjà fixées ». Les jetons partent tels qu'ils sont sur la
+   bande : l'algorithme les prolonge, il ne peut pas les défaire. */
+$("appl").onclick = function(){
+  var b = $("appl"), E = ents(), jetons = [];
+  for (var i=0;i<E.length;i++) jetons.push([E[i].j, E[i].j + E[i].n, E[i].c]);
+  b.disabled = true; b.textContent = "…";
+  fetch("/api/phrases4", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({jetons: jetons, bornes: X0})
+  }).then(function(r){ return r.json(); }).then(function(d){
+    b.disabled = false; b.textContent = "Appliquer — inférer les sections";
+    if (!d || d.error || !d.sections){
+      $("note").textContent = "L'inférence n'a pas répondu" + (d && d.error ? " (" + d.error + ")" : "") + ".";
+      return;
+    }
+    S.phrases = d.sections; S.cible = d.cible;
+    dessine();
+  })["catch"](function(e){
+    b.disabled = false; b.textContent = "Appliquer — inférer les sections";
+    $("note").textContent = "L'inférence n'a pas répondu (" + e + ").";
+  });
 };
 
 $("expo").onclick = function(){
   var E = ents(), lab = lettres(E), out = [];
+  /* Si les sections ont été inférées, ce sont ELLES qu'on exporte — c'est le
+     découpage que Louis vient de valider, pas l'état intermédiaire. */
+  if (S.phrases){
+    for (var q=0;q<S.phrases.length;q++)
+      out.push({label: S.phrases[q].label + (S.phrases[q].prime ? "'" : ""),
+                mesure_debut: S.phrases[q].mesure_debut,
+                mesure_fin: S.phrases[q].mesure_fin});
+    return telecharge(out);
+  }
   for (var i=0;i<E.length;i++)
     out.push({label: lab[E[i].c], mesure_debut: m0de(E[i]) + 1, mesure_fin: m1de(E[i])});
+  telecharge(out);
+};
+
+function telecharge(out){
   var txt = JSON.stringify(out, null, 2);
   var a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([txt], {type:"application/json"}));
@@ -857,7 +964,7 @@ $("expo").onclick = function(){
                .toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"") + ".json";
   document.body.appendChild(a); a.click();
   setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 400);
-};
+}
 
 AU.fin = function(){ S.neufs = null; dessine(); };
 

@@ -171,6 +171,47 @@ def soudure(file):
     return resp
 
 
+@app.post("/api/phrases4")
+def phrases4():
+    """« Appliquer » : re-inférer les sections à partir des soudures de Louis.
+
+    Louis, 2026-08-14 : « quand on a soudé des sections, il faut un bouton
+    appliquer qui re-infère les sections via l'algo des phrases à 4 mots, mais
+    avec nos sections déjà fixées ».
+
+    Le corps porte l'état de la bande — les jetons TELS QUE Louis les a soudés,
+    et les bornes en mesures — et rien d'autre : la route est sans mémoire,
+    donc la page de recherche sous /plots s'en sert aussi bien que l'app.
+
+    L'algorithme est celui de `scripts/quatre_mots.py`, importé de
+    `harmonia_min.phrases4` — pas une seconde version. Ses soudures à lui
+    entrent comme point de DÉPART : l'agglomération les prolonge, elle ne peut
+    pas les défaire.
+    """
+    from harmonia_min.phrases4 import phrases
+    d = request.get_json(silent=True) or {}
+    jetons = d.get("jetons") or []
+    bornes = d.get("bornes") or []
+    if not jetons or len(bornes) < 2:
+        return jsonify({"error": "jetons et bornes requis"}), 400
+    try:
+        depart = [(int(j[0]), int(j[1]), str(j[2])) for j in jetons]
+        bornes = [int(b) for b in bornes]
+    except (TypeError, ValueError, IndexError):
+        return jsonify({"error": "jetons mal formés"}), 400
+    if depart[0][0] != 0 or depart[-1][1] != len(bornes) - 1:
+        return jsonify({"error": "les jetons ne couvrent pas la chanson"}), 400
+    mot = "".join(t[2] for t in depart)
+    secs, info = phrases(mot, depart=depart)
+    return jsonify({"cible": info["cible"], "couts": info["couts"],
+                    "sections": [
+        {"label": s["label"], "prime": bool(s["prime"]),
+         "reste": bool(s["queue"]),
+         "mesure_debut": bornes[s["j0"]] + 1, "mesure_fin": bornes[s["j1"]],
+         "j0": s["j0"], "j1": s["j1"], "type": s["type"]}
+        for s in secs]})
+
+
 @app.get("/min/<file>")
 def minimal(file):
     """The minimalist representation (Louis, 2026-08-02): one block per

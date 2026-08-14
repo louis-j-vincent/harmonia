@@ -61,117 +61,12 @@ import order_bundle                                        # noqa: E402
 import order_lab as OL                                     # noqa: E402
 
 OUTDIR = HERE / "docs" / "plots"
-CIBLES = (4, 6)    # une section fait quatre mots de deux mesures… ou six
-CIBLE = 4
-LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-
-def merges4(word: str, cible=CIBLE, max_steps=24):
-    """[{paire, compte, jetons}] — l'agglomération plafonnée à `cible` mots.
-
-    Identique à `bpe_lab.merges` sauf deux choses, qui sont les règles de Louis :
-    une soudure ne peut pas dépasser `cible` bi-mesures, et on s'arrête dès
-    qu'aucune paire soudable ne se répète — c'est-à-dire « quand on n'arrive
-    plus à trouver de sections de quatre mots ».
-    """
-    toks = [(j, j + 1, word[j]) for j in range(len(word))]
-    steps = [{"paire": None, "compte": 0, "jetons": list(toks)}]
-    for _ in range(max_steps):
-        cnt: dict = {}
-        for i in range(len(toks) - 1):
-            a, b = toks[i][2], toks[i + 1][2]
-            if len(a) + len(b) > cible:
-                continue
-            cnt[(a, b)] = cnt.get((a, b), 0) + 1
-        cnt = {k: v for k, v in cnt.items() if v >= 2}
-        if not cnt:
-            break
-        (pa, pb), c = max(cnt.items(),
-                          key=lambda kv: (kv[1], len(kv[0][0]) + len(kv[0][1])))
-        out, i = [], 0
-        while i < len(toks):
-            if i + 1 < len(toks) and toks[i][2] == pa and toks[i + 1][2] == pb:
-                out.append((toks[i][0], toks[i + 1][1], pa + pb))
-                i += 2
-            else:
-                out.append(toks[i]); i += 1
-        toks = out
-        steps.append({"paire": (pa, pb), "compte": c, "jetons": list(toks)})
-    return steps
-
-
-def nommer(toks, cible=CIBLE):
-    """[{j0, j1, type, label, prime}] — les lettres, avec la règle du prime.
-
-    Deux sections de même longueur qui ne diffèrent QUE par leur dernier mot
-    sont la même lettre, la seconde marquée d'un prime. C'est la règle de Louis :
-    `abac` et `abad` sont un A et un A′, pas un A et un B.
-    """
-    base: list[tuple[str, str]] = []          # (type de référence, lettre)
-    out = []
-    for j0, j1, t in toks:
-        lab, prime = None, False
-        for u, L in base:
-            if u == t:
-                lab = L; break
-            if len(u) == len(t) and u[:-1] == t[:-1] and len(t) >= 2:
-                lab, prime = L, True; break
-        if lab is None:
-            lab = LETTERS[len({L for _u, L in base}) % len(LETTERS)]
-            base.append((t, lab))
-        out.append({"j0": j0, "j1": j1, "type": t, "label": lab,
-                    "prime": prime, "queue": (j1 - j0) < cible})
-    return out
-
-
-def grouper_restes(nom, word, cible):
-    """Les jetons trop courts et VOISINS deviennent un bloc à eux.
-
-    Louis, 2026-08-12 : « quand tu as fini de souder les sections, tu t'arrêtes à
-    des blocs de 4, et tu mets en bloc les suites successives qui ne sont rentrées
-    dans aucun bloc → dans This Love le queue et le bridge. »
-
-    C'est la bonne lecture musicale : ce qui ne rentre dans aucun bloc n'est pas
-    du bruit, c'est le matériau qui n'arrive qu'une fois. Sur This Love, les
-    huit mots orphelins des mesures 45 à 56 formaient huit sections d'une ou deux
-    mesures ; ils forment maintenant DEUX blocs — sa queue et son pont.
-    """
-    plafond = int(1.5 * cible)     # un reste plus long que ça se recoupe : sans
-                                   # ce plafond, Chain of Fools sortait UN bloc de
-                                   # 46 mesures et Sunny un de 86 — « ce qui n'est
-                                   # rentré nulle part » finissait par manger le
-                                   # morceau. 1,5 × la cible laisse passer la
-                                   # queue+pont de This Love (6 mots) d'un bloc.
-    out, i = [], 0
-    while i < len(nom):
-        if not nom[i]["queue"]:
-            out.append(nom[i]); i += 1; continue
-        j = i
-        while j + 1 < len(nom) and nom[j + 1]["queue"]:
-            j += 1
-        run = nom[i:j + 1]
-        while run:
-            n_mots = sum(x["j1"] - x["j0"] for x in run)
-            if n_mots <= plafond:
-                bout, run = run, []
-            else:
-                bout, k = [], 0
-                while run and k < cible:
-                    k += run[0]["j1"] - run[0]["j0"]; bout.append(run.pop(0))
-            out.append({"j0": bout[0]["j0"], "j1": bout[-1]["j1"],
-                        "type": "".join(x["type"] for x in bout),
-                        "label": None, "prime": False, "queue": True})
-        i = j + 1
-    # les blocs de reste identiques partagent une lettre, comme les autres
-    base = {x["type"]: x["label"] for x in out if x["label"]}
-    libres = sorted({x["type"] for x in out if x["label"] is None})
-    k = len({v for v in base.values()})
-    for t in libres:
-        base[t] = LETTERS[k % len(LETTERS)]; k += 1
-    for x in out:
-        if x["label"] is None:
-            x["label"] = base[x["type"]]
-    return out
+# Les trois fonctions pures de l'algo vivent dans `harmonia_min.phrases4`
+# depuis le 2026-08-14 : le serveur en a besoin pour le bouble « Appliquer »
+# de l'outil Soudure, et ce fichier-ci tire ssm_zoo/order_bundle/matplotlib
+# rien qu'a l'import. Une seule implementation, importee des deux cotes.
+from harmonia_min.phrases4 import (            # noqa: E402
+    CIBLE, CIBLES, LETTERS, grouper_restes, merges4, nommer)
 
 
 def cout(nom, cible) -> float:
