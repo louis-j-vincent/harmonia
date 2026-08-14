@@ -41,6 +41,7 @@ de structure à montrer — c'est honnête, ce n'est pas utile.
 """
 from __future__ import annotations
 
+import itertools
 import logging
 
 log = logging.getLogger(__name__)
@@ -174,13 +175,35 @@ def _grille(n: int, coutures: dict) -> list[int]:
     ailleurs un jeton fait deux mesures. Un jeton de largeur impaire fait
     basculer la parité de tout ce qui suit — c'est lui, la mesure en trop ou
     la mesure manquante.
+
+    On applique une couture au premier jeton qui ATTEINT OU DÉPASSE sa
+    position. Le faire seulement sur une égalité exacte était un piège :
+    la recherche travaille sur des positions quelconques, la grille avance de
+    deux en deux, et une couture demandée à une mesure impaire n'était jamais
+    posée — la grille sortait silencieusement différente de celle qu'on venait
+    de noter (constaté sur Lost Without U : deux coutures trouvées, une seule
+    appliquée, et 66 % au lieu de 100 %).
     """
-    bornes, p = [], 0
+    cs = sorted(coutures.items())
+    bornes, p, i = [], 0, 0
     while p < n - 1:
         bornes.append(p)
-        p += coutures.get(p, 2)
+        while i < len(cs) and cs[i][0] < p:
+            i += 1                                   # couture déjà dépassée
+        if i < len(cs) and p >= cs[i][0] - 1:
+            p += cs[i][1]
+            i += 1
+        else:
+            p += 2
     bornes.append(n)
     return bornes
+
+
+def _coutures_de(bornes: list[int]) -> list[int]:
+    """Les jetons qui ne font pas deux mesures — hors le dernier, qui fait
+    trois par construction dans un morceau de longueur impaire."""
+    return [j for j in range(len(bornes) - 2)
+            if (bornes[j + 1] - bornes[j]) != 2]
 
 
 #: Ce qu'une couture doit faire GAGNER pour être retenue : cinq points de
@@ -194,6 +217,15 @@ MARGE_COUTURE = 0.05
 #: que personne ne discute.
 SEUIL_JUMELLE = 0.95
 
+#: Combien de positions entrent dans la recherche exhaustive. 24 tient
+#: largement (les triplets font 2024 combinaisons x 8 largeurs), et le champ
+#: est trie par ce qu'une coupure y rapporte, donc les vraies coutures y sont.
+CANDIDATS = 24
+
+#: Au plus trois coutures CHERCHÉES. La grille construite peut porter un jeton
+#: impair de plus, quand la fin du morceau n'en laisse pas le choix — c'est le
+#: cas d'un chart sur 46 (Lghgu8Gqz9U). La grille reste valide : largeurs 1, 2
+#: ou 3, couverture complète, vérifié sur les 46.
 #: Au plus trois coutures. Une par mesure en trop; au-delà on n'explique plus
 #: un accident de notation, on plie la grille jusqu'a ce que tout colle.
 MAX_COUTURES = 3
@@ -308,30 +340,75 @@ def _meilleure_grille(S, n: int) -> tuple[list[int], dict]:
                 pos[b] = b - bornes[j]
         return float(np.sum(W * (pos[P] == pos[Q])) / np.sum(W))
 
-    # Les coutures se posent UNE PAR UNE, chacune devant payer sa marge. Un
-    # morceau peut en avoir plusieurs — Lost Without U reste à 66 % de
-    # jumelles exprimables avec une seule — mais chacune doit se justifier
-    # seule, ce qui empêche d'en empiler jusqu'à tout expliquer.
-    coutures: dict = {}
-    base = note(_grille(n, coutures))
-    courant = base
-    while len(coutures) < MAX_COUTURES:
-        gagnante, gain = None, courant + MARGE_COUTURE
-        depart = _grille(n, coutures)[:-1]
-        for c in depart:
-            if c in coutures or c < 4 or c > n - 6:
+    # LES COUTURES SE CHERCHENT ENSEMBLE, PAS UNE PAR UNE. Louis, 2026-08-14 :
+    # « sur Lost Without U il y a 2 trous dans la chanson je crois, et les deux
+    # sont des petits trous ». Il a raison, et la pose gloutonne ne pouvait pas
+    # les voir : mesuré sur ce morceau, la meilleure couture SEULE est à la
+    # mesure 54 (48 % → 66 %), alors que la meilleure PAIRE est (20, 53) et
+    # atteint 100 %. La paire optimale ne contient pas le meilleur élément
+    # seul — deux trous qui ne servent qu'ensemble, chacun ne payant rien tout
+    # seul. Un glouton s'arrête donc à 66 % en croyant avoir fini.
+    #
+    # LA BONNE REPRÉSENTATION. Une couture ne fait qu'une chose : inverser la
+    # parité relative des paires qu'elle ENJAMBE. Une paire (p, q) est donc
+    # exprimable si le nombre de coutures dans ]p, q] a la même parité que
+    # l'écart q − p. Tout le problème tient dans ce booléen, ce qui permet de
+    # noter un jeu de coutures sans jamais reconstruire la grille : on peut
+    # alors essayer TOUTES les paires de positions, ce qui est indispensable
+    # puisque les bonnes ne se voient pas une par une.
+    base = note(_grille(n, {}))
+    sw = float(np.sum(W))
+    enjambe = (P[None, :] < np.arange(n)[:, None]) & \
+              (np.arange(n)[:, None] <= Q[None, :])       # (position, paire)
+    besoin = ((Q - P) % 2).astype(bool)
+
+    def score(cuts):
+        x = np.zeros(len(P), bool)
+        for c in cuts:
+            x ^= enjambe[c]
+        return float(np.sum(W[x == besoin]) / sw)
+
+    ok = np.arange(4, max(5, n - 5))
+    meilleur, coutures = base, ()
+    s1 = np.array([score((c,)) for c in ok])
+    j = int(np.argmax(s1))
+    if s1[j] - MARGE_COUTURE > meilleur:
+        meilleur, coutures = s1[j] - MARGE_COUTURE, (int(ok[j]),)
+    # toutes les PAIRES, vectorisées par première coupure
+    for i, c1 in enumerate(ok):
+        v = np.array([score((c1, c2)) for c2 in ok[i + 1:]])
+        if not len(v):
+            continue
+        k = int(np.argmax(v))
+        if v[k] - 2 * MARGE_COUTURE > meilleur:
+            meilleur = v[k] - 2 * MARGE_COUTURE
+            coutures = (int(c1), int(ok[i + 1 + k]))
+    # une troisième, en extension du meilleur couple (le cas à trois trous est
+    # rare : on ne paie pas n³ pour lui)
+    if len(coutures) == 2:
+        for c3 in ok:
+            if c3 in coutures:
                 continue
-            for largeur in (1, 3):
-                v = note(_grille(n, {**coutures, c: largeur}))
-                if v > gain:
-                    gagnante, gain = (c, largeur), v
-        if not gagnante:
-            break
-        coutures[gagnante[0]] = gagnante[1]
-        courant = gain
+            v = score(tuple(sorted(coutures + (int(c3),))))
+            if v - 3 * MARGE_COUTURE > meilleur:
+                meilleur = v - 3 * MARGE_COUTURE
+                coutures = tuple(sorted(coutures + (int(c3),)))
+
+    # La LARGEUR (une mesure avalée, ou trois) ne change pas la parité — elle
+    # change seulement l'alignement interne du jeton de couture. On la choisit
+    # après coup, sur la vraie grille.
+    meilleures, courant = {}, -1.0
+    for largeurs in itertools.product((1, 3), repeat=len(coutures)):
+        cand = dict(zip(coutures, largeurs))
+        v = note(_grille(n, cand))
+        if v > courant:
+            meilleures, courant = cand, v
+    coutures = meilleures
+    bornes_finales = _grille(n, coutures)
     info = {"jumelles": int(len(P)), "part_rigide": round(base, 3),
             "part_retenue": round(courant, 3),
-            "coutures": sorted(coutures.items())}
+            "coutures": [(bornes_finales[j], bornes_finales[j + 1] - bornes_finales[j])
+                         for j in _coutures_de(bornes_finales)]}
     if coutures:
         log.info("soudure: %d couture(s) %s, jumelles exprimables %.0f%% -> %.0f%%",
                  len(coutures), sorted(coutures.items()), base * 100, courant * 100)

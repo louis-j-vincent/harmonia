@@ -58,6 +58,8 @@ PORT = int(os.environ.get("HARMONIA_MIN_PORT", "7772"))
 
 app = Flask(__name__)
 _jobs: dict[str, dict] = {}
+#: Le dernier morceau calculé pour la page Soudure (clé: fichier + mtime).
+_SOUDURE_CACHE: dict = {}
 
 
 def _pretty_title(stem: str) -> str:
@@ -136,8 +138,17 @@ def soudure(file):
     p = CHARTS_DIR / f"{Path(file).stem}.json"
     if not p.exists():
         return jsonify({"error": "no such chart"}), 404
-    chart = json.loads(p.read_text(encoding="utf-8"))
-    song = song_du_chart(chart, audio_dir=AUDIO_DIR)
+    # La recherche de coutures coûte jusqu'à 2,9 s sur le plus long morceau
+    # (213 mesures) : on garde le résultat tant que le chart n'a pas bougé,
+    # sinon chaque aller-retour depuis le chart le fait repayer.
+    cle = (p.name, p.stat().st_mtime_ns)
+    song = _SOUDURE_CACHE.get(cle)
+    if song is None:
+        chart = json.loads(p.read_text(encoding="utf-8"))
+        song = song_du_chart(chart, audio_dir=AUDIO_DIR)
+        if song:
+            _SOUDURE_CACHE.clear()           # un seul morceau à la fois suffit
+            _SOUDURE_CACHE[cle] = song
     if not song:
         return ("<!doctype html><meta charset=utf-8><div style=\"font:16px "
                 "-apple-system,system-ui,sans-serif;max-width:26rem;"
