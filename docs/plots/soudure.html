@@ -104,6 +104,23 @@ h1{font:italic 400 27px/1.15 var(--serif); margin:0 0 3px}
       cursor:pointer; flex:0 0 auto}
 .comp button:disabled{background:#e3dbc9; color:#a79f8c}
 
+/* 4b ── la tête de lecture GÉNÉRALE ──────────────────────────────────── */
+/* Louis, 2026-08-14 : « je veux aussi une tête de lecture générale qui puisse
+   me faire bouger entre les sections si jamais j'ai envie d'en sauter plein
+   d'un coup. Je veux deux niveaux de tête de lecture. » Celle des plaques dit
+   où on en est DANS une section ; celle-ci dit où on en est dans la CHANSON,
+   et on y saute d'un doigt. Les traits sont les frontières des entités : on
+   vise une section, pas une seconde. */
+.piste{position:relative; height:26px; margin:0 0 12px; border-radius:var(--r1);
+       background:#efe8d8; border:1px solid var(--filet); cursor:pointer;
+       overflow:hidden; touch-action:none}
+.piste i.bord{position:absolute; top:0; bottom:0; width:1px;
+       background:var(--filet)}
+.piste .cur{position:absolute; top:-1px; bottom:-1px; width:3px;
+       background:var(--accent); border-radius:2px; left:0;
+       box-shadow:0 0 0 3px rgba(138,43,43,.14); transition:left .26s linear}
+.piste .cur.muet{opacity:.35; transition:none}
+
 /* 5 ── transport ─────────────────────────────────────────────────────── */
 .trans{display:flex; align-items:center; gap:10px; margin-bottom:22px}
 .rond{width:56px; height:56px; flex:0 0 auto; border-radius:50%; border:0;
@@ -154,6 +171,9 @@ h1{font:italic 400 27px/1.15 var(--serif); margin:0 0 3px}
 <div class="bande" id="bande"></div>
 
 <div class="comp" id="comp"></div>
+
+<div class="piste" id="piste" role="slider" aria-label="position dans la chanson"
+     tabindex="0"><i class="cur" id="cur"></i></div>
 
 <div class="trans">
   <button class="rond" id="pp" aria-label="lecture">▶</button>
@@ -781,6 +801,18 @@ function dessine(){
       res.appendChild(sp);
     }
   }
+  /* La piste générale : un trait par frontière d'entité, pour viser une
+     section et non une seconde. */
+  var piste = $("piste"), cur = $("cur");
+  var vieuxb = piste.querySelectorAll("i.bord");
+  for (var vb=0; vb<vieuxb.length; vb++) vieuxb[vb].remove();
+  for (var eb=1; eb<E.length; eb++){
+    var ib = document.createElement("i");
+    ib.className = "bord";
+    ib.style.left = (100 * m0de(E[eb]) / NM).toFixed(3) + "%";
+    piste.appendChild(ib);
+  }
+
   var note = $("note");
   note.textContent = S.phrases
     ? S.phrases.length + " sections, en phrases de " + (S.cible || 4)
@@ -829,6 +861,18 @@ function tete(){
     teteEnt = cible;
   }
   if (teteEl) teteEl.style.width = Math.max(0, Math.min(100, frac * 100)) + "%";
+
+  /* Le second niveau : la position dans la CHANSON entière. Même horloge,
+     donc même fluidité, et aucune boucle d'animation de plus. */
+  var cur = $("cur");
+  if (cur){
+    if (p >= 0){
+      cur.classList.remove("muet");
+      cur.style.left = Math.max(0, Math.min(100, 100 * p / NM)) + "%";
+    } else {
+      cur.classList.add("muet");
+    }
+  }
 }
 AU.tic = tete;
 
@@ -890,6 +934,33 @@ bande.addEventListener("click", function(ev){
 
 $("m-ecouter").onclick = function(){ S.mode = "ecouter"; S.sel = []; AU.stop(); dessine(); };
 $("m-souder").onclick  = function(){ S.mode = "souder";  S.sel = []; AU.stop(); dessine(); };
+
+/* Sauter dans la chanson : on tape (ou on glisse) sur la piste, et la lecture
+   reprend à cette mesure jusqu'à la fin. C'est le geste « j'ai envie d'en
+   sauter plein d'un coup ». */
+function saute(ev){
+  var r = $("piste").getBoundingClientRect();
+  var x = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
+  var m = Math.max(0, Math.min(NM - 1, Math.floor(NM * x / Math.max(1, r.width))));
+  panne = null; S.sel = [];
+  AU.joue([{m0: m, m1: NM}], false);
+  dessine();
+}
+$("piste").addEventListener("pointerdown", function(ev){
+  ev.preventDefault();
+  saute(ev);
+  try { $("piste").setPointerCapture(ev.pointerId); } catch(e){}
+  glisse = true;
+});
+$("piste").addEventListener("pointermove", function(ev){
+  if (!glisse) return;
+  var now = Date.now();
+  if (now - dernierSaut < 90) return;              // on ne recale pas 60 fois par seconde
+  dernierSaut = now; saute(ev);
+});
+var glisse = false, dernierSaut = 0;
+$("piste").addEventListener("pointerup",     function(){ glisse = false; });
+$("piste").addEventListener("pointercancel", function(){ glisse = false; });
 
 $("pp").onclick = function(){
   panne = null;
