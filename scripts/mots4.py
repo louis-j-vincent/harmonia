@@ -139,20 +139,57 @@ def grouper(phrases, lets, D, seuil):
     return lab, groupes
 
 
-def familles(word, B, L=L4):
+def grouper_voix(phrases, lets, D, seuil, DV):
+    """Le même groupage, mais LA VOIX D'ABORD et les lettres en second.
+
+    Louis, 2026-08-13 : « mets-le comme première intention de découpe ».
+
+    `DV[i,j]` est la distance de voix ramenée à son seuil (`ancres.dist_voix`) :
+    sous 1, ces deux fenêtres sont la même section pour le chant. `nan` = la voix
+    se tait — intro, pont instrumental —, et c'est alors la distance entre
+    lettres de basse, elle aussi ramenée à son seuil, qui tranche. Les deux
+    critères sont donc dans la même unité, ce qui est la seule façon honnête de
+    les mélanger.
+    """
+    lab = [-1] * len(phrases)
+    groupes: list[list[int]] = []
+    for i, p in enumerate(phrases):
+        mis = None
+        for g, mem in enumerate(groupes):
+            v = [DV[i, m] for m in mem if np.isfinite(DV[i, m])]
+            d = (float(np.mean(v)) if v else
+                 float(np.mean([dist_phrases(p, phrases[m], lets, D)
+                                for m in mem])) / max(1e-6, seuil))
+            if d <= 1.0:
+                mis = g
+                break
+        if mis is None:
+            groupes.append([i]); mis = len(groupes) - 1
+        else:
+            groupes[mis].append(i)
+        lab[i] = mis
+    return lab, groupes
+
+
+def familles(word, B, L=L4, DV=None):
     """Toutes les phrases de L mots, à TOUTES les positions, groupées.
 
     On ne découpe rien encore : on glisse une fenêtre de L mots sur le morceau
     entier et on range les fenêtres par ressemblance. Une famille est donc « ce
     motif de quatre mots, partout où il apparaît », y compris à des positions qui
     se chevauchent — c'est le placement qui tranchera.
+
+    `DV` : la distance de VOIX entre fenêtres (`ancres.dist_voix`). Quand elle est
+    fournie, c'est elle qui groupe en premier — les lettres de basse ne servent
+    plus que là où personne ne chante.
     """
     lets, S, D = dist_lettres(word, B)
     interne = float(np.mean([D[i, i] for i in range(len(lets))]))
     seuil = RATIO * max(interne, 1e-3)
     pos = list(range(0, len(word) - L + 1))
     ph = [word[i:i + L] for i in pos]
-    lab, groupes = grouper(ph, lets, D, seuil)
+    lab, groupes = (grouper_voix(ph, lets, D, seuil, DV) if DV is not None
+                    else grouper(ph, lets, D, seuil))
     fam = []
     for g, mem in enumerate(groupes):
         membres = [ph[m] for m in mem]
@@ -313,8 +350,39 @@ def placer(word, x0, B, Sv=None, L=L4, cuts=()):
                  "types": types}
 
 
-def sections(word, x0, n, B, start_bar=0, L=L4, cuts=(), Sv=None):
-    """Les sections en mesures."""
+def renommer_par_voix(stem, out):
+    """LA VOIX DÉCIDE QUELLES SECTIONS SONT LES MÊMES — sans en bouger aucune.
+
+    Louis, 2026-08-13 : « mets-le comme première intention de découpe ».
+
+    Première version essayée : la voix groupait les fenêtres glissantes AVANT le
+    placement, donc elle décidait aussi des frontières. Mesuré sur les douze :
+    frontières 71 % -> 31 %, étiquettes 71 % -> 56 %. La raison est nette et vaut
+    d'être écrite — **le critère est lisse** : deux fenêtres également MAL calées
+    se ressemblent autant que deux bien calées, donc lâché sur tous les décalages
+    il fusionne tout.
+
+    Ici il n'intervient qu'une fois les sections POSÉES, donc sur des plages
+    alignées — le seul régime où il est validé (89 % des sections annotées
+    reçoivent la bonne lettre, contrôle sur les douze). Il ne déplace aucune
+    frontière ; il dit lesquelles sont la même section. Les sections muettes
+    (intro, pont instrumental) gardent l'étiquette des lettres de basse.
+    """
+    import ancres
+    lab, muet, _th = ancres.regrouper(stem, [(s["b0"], s["b1"] + 1) for s in out])
+    noms, k = {}, 0
+    for i, s in enumerate(out):
+        cle = ("basse", s["type"]) if muet[i] else ("voix", lab[i])
+        if cle not in noms:
+            noms[cle] = LETTERS[k % len(LETTERS)]; k += 1
+        prime = "′" if s["label"].endswith("′") else ""
+        s["label"] = noms[cle] + prime + (" (reste)" if "(reste)" in s["label"] else "")
+        s["nu"] = noms[cle]
+    return out
+
+
+def sections(word, x0, n, B, start_bar=0, L=L4, cuts=(), Sv=None, stem=None):
+    """Les sections en mesures. `stem` -> la voix groupe en premier."""
     pl, d = placer(word, x0, B, Sv, L, cuts)
     out = []
     for s in pl:
@@ -322,6 +390,8 @@ def sections(word, x0, n, B, start_bar=0, L=L4, cuts=(), Sv=None):
                     "label": s["label"] + (" (reste)" if s["reste"] else ""),
                     "nu": s["label"].rstrip("′"), "type": s["type"],
                     "mot": s.get("mot", s["type"]), "tour": s.get("tour", -1)})
+    if stem is not None:
+        renommer_par_voix(stem, out)
     for s in out:
         if s["b1"] < start_bar:
             s["label"], s["nu"] = "intro", "intro"

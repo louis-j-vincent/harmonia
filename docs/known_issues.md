@@ -26576,3 +26576,79 @@ plafonne à 0,43 — il n'a pas de jumeau, et le critère le dit.
 
 **Pas encore branché** sur `mots4.sections` — c'est une démo à valider à l'œil
 d'abord (Louis, 2026-08-13 : « pour être sûr qu'on est bons »).
+
+## Les diagonales de la voix : ce qu'elles donnent, et la phase qu'elles ne donnent pas (2026-08-14)
+
+`scripts/ancres.py` + `scripts/ancres_page.py` -> `docs/plots/ancres.html`.
+`scripts/bench_sections.py` est le tableau de bord (frontières + étiquettes).
+
+Louis, en regardant la matrice de match de `match_bloc` : « on voit une
+succession diagonale de matchs, ça correspond clairement à une reprise avec
+décalage — lorsqu'on trouve une diagonale il faut absolument l'exploiter. Donc :
+grâce à la voix, si on trouve une répétition claire, on s'en sert pour fixer deux
+sections, puis on remplit les trous. » Et : « mets-le comme première intention de
+découpe. »
+
+**Il a raison sur l'objet** : les diagonales sont là et elles sont franches. La
+carte `R[p,q]` (critère de blocs à fenêtre glissante de 2 mesures) est la matrice
+temps-décalage de RefraiD, retrouvée à partir de son critère à lui.
+
+### Le résultat central : excellent JUGE, mauvais CHERCHEUR
+
+| ce qu'on lui demande | résultat |
+|---|---|
+| **juger** : on lui donne les sections de Louis, il dit lesquelles sont les mêmes | **89 %** (106/119 sections, 12 morceaux) |
+| **chercher** : il pose les frontières lui-même | **37 %** de justes, 26 % des siennes |
+
+Six morceaux sur douze sont à 100 % au jeu du juge (This Love, Let It Be, Chain
+of Fools, The Walk, Grenade, Bein' Green). Les deux ratés sont explicables :
+Sunny (5/10) module d'un demi-ton — la hauteur réelle n'est pas invariante par
+transposition —, Blue Lights (7/11) a une mesure insérée.
+
+### Pourquoi il ne peut pas chercher : la PHASE, pas le flou
+
+Première explication écrite, et elle était **fausse** : « le critère est lisse ».
+La figure de droite de la page dit l'inverse — décaler **une** des deux copies de
+deux mesures fait tomber le score à ~45 % du vrai. Le critère est net.
+
+La vraie raison est structurelle : **décaler LES DEUX copies du même nombre de
+mesures ne change rien du tout.** Le long d'une diagonale toutes les fenêtres
+marchent aussi bien, donc une diagonale dit parfaitement QUEL décalage et SUR
+QUELLE ÉTENDUE ça se rejoue, et **rien de la phase**. Sans recalage, Bein' Green,
+Every Breath You Take et The Walk sortent tous **deux mesures trop tôt**,
+systématiquement.
+
+C'est **l'erreur-type #4 du CLAUDE.md retrouvée telle quelle** — `score_periods()`
+détectait la longueur de période et jamais sa phase. Conséquence pratique :
+recaler la phase des ancres sur les pics de changement fait passer la précision
+de **21 % à 37 %**. Le partage des rôles est donc : **la voix donne le décalage
+et l'étendue, les pics donnent la phase.**
+
+### Trois branchements « voix en première intention », trois dégradations
+
+Ligne de base (`bench_sections.py`, 12 morceaux) : **frontières 71 % de précision
+/ 72 % de rappel, étiquettes 71 %**.
+
+| branchement | frontières | étiquettes |
+|---|---|---|
+| la voix groupe les fenêtres glissantes AVANT le placement | 71 % -> **31 %** | 71 % -> 56 % |
+| la voix renomme les sections posées (lien moyen, seuil) | inchangé | 71 % -> **64 %** |
+| la voix renomme les sections posées (plus proche + marge) | inchangé | 71 % -> **51-56 %** |
+
+La cause est la même dans les trois cas et découle du point précédent : le juge
+n'est bon que sur des plages **alignées**, et nos plages ne le sont qu'à 71 %.
+Une section mal calée en aspire une autre et tout le groupe part de travers.
+
+**Rien n'est branché en production.** `mots4.sections(..., stem=None)` par
+défaut ; passer `stem=` active `renommer_par_voix`, qui est conservé documenté
+pour la reprise. `scripts/ancres.py` n'est appelé par aucun chemin vivant.
+
+### Ce qu'il reste à faire pour que ça marche
+
+1. **La phase doit venir des pics, pas de la voix** — c'est mesuré (+16 pts),
+   c'est le bon axe, mais le recalage actuel est un simple vote de soutien aux
+   deux bords ; il faut le faire par tronçon comme `vote_fill.phases`.
+2. **Les bords d'une diagonale sont ses extrémités**, pas le maximum d'un score :
+   toute recherche par « meilleur segment » est structurellement condamnée.
+3. **Sunny a besoin des intervalles** (variante n°7 de `voix_variantes`), pas de
+   la hauteur réelle : il module.
