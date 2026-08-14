@@ -633,7 +633,9 @@ var S = {
   neufs: null,          // index des entités nées de la dernière soudure
   flash: 0,             // nombre de fusions à annoncer
   precedents: null,     // contenus de l'état dessiné juste avant
-  phrases: null         // les sections nommées par « Appliquer », si on l'a pressé
+  phrases: null,        // les sections nommées par « Appliquer », si on l'a pressé
+  auto: false,          // l'inférence suit-elle chaque geste ?
+  paires: {}            // contenu soudé -> [gauche, droite], pour le défaire
 };
 function ents(){ return S.hist[S.hi]; }
 
@@ -746,6 +748,33 @@ function dessine(){
   var comp = $("comp"), best = meilleure(E);
   comp.innerHTML = "";
   var quoi = document.createElement("div"); quoi.className = "quoi";
+  /* Quand la plaque choisie est une soudure, le bandeau propose de la DÉFAIRE
+     plutôt que d'en proposer une nouvelle : c'est là qu'on corrige une
+     frontière posée au mauvais endroit, et c'est le geste que Louis a demandé
+     (2026-08-14). Un bouton, pas un geste caché — sur un téléphone, un appui
+     long ne se devine pas. */
+  var choisie = (S.sel.length === 1) ? E[S.sel[0]] : null;
+  if (choisie && S.paires[choisie.c]){
+    var d = S.paires[choisie.c];
+    var pd = document.createElement("div"); pd.className = "paire";
+    var g = document.createElement("b"); g.textContent = etiq(lab, d[0]);
+    g.style.color = col[d[0]] || "inherit";
+    var sep = document.createElement("span"); sep.className = "plus"; sep.textContent = "|";
+    var dr = document.createElement("b"); dr.textContent = etiq(lab, d[1]);
+    dr.style.color = col[d[1]] || "inherit";
+    pd.appendChild(g); pd.appendChild(sep); pd.appendChild(dr);
+    var fd = document.createElement("div"); fd.className = "fois";
+    var nb = 0; for (var z=0;z<E.length;z++) if (E[z].c === choisie.c) nb++;
+    fd.textContent = "défaire cette soudure, " + nb + " fois dans la chanson";
+    quoi.appendChild(pd); quoi.appendChild(fd);
+    comp.appendChild(quoi);
+    var bd = document.createElement("button");
+    bd.textContent = "Désouder";
+    bd.onclick = (function(c){ return function(){ desoude(c); }; })(choisie.c);
+    comp.appendChild(bd);
+    comp.dataset.mode = "desouder";
+  } else {
+  comp.dataset.mode = "souder";
   if (best){
     var pr = document.createElement("div"); pr.className = "paire";
     var bx = document.createElement("b"); bx.textContent = etiq(lab, best.x);
@@ -767,6 +796,7 @@ function dessine(){
   bt.textContent = "Souder"; bt.disabled = !best;
   bt.onclick = function(){ if (best) applique(best.x, best.y); };
   comp.appendChild(bt);
+  }
 
   /* transport */
   $("undo").disabled = S.hist.length < 2;
@@ -898,12 +928,39 @@ function applique(x, y){
   if (S.hi < S.hist.length - 1) S.hist = S.hist.slice(0, S.hi + 1);
   var r = souder(ents(), x, y);
   if (!r.neufs.length) return;
+  S.paires[x + y] = [x, y];        // de quoi le défaire plus tard
   S.hist.push(r.ents); S.hi = S.hist.length - 1;
   // Les sections inférées portaient sur la bande d'AVANT : elles ne veulent
   // plus rien dire dès qu'on soude ou qu'on remonte l'historique.
-  S.sel = []; S.neufs = r.neufs; S.flash = r.neufs.length; S.phrases = null;
+  S.sel = []; S.neufs = r.neufs; S.flash = r.neufs.length;
+  if (!S.auto) S.phrases = null;      // sinon l'inférence se refait juste après
   AU.blips(r.neufs.length);
   dessine();
+  if (S.auto) infere();
+}
+
+/* DÉSOUDER — l'inverse exact de souder, et pour la même raison : Louis,
+   2026-08-14, « le point bloquant était que des fois on soudait au mauvais
+   endroit et on décale tout le morceau ; ici on peut justement souder et
+   désouder activement et donc donner le bon prior de frontières ». Une
+   soudure ratée ne coûte donc plus l'historique entier, juste un geste.
+   Comme la soudure, ça s'applique PARTOUT : c'est la même règle qu'on retire. */
+function desoude(c){
+  var d = S.paires[c];
+  if (!d) return;
+  AU.stop();
+  if (S.hi < S.hist.length - 1) S.hist = S.hist.slice(0, S.hi + 1);
+  var E = ents(), out = [];
+  for (var i=0;i<E.length;i++){
+    if (E[i].c !== c){ out.push(E[i]); continue; }
+    var nG = d[0].length;                        // le contenu porte sa longueur
+    out.push({c: d[0], j: E[i].j, n: nG});
+    out.push({c: d[1], j: E[i].j + nG, n: E[i].n - nG});
+  }
+  S.hist.push(out); S.hi = S.hist.length - 1;
+  S.sel = []; S.neufs = null;
+  dessine();
+  if (S.auto) infere();
 }
 
 bande.addEventListener("click", function(ev){
@@ -990,25 +1047,41 @@ $("regl").oninput = function(){
    appliquer qui re-infère les sections via l'algo des phrases à 4 mots, mais
    avec nos sections déjà fixées ». Les jetons partent tels qu'ils sont sur la
    bande : l'algorithme les prolonge, il ne peut pas les défaire. */
-$("appl").onclick = function(){
-  var b = $("appl"), E = ents(), jetons = [];
+/* L'INFÉRENCE, rejouée à chaque geste une fois qu'on l'a demandée une fois.
+   Louis, 2026-08-14 : « dès qu'on crée une section, tous les autres sont
+   inférés en direct, et nous on peut corriger comme ça en direct ». Mesuré :
+   0,15 ms par morceau côté serveur, donc la boucle ne coûte rien. */
+var enVol = 0;
+function infere(){
+  var E = ents(), jetons = [], moi = ++enVol;
   for (var i=0;i<E.length;i++) jetons.push([E[i].j, E[i].j + E[i].n, E[i].c]);
-  b.disabled = true; b.textContent = "…";
+  $("appl").textContent = "…";
   fetch("/api/phrases4", {
     method: "POST", headers: {"Content-Type": "application/json"},
     body: JSON.stringify({jetons: jetons, bornes: X0})
   }).then(function(r){ return r.json(); }).then(function(d){
-    b.disabled = false; b.textContent = "Appliquer — inférer les sections";
+    if (moi !== enVol) return;                 // un geste plus récent a gagné
+    majBoutonAppl();
     if (!d || d.error || !d.sections){
-      $("note").textContent = "L'inférence n'a pas répondu" + (d && d.error ? " (" + d.error + ")" : "") + ".";
+      $("note").textContent = "L'inférence n'a pas répondu"
+        + (d && d.error ? " (" + d.error + ")" : "") + ".";
       return;
     }
-    S.phrases = d.sections; S.cible = d.cible;
+    S.phrases = d.sections; S.cible = d.cible; S.auto = true;
     dessine();
   })["catch"](function(e){
-    b.disabled = false; b.textContent = "Appliquer — inférer les sections";
+    if (moi !== enVol) return;
+    majBoutonAppl();
     $("note").textContent = "L'inférence n'a pas répondu (" + e + ").";
   });
+}
+function majBoutonAppl(){
+  $("appl").textContent = S.auto ? "Inférence en direct — arrêter"
+                                 : "Appliquer — inférer les sections";
+}
+$("appl").onclick = function(){
+  if (S.auto){ S.auto = false; S.phrases = null; majBoutonAppl(); dessine(); return; }
+  infere();
 };
 
 $("expo").onclick = function(){
