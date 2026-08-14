@@ -1029,19 +1029,9 @@ window.APP = (function(){
         {inline:true, height:SZ.control, font:13});
       row.appendChild(sg); return row;
     }
-    // Soudure (Louis, 2026-08-13): le découpage joué à la main — la chanson en
-    // bande de jetons, on soude deux voisins et ça s'applique partout. EN TÊTE
-    // de la feuille: c'est une ACTION, pas une préférence, et sous les neuf
-    // réglages elle tombait hors de l'écran à 390px. Page à part
-    // (/soudure/<file>), donc navigation pleine page: elle porte son propre
-    // retour vers ce chart.
-    if(S.model && S.model.file){
-      const soudRow=kitButton("Souder les sections", ()=>{
-        window.location = "/soudure/" + encodeURIComponent(S.model.file);
-      });
-      soudRow.style.width="100%";
-      body.appendChild(soudRow);
-    }
+    // Soudure a quitté cette feuille le 2026-08-14 : c'est un outil de
+    // sections, pas une préférence, et il vit maintenant dans le ruban
+    // Annotate à côté de Set bar 1 (voir buildRibbon).
     body.appendChild(seg("Theme",[["light","Light"],["dark","Dark"]],()=>PREF.theme,v=>{ PREF.theme=v; try{localStorage.setItem("harmTheme",v);}catch(e){} applyTheme(); }));
     body.appendChild(seg("Notation",[["normal","Normal"],["compact","Compact"]],()=>PREF.notation,v=>{ PREF.notation=v; try{localStorage.setItem("harmNotation",v);}catch(e){} }));
     body.appendChild(seg("Key colours",[["on","On"],["off","Off"]],()=>PREF.cof?"on":"off",v=>{ PREF.cof=(v==="on"); try{localStorage.setItem("harmCof",PREF.cof?"1":"0");}catch(e){} }));
@@ -1331,25 +1321,14 @@ window.APP = (function(){
         // on chord changes" per user's explicit choice — no accompaniment
         // synth). Persists across relaunches like librarySort.
         metronome:(()=>{ try{return localStorage.getItem("harmMetronome")==="1";}catch(e){return false;} })(),
-        billboard:[], billboardLoading:false, billboardLoaded:false,
-        // 2026-07-18: bar-merge SUGGESTIONS overlay (ported from the baked
-        // chart_interactive.py template's #suggest-mode-btn — see loadModel()
-        // and paintSuggestions() below for the full port notes).
-        // suggHighlightFamily: 2026-07-18 later same day, user request — a
-        // tapped bar's whole "family" (its connected component in the
-        // candidate-pair graph: a pairs with b, b pairs with c => a/b/c are
-        // one family) highlights together so all mutually-similar bars are
-        // visible at a glance, not just the one pair the badge names.
-        suggMode:false, suggCandidates:null, suggDismissed:new Set(), suggConfirmed:new Set(),
-        suggHighlightFamily:null,
-        // 2026-07-18, later same day: SECTION-level (8-bar) suggestions —
-        // see paintSectionSuggestions() below for the full rationale. Kept
-        // as separate state from the bar-level suggMode fields above (not
-        // reused) since the two tools have different data shapes (block
-        // pairs of 8-bar RANGES vs single bar indices) and different
-        // confidence semantics that must never be conflated.
-        sectSuggMode:false, sectSuggCandidates:null, sectSuggMeta:{},
-        sectSuggDismissed:new Set(), sectSuggConfirmed:new Set() };
+        billboard:[], billboardLoading:false, billboardLoaded:false };
+        // Les deux overlays de SUGGESTIONS (fusion de mesures 2026-07-18,
+        // fusion de sections le même jour) ont été retirés le 2026-08-14 sur
+        // décision de Louis. Ils étaient doublement morts : leurs endpoints
+        // de candidats n'ont jamais existé sur ce serveur, et leurs deux
+        // boutons d'armement (suggestToggleBtn / sectionSuggestToggleBtn)
+        // n'étaient montés nulle part — on ne pouvait même pas les allumer.
+        // Le seul outil de sections gardé est Soudure (/soudure/<file>).
     S.coach=(S.piano==="follow");
     // 2026-07-18: deep-link support — /chart/<file> (serve_chart) now
     // redirects here as /?open=<file> for any chart that doesn't carry a
@@ -1588,8 +1567,18 @@ window.APP = (function(){
 
     const foot=el("div",
       `flex:0 0 auto;padding:16px 20px calc(18px + env(safe-area-inset-bottom));display:flex;gap:10px;`);
-    foot.appendChild(kitButton("Enregistrer", ()=>go("record"), {height:52, grow:true}));
-    foot.appendChild(kitButton("Jam",         ()=>go("jam"),    {height:52, grow:true}));
+    // Enregistrer et Jam restent EN PLACEHOLDER (Louis, 2026-08-14). Leurs
+    // écrans existent, mais les endpoints qu'ils appellent
+    // (/api/record-analyze, /api/jam/start|chunk|stop) n'ont jamais été
+    // servis ici : y entrer menait à un REC / START qui échouait sans rien
+    // dire. Le bouton reste — il tient sa place dans la maquette — mais il
+    // dit ce qu'il en est au lieu d'ouvrir une impasse. Rebrancher la route
+    // suffira à rendre le `go(...)`.
+    const pasBranche=(quoi)=>()=>toast(quoi+" : pas encore branché");
+    foot.appendChild(kitButton("Enregistrer", pasBranche("Enregistrer"),
+                               {height:52, grow:true, state:"off"}));
+    foot.appendChild(kitButton("Jam",         pasBranche("Jam"),
+                               {height:52, grow:true, state:"off"}));
     w.appendChild(foot);
     return w;
   }
@@ -2709,11 +2698,6 @@ window.APP = (function(){
     // `keepTool` est le rechargement INTERNE de l'outil (passage en vue
     // dépliée et retour) : là, il ne change pas de morceau.
     if(!opts.keepTool){ S.sectTool=null; S._foldedModel=null; }
-    // New song → old song's candidates/dismissals/confirmations don't apply.
-    S.suggMode=false; S.suggCandidates=null;
-    S.suggDismissed=new Set(); S.suggConfirmed=new Set();
-    S.sectSuggMode=false; S.sectSuggCandidates=null; S.sectSuggMeta={};
-    S.sectSuggDismissed=new Set(); S.sectSuggConfirmed=new Set();
     S.audioUrl=m.audio_url||"";
     // S.timeIndex ([{i, t0, t1, rep}] over every chord × pass, in time order) is
     // built AFTER the bar spans below — chord times are now derived from the
@@ -3132,7 +3116,15 @@ window.APP = (function(){
     // §2 double-FORM fix: the rail above is the one form surface.
     if(S.mode==="annotate") sheet.appendChild(buildRibbon());
     sheet.appendChild(buildRefineBand());
-    sheet.appendChild(buildSectionTool());
+    // buildSectionTool() n'est plus monté (Louis, 2026-08-14 : « pour les
+    // sections, tu ne gardes que le nouvel outil de merging de sections
+    // (soudure) »). C'était la SECONDE porte vers le tracé au doigt — celle
+    // du panneau au-dessus de la grille, ajoutée le 2026-08-10 par f85aa75
+    // « section tool: opens on what already exists, on every chart ». La
+    // machinerie reste en place (openSectionTool, attachSectionDrag,
+    // /api/section-repeats, /api/section-marks) : rien n'est perdu, seule
+    // l'entrée disparaît. state/section_marks/ est vide, donc aucune
+    // annotation de Louis ne dépend de ce chemin.
     sheet.appendChild(buildIReal());
     body.appendChild(sheet);
     w.appendChild(body);
@@ -3597,7 +3589,7 @@ window.APP = (function(){
         // * CHORDS / NO-CHORD. Still clickable in annotate mode to override.
         if(ch.nc){
           item.appendChild(el("div",`font:italic 600 ${narrow?15:18}px ${SERIF};color:${T.faint};opacity:.55;`,"N.C."));
-          if(S.mode==="annotate" && !S.mergeMode && !S.suggMode && !S.sectSuggMode) item.onclick=()=>openEditor(idx);
+          if(S.mode==="annotate" && !S.mergeMode) item.onclick=()=>openEditor(idx);
           cell.appendChild(item);
           return;
         }
@@ -3628,7 +3620,7 @@ window.APP = (function(){
             `font:italic 600 ${narrow?9:10.5}px ${SERIF};color:${ok?T.faint:T.accent};opacity:${ok?.75:1};margin-top:1px;white-space:nowrap;`,
             "GT "+gt.text+(gt.extra?"…":"")));
         }
-        if(S.mode==="annotate" && !S.mergeMode && !S.suggMode && !S.sectSuggMode) item.onclick=()=>openEditor(idx);
+        if(S.mode==="annotate" && !S.mergeMode) item.onclick=()=>openEditor(idx);
         // Read/Analyse à l'arrêt: tap → la grande feuille (piano + voicings —
         // c'est là qu'on édite). En LECTURE Read (§6 delta2): "tap" fait
         // monter la carte de voicing par-dessus la grille sans couper
@@ -3691,8 +3683,6 @@ window.APP = (function(){
     if(sectToolOn()) attachSectionDrag(grid);
     paintSpans();
     paintSectionTool();
-    if(S.mode==="annotate" && S.suggMode) paintSuggestions();
-    if(S.mode==="annotate" && S.sectSuggMode) paintSectionSuggestions();
     setPlayhead(S.playBar, S.playRep, S.playTime);
     return frame;
   }
@@ -4457,11 +4447,11 @@ window.APP = (function(){
   //   * "Pool two passes" — POST /api/reinfer is aliased onto the lock
   //     rescorer, which answers a merge with a correct NO-OP ("a merge has no
   //     lock-lattice equivalent yet") — a button that does nothing;
-  //   * "Bar suggestions" / "Section suggestions" — neither candidates
-  //     endpoint exists here; both always answered "no suggestions yet".
-  // Their overlay machinery (mergeMode/suggMode/sectSuggMode below) stays
-  // dormant for the day the endpoints land. "Set bar 1" is the in-app offset
-  // tool now (openBar1Sheet), not a link to a page this server never had.
+  //   * "Bar suggestions" / "Section suggestions" — retirés le 2026-08-14 :
+  //     leurs endpoints de candidats n'ont jamais existé et leurs boutons
+  //     d'armement n'étaient montés nulle part.
+  // "Set bar 1" is the in-app offset tool now (openBar1Sheet), not a link to
+  // a page this server never had.
   function buildRibbon(){
     const wrap=el("div","margin:4px 3px 16px;");
     wrap.appendChild(kitLegend("linear-gradient(90deg,#a8281f,#bd6a22,#9a6a1e,"+T.ink+")",
@@ -4474,16 +4464,19 @@ window.APP = (function(){
         g.appendChild(el("div",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`,caption));
         g.appendChild(btn); return g;
       };
-      tools.appendChild(box("the grid",
-        kitButton("Set bar 1", openBar1Sheet, {note:"the song's true start"})));
+      tools.appendChild(box("la grille",
+        kitButton("Set bar 1", openBar1Sheet, {note:"le vrai départ du morceau"})));
+      // Un SEUL outil de sections (Louis, 2026-08-14): Soudure. Il remplace
+      // « Marquer les sections » (le tracé au doigt) et « Check merges » (qui
+      // ouvrait /debug/section-merge-game dans un autre onglet) — trois
+      // portes pour une même question, dont deux légendes côte à côte qui
+      // disaient la même chose en deux langues. Il vivait dans la feuille Aa,
+      // sous l'intitulé PRÉFÉRENCES, alors que c'est un outil : sa place est
+      // ici, à côté de Set bar 1.
       tools.appendChild(box("les sections",
-        kitButton(sectToolOn()?"Fermer l'outil":"Marquer les sections",
-          ()=>{ sectToolOn()?closeSectionTool():openSectionTool(); },
-          {note:"au doigt", state:sectToolOn()?"on":undefined})));
-      tools.appendChild(box("the sections",
-        kitButton("Check merges",
-          ()=>{ window.open("/debug/section-merge-game?song="+encodeURIComponent(m.file), "_blank"); },
-          {note:"by ear"})));
+        kitButton("Souder les sections",
+          ()=>{ window.location="/soudure/"+encodeURIComponent(m.file); },
+          {note:"à l'oreille"})));
       wrap.appendChild(tools);
     }
     return wrap;
@@ -4599,273 +4592,6 @@ window.APP = (function(){
     raf=requestAnimationFrame(frame);
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
-  //  BAR-MERGE SUGGESTIONS (2026-07-18) — ported from the baked
-  //  chart_interactive.py `_TEMPLATE`'s #suggest-mode-btn overlay (see
-  //  docs/known_issues.md "REFRAME: on-chart bar-merge SUGGESTIONS overlay")
-  //  into this SPA's own JS-driven renderer, ADDITIVE to the existing
-  //  "⋈ Pool two passes" swipe-select tool above (S.mergeMode/S.spans —
-  //  untouched, still free manual span selection). Suggestions are the
-  //  algorithmic ones from scratchpad/bar_merge_candidates.py, surfaced as
-  //  coloured family outlines directly on the chart grid; tapping one opens a bottom
-  //  sheet (this app's own overlay()/sheetBox() pattern, not the baked
-  //  template's custom popover — kept visually consistent with every other
-  //  modal in this SPA) with Confirm/Dismiss. Confirm reuses the SAME
-  //  /api/reinfer/<file> preview-only re-decode path as "⋈ Pool two passes"
-  //  (via runFlow — see the `ok` return value added there for this purpose),
-  //  so results surface exactly like a manual pool: toast + before/after
-  //  diff banner, nothing persisted to the served chart (matches the baked
-  //  overlay's and "Re-infer with my fixes"'s documented behaviour).
-  //  Mutually exclusive with mergeMode (both alter the grid overlay and use
-  //  bottom sheets) — toggling one off the other, per the tog.onclick above
-  //  and toggleSuggestions() below.
-  // ═══════════════════════════════════════════════════════════════════════
-  // UI refresh 2026-08-08: kitButton, word label (the gold pill + bulb emoji
-  // are out of the design system). The on-chart family outlines below keep
-  // their own colours — that is data, not chrome.
-  function suggestToggleBtn(){
-    return kitButton("Bar suggestions", toggleSuggestions, {state:S.suggMode?"on":"off"});
-  }
-  function suggKeyOf(c){ return c.bars[0]+"-"+c.bars[1]; }
-  async function toggleSuggestions(){
-    S.suggMode=!S.suggMode;
-    if(S.suggMode){ S.mergeMode=false; S.spans=[]; S._drag=null; S.sectSuggMode=false; }
-    go("chart");
-    if(!S.suggMode || !S.model || !S.model.file) return;
-    if(S.suggCandidates===null){
-      try{
-        const data=await api.get("/api/bar-merge-candidates/"+S.model.file);
-        S.suggCandidates=(data && data.candidates) || [];
-      }catch(e){ S.suggCandidates=[]; }
-      // Only repaint if the user is still in suggest mode on the same song —
-      // a slow fetch shouldn't clobber a screen the user has since left.
-      if(S.suggMode && S.screen==="chart") go("chart");
-    }
-  }
-  // 2026-07-18, later same day — REDESIGNED per user feedback: no gold
-  // circular badge/emoji. A tapped bar's whole "family" (its connected
-  // component in the candidate-pair graph — a pairs with b, b pairs with c
-  // => a/b/c are one family) should be identifiable and highlightable
-  // together by COLOR, directly on the chord cells, not via a small
-  // separate icon. suggFamilies() computes bar -> family-index from the
-  // (non-dismissed) candidate pairs via union-find; every bar in a family
-  // gets an outline in that family's color (always visible, so families are
-  // identifiable at a glance without tapping); tapping ANY cell in a family
-  // fills that whole family with a stronger tint (S.suggHighlightFamily)
-  // and opens the confirm sheet for the specific pair that bar belongs to
-  // (its first non-dismissed candidate).
-  const SUGG_FAMILY_COLORS=["#2a78d6","#008300","#e34948","#4a3aa7","#eb6834","#1baf7a","#e87ba4","#c98500"];
-  function suggFamilies(){
-    const parent={};
-    function find(x){ if(!(x in parent)) parent[x]=x; while(parent[x]!==x){ parent[x]=parent[parent[x]]; x=parent[x]; } return x; }
-    function union(a,b){ const ra=find(a), rb=find(b); if(ra!==rb) parent[Math.max(ra,rb)]=Math.min(ra,rb); }
-    (S.suggCandidates||[]).forEach(c=>{ if(!S.suggDismissed.has(suggKeyOf(c))) union(c.bars[0], c.bars[1]); });
-    const famIdx={}, order=[];
-    Object.keys(parent).forEach(k=>{ const r=find(+k); if(!(r in famIdx)){ famIdx[r]=order.length; order.push(r); } });
-    const byBar={}, membersByFam=[];
-    Object.keys(parent).forEach(k=>{
-      const bar=+k, f=famIdx[find(bar)];
-      byBar[bar]=f;
-      (membersByFam[f]=membersByFam[f]||[]).push(bar);
-    });
-    return {byBar, membersByFam};
-  }
-  function firstCandForBar(bar){
-    return (S.suggCandidates||[]).find(c=>!S.suggDismissed.has(suggKeyOf(c)) && c.bars.includes(bar));
-  }
-  // Renders directly onto S._cells (built fresh by buildIReal() on every
-  // render — this runs at the end of that function, mirroring paintSpans()).
-  function paintSuggestions(){
-    if(!S._cells || !S.suggCandidates || !S.suggCandidates.length) return;
-    const byBar={}; S._cells.forEach(c=>{ byBar[c.bar]=c; });
-    const {byBar:famOfBar, membersByFam}=suggFamilies();
-    Object.keys(famOfBar).forEach(k=>{
-      const bar=+k, cell=byBar[bar]; if(!cell) return;
-      const cand=firstCandForBar(bar);
-      const confirmed=!!cand && S.suggConfirmed.has(suggKeyOf(cand));
-      const color=confirmed?"#1d8a1d":SUGG_FAMILY_COLORS[famOfBar[bar]%SUGG_FAMILY_COLORS.length];
-      const highlighted=S.suggHighlightFamily===famOfBar[bar];
-      cell.el.style.outline=`2px solid ${color}`;
-      cell.el.style.outlineOffset="-1px";
-      cell.el.style.borderRadius="6px";
-      cell.el.style.background=highlighted?color+"26":confirmed?color+"14":"";
-      cell.el.style.transition="background .15s ease";
-      if(!confirmed && cand){
-        cell.el.style.cursor="pointer";
-        cell.el.onclick=(e)=>{
-          e.stopPropagation(); e.preventDefault();
-          S.suggHighlightFamily=famOfBar[bar];
-          go("chart");
-          openSuggestionSheet(cand);
-        };
-      }
-      cell.el.title=confirmed?"Merged":
-        "Family of "+( (membersByFam[famOfBar[bar]]||[]).length )+
-        " similar bar(s) — tap to review";
-    });
-  }
-  function openSuggestionSheet(cand){
-    const back=overlay(); const sheet=sheetBox(); sheet.appendChild(handle());
-    sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:4px;`,
-      "Bar "+(cand.bars[0]+1)+" ↔ Bar "+(cand.bars[1]+1)));
-    sheet.appendChild(el("div",`text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:16px;`,
-      Math.round(cand.confidence*100)+"% chroma similarity — the algorithm thinks these bars are the same chord. Pool them for a sharper reading?"));
-    // Close the sheet FIRST, then kick off the async flow — mirrors
-    // openMerge()'s go2.onclick pattern below. runFlow() shows its own
-    // spinner overlay with a progress clock, and (being appended straight to
-    // `root`) go("chart") inside applyResp() would otherwise yank this sheet
-    // out from under an in-progress close animation, since go() clears every
-    // root child except the persistent transport bar.
-    const yes=el("button",`width:100%;border:none;background:${T.accent};color:#fff;border-radius:12px;padding:14px;font:600 14px ${UI};cursor:pointer;`,"Merge & re-infer");
-    yes.onclick=()=>{ closeOverlay(back); confirmSuggestion(cand); };
-    sheet.appendChild(yes);
-    const no=el("button",`width:100%;margin-top:10px;border:none;background:transparent;color:${T.accent};font:600 13px ${UI};padding:12px;min-height:44px;cursor:pointer;`,"Different — dismiss");
-    no.onclick=()=>{ S.suggDismissed.add(suggKeyOf(cand)); closeOverlay(back); go("chart"); };
-    sheet.appendChild(no);
-    const cancel=el("button",`width:100%;margin-top:4px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:44px;cursor:pointer;`,"Cancel");
-    cancel.onclick=()=>closeOverlay(back);
-    sheet.appendChild(cancel);
-    back.appendChild(sheet); root.appendChild(back);
-  }
-  // Reuses runFlow (the SAME preview-only /api/reinfer round-trip "⋈ Pool
-  // two passes" already uses) rather than a parallel fetch — one code path
-  // for "pool these two spans and show me the diff", whether the spans came
-  // from a manual swipe or an algorithmic suggestion. runFlow already
-  // handles the spinner, the ~20s-decode clock, error/rejection toasts, and
-  // (via applyResp) the before/after propagation banner + go("chart").
-  async function confirmSuggestion(cand){
-    const ok=await runFlow({confirms:[], merges:[{spans:cand.spans}]},
-      "Pooling suggested bars…",
-      "bar "+(cand.bars[0]+1)+" ↔ bar "+(cand.bars[1]+1)+" — about 20 seconds", true);
-    if(ok){ S.suggConfirmed.add(suggKeyOf(cand)); go("chart"); }
-    return ok;
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════
-  //  SECTION-LEVEL (8-bar) SUGGESTIONS (2026-07-18, later same day) —
-  //  section-scale analog of the BAR-MERGE SUGGESTIONS block just above,
-  //  consuming scratchpad/section_merge_candidates_<slug>_grain8.json via
-  //  /api/section-merge-candidates/<file> (see docs/known_issues.md
-  //  "SECTION-level (8-bar) repeat-detection suggestion tool"). Deliberately
-  //  a SEPARATE mode/data path, not a parametrised reuse of the bar tool
-  //  above, for two reasons that matter to the user reading this code:
-  //   1. Data shape differs: candidates carry 8-bar RANGES per side
-  //      (`bars:[[b0,b1),[b0,b1)]`), not single bar indices, so the whole
-  //      family/union-find highlighting scheme above doesn't apply as-is.
-  //   2. Confidence differs A LOT and must not read as equally trustworthy:
-  //      corpus-validated precision here is ~45-55% at usable recall
-  //      (ROC-AUC 0.674 best case) vs the bar tool's ~84-92% (AUC 0.99) —
-  //      see known_issues.md for the full numbers. Every UI surface below
-  //      (toggle button, status line, sheet copy) says so explicitly rather
-  //      than just inheriting the bar tool's "algorithm thinks" framing.
-  //
-  //  Rendering choice (an 8-bar span is 2 full rows of the 4-col grid, so
-  //  tinting all 16 bars of every one of up to 60 candidates at once would
-  //  be unreadable): each candidate gets ONE color (cycled from
-  //  SECTION_SUGG_COLORS, not the bar tool's family palette, so the two
-  //  tools never look confusable on screen); only the top SECT_SUGG_MAX_SHOWN
-  //  (rank-ordered, i.e. highest real-audio confidence first — the file is
-  //  pre-sorted) are painted, each as a FAINT outlined tint over its
-  //  own two 8-bar spans (so the matched extent is visible at a glance) plus
-  //  a small tappable "review" corner badge on just the FIRST bar of each side
-  //  (a full badge-per-bar would be as cluttered as a full tint). If two
-  //  different candidates happen to start on the same bar, the higher-
-  //  ranked one wins the badge/tint for that cell (first-write-wins below);
-  //  the lower one is still reachable by scrolling the ranked list, not
-  //  lost — just not simultaneously paintable on that cell.
-  // ═══════════════════════════════════════════════════════════════════════
-  const SECTION_SUGG_COLORS=["#0e7c86","#7c3aed","#c2410c","#0f766e","#a21caf","#65a30d","#be123c","#0369a1"];
-  const SECT_SUGG_MAX_SHOWN=15;
-  // Same kitButton treatment; the much-weaker precision of this tool is said
-  // in words (status line + sheet copy) rather than by a violet pill.
-  function sectionSuggestToggleBtn(){
-    return kitButton("Section suggestions", toggleSectionSuggestions, {state:S.sectSuggMode?"on":"off"});
-  }
-  function sectKeyOf(c){ return c.blocks[0]+"-"+c.blocks[1]; }
-  async function toggleSectionSuggestions(){
-    S.sectSuggMode=!S.sectSuggMode;
-    if(S.sectSuggMode){ S.mergeMode=false; S.suggMode=false; S.spans=[]; S._drag=null; }
-    go("chart");
-    if(!S.sectSuggMode || !S.model || !S.model.file) return;
-    if(S.sectSuggCandidates===null){
-      try{
-        const data=await api.get("/api/section-merge-candidates/"+S.model.file);
-        S.sectSuggCandidates=(data && data.candidates) || [];
-        S.sectSuggMeta=(data && data.meta) || {};
-      }catch(e){ S.sectSuggCandidates=[]; S.sectSuggMeta={}; }
-      // Same slow-fetch guard as toggleSuggestions() above — don't clobber a
-      // screen the user has since navigated away from.
-      if(S.sectSuggMode && S.screen==="chart") go("chart");
-    }
-  }
-  // Renders onto S._cells, same convention as paintSuggestions() — runs at
-  // the end of buildIReal(), after paintSpans()/paintSuggestions().
-  function paintSectionSuggestions(){
-    if(!S._cells || !S.sectSuggCandidates || !S.sectSuggCandidates.length) return;
-    const byBar={}; S._cells.forEach(c=>{ byBar[c.bar]=c; });
-    const cands=S.sectSuggCandidates.filter(c=>!S.sectSuggDismissed.has(sectKeyOf(c))).slice(0,SECT_SUGG_MAX_SHOWN);
-    const startBarOwner={};
-    cands.forEach((c,ci)=>{
-      const key=sectKeyOf(c);
-      const confirmed=S.sectSuggConfirmed.has(key);
-      const color=confirmed?"#1d8a1d":SECTION_SUGG_COLORS[ci%SECTION_SUGG_COLORS.length];
-      c.bars.forEach(span=>{
-        for(let b=span[0]; b<span[1]; b++){
-          const cell=byBar[b]; if(!cell || cell.el.dataset.sectTinted) continue;
-          cell.el.style.background=color+"12";
-          // solid hairline, not dashed — dashed reads as "unfinished" (STYLE)
-          cell.el.style.outline=`1px solid ${color}`;
-          cell.el.style.outlineOffset="-1px";
-          cell.el.dataset.sectTinted="1";
-        }
-        const startBar=span[0];
-        if(!(startBar in startBarOwner)) startBarOwner[startBar]={cand:c, color, confirmed};
-      });
-    });
-    Object.keys(startBarOwner).forEach(k=>{
-      const bar=+k, info=startBarOwner[k], cell=byBar[bar]; if(!cell) return;
-      const badge=el("div",`position:absolute;right:2px;top:3px;font:700 10px ${UI};background:${info.color};color:#fff;border-radius:5px;padding:1px 4px;z-index:3;line-height:1.3;cursor:${info.confirmed?"default":"pointer"};`,
-        info.confirmed?"merged":"review");
-      cell.el.appendChild(badge);
-      cell.el.title=info.confirmed?"Section merge confirmed":
-        "Suggested 8-bar section repeat (~45-55% precision) — tap to review";
-      if(!info.confirmed){
-        badge.onclick=(e)=>{ e.stopPropagation(); e.preventDefault(); openSectionSuggestionSheet(info.cand); };
-      }
-    });
-  }
-  function openSectionSuggestionSheet(cand){
-    const back=overlay(); const sheet=sheetBox(); sheet.appendChild(handle());
-    const b0=cand.bars[0], b1=cand.bars[1];
-    sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:4px;`,
-      "Bars "+(b0[0]+1)+"–"+b0[1]+" ↔ Bars "+(b1[0]+1)+"–"+b1[1]));
-    // Deliberately softer framing than the bar tool's "the algorithm thinks
-    // these bars are the same chord" — that phrasing would overstate this
-    // tool's corpus-validated precision (~45-55% vs the bar tool's ~85-92%).
-    sheet.appendChild(el("div",`text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:10px;`,
-      Math.round(cand.confidence*100)+"% audio similarity over this 8-bar span. This is a much weaker "
-      +"signal than the bar-level tool — worth a listen, not a strong bet. Are these really the same section?"));
-    sheet.appendChild(el("div",`text-align:center;font:600 10.5px ${UI};color:${T.faint};margin-bottom:16px;`,
-      "rank order, not a probability — use your ear before confirming"));
-    const yes=el("button",`width:100%;border:none;background:${T.accent};color:#fff;border-radius:12px;padding:14px;font:600 14px ${UI};cursor:pointer;`,"Sounds the same — pool & re-infer");
-    yes.onclick=()=>{ closeOverlay(back); confirmSectionSuggestion(cand); };
-    sheet.appendChild(yes);
-    const no=el("button",`width:100%;margin-top:10px;border:none;background:transparent;color:${T.accent};font:600 13px ${UI};padding:12px;min-height:44px;cursor:pointer;`,"Different — dismiss");
-    no.onclick=()=>{ S.sectSuggDismissed.add(sectKeyOf(cand)); closeOverlay(back); go("chart"); };
-    sheet.appendChild(no);
-    const cancel=el("button",`width:100%;margin-top:4px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:44px;cursor:pointer;`,"Cancel");
-    cancel.onclick=()=>closeOverlay(back);
-    sheet.appendChild(cancel);
-    back.appendChild(sheet); root.appendChild(back);
-  }
-  async function confirmSectionSuggestion(cand){
-    const b0=cand.bars[0], b1=cand.bars[1];
-    const ok=await runFlow({confirms:[], merges:[{spans:cand.spans}]},
-      "Pooling suggested section…",
-      "bars "+(b0[0]+1)+"–"+b0[1]+" ↔ bars "+(b1[0]+1)+"–"+b1[1]+" — about 20 seconds", true);
-    if(ok){ S.sectSuggConfirmed.add(sectKeyOf(cand)); go("chart"); }
-    return ok;
-  }
 
   // ── persistent transport — LOCAL audio, survives screen re-renders ───────
   // ── PROMPTER (2026-08-05, Louis): the /compare karaoke reel (commit

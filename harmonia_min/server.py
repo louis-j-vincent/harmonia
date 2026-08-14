@@ -302,6 +302,66 @@ def library():
     return jsonify({"charts": charts, "capabilities": _capabilities()})
 
 
+@app.post("/api/irealb-search")
+def irealb_search():
+    """Chercher un morceau dans la communauté iReal Pro.
+
+    Le moteur est celui de l'ancienne app (`harmonia.irealb_fetcher`), appelé
+    tel quel : deux sources (les ~2200 standards, puis le forum), fusionnées
+    et dédoublonnées. Rien n'est réécrit ici — une seconde recherche iReal
+    aurait été une seconde vérité pour la même question.
+    """
+    data = request.get_json(silent=True) or {}
+    title = (data.get("title") or "").strip()
+    if not title:
+        return jsonify({"error": "No title provided"}), 400
+    query = f"{title} {(data.get('artist') or '').strip()}".strip()
+    try:
+        from harmonia.irealb_fetcher import search_community
+        return jsonify({"results": search_community(query)})
+    except Exception as exc:                              # noqa: BLE001
+        log.exception("irealb-search failed")
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.get("/api/irealb-export/<file>")
+def irealb_export(file):
+    """Un chart → une URL `irealb://` qu'iReal Pro ouvre directement.
+
+    L'exportateur est celui de l'ancienne app
+    (`harmonia.irealb_export.chart_model_to_irealb_url`). Il attend le
+    ChartModel de `harmonia.output.chart_model` ; le nôtre en diffère sur un
+    seul point — un silence s'y écrit `nc: true` là où l'autre écrit
+    `q: "N"`. On PROJETTE donc notre modèle sur le sien plutôt que de forker
+    l'exportateur : deux exportateurs, ce serait deux charts iReal
+    différents pour le même morceau.
+    """
+    p = CHARTS_DIR / f"{Path(file).stem}.json"
+    if not p.exists():
+        return jsonify({"error": "no such chart"}), 404
+    m = json.loads(p.read_text(encoding="utf-8"))
+    projete = {
+        "title": m.get("title") or "Untitled",
+        "key": m.get("key") or {"tonic": 0, "mode": "major"},
+        "sections": [
+            {"label": s.get("label") or "A", "reps": s.get("reps", 1),
+             "bars": [[{"root": c.get("root", 0),
+                        "q": "N" if c.get("nc") else (c.get("q") or "")}
+                       for c in bar]
+                      for bar in (s.get("bars") or [])]}
+            for s in (m.get("sections") or [])
+        ],
+    }
+    if not projete["sections"]:
+        return jsonify({"error": "ce chart n'a pas de sections à exporter"}), 400
+    try:
+        from harmonia.irealb_export import chart_model_to_irealb_url
+        return jsonify({"url": chart_model_to_irealb_url(projete)})
+    except Exception as exc:                              # noqa: BLE001
+        log.exception("irealb export failed for %s", file)
+        return jsonify({"error": str(exc)}), 500
+
+
 @app.get("/api/chart-model/<file>")
 def chart_model(file):
     p = CHARTS_DIR / f"{Path(file).stem}.json"

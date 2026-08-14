@@ -16,10 +16,15 @@ autre bouton. Le tri ci-dessous ne porte donc pas sur du code mort, mais sur
    englobante comme écran.
 2. Remontée de la chaîne d'appels de chaque écran, pour distinguer
    « atteignable » de « atteignable en théorie ».
-3. **Chaque endpoint appelé par l'app a été tapé sur le serveur qui tourne**,
-   avec sa vraie méthode HTTP. C'est ce qui a fait la différence : le tri par
-   lecture du code aurait raté les neuf entrées ci-dessous, qui ont l'air
-   parfaitement vivantes dans le source.
+3. **Chaque endpoint appelé par l'app a été tapé sur le serveur qui tourne.**
+   C'est ce qui a fait la différence : le tri par lecture du code aurait raté
+   les entrées ci-dessous, qui ont l'air parfaitement vivantes dans le source.
+4. **Puis la table de routage de Flask (`app.url_map`) comme juge de paix.**
+   Ajoutée après coup, et pas par excès de zèle : mon premier passage tapait
+   les routes avec une méthode HTTP devinée, et j'ai déclaré morte une
+   suppression de chart qui marche très bien (elle est en DELETE, je l'avais
+   appelée en GET). Une route absente et une route appelée de travers rendent
+   le même 404 — seul `url_map` distingue les deux.
 
 Le serveur répond aux inconnues par un 404 propre
 (`api_unimplemented`, `server.py:1127`) : « /api/… is not part of harmonia_min
@@ -31,7 +36,7 @@ milestone 1 ». Rien ne plante, donc rien ne se voit.
 |---|--------|-----|-------------------------------|----------|
 | 1 | **Enregistrer** | pied de la bibliothèque, 52 px pleine largeur | l'écran s'ouvre, `REC` échoue | `POST /api/record-analyze` |
 | 2 | **Jam** | pied de la bibliothèque, 52 px pleine largeur | l'écran s'ouvre, `START` échoue | `POST /api/jam/start\|chunk\|stop` |
-| 3 | **× supprimer un chart** | Mes charts | la ligne disparaît, **le fichier reste sur le disque** et le chart revient au rechargement — l'erreur est avalée par un `.catch(()=>{})` | `DELETE /api/chart/<file>` |
+| ~~3~~ | ~~× supprimer un chart~~ | Mes charts | **ERREUR DE MESURE, corrigée le 2026-08-14 : ça marche.** J'avais tapé la route en GET alors que l'app l'appelle en DELETE, et le 404 venait de ma requête, pas du serveur. Vérifié depuis sur une copie jetable : `{"ok":true}`, le fichier disparaît. La route est même documentée en tête de `server.py`. | `DELETE /api/chart/<file>` ✅ |
 | 4 | **Export to iReal Pro** | feuille *Share* | toast « Could not export » | `GET /api/irealb-export/<file>` |
 | 5 | **Recherche, mode iReal** | écran de recherche | zéro résultat, toujours | `POST /api/irealb-search` |
 | 6 | **Importer un chart iReal** | résultats de recherche | toast « Could not import that chart » | `POST /api/irealb-import` |
