@@ -1,5 +1,30 @@
 # Harmonia — Known Issues
 
+## 2026-08-14 (nuit, fin) — ANCRES MOLLES EN PRIOR DU LLM : LE CONTRAT S'INVERSE
+
+Louis : « avec le LLM, il nous faut des ancres MOLLES qui rentrent en prior du
+LLM, et plus on en a mieux c'est, ça lui donne de meilleures hypothèses de
+départ. » Si le LLM filtre, le détecteur ne vise plus la précision mais le
+RAPPEL. Le chiffre qui compte devient la couverture — le plafond que le LLM peut
+atteindre s'il ne prend que dans la liste :
+
+| réglage | ancres/morceau | couverture des frontières (±1) |
+|---|---|---|
+| Z=3,5 · K=5 (l'ancien « guide ») | 3,8 | 25 % |
+| Z=3,0 · K=4 | 7,6 | 41 % |
+| **Z=2,5 · K=3 (retenu pour le LLM)** | **13,2** | **59 %** |
+
+**LE RÉSULTAT QUI DÉCIDE DE L'ARCHITECTURE : même au réglage le plus généreux,
+la liste ne couvre que 59 %.** Les ancres ne peuvent donc pas être le MENU du
+LLM, seulement ses indices — il doit rester libre de couper là où aucun signal
+ne vote. C'est vérifié dans l'autre sens sur This Love : le LLM a trouvé 9 des
+10 frontières alors que 4 ancres dures seulement existaient.
+
+Le prompt le dit explicitement et donne la calibration mesurée (une mesure à 6-7
+signaux est juste 9 fois sur 10, une à 3-4 une fois sur trois), pour que le
+modèle sache quel crédit accorder à chaque ligne. `scripts/llm_forme.py`.
+
+
 ## 2026-08-14 (nuit, suite) — ÉTAPE 1 CORRIGÉE : LES ANCRES EN CONTRAINTE, C'EST NEUTRE
 
 `mots4.placer(..., ancres=())` — paramètre optionnel ajouté, comportement

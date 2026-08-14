@@ -186,11 +186,21 @@ def prompt_forme(stem, ancres=None):
     n = int(re.search(r"· (\d+) mesures", resume(stem).splitlines()[0]).group(1))
     anc = ""
     if ancres:
-        anc = ("\nDES SIGNAUX AUDIO INDÉPENDANTS (batterie, timbre, harmonie, voix, "
-               "intensité) tombent d'accord sur un changement à ces mesures :\n  "
-               + ", ".join(f"{b + 1} ({v} signaux sur 7)" for b, v, *_ in ancres)
-               + "\nCe sont des indices forts mais pas des certitudes : tu peux en "
-                 "écarter un si la forme dit clairement autre chose, en le justifiant.\n")
+        L = sorted(ancres, key=lambda a: -a[1])
+        anc = ("\nDES SIGNAUX AUDIO INDÉPENDANTS (batterie, timbre, harmonie, basse, "
+               "accords, voix, intensité) sont d'accord sur un changement à ces "
+               "mesures, de la plus soutenue à la moins soutenue :\n  "
+               + ", ".join(f"{b + 1} ({v}/7)" for b, v, *_ in L)
+               + "\n\nCOMMENT T'EN SERVIR — c'est important, la liste est trompeuse "
+                 "dans les deux sens. Elle n'est ni sûre ni complète : mesuré sur 18 "
+                 "morceaux, une mesure à 6 ou 7 signaux est une vraie frontière 9 fois "
+                 "sur 10, une mesure à 3 ou 4 signaux une fois sur trois — et cette "
+                 "liste, même complète, ne couvre que 59 % des vraies frontières. "
+                 "Donc : appuie-toi dessus quand elle confirme ce que disent les "
+                 "colonnes, écarte-la quand la forme dit clairement autre chose, et "
+                 "surtout N'HÉSITE PAS À COUPER LÀ OÙ AUCUN SIGNAL NE VOTE si la "
+                 "suite d'accords ou le chant le demandent. Le nombre entre "
+                 "parenthèses est le nombre de signaux, pas une probabilité.\n")
     return f"""Voici un morceau de pop/soul décrit mesure par mesure. Tu ne l'entends pas :
 tu lis le résultat d'une analyse audio automatique.
 
@@ -371,8 +381,11 @@ def main():
     if "--n" in sys.argv:
         n = int(sys.argv[sys.argv.index("--n") + 1])
     for s in stems:
-        A, *_ = detect(s)
-        d = forme(s, n_tirages=n, ancres=[a for a in A if a[4]],
+        # ancres MOLLES : réglage large (Louis, 2026-08-14 : « il nous faut des
+        # ancres molles qui rentrent en prior du LLM, et plus on en a mieux
+        # c'est »). C'est le LLM qui filtre, donc on vise le rappel.
+        A, *_ = detect(s, k=3, z=2.5, reseau=False)
+        d = forme(s, n_tirages=n, ancres=A,
                   rebuild="--rebuild" in sys.argv)
         gt = gt_de(s)
         ret = d.get("retenues", [])
