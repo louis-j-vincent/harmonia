@@ -194,10 +194,73 @@ def sweep():
 
 
 if __name__ == "__main__":
-    if "--sweep" in sys.argv:
+    if "--etape1" in sys.argv:
+        etape1()
+    elif "--sweep" in sys.argv:
         sweep()
     elif "--bench" in sys.argv:
         bench()
     else:
         for s in [a for a in sys.argv[1:] if not a.startswith("--")]:
             print(s, decouper(s))
+
+
+# ── ÉTAPE 1, VERSION CORRIGÉE : mots4 inchangé + les ancres en contrainte ───
+
+def une(stem, avec_ancres=True, voix=False):
+    """Un morceau : le découpage de la prod, avec ou sans la contrainte d'ancres.
+
+    C'est `bench_sections.une()` mot pour mot, à un paramètre près — sinon la
+    comparaison ne mesurerait pas ce qu'on croit.
+    """
+    import numpy as np
+    import mots4, order_bundle, ancres as AN
+    from vote_fill import fill
+    from ssm_zoo import gt_sections
+    b = order_bundle.get(stem)
+    n = b["n"]
+    Sv = np.nan_to_num(np.asarray(b["M"], float))
+    dures = ()
+    if avec_ancres:
+        A, _ph, _m, _n, _V = AN.ancres(stem)
+        dures = tuple(x for x, _v, _q, _d, dure in A if dure)
+    essais = {}
+    for lien in ("complet", "moyen"):
+        R = fill(b, stem, lien=lien)
+        se, _d = mots4.sections(R["mot"], R["x0"], n, R["sim"], b["start"],
+                                cuts=set(R["cuts"]), Sv=Sv,
+                                stem=stem if voix else None, ancres=dures)
+        essais[lien] = (mots4.cout(se), se)
+    lien = min(essais, key=lambda k: (essais[k][0], k != "complet"))
+    nous = essais[lien][1]
+    toi = gt_sections(stem)["sections"]
+    nb = {s["b0"] for s in nous if s["b0"] > 0}
+    tb = {s["b0"] for s in toi if s["b0"] > 0}
+    return {"n": n, "nous": nous, "toi": toi, "bons": len(nb & tb),
+            "nous_n": len(nb), "toi_n": len(tb), "dures": dures, "lien": lien}
+
+
+def etape1():
+    """La mesure qui décide : `mots4` seul contre `mots4` + ancres dures."""
+    from ssm_zoo import SONGS, AUDIO
+    import bench_sections as BS
+    print(f"{'morceau':<24}{'sans ancres':>14}{'avec':>10}{'ancres dures':>16}")
+    T = {False: [0, 0, 0], True: [0, 0, 0]}
+    eti = {False: [], True: []}
+    for stem, titre in SONGS:
+        if not (AUDIO / f"{stem}.m4a").exists():
+            continue
+        r0, r1 = une(stem, False), une(stem, True)
+        for k, r in ((False, r0), (True, r1)):
+            T[k][0] += r["bons"]; T[k][1] += r["nous_n"]; T[k][2] += r["toi_n"]
+            eti[k].append(BS.etiquettes(r["nous"], r["toi"], r["n"]))
+        d = r1["bons"] - r0["bons"]
+        fl = "  +" if d > 0 else ("  −" if d < 0 else "   ")
+        print(f"{titre:<24}{r0['bons']:>6}/{r0['nous_n']:<2}{r1['bons']:>8}/{r1['nous_n']:<2}"
+              f"{fl}{str(list(r1['dures'])):>16}")
+    import numpy as np
+    for k, nom in ((False, "mots4 seul"), (True, "mots4 + ancres")):
+        b, nn, tn = T[k]
+        print(f"{nom:<24} précision {b}/{nn} = {b / max(1, nn):.0%} · "
+              f"rappel {b}/{tn} = {b / max(1, tn):.0%} · "
+              f"étiquettes {np.mean(eti[k]):.0%}")

@@ -255,7 +255,7 @@ def nommer_primes(types, lets, D, tol=0.5):
     return noms
 
 
-def placer(word, x0, B, Sv=None, L=L4, cuts=()):
+def placer(word, x0, B, Sv=None, L=L4, cuts=(), ancres=()):
     """LA PHRASE LA PLUS FRÉQUENTE D'ABORD, partout où elle est.
 
     Louis, 2026-08-12, sur This Love : « je ne comprends pas pourquoi on ne crée
@@ -290,6 +290,20 @@ def placer(word, x0, B, Sv=None, L=L4, cuts=()):
     # position, pour rester déterministe.
     fam.sort(key=lambda f: (-len(f["occ"]), -f["voix"], f["occ"][0]))
 
+    # LES ANCRES DURES : une phrase n'a pas le droit d'ENJAMBER une frontière
+    # sur laquelle six des sept signaux sont tombés d'accord (`scripts/ancres.py`,
+    # 92 % de justesse, 1,4 par morceau). Louis, 2026-08-14 : « ces frontières
+    # servent à trancher lorsqu'il y a une ambiguïté sur où on coupe […] avec la
+    # règle qu'on ne peut pas couper ces frontières. » Une ancre n'IMPOSE donc
+    # pas une section : elle interdit un placement, et laisse le groupage par
+    # répétition faire tout le reste. `ancres=()` -> comportement inchangé.
+    A = sorted({int(a) for a in ancres})
+
+    def enjambe(j0, j1):
+        b0 = x0[j0]
+        b1 = x0[j1] if j1 < len(x0) else x0[-1]
+        return any(b0 < a < b1 for a in A)
+
     pris = [None] * len(word)
     placees = []
     for tour, f in enumerate(fam):
@@ -301,6 +315,8 @@ def placer(word, x0, B, Sv=None, L=L4, cuts=()):
         # pas les occurrences d'une même famille.
         occ = sorted(f["occ"])
         for p in occ:
+            if enjambe(p, min(p + L, len(word))):
+                continue
             if any(pris[q] is not None for q in range(p, min(p + L, len(word)))):
                 continue
             for q in range(p, min(p + L, len(word))):
@@ -318,7 +334,8 @@ def placer(word, x0, B, Sv=None, L=L4, cuts=()):
             out.append(placees[k]); i = placees[k]["j1"]
         else:
             j = i
-            while j + 1 < len(word) and pris[j + 1] is None:
+            while (j + 1 < len(word) and pris[j + 1] is None
+                   and not enjambe(i, j + 2)):
                 j += 1
             out.append({"j0": i, "j1": j + 1, "fam": None, "tour": -1,
                         "mot": word[i:j + 1], "type": word[i:j + 1]})
@@ -381,9 +398,10 @@ def renommer_par_voix(stem, out):
     return out
 
 
-def sections(word, x0, n, B, start_bar=0, L=L4, cuts=(), Sv=None, stem=None):
+def sections(word, x0, n, B, start_bar=0, L=L4, cuts=(), Sv=None, stem=None,
+             ancres=()):
     """Les sections en mesures. `stem` -> la voix groupe en premier."""
-    pl, d = placer(word, x0, B, Sv, L, cuts)
+    pl, d = placer(word, x0, B, Sv, L, cuts, ancres)
     out = []
     for s in pl:
         out.append({"b0": x0[s["j0"]], "b1": x0[s["j1"]] - 1,

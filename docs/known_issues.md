@@ -1,5 +1,35 @@
 # Harmonia — Known Issues
 
+## 2026-08-14 (nuit, suite) — ÉTAPE 1 CORRIGÉE : LES ANCRES EN CONTRAINTE, C'EST NEUTRE
+
+`mots4.placer(..., ancres=())` — paramètre optionnel ajouté, comportement
+bit-identique quand il n'est pas passé. Une phrase n'a plus le droit d'ENJAMBER
+une ancre dure (et un bloc « reste » se coupe dessus).
+
+| | précision | rappel | étiquettes |
+|---|---|---|---|
+| `mots4` seul | **71 %** | 72 % | **71 %** |
+| `mots4` + ancres dures | 70 % | **73 %** | 68 % |
+
+**Neutre au total, et très inégal par morceau** : Blue Lights **5/10 → 8/13**
+(le morceau qui a 8 ancres dures), The Walk 10/13 → 9/14, les dix autres
+inchangés parce qu'ils n'ont aucune ancre dure ou qu'elle tombe déjà juste.
+
+**La régression de The Walk dit ce qu'il faut corriger** : son ancre est en
+mesure 79, sa frontière est en 80. Une ancre juste à UNE mesure près, posée en
+contrainte DURE, force une coupure fausse et décale la suite — exactement le
+risque que l'autre session avait anticipé (« une ancre fausse casserait
+l'aval »). Les 92 % d'ancres justes sont mesurés à la mesure exacte sur 25
+ancres ; il en reste 2 à ±1, et elles suffisent à annuler le gain.
+
+**Conséquence pour l'étape 2** : la contrainte ne doit pas être « coupe ICI »
+mais « coupe dans ±1 mesure d'ici », le choix exact revenant au groupage — ou
+bien l'ancre doit d'abord être recalée sur la phase de 4 mesures que les cadences
+fournissent (c'est précisément le rôle que l'agent cadences a proposé, et c'est
+le trou documenté d'`ancres.py`). L'étape 2 n'est donc pas un ajout : c'est la
+réparation de l'étape 1.
+
+
 ## 2026-08-14 — RÉSOLU : deux sections différentes portaient la MÊME lettre
 
 `scripts/quatre_mots.grouper_restes`, donc toutes les pages de sections faites
