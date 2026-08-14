@@ -26652,3 +26652,64 @@ pour la reprise. `scripts/ancres.py` n'est appelé par aucun chemin vivant.
    toute recherche par « meilleur segment » est structurellement condamnée.
 3. **Sunny a besoin des intervalles** (variante n°7 de `voix_variantes`), pas de
    la hauteur réelle : il module.
+
+## Le partage des rôles est fait : la voix l'étendue, les pics la phase (2026-08-14)
+
+`scripts/zones_voix.py` + `scripts/zones_page.py` -> `docs/plots/zones_voix.html`.
+
+Louis a validé le partage énoncé la veille : « top, tu me fais ça alors ».
+
+**COLLISION DE NOMS À SIGNALER.** Mon module s'appelait `scripts/ancres.py` et il
+a été **entièrement réécrit par une autre session** pendant ce tour — une version
+« peu de frontières, presque jamais fausses » réglée sur la PRÉCISION, datée du
+même jour, avec sa citation à lui. Je n'y ai pas touché : mon code est reparti
+sous `zones_voix.py` (récupéré depuis le commit 32a88a4) et ma page sous
+`docs/plots/zones_voix.html`. Les deux travaux sont **complémentaires, pas
+concurrents** : leur détecteur haute-précision est exactement le fournisseur de
+phase dont mes zones ont besoin.
+
+### L'architecture, et ce qu'elle change
+
+Une diagonale ne fournit pas une section : elle fournit une **ZONE** — un segment
+et le décalage auquel il se rejoue. Deux lectures, qu'il faut distinguer (les
+confondre inventait des copies inexistantes : « unité 8 × 6 copies » sur un
+décalage de 40) :
+
+* **décalage < longueur** -> période : copies contiguës tous les δ ;
+* **décalage ≥ longueur** -> paire : deux copies seulement, séparées par du
+  morceau qui n'appartient pas à la zone.
+
+Puis, et c'est tout le gain : **une coupe trouvée à l'offset `c` d'une copie vaut
+pour TOUTES les copies**. On note chaque offset par le total des voix qu'il
+récolte sur l'ensemble des copies — un pic faible confirmé trois fois bat un pic
+isolé fort, ce qu'aucune lecture locale du profil ne peut faire. Une décision,
+appliquée n fois.
+
+### Ce que ça vaut
+
+| étape | précision des frontières |
+|---|---|
+| segments classés par gain épistémique (première version) | 21 % |
+| + phase recalée sur les pics | 37 % |
+| + paire/période distinguées, bords calés par les pics | **42 %** |
+
+Deux morceaux sont parfaits : **Don't Know Why 7/7** et **Let It Be 6/6** ;
+Blue Lights 5/7. Le rappel reste bas (21 %) et c'est voulu : une zone ne couvre
+que ce dont la voix est sûre, le reste part au découpage par mots.
+
+**Ce n'est pas encore assez pour forcer des coupes** — la ligne de base
+(`bench_sections.py`) est à 71 % de précision. Une ancre fausse force une coupure
+au mauvais endroit et casse tout l'aval, donc rien n'est branché.
+
+### Ce qui bloque encore, nommément
+
+1. **Les unités sortent impaires** (11, 13, 19, 20, 22 mesures) là où la musique
+   fait 8 ou 16 : l'étendue de la diagonale reste floue de ±1 mesure à chaque
+   bout, et `caler_zone` ne teste que ±1.
+2. **Chain of Fools ne donne aucune zone** — son chant varie trop d'un couplet
+   à l'autre pour passer le seuil.
+3. **Sunny module d'un demi-ton** : la hauteur réelle n'est pas invariante par
+   transposition, il faut la variante « intervalles » (n°7 de `voix_variantes`).
+4. **La suite évidente** : brancher le détecteur haute-précision de l'autre
+   session comme fournisseur de phase, à la place de `pics_de()` qui prend les
+   voix brutes de `vote_fill.votes`.

@@ -1,7 +1,7 @@
 """Les diagonales de la voix : ce qu'elles disent, et ce qu'elles ne disent pas.
 
-    .venv/bin/python scripts/ancres_page.py   ->  docs/plots/ancres.html
-    open docs/plots/ancres.html               (local, sans serveur)
+    .venv/bin/python scripts/zones_page.py   ->  docs/plots/zones_voix.html
+    open docs/plots/zones_voix.html               (local, sans serveur)
 
 Louis, 2026-08-13 : « on voit une succession diagonale de matchs, ça correspond
 clairement à une reprise avec décalage — lorsqu'on trouve une diagonale il faut
@@ -13,7 +13,7 @@ vaut contre ses frontières à lui.
 
 CE QUE LA MESURE DIT : le critère est un excellent JUGE et un mauvais CHERCHEUR.
 Si on lui donne ses sections, il donne la bonne lettre à 89 % d'entre elles ;
-lâché pour trouver les frontières lui-même il tombe à 37 % de justesse.
+lâché pour trouver les frontières lui-même il plafonne à 42 % de justesse.
 
 POURQUOI — et ce n'est PAS parce qu'il serait flou. La deuxième figure le montre :
 décaler UNE des deux copies de deux mesures fait tomber le score à ~45 % du vrai.
@@ -51,12 +51,12 @@ sys.path.insert(0, str(HERE / "scratchpad"))
 from ssm_zoo import SONGS, AUDIO, GT_LINE, gt_sections       # noqa: E402
 from hard_prior_sections import colourmap                    # noqa: E402
 from vote_fill import fill, INK                              # noqa: E402
-import ancres as AN                                          # noqa: E402
+import zones_voix as AN                                          # noqa: E402
 import bench_sections as BS                                  # noqa: E402
 import mots4                                                 # noqa: E402
 import order_bundle                                          # noqa: E402
 
-OUT = HERE / "docs" / "plots" / "ancres.html"
+OUT = HERE / "docs" / "plots" / "zones_voix.html"
 PLOT_L, PLOT_R = 0.10, 0.995
 CM = LinearSegmentedColormap.from_list("h", ["#faf6ec", "#9fc0d4", "#1d4d69"])
 
@@ -149,9 +149,9 @@ def fig_lisse(stem, n, gt):
 
 def fig_bandes(a, nous, gt, n, grid):
     cm = colourmap()
-    bandes = [("ancres\n(la voix seule)",
-               [{"b0": s["b0"], "b1": s["b1"], "label": "", "nu": f"anc{s['tour']}"}
-                for s in a["pose"]]),
+    bandes = [("zones de reprise\n(voix + pics)",
+               [{"b0": s["b0"], "b1": s["b1"], "label": s["label"],
+                 "nu": s["label"]} for s in a["sections"]]),
               ("ce qu'on écrit", nous), ("toi", gt)]
     gtb = [s["b0"] for s in gt[1:]]
     fig, axs = plt.subplots(3, 1, figsize=(12.2, 1.95), facecolor="#fffdf6",
@@ -195,9 +195,9 @@ def main():
         n, grid = b["n"], b["grid"]
         gt = gt_sections(stem)["sections"]
         gtb = [s["b0"] for s in gt[1:]]
-        a = AN.ancres(stem)
+        a = AN.zones(stem)
         r = BS.une(stem)
-        c = {s["b0"] for s in a["pose"]} | {s["b1"] + 1 for s in a["pose"]}
+        c = {s["b0"] for s in a["sections"]} | {s["b1"] + 1 for s in a["sections"]}
         c = {x for x in c if 0 < x < n}
         g = set(gtb)
         tot[0] += len(c & g); tot[1] += len(c); tot[2] += len(g)

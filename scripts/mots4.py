@@ -368,7 +368,7 @@ def renommer_par_voix(stem, out):
     frontière ; il dit lesquelles sont la même section. Les sections muettes
     (intro, pont instrumental) gardent l'étiquette des lettres de basse.
     """
-    import ancres
+    import zones_voix as ancres
     lab, muet, _th = ancres.regrouper(stem, [(s["b0"], s["b1"] + 1) for s in out])
     noms, k = {}, 0
     for i, s in enumerate(out):
