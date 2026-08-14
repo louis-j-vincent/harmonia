@@ -1,0 +1,10 @@
+{
+  "note": "Le cas le plus dur du corpus : un seul accord (C) du début à la fin, donc l'harmonie ne dit rien. Le LLM n'a qu'un repère dans tout le texte — les mesures 40 à 46 passent à N avec des niveaux de -8 à -11 dB : le morceau se vide. Il refuse de placer quoi que ce soit d'autre, alors que les signaux, eux, ont voté deux fois.",
+  "verdicts": [
+    {"mesure": 47, "garde": true, "raison": "la seule cassure lisible du morceau : la section vide (mes. 40-46, accord N à -10 dB) s'arrête et le groupe revient à plein niveau"},
+    {"mesure": 75, "garde": false, "raison": "rien dans le texte ne distingue la mes. 75 de ses voisines : même accord, même niveau, même batterie. Le vote des signaux y est peut-être réel, mais il n'est pas arbitrable sur ce résumé"}
+  ],
+  "ajouts": [
+    {"mesure": 40, "raison": "début de la section vide : l'accord tombe à N et le niveau perd 9 dB"}
+  ]
+}

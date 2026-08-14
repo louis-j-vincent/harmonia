@@ -1,0 +1,19 @@
+{
+  "note": "Le détecteur de signaux fait 0/2 ici. Le LLM n'a lu que le résumé texte : la suite d'accords de Be My Baby est un cycle de 8 mesures parfaitement régulier (E-E-F#m-B pour le couplet, Ab-C#-F#-B pour le pont, E-E-C#m-C#m-A-A-B-B pour le refrain), et il suffit de compter les cycles. Les deux ancres des signaux tombent au MILIEU d'un cycle : elles sont rejetées non pas parce qu'il ne s'y passe rien, mais parce que la forme dit que ce n'est pas là.",
+  "verdicts": [
+    {"mesure": 18, "garde": false, "raison": "milieu du pont Ab-C#-F#-B (mes. 13-20) ; le cycle ne recommence qu'en 21"},
+    {"mesure": 82, "garde": false, "raison": "milieu de la coda ; le dernier vrai départ est en 79, ensuite ça ne fait que descendre en volume"}
+  ],
+  "ajouts": [
+    {"mesure": 5, "raison": "le chant entre après 4 mesures d'intro batterie seule"},
+    {"mesure": 13, "raison": "les accords passent à Ab-C#-F#-B : autre section"},
+    {"mesure": 21, "raison": "E-C#m-A-B : le refrain, et le cycle de 8 recommence"},
+    {"mesure": 29, "raison": "retour de E-E-F#m-B : couplet 2"},
+    {"mesure": 45, "raison": "E-C#m-A-B : refrain 2"},
+    {"mesure": 53, "raison": "le chant s'arrête pendant 6 mesures : passage instrumental"},
+    {"mesure": 61, "raison": "le chant revient sur E-C#m-A-B : refrain 3"},
+    {"mesure": 69, "raison": "deux mesures d'accord N à -8 dB : la cassure la plus nette du morceau"},
+    {"mesure": 71, "raison": "le refrain repart après la cassure"},
+    {"mesure": 79, "raison": "dernier cycle, le niveau s'effondre ensuite (-7, -11, -18, -24)"}
+  ]
+}

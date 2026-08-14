@@ -1,5 +1,85 @@
 # Harmonia — Known Issues
 
+## 2026-08-14 — LES ANCRES : PEU DE FRONTIÈRES, PRESQUE JAMAIS FAUSSES
+
+Louis : « je veux un outil qui trouve QUELQUES frontières, juste les plus
+évidentes → très peu de faux positifs. Elles servent à trancher quand il y a une
+ambiguïté sur où on coupe, avec la règle qu'on ne peut pas couper ces
+frontières. » Donc **la métrique est la précision, pas le rappel** : une ancre
+fausse force une coupure au mauvais endroit, une ancre manquée ne coûte rien.
+`scripts/ancres.py`, `/plots/ancres.html`.
+
+### D'abord : la grille de 4 mesures, est-ce vrai ? (question de Louis)
+
+Vérifié sur les 20 annotations validées, 212 sections. **La règle absolue est
+fausse, la règle relative est vraie :**
+
+| formulation | vérifié |
+|---|---|
+| « une section commence sur un multiple de 4 » (depuis la mesure 0) | **44 %** |
+| idem, avec une phase propre au morceau | 78 % |
+| **« l'écart entre deux frontières consécutives est un multiple de 4 »** | **82 %** |
+| idem, multiple de 2 | 91 % |
+
+**She Will Be Loved est le contre-exemple que Louis avait en tête, et il prouve
+la forme relative** : 41 % en absolu, **89 % en relatif**. Ses frontières sont à
+4, 12, 20, 28 · 33, 41, 49, 57, 61, 65 · 75, 79, 87… — la phase saute deux fois,
+exactement sur ses deux sections bancales (un écart de 5 mesures, puis de 10).
+Un « temps en trop » décale toute la grille derrière lui. **Conséquence pour les
+phrases : la grille doit repartir de zéro à chaque ancre, jamais du début.**
+
+### Le détecteur
+
+Trois règles, dans l'ordre. (1) Un critère ne parle que de ses moments
+**exceptionnels** — ses pics à plus de 3,5 écarts absolus médians de sa propre
+médiane. (2) S'il est surpris plus d'une fois toutes les 6 mesures, il est
+**disqualifié pour ce morceau** : c'est la règle « pas les signaux qui crient au
+loup ». (3) Le vote compte des **signaux**, pas des critères — les six variantes
+d'harmonie ne pèsent pas six fois. Une ancre = ≥5 des 7 signaux, plus le filtre
+de phase, plus l'abstention si une seule ancre survit.
+
+**Mesuré sur les 18 morceaux validés : 2,1 ancres par morceau, 78 % exactes,
+81 % à une mesure près, 6 morceaux où l'outil se tait.** Dix morceaux sur dix-huit
+sont à 100 %.
+
+**LE PIÈGE, et il valait 41 points de précision.** Avec une tolérance de ±1
+mesure, un pic fait voter TROIS mesures : le vote est un plateau, et prendre la
+mesure du milieu est un tirage au sort. **10 % d'ancres exactes en prenant la
+case qui compte, 51 % en prenant la médiane de là où les signaux piquent
+vraiment.** La position d'une ancre n'est jamais celle de la case qui la compte.
+Diagnostic associé : sur 68 ancres, seules **2 sont inventées** (à plus de 5
+mesures de toute frontière) — tout le reste est un problème de placement, et le
+biais est négatif (22 en avance contre 9 en retard : les fills et les anacrouses
+anticipent).
+
+### Le décalage par morceau (solution de Louis, implémentée)
+
+Sa proposition : « regarder s'il y a un décalage constant avec une majorité de
+pics qui sont d'accord. » C'est fait à deux niveaux, sans jamais lire une
+frontière : sous la mesure, la position de l'ancre est la **médiane** des
+positions où ses signaux piquent ; au-dessus, les ancres élisent la **phase du
+réseau de 4 mesures** et celles qui ne tombent pas dessus sont retirées. Ce
+filtre vaut +23 points (53 % → 75 % d'exactes). Il a une faiblesse connue : sur
+un morceau à une ou deux ancres, la phase élue est un tirage au sort — d'où
+l'abstention en dessous de deux ancres survivantes.
+
+### Le LLM en arbitre (test à prendre avec des pincettes)
+
+Le modèle reçoit le résumé texte (`resume_texte.py`) + la liste des ancres, et
+répond garde / rejette / ajoute, **avec une raison par décision**
+(`scratchpad/ia_ancres/*.json`, affichées sur la page). Sur les trois morceaux
+où les signaux échouent : **1/7 ancres exactes → 14/20**. Be My Baby passe de
+0/2 à 9/10, parce que sa suite d'accords est un cycle de 8 mesures qu'il suffit
+de compter.
+
+**CE QUI CLOCHE DANS CE TEST** : l'arbitrage a été écrit par le modèle de cette
+session, qui avait déjà vu quelles ancres étaient fausses. Le raisonnement est
+publié sur la page pour être auditable phrase par phrase, mais **le chiffre
+14/20 n'est pas une mesure**. Le test propre reste à faire : une session neuve,
+sans accès aux annotations. À noter quand même, parce que ça ne dépend pas de la
+fuite : sur Chain of Fools (un seul accord du début à la fin) le modèle **refuse
+d'arbitrer** l'ancre 75 faute d'indice dans le texte — le bon comportement.
+
 ## 2026-08-14 — TRENTE-NEUF CRITÈRES DE FRONTIÈRE, UN PAR LIGNE, ET CE QU'ILS DISENT
 
 Louis : « pour chaque signal (voix, rythme, harmonie, intensité…), proposer

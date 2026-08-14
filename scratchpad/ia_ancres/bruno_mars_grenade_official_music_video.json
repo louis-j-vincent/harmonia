@@ -1,0 +1,16 @@
+{
+  "note": "Deux des trois ancres sont rejetées ou déplacées d'une ou deux mesures. Le repère que le LLM utilise et que les signaux n'ont pas : ce morceau met une mesure d'accord N à -7 dB (une cassure sèche) JUSTE AVANT chaque refrain — mes. 16, 30, 50, 64, 90. Le refrain ne commence donc pas sur la cassure mais à la mesure d'après.",
+  "verdicts": [
+    {"mesure": 9, "garde": true, "raison": "la batterie entre et le niveau saute de 8 dB d'un coup : couplet chanté à découvert → couplet accompagné"},
+    {"mesure": 49, "garde": false, "raison": "à une mesure trop tôt : la cassure N est en 50, le refrain Bb-C repart en 51"},
+    {"mesure": 73, "garde": true, "raison": "le chant s'arrête et le niveau tombe à -9 dB pendant 4 mesures : le pont se vide avant le dernier refrain"}
+  ],
+  "ajouts": [
+    {"mesure": 17, "raison": "après la cassure N de la mes. 16, la suite passe à Bb-C : le refrain"},
+    {"mesure": 31, "raison": "après la cassure N de la mes. 30, retour à Dm-Am : couplet 2"},
+    {"mesure": 51, "raison": "la position juste de l'ancre 49 : le refrain repart après la cassure de la 50"},
+    {"mesure": 65, "raison": "Gm-Dm-Gm-A, des accords qu'on n'a pas encore entendus : le pont"},
+    {"mesure": 77, "raison": "Bb-C revient à plein niveau : dernier refrain"},
+    {"mesure": 91, "raison": "retour à Dm-Am à -2 dB : la coda reprend le couplet"}
+  ]
+}
