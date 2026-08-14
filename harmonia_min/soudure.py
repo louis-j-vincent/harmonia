@@ -153,41 +153,79 @@ def _otsu(v, lo=0.30, hi=0.999, n=200, defaut=0.90) -> float:
     return seuil
 
 
-def mot_par_ssm(grid, triad, bornes: list[int]) -> str | None:
-    """Le mot par RESSEMBLANCE, sur le substrat que l'app utilise déjà.
-
-    Toujours pas de second détecteur : la matrice est celle de
-    `section_tool.substrates` — les vecteurs chord-tone de `harmonic_sections`
-    sur les postérieures musx, c'est-à-dire le substrat sur lequel l'app
-    répond déjà « où ce bloc se rejoue-t-il ? ». La comparaison bloc-à-bloc
-    est `voice_sections._diag`, celle de la prod. Ne sont nouveaux ici que le
-    grain (la bi-mesure) et le fait d'en tirer des lettres.
-
-    Le groupage est en LIEN MOYEN, pas complet — Louis, 2026-08-12, sur
-    Grenade : en lien complet une seule paire ratée sur six empêche le groupe
-    et ses quatre couplets sortaient en `aaaa`, `babb`, `bfbd`, `gfge`.
-
-    Différence assumée avec le mot de recherche (`vote_fill.bibar_word`) :
-    celui-ci lit la BASSE, celui-là l'harmonie complète. Même règle de
-    groupage, même seuil, substrat différent.
-    """
+def _matrice_bimesures(S, bornes):
+    """B[j,k] normalisée : à quel point la bi-mesure j ressemble à la k."""
     import numpy as np
-    from harmonia_min import section_tool as st
     from harmonia_min import voice_sections as VS
-
-    S, _V, _M, _mute, _ch = st.substrates(grid, triad)
     J = len(bornes) - 1
-    if J < 2:
-        return None
     B = np.zeros((J, J))
     for j in range(J):
         for k in range(J):
             L = min(bornes[j + 1] - bornes[j], bornes[k + 1] - bornes[k])
             B[j, k] = VS._diag(S, bornes[j], bornes[k], L)
     d = np.sqrt(np.clip(np.diag(B), 1e-9, None))
-    B = B / np.outer(d, d)
-    thr = _otsu(B[~np.eye(J, dtype=bool)])
+    return B / np.outer(d, d)
 
+
+def _grille(n: int, coutures: dict) -> list[int]:
+    """Les bornes des jetons, avec des coutures à des endroits donnés.
+
+    `coutures` : {mesure de départ du jeton -> sa largeur, 1 ou 3}. Partout
+    ailleurs un jeton fait deux mesures. Un jeton de largeur impaire fait
+    basculer la parité de tout ce qui suit — c'est lui, la mesure en trop ou
+    la mesure manquante.
+    """
+    bornes, p = [], 0
+    while p < n - 1:
+        bornes.append(p)
+        p += coutures.get(p, 2)
+    bornes.append(n)
+    return bornes
+
+
+#: Ce qu'une couture doit faire GAGNER pour être retenue : cinq points de
+#: jumelles exprimables. C'est le « il doit se payer » de
+#: `vote_fill.phases()`. Sans ce péage, une boucle de quatre mesures se laisse
+#: décaler d'une mesure sans rien perdre, et on décale au hasard.
+MARGE_COUTURE = 0.05
+
+#: À partir d'où deux passages de quatre mesures sont « manifestement les
+#: mêmes ». Haut exprès : le critère ne doit s'appuyer que sur des reprises
+#: que personne ne discute.
+SEUIL_JUMELLE = 0.95
+
+#: Au plus trois coutures. Une par mesure en trop; au-delà on n'explique plus
+#: un accident de notation, on plie la grille jusqu'a ce que tout colle.
+MAX_COUTURES = 3
+
+
+def _jumelles(S, n: int):
+    """(P, Q, W) — les paires de mesures manifestement jumelles, et leur poids.
+
+    On compare des blocs de QUATRE mesures, pas de deux : à deux mesures, dans
+    un morceau en boucle, tout ressemble à tout et le critère n'arbitre plus
+    rien. On exige aussi huit mesures d'écart, pour ne pas compter comme
+    « reprise » le simple fait qu'une boucle se répète immédiatement.
+    """
+    import numpy as np
+    L = 4
+    m = n - L
+    if m < 10:
+        return np.array([]), np.array([]), np.array([])
+    D = np.zeros((m, m))
+    for i in range(L):                       # moyenne des 4 diagonales
+        D += S[i:i + m, i:i + m]
+    D /= L
+    idx = np.triu_indices(m, k=8)
+    ok = D[idx] > SEUIL_JUMELLE
+    return idx[0][ok], idx[1][ok], D[idx][ok]
+
+
+def _mot_depuis(B) -> str:
+    """Les lettres, depuis la matrice de ressemblance entre bi-mesures."""
+    import numpy as np
+    J = B.shape[0]
+    thr = _otsu(B[~np.eye(J, dtype=bool)])
     used, lab, k = set(), [-1] * J, 0
     for j in sorted(range(J), key=lambda j: -(B[j] >= thr).sum()):
         if j in used:
@@ -208,6 +246,125 @@ def mot_par_ssm(grid, triad, bornes: list[int]) -> str | None:
             ren[lab[j]] = k
             k += 1
     return "".join(LETTRES[ren[lab[j]] % len(LETTRES)] for j in range(J))
+
+
+def _meilleure_grille(S, n: int) -> tuple[list[int], dict]:
+    """La grille de bi-mesures qui fait que le plus de bi-mesures retrouvent
+    leur jumelle — rigide par défaut, avec une couture si elle la mérite.
+
+    LE PROBLÈME. Louis, 2026-08-14, sur Lost Without U : « il y a un trou
+    d'une mesure, et donc ça décale toutes les bi-barres qui sont pourtant les
+    mêmes ». Mesuré sur ce morceau (89 mesures, nombre impair) : 44 mesures
+    sur 80 ont leur reprise la plus nette à une distance IMPAIRE — mesure 5 ↔
+    26, mesure 20 ↔ 41, à 0,97 et 0,99 de ressemblance. Une grille figée sur
+    (0,1)(2,3)(4,5)… ne franchit jamais un écart impair : la même musique
+    reçoit deux lettres selon qu'elle tombe avant ou après le trou, et le
+    compagnon propose alors des paires qui n'ont pas de sens.
+
+    LA RÈGLE EST CELLE DE `scripts/vote_fill.phases()`, que Louis a fait
+    écrire le 2026-08-12 sur She Will Be Loved (« la barre en extra à la
+    mesure 33 fait qu'on a un décalage sur la parité »). Ses deux leçons,
+    payées là-bas, valent ici mot pour mot :
+
+      * PAS de ±1 partout — essayé, ça DÉTRUIT la structure : dans une boucle
+        de 4 mesures, une fenêtre décalée d'une mesure ressemble encore à
+        tout, et Blue Lights perdait ses B (`aaaaaabc` → `aaaaaaaa`) ;
+      * le décalage doit être LOCAL et il doit SE PAYER.
+
+    LA MONNAIE, ET UN ESSAI RATÉ. La recherche compte des voix de pics, l'app
+    n'en a pas. Premier essai : la LONGUEUR DE DESCRIPTION du mot, la mesure
+    que Louis a choisie le 2026-08-13 pour l'arbitrage voisin du groupage.
+    Mesuré, elle ne marche pas ici : elle pose une couture sur **28 charts sur
+    45** — un trou d'une mesure n'existe pas dans deux tiers des morceaux — et
+    elle CASSE Be My Baby (100 % → 0 % de jumelles bien nommées). Un mot un peu
+    plus court n'est pas un mot plus juste.
+
+    Ce qui marche est plus bête et plus direct : on note une grille sur le
+    SYMPTÔME. Deux mesures manifestement jumelles ne peuvent porter la même
+    lettre que si elles occupent la même position dans leur jeton ; on compte
+    donc la part des jumelles que la grille sait exprimer. Une couture qui
+    recolle des jumelles séparées par le trou monte ; une couture posée au
+    hasard casse des jumelles déjà alignées et descend. Résultat sur les 46
+    charts : 12 coutures, aucune régression.
+    """
+    import numpy as np
+    P, Q, W = _jumelles(S, n)
+    if not len(P):
+        return _jetons(n), {"couture": None, "jumelles": 0}
+
+    def note(bornes):
+        """La part des jumelles que cette grille sait EXPRIMER.
+
+        Deux mesures jumelles ne peuvent porter la même lettre que si elles
+        occupent la même position dans leur jeton. C'est tout le critère : on
+        ne demande pas à la grille d'être courte à décrire, on lui demande de
+        ne pas rendre invisibles des reprises qui existent.
+        """
+        if len(bornes) < 4:
+            return -1.0
+        pos = np.zeros(n, dtype=int)
+        for j in range(len(bornes) - 1):
+            for b in range(bornes[j], min(bornes[j + 1], n)):
+                pos[b] = b - bornes[j]
+        return float(np.sum(W * (pos[P] == pos[Q])) / np.sum(W))
+
+    # Les coutures se posent UNE PAR UNE, chacune devant payer sa marge. Un
+    # morceau peut en avoir plusieurs — Lost Without U reste à 66 % de
+    # jumelles exprimables avec une seule — mais chacune doit se justifier
+    # seule, ce qui empêche d'en empiler jusqu'à tout expliquer.
+    coutures: dict = {}
+    base = note(_grille(n, coutures))
+    courant = base
+    while len(coutures) < MAX_COUTURES:
+        gagnante, gain = None, courant + MARGE_COUTURE
+        depart = _grille(n, coutures)[:-1]
+        for c in depart:
+            if c in coutures or c < 4 or c > n - 6:
+                continue
+            for largeur in (1, 3):
+                v = note(_grille(n, {**coutures, c: largeur}))
+                if v > gain:
+                    gagnante, gain = (c, largeur), v
+        if not gagnante:
+            break
+        coutures[gagnante[0]] = gagnante[1]
+        courant = gain
+    info = {"jumelles": int(len(P)), "part_rigide": round(base, 3),
+            "part_retenue": round(courant, 3),
+            "coutures": sorted(coutures.items())}
+    if coutures:
+        log.info("soudure: %d couture(s) %s, jumelles exprimables %.0f%% -> %.0f%%",
+                 len(coutures), sorted(coutures.items()), base * 100, courant * 100)
+    return _grille(n, coutures), info
+
+
+def grille_et_mot(grid, triad):
+    """(bornes, mot, info) — la grille de jetons ET les lettres qui vont avec.
+
+    Toujours pas de second détecteur : la matrice est celle de
+    `section_tool.substrates` — les vecteurs chord-tone de `harmonic_sections`
+    sur les postérieures musx, c'est-à-dire le substrat sur lequel l'app
+    répond déjà « où ce bloc se rejoue-t-il ? ». La comparaison bloc-à-bloc
+    est `voice_sections._diag`, celle de la prod. Ne sont nouveaux ici que le
+    grain (la bi-mesure), la couture, et le fait d'en tirer des lettres.
+
+    Le groupage est en LIEN MOYEN, pas complet — Louis, 2026-08-12, sur
+    Grenade : en lien complet une seule paire ratée sur six empêche le groupe
+    et ses quatre couplets sortaient en `aaaa`, `babb`, `bfbd`, `gfge`.
+
+    Différence assumée avec le mot de recherche (`vote_fill.bibar_word`) :
+    celui-ci lit la BASSE, celui-là l'harmonie complète. Même règle de
+    groupage, même seuil, substrat différent.
+    """
+    from harmonia_min import section_tool as st
+    n = len(grid) - 1
+    if n < 4:
+        return None, None, {}
+    S, _V, _M, _mute, _ch = st.substrates(grid, triad)
+    bornes, info = _meilleure_grille(S, n)
+    if len(bornes) < 3:
+        return None, None, info
+    return bornes, _mot_depuis(_matrice_bimesures(S, bornes)), info
 
 
 def song_du_chart(chart: dict, audio_dir=None) -> dict | None:
@@ -237,11 +394,23 @@ def song_du_chart(chart: dict, audio_dir=None) -> dict | None:
         stem = Path(chart.get("audio_url") or "").stem
         audio = (audio_dir or Path("docs/audio")) / f"{stem}.m4a"
         if stem and audio.exists():
-            m = mot_par_ssm(chart["barGrid"], _musx.frame_posteriors(audio)[0],
-                            base["jetons"])
+            bornes, m, info = grille_et_mot(chart["barGrid"],
+                                            _musx.frame_posteriors(audio)[0])
             if m:
                 base["mot"] = m
+                base["jetons"] = bornes
                 base["mot_source"] = "harmonie"
+                # La bande DIT ses coutures : un jeton d'une ou trois mesures
+                # là où le morceau a une mesure en trop ou en moins. Sans ça,
+                # une plaque plus étroite que ses voisines passe pour un bug.
+                # On lit les DÉCISIONS, pas les longueurs : le dernier jeton
+                # d'un morceau de longueur impaire fait trois mesures par
+                # construction (la mesure orpheline y est rattachée), et le
+                # compter comme couture faisait passer 22 charts sur 46 pour
+                # troués alors qu'ils sont 12.
+                mesures_cousues = {c for c, _ in info.get("coutures", [])}
+                base["coutures"] = [j for j in range(len(bornes) - 1)
+                                    if bornes[j] in mesures_cousues]
     except Exception:                                    # noqa: BLE001
         log.exception("soudure: mot par ressemblance indisponible, "
                       "repli sur la basse")

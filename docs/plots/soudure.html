@@ -56,6 +56,12 @@ h1{font:italic 400 27px/1.15 var(--serif); margin:0 0 3px}
        transition:background .15s, box-shadow .15s, transform .12s;
        user-select:none; -webkit-user-select:none}
 .jeton.sel{background:var(--tint); box-shadow:0 0 0 3px var(--halo)}
+/* La COUTURE : là où le morceau a une mesure en trop ou en moins, le jeton ne
+   fait pas deux mesures. On le dit par une encoche en biais sur le bord —
+   sinon une plaque plus étroite que ses voisines passe pour un défaut. */
+.jeton.couture::before{content:""; position:absolute; left:0; top:0; bottom:0;
+   width:7px; background:repeating-linear-gradient(135deg, var(--c) 0 2px,
+   transparent 2px 5px); opacity:.5}
 .jeton .rang{position:absolute; top:3px; left:5px; font:600 10px/1 var(--ui);
        font-style:normal; color:var(--c); opacity:.75}
 .jeton .tete{position:absolute; left:0; right:0; bottom:0; height:3px;
@@ -184,6 +190,18 @@ for (var i=0;i<NM;i++) T.push(T[i] + DUR[i]);
 var X0 = (SONG.jetons && SONG.jetons.length === MOT.length + 1)
        ? SONG.jetons.slice()
        : (function(){ var a=[]; for (var k=0;k<=MOT.length;k++) a.push(Math.round(k*MPJ)); return a; })();
+/* Les jetons qui ne font pas deux mesures : les coutures. Fournies par le
+   serveur quand il les a trouvées, sinon relues sur les bornes elles-mêmes,
+   pour que la page reste autonome. */
+var COUTURES = (SONG.coutures && SONG.coutures.length) ? SONG.coutures.slice()
+  : (function(){ var a=[], deux=0, j;
+      for (j=0;j<MOT.length;j++) if (X0[j+1]-X0[j] === 2) deux++;
+      if (deux < MOT.length * 0.6) return a;          // grille non binaire: rien à signaler
+      /* Le DERNIER jeton est exclu : dans un morceau de longueur impaire il
+         fait trois mesures par construction, la mesure orpheline y étant
+         rattachée. Ce n'est pas un trou, c'est la fin. */
+      for (j=0;j<MOT.length-1;j++){ var L=X0[j+1]-X0[j]; if (L===1||L===3) a.push(j); }
+      return a; })();
 var LET = [];                                         // la lettre de chaque mesure
 for (var k=0;k<MOT.length;k++)
   for (var m=X0[k]; m<X0[k+1]; m++) LET[m] = MOT[k];
@@ -630,6 +648,11 @@ function dessine(){
                       ";width:" + w + "px;height:" + h + "px;font-size:" + fs + "px";
     d.dataset.i = k;
     d.textContent = etiq(lab, e.c);
+    /* Une entité porte l'encoche dès qu'elle CONTIENT une couture — après
+       soudure, la mesure en trop est avalée dans un bloc plus large et il
+       faut qu'on puisse encore la retrouver. */
+    for (var q=0;q<COUTURES.length;q++)
+      if (COUTURES[q] >= e.j && COUTURES[q] < e.j + e.n){ d.classList.add("couture"); break; }
 
     var choisi = S.sel.indexOf(k);
     if (choisi >= 0){
