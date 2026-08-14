@@ -23,10 +23,24 @@ Louis, 2026-08-14 :
     Le vote de signaux je suis chaud. Évite de prendre des pics de signaux qui
     crient au loup tout le temps. »
 
-DONC LA MÉTRIQUE N'EST PAS LE RAPPEL, C'EST LA PRÉCISION. Une ancre fausse
-FORCE une coupure au mauvais endroit et casse tout ce qui vient après ; une
-ancre manquée ne coûte rien, les critères de phrases s'en chargeront. Tout est
-réglé là-dessus.
+PUIS, LE 2026-08-14 AU SOIR, il a levé la contrainte et il faut le dire ici parce
+que ça change la métrique : « **tu peux complètement relaxer cette contrainte de
+précision car je n'ai pas noté tous les changements de section** — des fois le
+LLM coupe sur un pont ou une section qui se répète, et ça fait sens et ça devrait
+être gardé ! On peut aussi relaxer si on se sert des ancres comme guides et non
+comme critères durs. »
+
+**CONSÉQUENCE : « faux positif » n'a plus de sens ici.** Les annotations sont une
+référence INCOMPLÈTE ; une ancre hors annotation est une candidate à écouter, pas
+une erreur. Ce qui est mesurable contre elles est un ACCORD (quelle fraction de
+ses frontières est retrouvée), et c'est une borne basse. D'où deux niveaux :
+
+  * **ancre DURE** — au moins `DURE` signaux sur 7, sur la phase de 4 mesures
+    élue par le morceau, et pas toute seule. C'est celle sur laquelle `mots4`
+    n'a pas le droit de couper. Mesurée : 96 % tombent sur une frontière
+    annotée (validation leave-one-song-out, voir known_issues 2026-08-14).
+  * **ancre GUIDE** — au moins `K` signaux. Elle n'interdit rien ; elle propose,
+    et elle va sur la page pour l'oreille de Louis.
 
 LES TROIS RÈGLES, dans l'ordre où elles s'appliquent.
 
@@ -83,11 +97,13 @@ sys.path.insert(0, str(HERE / "scratchpad"))
 CACHE = HERE / "scratchpad" / "critere_cache"
 OUT = HERE / "docs" / "plots" / "ancres.html"
 
-Z = 2.5          # « exceptionnel » = à Z écarts absolus médians de sa médiane
+Z = 3.5          # « exceptionnel » = à Z écarts absolus médians (étage GUIDE)
+Z_DUR = 2.5      # le seuil de l'étage DUR — celui validé en leave-one-song-out
 DENSITE = 1 / 6  # au-delà d'un pic exceptionnel toutes les 6 mesures : disqualifié
 TOL = 1.0        # deux pics à ≤ 1 mesure parlent du même endroit
-K = 6            # nombre de SIGNAUX distincts qu'il faut pour faire une ancre
-MINI = 2         # une ancre seule n'est corroborée par rien : le morceau se tait
+K = 5            # signaux distincts pour proposer une ancre (un GUIDE)
+DURE = 6         # signaux distincts pour qu'elle soit DURE (on ne coupe pas dessus)
+MINI = 2         # une ancre dure seule n'est corroborée par rien : elle redevient guide
 
 
 def courbes(stem, rebuild=False):
@@ -179,28 +195,13 @@ def _phase(A, poids=(1.0, .55, .25)):
     return max(range(4), key=lambda p: sum(v * poids[abs(d(b, p))] for b, v, *_ in A))
 
 
-def ancres(stem, k=K, z=Z, tol=TOL, densite=DENSITE, ecart=3.0, reseau=True):
-    """[(mesure, nb de signaux, qui, dispersion)] — les ancres du morceau.
+def _candidats(stem, k, z, tol=TOL, densite=DENSITE, ecart=3.0):
+    """[(mesure, nb de signaux, qui, dispersion)] à un seuil donné.
 
-    Trois passes : (1) les mesures où au moins `k` signaux distincts sont
+    Deux passes : les mesures où au moins `k` signaux distincts sont
     exceptionnels, prises de la plus soutenue à la moins soutenue et espacées
-    d'au moins `ecart` mesures ; (2) la position de chacune = la médiane de là
-    où ses signaux piquent vraiment ; (3) si `reseau`, on ne garde que celles
-    qui tombent sur la phase de 4 mesures que la majorité désigne — c'est la
-    solution de Louis (« un décalage constant avec une majorité de pics qui sont
-    d'accord ») appliquée aux ancres entre elles, sans jamais lire une frontière.
-
-    RÉGLAGE, et il n'est pas choisi à la main. Une validation *leave-one-song-out*
-    (le seuil est élu sur 17 morceaux, appliqué au 18e qu'il n'a jamais vu) donne
-    **24/25 = 96 % d'ancres exactes**, et les 18 sous-ensembles élisent le même
-    couple `(Z=2,5 · K=6)` 17 fois sur 18. Ce n'est donc pas un réglage calé sur
-    ces morceaux-là : c'est un point de fonctionnement stable.
-
-    Le prix est la couverture : **1,4 ancre par morceau et 11 morceaux sur 18 où
-    l'outil se tait**. C'est le contrat demandé (« pas besoin de les trouver
-    toutes, très peu de faux positifs »). L'autre point de fonctionnement mesuré,
-    si un jour il faut plus de matière : `Z=3,5 · K=5` donne 2,1 ancres par
-    morceau et 78 % d'exactes, silence sur 6 morceaux seulement.
+    d'au moins `ecart` mesures ; puis la position de chacune = la médiane de là
+    où ses signaux piquent VRAIMENT (jamais la case qui les compte, voir `vote`).
     """
     V, QUI, POS, muets, n = vote(stem, z=z, tol=tol, densite=densite)
     cand = sorted([b for b in range(1, n) if V[b] >= k],
@@ -214,24 +215,54 @@ def ancres(stem, k=K, z=Z, tol=TOL, densite=DENSITE, ecart=3.0, reseau=True):
     for b in sorted(gardees):
         P = np.array(POS[b])
         pos = int(round(float(np.median(P))))
-        disp = float(np.median(np.abs(P - np.median(P))))
         if 0 < pos < n:
-            A.append((pos, int(V[b]), sorted(set(QUI[b])), disp))
-    # deux ancres peuvent se retrouver sur la même mesure après recalage
+            A.append((pos, int(V[b]), sorted(set(QUI[b])),
+                      float(np.median(np.abs(P - np.median(P))))))
     vus: dict[int, tuple] = {}
-    for a in A:
+    for a in A:                      # deux ancres peuvent tomber sur la même mesure
         if a[0] not in vus or a[1] > vus[a[0]][1]:
             vus[a[0]] = a
-    A = [vus[p] for p in sorted(vus)]
-    ph = _phase(A) if (reseau and A) else None
-    if ph is not None:
-        A = [a for a in A if a[0] % 4 == ph]
-    # une ancre toute seule n'est corroborée par rien d'autre qu'elle-même, et
-    # la phase du réseau qu'elle désigne est alors un tirage au sort : sur les
-    # 18 morceaux, les cas à une seule ancre survivante sont faux 3 fois sur 4.
-    if reseau and len(A) < MINI:
-        A = []
-    return A, ph, muets, n, V
+    return [vus[q] for q in sorted(vus)], muets, n, V
+
+
+def ancres(stem, k=K, z=Z, tol=TOL, densite=DENSITE, ecart=3.0, reseau=True):
+    """[(mesure, signaux, qui, dispersion, DURE)] — les deux étages du morceau.
+
+    **L'étage DUR est exactement le réglage validé**, et il l'est à part : une
+    validation *leave-one-song-out* (le seuil élu sur 17 morceaux, appliqué au
+    18e jamais vu) donne **24/25 = 96 %** d'ancres tombant sur une frontière
+    annotée, et les 18 sous-ensembles élisent le même couple `Z_DUR=2,5 ·
+    DURE=6` **17 fois sur 18**. On y ajoute deux garde-fous : la phase de 4
+    mesures élue par les ancres elles-mêmes, et l'abstention si une seule
+    survit (une ancre dure isolée désigne une phase tirée au sort — ces cas-là
+    sont faux 3 fois sur 4). Ce sont ces ancres-là, et elles seules, que `mots4`
+    n'aura pas le droit de traverser.
+
+    **L'étage GUIDE est volontairement large** (`k` signaux, seuil `z` plus
+    permissif) : il ne verrouille rien, il propose. Louis, 2026-08-14 : « tu peux
+    complètement relaxer cette contrainte de précision car je n'ai pas noté tous
+    les changements de section ». Un guide hors annotation n'est donc pas une
+    erreur, c'est une candidate à écouter.
+
+    Les deux étages sont calculés à des seuils DIFFÉRENTS et fusionnés à ±1
+    mesure. Il serait plus simple de n'en calculer qu'un et de le seuiller deux
+    fois — mais alors l'étage dur ne serait plus la configuration mesurée, et
+    son 96 % ne vaudrait plus rien.
+    """
+    G, muets, n, V = _candidats(stem, k=k, z=z, tol=tol, densite=densite, ecart=ecart)
+    D, _m, _n, _v = _candidats(stem, k=DURE, z=Z_DUR, tol=tol, densite=densite,
+                               ecart=ecart)
+    ph = _phase(D) if (reseau and D) else None
+    dures = [a for a in D if ph is not None and a[0] % 4 == ph]
+    if len(dures) < MINI:
+        dures = []
+    pos_dures = {a[0] for a in dures}
+    A = [(b, v, q, d, any(abs(b - x) <= 1 for x in pos_dures)) for b, v, q, d in G]
+    # une ancre dure que l'étage large n'a pas proposée existe quand même
+    for b, v, q, d in dures:
+        if not any(abs(b - a[0]) <= 1 for a in A):
+            A.append((b, v, q, d, True))
+    return sorted(A), ph, muets, n, V
 
 
 def gt_de(stem):
@@ -291,9 +322,9 @@ def table():
 
 def par_morceau(k=K, z=Z):
     stems = liste_validee()
-    print(f"{'morceau':<34}{'anc':>4}{'justes':>7}{'prec':>6}  {'ph':>3}  ancres "
-          f"(mesure ·nb signaux, ✗ = fausse, ~ = à une mesure)")
-    T = B = E = 0
+    print(f"{'morceau':<34}{'anc':>4}{'dures':>6}{'accord':>7}  {'ph':>3}  ancres "
+          f"(* = dure · mesure ·signaux, ~ = à 1 mesure, ? = hors annotation)")
+    T = B = E = D = DE = 0
     for s in stems:
         A, ph, _m, _n, _V = ancres(s, k=k, z=z)
         gt = gt_de(s)
@@ -302,13 +333,19 @@ def par_morceau(k=K, z=Z):
             return min([abs(b - g) for g in gt], default=99)
         bon = sum(1 for b, *_ in A if ec(b) <= 1)
         T += len(A); B += bon; E += sum(1 for b, *_ in A if ec(b) == 0)
-        det = " ".join(f"{b + 1}·{v}" + ("" if ec(b) == 0 else ("~" if ec(b) == 1 else "✗"))
-                       for b, v, _q, _d in A)
-        pc = f"{100 * bon / len(A):.0f}%" if A else "—"
-        print(f"{s[:33]:<34}{len(A):>4}{bon:>7}{pc:>6}  {str(ph):>3}  {det}")
-    print(f"\nTOTAL {E}/{T} = {100 * E / max(1, T):.0f}% d'ancres EXACTES, "
-          f"{B}/{T} = {100 * B / max(1, T):.0f}% à une mesure près, "
-          f"{T / len(stems):.1f} ancres par morceau")
+        det = " ".join(("*" if dure else "") + f"{b + 1}·{v}"
+                       + ("" if ec(b) == 0 else ("~" if ec(b) == 1 else "?"))
+                       for b, v, _q, _d, dure in A)
+        nd = sum(1 for a in A if a[4])
+        D += nd; DE += sum(1 for a in A if a[4] and ec(a[0]) == 0)
+        print(f"{s[:33]:<34}{len(A):>4}{nd:>6}{bon:>7}  {str(ph):>3}  {det}")
+    print(f"\nDURES  {DE}/{D} = {100 * DE / max(1, D):.0f}% sur une frontière annotée"
+          f"   ({D / len(stems):.1f} par morceau)")
+    print(f"TOUTES {E}/{T} = {100 * E / max(1, T):.0f}% exactes, "
+          f"{B}/{T} = {100 * B / max(1, T):.0f}% à une mesure près "
+          f"({T / len(stems):.1f} par morceau)")
+    print("Rappel : les annotations ne sont pas exhaustives — les « ? » sont "
+          "à écouter, pas à compter comme des erreurs.")
 
 
 # ── la page ─────────────────────────────────────────────────────────────────
@@ -367,10 +404,12 @@ def page(stems):
         vpng = bande_png(np.clip(V / 7.0, 0, 1))
         gtl = "".join(f'<i class=gt style="left:{g / n * 100:.4f}%"></i>' for g in gt)
         anc = ""
-        for b, v, q, _dsp in A:
+        for b, v, q, _dsp, dure in A:
             ko = verd.get(b + 1, {}).get("garde") is False
-            anc += (f'<i class="a{" ko" if ko else ""}" style="left:{b / n * 100:.4f}%" '
-                    f'title="mesure {b + 1} · {v} signaux : {", ".join(q)}"></i>')
+            cl = "a" + (" ko" if ko else (" dure" if dure else " guide"))
+            anc += (f'<i class="{cl}" style="left:{b / n * 100:.4f}%" '
+                    f'title="mesure {b + 1} · {v} signaux : {", ".join(q)}'
+                    f' — {"DURE" if dure else "guide"}"></i>')
         for aj in ajouts:
             m = int(aj["mesure"]) - 1
             anc += (f'<i class="a ia" style="left:{m / n * 100:.4f}%" '
@@ -387,14 +426,15 @@ def page(stems):
                         for i in range(0, n, pas))
 
         btns = ""
-        for b, v, q, _dsp in A:
+        for b, v, q, _dsp, dure in A:
             e = min([abs(b - g) for g in gt], default=99)
-            cls = "ok" if e == 0 else ("pres" if e <= 1 else "ko")
+            cls = "ok" if e == 0 else ("pres" if e <= 1 else "hors")
             ver = verd.get(b + 1)
             rai = f'<em>{ver["raison"]}</em>' if ver and ver.get("raison") else ""
             mort = " barre" if ver and ver.get("garde") is False else ""
+            tag = "dure" if dure else "guide"
             btns += (f'<button class="an {cls}{mort}" data-b="{b}">mes. <b>{b + 1}</b>'
-                     f'<small>{v} signaux · {", ".join(q)}</small>{rai}</button>')
+                     f'<small>{tag} · {v} signaux · {", ".join(q)}</small>{rai}</button>')
         for aj in ajouts:
             m = int(aj["mesure"]) - 1
             e = min([abs(m - g) for g in gt], default=99)
@@ -402,14 +442,15 @@ def page(stems):
             btns += (f'<button class="an ia {cls}" data-b="{m}">mes. <b>{m + 1}</b>'
                      f'<small>ajout du LLM</small><em>{aj.get("raison", "")}</em></button>')
         if not A:
-            btns = ('<div class=rien>Aucune ancre : moins de deux mesures rassemblent '
-                    f'{K} signaux exceptionnels, ou elles ne tombent pas sur la même '
-                    'phase de 4 mesures. Le morceau se tait plutôt que de deviner.</div>')
+            btns = ('<div class=rien>Aucune ancre : aucune mesure ne rassemble '
+                    f'{K} signaux exceptionnels. Ce n\'est pas un manque de signaux '
+                    '— ils parlent — c\'est qu\'ils ne coïncident jamais.</div>')
 
         body.append(
             f'<section data-grid="{json.dumps(grid)}" data-n="{n}">'
             f'<div class=hd><h2>{titres.get(stem, stem.replace("_", " "))}</h2>'
-            f'<span class=sub>{n} mesures · {len(A)} ancre(s) · '
+            f'<span class=sub>{n} mesures · {sum(1 for a in A if a[4])} dure(s) + '
+            f'{sum(1 for a in A if not a[4])} guide(s) · '
             f'{len(gt)} frontières validées · {len(muets)}/39 critères muets</span></div>'
             f'<div class=bar><button class=pp>▶</button><span class=pos>mes. 1</span>'
             f'<span class=hint>clique la bande pour écouter · clique une ancre pour '
@@ -456,6 +497,8 @@ h2{{font:700 18px system-ui;margin:0;color:#8a2b2b}}
 .a{{position:absolute;top:-4px;width:3px;height:22px;background:#e8a33d;
   transform:translateX(-1.5px);border-radius:1px;box-shadow:0 0 0 1px rgba(255,255,255,.8)}}
 .a.ko{{background:#c9c1ab}}
+.a.guide{{background:#e8c98d;top:0;height:14px}}
+.a.dure{{background:#e8a33d}}
 .a.ia{{background:#1f6b6b;top:-6px;height:26px}}
 button.an.ia{{border-style:dashed;border-color:#1f6b6b}}
 button.an.barre b{{text-decoration:line-through;opacity:.55}}
@@ -477,7 +520,7 @@ button.an small{{display:block;font:500 10px system-ui;color:#a89f8c}}
 button.an em{{display:block;font:500 10.5px system-ui;color:#6f6857;max-width:230px;
   font-style:normal;margin-top:2px}}
 button.an.ok{{border-color:#3f7a4f}} button.an.pres{{border-color:#d9a441}}
-button.an.ko{{border-color:#b4472c}}
+button.an.hors{{border-color:#5c8fa8;border-style:dotted}}
 button.an.on{{background:#0d2437;color:#fff}} button.an.on small{{color:#9fb8c6}}
 .rien{{font:500 12px system-ui;color:#8a8371;background:#faf6ec;border-radius:9px;
   padding:8px 10px}}
