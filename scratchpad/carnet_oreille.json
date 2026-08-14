@@ -1,0 +1,9 @@
+{
+  "_quoi": "PISTE 6 — le carnet des corrections que Louis fait à l'oreille. Chaque entrée est réinjectée dans le prompt du LLM (scripts/llm_forme.py, carnet_txt()). Sa règle de fond : une correction humaine doit devenir une capacité générale, jamais une rustine par morceau. N'écris ici que des règles VÉRIFIÉES ou DITES par lui, avec la date et la source.",
+  "regles": [
+    "Ne force pas la régularité contre les colonnes. Vérifié sur ses 20 annotations : « une section commence sur un multiple de 4 » est FAUX (44 %), mais « l'écart entre deux frontières consécutives est un multiple de 4 » est vrai (82 %). Une section de 5 ou de 10 mesures existe, et elle décale toute la grille derrière elle — c'est le cas de She Will Be Loved (41 % en absolu, 89 % en relatif). Repars donc de la frontière précédente, jamais de la mesure 1.",
+    "Coupe même si aucun indice de signal ne le dit. Louis, 2026-08-14 : « je n'ai pas noté tous les changements de section, des fois le LLM coupe sur un pont ou une section qui se répète, et ça fait sens et ça devrait être gardé ». Une frontière que tu es seul à voir n'est pas une erreur si la suite d'accords ou le chant la justifie.",
+    "Sépare deux occurrences d'une même section qui ne durent pas pareil, au lieu de les aligner de force sur la même longueur. Louis appelle ça « écrire chaque section à la longueur qu'elle joue vraiment » et ça prime sur la préférence pour les blocs de 8.",
+    "Quand tu n'as aucun indice — un vamp sur un seul accord du début à la fin — dis-le et ne propose rien plutôt que d'inventer une grille régulière. Sur Chain of Fools, refuser d'arbitrer était le bon comportement."
+  ]
+}

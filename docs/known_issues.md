@@ -1,5 +1,142 @@
 # Harmonia — Known Issues
 
+## 2026-08-14 (soir) — FILLS, CADENCES, ET LE PIÈGE DU LA-EN-PREMIER
+
+Trois travaux lancés en parallèle sur la même question : quel signal marque une
+frontière de section. Deux sont des **résultats négatifs caractérisés** — ils
+disent ce qui ne marche pas ET pourquoi, et chacun laisse un acquis.
+
+### Les fills de batterie : aucune variante ne bat le témoin
+
+`scripts/fills.py`, `/plots/fills.html`, `docs/session_2026-08-14_fills.md`.
+Onze variantes testées sur les 18 morceaux, budget commun d'un pic toutes les 8
+mesures. **Le hasard fait 36 % à ce budget** — c'est la seule façon honnête de
+lire la colonne.
+
+| variante | rappel |
+|---|---|
+| damier de batterie (**témoin**, déjà un des 39) | **51 %** |
+| anomalie centrée (meilleure des fills) | 50 % |
+| anomalie × retour (la formule que j'avais prédite) | 46 % |
+| crash sur le temps 1 | 34 % = hasard |
+| *hasard au même budget* | *36 %* |
+
+**Mon hypothèse est fausse, avec un mécanisme.** Je pensais qu'un fill était une
+anomalie en `b` suivie d'une résolution en `b+1`, et que multiplier par le retour
+au groove ramènerait le pic de −1 à 0. Ça le déplace de 0 à **+1** : la mesure
+anormale n'est pas celle du fill, c'est **la première mesure de la nouvelle
+section** (nouveau groove contre les 2-4 d'avant), que la deuxième confirme. Le
+facteur mesure l'installation d'un groove, pas la résolution d'un fill.
+
+Et le décalage que je croyais négatif ne l'est pas : sur toutes les paires (pic,
+frontière) à ≤ 3 mesures, l'histogramme culmine **à 0** (47 paires contre un
+plancher de 25), avec un excès secondaire à −1. Correction de décalage en
+leave-one-song-out : 50 % → 50 %, **aucun gain**. Il n'y a pas d'offset constant
+à corriger.
+
+**Piège d'estimateur à ne plus refaire** : « la médiane de l'écart au pic le plus
+proche » vaut +0,00 pour TOUTES les variantes — à cette densité il y a presque
+toujours un seul pic dans la fenêtre, tiré uniformément. C'est un artefact de
+mesure, pas un résultat.
+
+**L'ACQUIS, lui, est branchable** : le cosinus de batterie était **saturé par le
+socle du groove** (le charleston sur chaque croche domine tous les vecteurs).
+Retirer le motif moyen du morceau avant le cosinus : **44 % → 51 %**, 86 → 100
+frontières marquées. C'est la troisième fois que ce défaut de centrage coûte dans
+ce projet. Une ligne dans `criteres_sections.signaux`, à mesurer sur la précision
+des ancres avant de la poser. Piste non exploitée : au grain du TEMPS, l'anomalie
+atteint son rang maximal à **−1 temps** (0,60, le meilleur chiffre du tableau) —
+le dernier temps de la mesure d'avant, la signature exacte du fill ; c'est
+l'extraction de pic qui la perd. Détecter au temps, agréger à la mesure par le
+max.
+
+### Les cadences : ça marche, mais ça détecte des fins de PHRASE
+
+`scripts/cadences.py`, `/plots/cadences.html`, `docs/session_2026-08-14_cadences.md`.
+Dix-huit formulations, budget d'un pic toutes les 6 mesures. **Le hasard fait
+43 %.**
+
+| formulation | rappel ±1 | gain |
+|---|---|---|
+| **la basse est sur la tonique locale** | **60 %** | **+17** |
+| V→I (ou IV→I) vers la tonique locale | 59 % | +16 |
+| silence du chant avant la phrase suivante | 53 % | +10 |
+| surprise d'un modèle de progression (LOSO) | 52 % | +9 |
+| quinte descendante **nue** | 47 % | +4 |
+| la phrase finit sur la tonique/tierce | 42 % | −1 |
+
+Décalage **+0,0 ± 1,0** : le pic est sur la frontière (le V est la dernière
+mesure, le I le premier temps de la suivante). **La quinte descendante nue est
+morte, sa destination la ressuscite** : +4 nue, +16 dès qu'on exige qu'elle
+arrive sur la tonique. Ce n'est pas le mouvement qui cadence, c'est où il tombe.
+
+**Pourquoi ça plafonne** : une cadence ferme une PHRASE, pas une section. Sunny
+le montre en clair — deux `C → B7 → Em` identiques par section, l'un au milieu
+(mes. 22), l'autre à la fin (mes. 26), et rien dans l'harmonie ne les distingue.
+Sur 18 morceaux, **9 ont un écart de phase de 2 mesures** entre leurs cadences et
+leurs frontières : le milieu de la phrase. Et la cadence **ne rouvre aucun canal
+fermé** : la frontière médiane est déjà vue par 23 des 39 critères, la moins
+visible par 6, aucune n'est invisible.
+
+**Ce qu'il faut en faire, et c'est une meilleure idée que ce que j'avais
+demandé** : ne pas s'en servir comme détecteur de frontière mais comme
+**fournisseur de PHASE**. Elle est très périodique (jusqu'à 88 % de ses pics sur
+la même phase mod 4) et sa phase est stable. Or `ancres.py` documente comme sa
+faiblesse connue que « sur un morceau à une ou deux ancres, la phase élue est un
+tirage au sort », et son filtre de phase vaut +23 points. Une cadence qui donne
+la phase sans nommer de frontière vaudrait plus qu'une cadence qui nomme mal des
+frontières.
+
+### Le piège du LA-en-premier (vérifié, ce n'est PAS un bug de prod)
+
+L'agent cadences a signalé « index 0 = LA, pas DO » comme un bug de calibration.
+**Vérifié indépendamment, et la conclusion est plus fine.**
+
+`extract_bothchroma()` rend le tableau VAMP **brut, index 0 = LA** — c'est écrit
+dans son docstring. Le roulage de 9 vers DO n'est fait que dans `pool_beats()`.
+Or `pipeline.py` passe le tableau BRUT à `detect_sections()` et à
+`analyze_harmony()`. Mesuré sur 3 morceaux : `racine musx − argmax basse ≡ 9`
+demi-tons sur 55 % des mesures — l'écart attendu si index 0 = LA.
+
+**Le chemin de prod est juste** : `harmonic_key.py` connaît la convention et
+compense explicitement (`roll = (9 - tonic) % 12`, ligne 85 ; `np.roll(..., 9)`
+lignes 158 et 164). Rien à corriger en prod.
+
+**Mais c'est un piège pour tout nouveau code** qui lit `cap["arr"]` en croyant
+lire des classes de hauteurs en DO. Ce qui est épargné : tout ce qui est
+invariant par transposition — les SSM (cosinus, corrélation, pondéré) et le noyau
+harmonique circulant des 39 critères, donc les ancres ne sont pas touchées. Ce
+qui est touché : tout ce qui lit une hauteur ABSOLUE. C'est ce qui a coûté à
+l'agent cadences : sans la correction, « la racine est la tonique locale » tombait
+à 2 % au lieu de 43 %. **Règle : si tu lis `arr` en absolu, roule de 9 d'abord.**
+
+### Le LLM de forme : les six pistes, câblées
+
+`scripts/llm_forme.py`. Les six pistes proposées à Louis, dans son ordre :
+
+1. **Automatisé** — ni `anthropic` ni clé API sur la machine, mais le CLI
+   `claude -p` est là : on passe par son auth Claude Code. `--system-prompt`
+   remplace le prompt d'agent (35 k jetons) par deux lignes et les outils sont
+   coupés : ~0,10 $ le premier appel, ~0,03 $ les suivants (cache serveur).
+2. **La répétition dans le prompt** — une colonne `≈` par mesure. Essayée
+   d'abord à la mesure : illisible, sur This Love chaque mesure ressemble à
+   vingt autres au maximum de l'échelle, la colonne disait « tout rejoue tout ».
+   Refaite au grain de la **phrase de 4 mesures**, en rendant la PREMIÈRE
+   occurrence assez ressemblante : elle montre alors les décalages de cycle
+   (Be My Baby : 13≈37, 14≈38, 15≈39 — le cycle de 24 mesures saute aux yeux).
+3. **La forme, pas les frontières** — la sortie est une PARTITION étiquetée qui
+   doit couvrir toutes les mesures sans trou, avec la même lettre pour deux
+   passages identiques. `valider()` rejette toute réponse qui ne pave pas.
+4. **Auto-cohérence** — 5 tirages, une frontière retenue si ≥3 la posent à ±1
+   mesure. Le nombre de tirages qui la soutiennent EST sa confiance.
+5. **Rétrécir la question** — `arbitrer()` pose « 49 ou 51, et pourquoi »
+   plutôt qu'une génération libre.
+6. **Le carnet** — `scratchpad/carnet_oreille.json`, réinjecté en exemples.
+   Amorcé avec les quatre règles que Louis a réellement énoncées (la grille de 4
+   est relative ; couper même sans indice de signal ; ne pas aligner de force
+   deux occurrences de longueurs différentes ; se taire sur un vamp).
+
+
 ## 2026-08-14 — LES ANCRES : PEU DE FRONTIÈRES, PRESQUE JAMAIS FAUSSES
 
 Louis : « je veux un outil qui trouve QUELQUES frontières, juste les plus
