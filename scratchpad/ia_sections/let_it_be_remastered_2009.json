@@ -1,0 +1,5 @@
+{
+  "nom": "un LLM lit le résumé texte (aveugle)",
+  "note": "Claude Opus 5 a lu scratchpad/ia_sections/let_it_be_remastered_2009.txt — une ligne par mesure : accord musx, chant présent par quart de mesure, RMS relatif, énergie batterie en quartiles. AUCUN accès aux frontières de Louis. Ce qu'il a lu : le chant entre en 5, la batterie entre en 17, le chant s'arrête en 33 (solo) et revient en 45, la batterie passe à fond en 49 puis retombe en 57, le chant sort en 69. Les six autres sont posées sur la grille de 4 mesures là où un indice faible la soutient (phrase Am-F-C, saut de niveau).",
+  "bars": [5, 13, 17, 25, 33, 37, 41, 45, 49, 57, 61, 65, 69]
+}

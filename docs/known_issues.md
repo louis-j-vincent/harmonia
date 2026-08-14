@@ -1,5 +1,78 @@
 # Harmonia — Known Issues
 
+## 2026-08-14 — TRENTE-NEUF CRITÈRES DE FRONTIÈRE, UN PAR LIGNE, ET CE QU'ILS DISENT
+
+Louis : « pour chaque signal (voix, rythme, harmonie, intensité…), proposer
+plusieurs critères — varier la granularité, le type de produit scalaire, matrice
+SSM ou juste profil d'intensité — puis voir lesquels sont individuellement les
+mieux corrélés aux changements de section. Mon hypothèse : chaque chanson a son
+propre ensemble de signaux. » `scripts/criteres_sections.py`,
+`/plots/criteres_sections.html`, branche `feat/section-criteres`.
+
+**LE DISPOSITIF.** 7 signaux × 5 façons de fabriquer une courbe (damier de Foote,
+contraste de voisinage, rupture de ligne de SSM, saut d'un scalaire, écart-type
+local) × 3 granularités (mesure, demi-mesure, temps) × 4 produits scalaires (cos,
+harmonique chord-tone, corrélation centrée, pondéré par l'intensité) = 39 lignes
+par morceau. Tête de lecture partagée, clic → le son part de cette mesure.
+
+**LA PRÉCAUTION QUI REND LA COMPARAISON HONNÊTE** : chaque critère propose
+EXACTEMENT autant de frontières qu'il y en a dans le morceau (ses plus hauts
+pics, espacés d'≥2 mesures). Sans ce budget commun, un critère bruité qui pique
+toutes les deux mesures « trouve » tout. Score = frontières trouvées, 1 point à
+la mesure près, ½ point à une mesure près.
+
+**L'HYPOTHÈSE DE LOUIS TIENT.** Le meilleur SIGNAL change à chaque morceau, et
+l'écart entre le meilleur et le pire signal du même morceau va jusqu'à ×2 :
+
+| morceau | ftr | voix | harmo | basse | accords | rythme | timbre | intens | ce qui porte le morceau |
+|---|---|---|---|---|---|---|---|---|---|
+| This Love | 10 | **7,5** | 7,0 | 6,0 | 4,5 | 4,5 | **7,5** | 6,5 | voix + timbre |
+| Blue Lights | 11 | 8,0 | **10** | **10** | **10** | 6,0 | **10** | 9,0 | tout sauf le rythme |
+| Bein' Green | 6 | 3,0 | 2,5 | 2,5 | 3,0 | 2,5 | **5,0** | 4,5 | timbre seul (pas de batterie) |
+| Let It Be | 13 | 7,5 | 9,0 | 8,5 | 4,0 | **9,5** | 8,0 | **9,5** | la batterie et le volume |
+| Every Breath | 13 | **7,0** | 5,5 | 5,0 | **7,0** | 5,0 | 6,0 | 6,0 | la voix |
+| The Walk | 10 | 4,5 | **5,5** | 4,5 | 4,0 | 3,5 | 3,5 | 4,0 | rien de net (vamp A-Bm) |
+| Chain of Fools | 9 | 3,0 | 3,5 | 3,5 | 3,5 | 3,5 | 3,5 | **4,5** | rien de net (vamp C) |
+
+Trois lectures transverses, à confirmer à l'oreille sur la page :
+* **le substrat de la prod (`accords`) n'est premier nulle part** et il est
+  dernier sur Let It Be (4,0/13) — il donne la période de la boucle, pas
+  l'échelle de la section. C'est déjà ce que disait `ssm_zoo` en août ; ici
+  c'est chiffré à budget égal.
+* **le produit harmonique et le pondéré-intensité battent le cosinus** sur
+  l'harmonie de Blue Lights et de The Walk — les deux morceaux les plus vampés.
+* **les vamps à un accord (Chain of Fools, The Walk) résistent à tout** : aucun
+  critère ne dépasse la moitié des frontières.
+
+**UN LLM QUI LIT UN RÉSUMÉ TEXTE FAIT AUSSI BIEN OU MIEUX.**
+`scripts/resume_texte.py` réduit le morceau à une ligne par mesure (accord musx,
+chant par quart de mesure, RMS relatif, batterie en quartiles) — aucun accès aux
+frontières. Claude Opus 5 lit ce texte et pose des frontières
+(`scratchpad/ia_sections/<stem>.json`, ligne « IA » sur la page) :
+
+| morceau | IA | meilleur des 39 | conditions |
+|---|---|---|---|
+| Every Breath You Take | **13/13** | 7,0/13 | morceau célèbre, nombre de frontières connu |
+| Let It Be | **12/13** | 9,5/13 | morceau célèbre, nombre connu |
+| The Walk | 5/10 | 5,5/10 | **test propre** : ni les frontières ni leur nombre |
+
+**CE QUE ÇA NE PROUVE PAS**, et il faut le dire avant d'en faire quoi que ce
+soit : (1) les deux scores écrasants sont sur des morceaux archi-connus, dont le
+modèle a la forme en mémoire — ce n'est pas de la lecture de signal, c'est du
+rappel ; (2) sur ces deux-là le modèle connaissait aussi le NOMBRE de frontières,
+ce qui contraint énormément ; (3) le seul test sans fuite (The Walk) donne une
+égalité avec le meilleur critère de signal, pas une victoire. La conclusion
+défendable est étroite : **un LLM est un bon lecteur de FORME quand la forme est
+lisible dans la suite d'accords, et il ne sait rien de plus que le signal quand
+elle ne l'est pas.** Le test qui manque : dix morceaux inconnus du modèle, sans
+lui donner le nombre.
+
+**AUTRES LIMITES.** Les scores dépendent de frontières validées à la main sur 7
+morceaux — c'est peu, et l'annotation elle-même choisit une échelle (Louis coupe
+Let It Be en 13 sections, dont des B de 4 mesures). Un critère qui propose la
+bonne frontière à la mauvaise ÉCHELLE est compté faux. Rien n'est branché sur la
+prod : aucune fusion n'est écrite, la page sert à choisir quoi fusionner.
+
 ## 2026-08-12 — LES LICKS : POURQUOI LA MATRICE DE VOIX ACTUELLE NE PEUT PAS LES VOIR
 
 Louis : « j'aimerais pouvoir détecter les licks des refrains, tu peux m'aider à

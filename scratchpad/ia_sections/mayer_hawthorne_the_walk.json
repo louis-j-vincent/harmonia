@@ -1,0 +1,5 @@
+{
+  "nom": "un LLM lit le résumé texte (aveugle, sans connaître le nombre)",
+  "note": "Test propre : contrairement à Let It Be et Every Breath, le modèle ne connaissait NI les frontières NI leur nombre — il a choisi lui-même d'en poser 13. Ce qu'il a lu : vamp A-Bm d'un bout à l'autre, donc l'accord ne dit presque rien ; les seules déviations sont C#m en 25, 53, 81 (4 mesures à chaque fois, +2 dB : le refrain) et C#m-C#m-Bm-Bm-E en 65 (harmonie deux fois plus lente : le pont). Le reste vient du chant qui entre en 5, de la batterie qui disparaît en 21-24, et du fondu en 97.",
+  "bars": [5, 13, 21, 25, 29, 41, 53, 57, 65, 73, 81, 85, 97]
+}

@@ -1,0 +1,5 @@
+{
+  "nom": "un LLM lit le résumé texte (aveugle)",
+  "note": "Claude Opus 5 a lu scratchpad/ia_sections/the_police_every_breath_you_take_official_music_video.txt — une ligne par mesure : accord musx, chant par quart de mesure, RMS relatif, batterie en quartiles. AUCUN accès aux frontières de Louis. Il a raisonné sur le MOTIF D'ACCORDS, pas sur l'énergie : le cycle Ab-Ab-Fm-Fm-C#-Eb tient les couplets ; en 25 et en 67 il devient C#-C#-Ab-Ab-Bb-Bb-Eb-Eb (autre section) ; en 41 il passe à E/F# (le pont, autre tonalité, +2.6 dB) ; en 85 quatre mesures de Fm sans chant ; à partir de 89 un cycle de 4 mesures jusqu'à la fin (la coda).",
+  "bars": [9, 17, 25, 33, 41, 51, 59, 67, 75, 85, 89, 97, 105]
+}
