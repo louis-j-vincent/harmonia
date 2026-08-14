@@ -220,16 +220,22 @@ def _draft_key(bars: list) -> tuple[dict, str]:
 
 
 def analyze(audio_path, *, title: str = "", file_key: str = "",
-            audio_url: str = "", progress=None) -> dict:
+            audio_url: str = "", progress=None, bar1_time=None) -> dict:
     """Full thin pipeline for one audio file → final ChartModel dict.
 
     Thin wrapper over `analyze_steps`: it drains the generator and returns the
     last (refined) model. Same signature and same result as before the
     2026-08-07 split, so every non-streaming caller is untouched.
+
+    `bar1_time` (2026-08-13): without it here, every NON-streaming caller —
+    `scripts/rebake_library.py` first among them — silently handed the chart
+    back to the beat tracker's phase and wiped the user's "Set bar 1". A
+    re-anchor you cannot re-apply is not an anchor.
     """
     model = None
     for _, model in analyze_steps(audio_path, title=title, file_key=file_key,
-                                  audio_url=audio_url, progress=progress):
+                                  audio_url=audio_url, progress=progress,
+                                  bar1_time=bar1_time):
         pass
     return model
 
@@ -543,6 +549,12 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
             "key": key, "keyName": key_name, "keySegments": key_segments,
             "bpb": bpb, "nBars": n_bars,
             "barGrid": grid, "beatTimes": beat_times,
+            # La marque de Louis, EN SECONDES, telle qu'il l'a posée : c'est
+            # la seule forme qui survit à un re-calcul, puisque la pipeline la
+            # re-cale elle-même sur le temps le plus proche. Sans ce champ,
+            # toute ré-inférence (rebake compris) rendait la phase au tracker
+            # et effaçait le recalage sans rien dire (2026-08-13).
+            "bar1": None if bar1_time is None else round(float(bar1_time), 3),
             "form": None,
             "fold": fold_report,
             "sections": sections,

@@ -44,11 +44,21 @@ def rebake(file_key: str, out_dir: Path) -> tuple[bool, str]:
     if not audio.exists():
         return False, f"{file_key}: audio absent ({stem}.m4a)"
     t0 = time.time()
+    # La marque « Set bar 1 » de Louis se REPASSE (2026-08-13). Sans elle, le
+    # rebake rendait la phase des mesures au tracker : chaque passage de
+    # /ship effaçait silencieusement tous les recalages jamais posés, et le
+    # chart revenait décalé sans que rien ne le dise.
     model = analyze(audio, title=old.get("title") or "", file_key=file_key,
-                    audio_url=f"/audio/{audio.name}")
+                    audio_url=f"/audio/{audio.name}",
+                    bar1_time=old.get("bar1"))
     # garde-fous : un chart vide ou sans grille ne remplace jamais l'ancien
     if not model.get("barGrid") or not model.get("sections"):
         return False, f"{file_key}: chart régénéré vide — ancien conservé"
+    # …ni un chart qui aurait perdu la marque en route. Une annotation de
+    # Louis qui disparaît doit ARRÊTER le recuit, pas passer inaperçue.
+    if old.get("bar1") is not None and model.get("bar1") is None:
+        return False, (f"{file_key}: le Set bar 1 ({old['bar1']}s) a disparu "
+                       "du chart régénéré — ancien conservé")
     n_old = len(old.get("barGrid") or []) - 1
     n_new = len(model["barGrid"]) - 1
     (out_dir / f"{file_key}.json").write_text(
@@ -58,7 +68,9 @@ def rebake(file_key: str, out_dir: Path) -> tuple[bool, str]:
                  and "n_obs" in v)
     return True, (f"{file_key}: {n_new} mesures (avant {n_old}), "
                   f"{folded}/{len(fold)} lettres repliées, "
-                  f"{time.time() - t0:.0f}s")
+                  + (f"bar 1 rejouée à {old['bar1']}s, "
+                     if old.get("bar1") is not None else "")
+                  + f"{time.time() - t0:.0f}s")
 
 
 def main(argv):

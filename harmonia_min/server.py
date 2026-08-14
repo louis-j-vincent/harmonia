@@ -930,6 +930,17 @@ def _run_job(job_id: str, url: str, bar1_time=None):
         file_key = f"min_{audio_path.stem}"
         CHARTS_DIR.mkdir(parents=True, exist_ok=True)
         dest = CHARTS_DIR / f"{file_key}.json"
+        # Ré-analyser un morceau DÉJÀ dans la bibliothèque ne doit pas jeter
+        # son « Set bar 1 » (2026-08-13). La marque est collante : on ne la
+        # relit que si l'appel n'en apporte pas une nouvelle.
+        if bar1_time is None and dest.exists():
+            try:
+                bar1_time = json.loads(dest.read_text(encoding="utf-8")).get("bar1")
+            except (OSError, ValueError):
+                bar1_time = None
+            if bar1_time is not None:
+                log.info("job %s: reprise du Set bar 1 de %s (%.3fs)",
+                         job_id, file_key, float(bar1_time))
         # Le sidecar est ce que /api/library ressert : c'est là que l'artiste
         # doit atterrir pour être VU. On n'écrase jamais une saisie de Louis —
         # l'éditeur artiste/titre de l'app écrit dans le même fichier.
