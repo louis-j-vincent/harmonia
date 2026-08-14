@@ -38,9 +38,31 @@ loup ». (3) Le vote compte des **signaux**, pas des critères — les six varia
 d'harmonie ne pèsent pas six fois. Une ancre = ≥5 des 7 signaux, plus le filtre
 de phase, plus l'abstention si une seule ancre survit.
 
-**Mesuré sur les 18 morceaux validés : 2,1 ancres par morceau, 78 % exactes,
-81 % à une mesure près, 6 morceaux où l'outil se tait.** Dix morceaux sur dix-huit
-sont à 100 %.
+**Mesuré sur les 18 morceaux validés : 1,4 ancre par morceau, 24/25 = 96 %
+exactes, 11 morceaux où l'outil se tait.** Une seule ancre fausse dans tout le
+corpus (Every Breath, mes. 31).
+
+**LE RÉGLAGE N'EST PAS CALÉ SUR CES MORCEAUX** (question de Louis : « j'ai peur
+que tu te sois calibré sur certaines chansons »). Validation *leave-one-song-out*
+— le seuil est élu sur 17 morceaux et appliqué au 18e, jamais vu : **96 %**, et
+les 18 sous-ensembles élisent le même couple `Z=2,5 · K=6` **17 fois sur 18**.
+Le premier réglage livré (`Z=3,5 · K=5`, 78 %) était en fait le MAUVAIS point :
+il avait été choisi à l'œil sur un compromis nombre/précision au lieu de la
+précision seule, qui est le contrat. Second point de fonctionnement conservé pour
+mémoire si un jour il faut plus de matière : 2,1 ancres/morceau, 78 %, silence
+sur 6.
+
+**RELATIF OU ABSOLU** (même question). Tout ce qui touche au SIGNAL est relatif
+au morceau et au critère : le seuil de surprise est en écarts absolus médians de
+la *propre* distribution du critère *sur ce morceau* ; la disqualification est en
+pics par mesure ; la phase est élue par les ancres du morceau. Les seules
+constantes absolues sont le nombre de signaux qu'il faut (`K=6` sur 7) et la
+tolérance de ±1 mesure. Conséquence mesurée : les trois morceaux où *aucune*
+mesure n'atteint 5 signaux (Bein' Green, Yesterday, Goodbye Yellow Brick Road)
+ne sont PAS des morceaux à signaux manquants — 6 ou 7 signaux y parlent — mais
+des morceaux où les signaux ne **coïncident** jamais. Rendre `K` relatif au
+nombre de signaux présents ne change rien (43 ancres à 72 % contre 37 à 78 %) :
+15 morceaux sur 18 ont déjà leurs 7 signaux actifs.
 
 **LE PIÈGE, et il valait 41 points de précision.** Avec une tolérance de ±1
 mesure, un pic fait voter TROIS mesures : le vote est un plateau, et prendre la

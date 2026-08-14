@@ -83,10 +83,10 @@ sys.path.insert(0, str(HERE / "scratchpad"))
 CACHE = HERE / "scratchpad" / "critere_cache"
 OUT = HERE / "docs" / "plots" / "ancres.html"
 
-Z = 3.5          # « exceptionnel » = à Z écarts absolus médians de sa médiane
+Z = 2.5          # « exceptionnel » = à Z écarts absolus médians de sa médiane
 DENSITE = 1 / 6  # au-delà d'un pic exceptionnel toutes les 6 mesures : disqualifié
 TOL = 1.0        # deux pics à ≤ 1 mesure parlent du même endroit
-K = 5            # nombre de SIGNAUX distincts qu'il faut pour faire une ancre
+K = 6            # nombre de SIGNAUX distincts qu'il faut pour faire une ancre
 MINI = 2         # une ancre seule n'est corroborée par rien : le morceau se tait
 
 
@@ -190,7 +190,17 @@ def ancres(stem, k=K, z=Z, tol=TOL, densite=DENSITE, ecart=3.0, reseau=True):
     solution de Louis (« un décalage constant avec une majorité de pics qui sont
     d'accord ») appliquée aux ancres entre elles, sans jamais lire une frontière.
 
-    Mesuré sur les 18 morceaux validés : 2,2 ancres par morceau, 75 % exactes.
+    RÉGLAGE, et il n'est pas choisi à la main. Une validation *leave-one-song-out*
+    (le seuil est élu sur 17 morceaux, appliqué au 18e qu'il n'a jamais vu) donne
+    **24/25 = 96 % d'ancres exactes**, et les 18 sous-ensembles élisent le même
+    couple `(Z=2,5 · K=6)` 17 fois sur 18. Ce n'est donc pas un réglage calé sur
+    ces morceaux-là : c'est un point de fonctionnement stable.
+
+    Le prix est la couverture : **1,4 ancre par morceau et 11 morceaux sur 18 où
+    l'outil se tait**. C'est le contrat demandé (« pas besoin de les trouver
+    toutes, très peu de faux positifs »). L'autre point de fonctionnement mesuré,
+    si un jour il faut plus de matière : `Z=3,5 · K=5` donne 2,1 ancres par
+    morceau et 78 % d'exactes, silence sur 6 morceaux seulement.
     """
     V, QUI, POS, muets, n = vote(stem, z=z, tol=tol, densite=densite)
     cand = sorted([b for b in range(1, n) if V[b] >= k],
