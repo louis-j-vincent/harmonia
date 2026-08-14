@@ -212,6 +212,61 @@ def phrases4():
         for s in secs]})
 
 
+@app.post("/api/soudure/valider/<file>")
+def soudure_valider(file):
+    """Écrire le découpage de la Soudure DANS le chart, puis y renvoyer.
+
+    Louis, 2026-08-14 : « quand la soudure est appliquée, on est redirigé sur
+    le chart avec la nouvelle structure ».
+
+    C'est la seule route de l'outil qui TOUCHE aux données. Deux précautions :
+    le chart d'avant est copié dans `state/charts.bak_soudure/` (une session
+    concurrente peut travailler sur ces fichiers, et un découpage se regrette),
+    et on refuse d'écrire un découpage qui ne couvre pas le morceau — un chart
+    à trous serait pire que l'ancien.
+    """
+    from harmonia_min.soudure import sections_pour_chart
+    p = CHARTS_DIR / f"{Path(file).stem}.json"
+    if not p.exists():
+        return jsonify({"error": "no such chart"}), 404
+    secs = (request.get_json(silent=True) or {}).get("sections") or []
+    if not secs:
+        return jsonify({"error": "aucune section"}), 400
+    chart = json.loads(p.read_text(encoding="utf-8"))
+    n = chart.get("nBars") or 0
+    try:
+        couvert = set()
+        for s in secs:
+            couvert |= set(range(int(s["mesure_debut"]) - 1, int(s["mesure_fin"])))
+    except (KeyError, TypeError, ValueError):
+        return jsonify({"error": "sections mal formées"}), 400
+    manque = sorted(set(range(n)) - couvert)
+    if manque:
+        return jsonify({"error": f"{len(manque)} mesures ne sont dans aucune "
+                                 f"section (la première est la {manque[0] + 1})"}), 400
+    neuves = sections_pour_chart(chart, secs)
+    if not neuves:
+        return jsonify({"error": "aucune section utilisable"}), 400
+    try:
+        bak = PKG / "state" / "charts.bak_soudure"
+        bak.mkdir(parents=True, exist_ok=True)
+        (bak / p.name).write_text(p.read_text(encoding="utf-8"), encoding="utf-8")
+        chart["sections"] = neuves
+        # Le repli d'origine décrivait les ANCIENNES sections : le garder
+        # ferait lire au chart une carte qui ne correspond plus au terrain.
+        chart["fold"] = {}
+        chart["form"] = None
+        p.write_text(json.dumps(chart, ensure_ascii=False), encoding="utf-8")
+    except OSError as exc:
+        log.warning("soudure valider %s: %s", file, exc)
+        return jsonify({"error": "écriture impossible"}), 500
+    _SOUDURE_CACHE.clear()
+    log.info("soudure: %s réécrit avec %d sections (copie dans %s)",
+             p.name, len(neuves), bak)
+    return jsonify({"ok": True, "sections": len(neuves),
+                    "url": "/?open=" + Path(file).stem})
+
+
 @app.get("/min/<file>")
 def minimal(file):
     """The minimalist representation (Louis, 2026-08-02): one block per

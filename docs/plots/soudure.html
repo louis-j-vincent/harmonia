@@ -149,6 +149,8 @@ h1{font:italic 400 27px/1.15 var(--serif); margin:0 0 3px}
       background:var(--carte); color:var(--encre); font:600 15px/1 var(--ui);
       cursor:pointer; margin-bottom:8px}
 #appl{background:var(--encre); color:var(--carte); border-color:var(--encre)}
+#valid{background:var(--accent); color:#fff8ee; border-color:var(--accent)}
+#valid:disabled{background:#e3dbc9; color:#a79f8c; border-color:var(--filet)}
 #appl:disabled{background:#e3dbc9; color:#a79f8c; border-color:var(--filet)}
 .note{color:var(--second); font:13px/1.4 var(--ui); margin:0 2px 10px; min-height:1.2em}
 /* Les sections inférées : la lettre, et son prime quand la section ne diffère
@@ -187,6 +189,7 @@ h1{font:italic 400 27px/1.15 var(--serif); margin:0 0 3px}
 <p class="res-t">Résultat</p>
 <div class="res" id="res"></div>
 <button class="expo" id="appl">Appliquer — inférer les sections</button>
+<button class="expo" id="valid" hidden>Valider — écrire dans le chart</button>
 <p class="note" id="note"></p>
 <button class="expo" id="expo">Exporter JSON</button>
 
@@ -843,6 +846,7 @@ function dessine(){
     piste.appendChild(ib);
   }
 
+  $("valid").hidden = !(S.phrases && SONG.file);
   var note = $("note");
   note.textContent = S.phrases
     ? S.phrases.length + " sections, en phrases de " + (S.cible || 4)
@@ -1082,6 +1086,33 @@ function majBoutonAppl(){
 $("appl").onclick = function(){
   if (S.auto){ S.auto = false; S.phrases = null; majBoutonAppl(); dessine(); return; }
   infere();
+};
+
+/* VALIDER — on écrit le découpage dans le chart et on y retourne.
+   Louis, 2026-08-14 : « quand la soudure est appliquée, on est redirigé sur le
+   chart avec la nouvelle structure ». C'est le seul geste de la page qui
+   touche aux données, d'où le bouton distinct : inférer se refait cent fois,
+   écrire se fait une fois. */
+$("valid").onclick = function(){
+  if (!S.phrases || !SONG.file) return;
+  var b = $("valid"); b.disabled = true; b.textContent = "…";
+  var out = [];
+  for (var i=0;i<S.phrases.length;i++)
+    out.push({label: S.phrases[i].label + (S.phrases[i].prime ? "'" : ""),
+              mesure_debut: S.phrases[i].mesure_debut,
+              mesure_fin: S.phrases[i].mesure_fin});
+  fetch("/api/soudure/valider/" + encodeURIComponent(SONG.file), {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({sections: out})
+  }).then(function(r){ return r.json(); }).then(function(d){
+    if (d && d.ok && d.url){ window.location = d.url; return; }
+    b.disabled = false; b.textContent = "Valider — écrire dans le chart";
+    $("note").textContent = "Le chart n'a pas été réécrit"
+      + (d && d.error ? " : " + d.error : "") + ".";
+  })["catch"](function(e){
+    b.disabled = false; b.textContent = "Valider — écrire dans le chart";
+    $("note").textContent = "Le chart n'a pas été réécrit (" + e + ").";
+  });
 };
 
 $("expo").onclick = function(){

@@ -505,6 +505,68 @@ def grille_et_mot(grid, triad):
     return bornes, _mot_depuis(_matrice_bimesures(S, bornes)), info
 
 
+def _bars_par_mesure(chart: dict) -> list:
+    """Le contenu de CHAQUE mesure, reconstruit depuis les sections du chart.
+
+    Attention au repli INTERNE : une section peut couvrir huit mesures et ne
+    porter que quatre `bars`, son motif se répétant deux fois dans la plage.
+    Ignorer ça laissait des mesures vides sur 26 charts sur 46 ; avec le
+    pavage, zéro.
+    """
+    n = chart.get("nBars") or (len(chart.get("barGrid") or []) - 1)
+    par_mesure: dict = {}
+    for s in chart.get("sections") or []:
+        bars = s.get("bars") or []
+        if not bars:
+            continue
+        for b0, b1 in s.get("barRanges") or []:
+            for b in range(b0, min(b1, n - 1) + 1):
+                par_mesure[b] = bars[(b - b0) % len(bars)]
+    return [par_mesure.get(b, []) for b in range(n)]
+
+
+def sections_pour_chart(chart: dict, secs: list[dict]) -> list[dict]:
+    """Les sections du chart, refaites à partir du découpage de la Soudure.
+
+    `secs` : [{label, mesure_debut, mesure_fin}] en mesures 1-indexées, fin
+    incluse — la forme que la page exporte.
+
+    On rend la MÊME forme que la pipeline (`pipeline.py`, montage des
+    sections) : id, label, tag, reps, spans, barRanges, bars, barSpans. Les
+    occurrences d'une même lettre sont repliées ensemble **seulement si elles
+    ont la même longueur** — c'est la règle de Louis, « under-fold, never
+    over-fold » : une section se réécrit à la longueur qu'elle joue vraiment,
+    et deux occurrences qui ne durent pas pareil restent deux entrées.
+    """
+    grid = chart.get("barGrid") or []
+    n = chart.get("nBars") or (len(grid) - 1)
+    bars = _bars_par_mesure(chart)
+    groupes: dict = {}
+    for s in secs:
+        b0 = max(0, int(s["mesure_debut"]) - 1)
+        b1 = min(n - 1, int(s["mesure_fin"]) - 1)
+        if b1 < b0:
+            continue
+        groupes.setdefault((str(s["label"]), b1 - b0), []).append((b0, b1))
+
+    out, vus = [], {}
+    for (lab, _lg), occ in sorted(groupes.items(), key=lambda kv: kv[1][0][0]):
+        occ.sort()
+        vus[lab] = vus.get(lab, 0) + 1
+        b0, b1 = occ[0]
+        out.append({
+            "id": "L" + lab + ("" if vus[lab] == 1 else str(vus[lab])),
+            "label": lab, "tag": "", "reps": len(occ),
+            "spans": [[grid[a], grid[min(b + 1, n)]] for a, b in occ],
+            "barRanges": [[a, b] for a, b in occ],
+            "bars": bars[b0:b1 + 1],
+            "barSpans": [[[grid[b], grid[min(b + 1, n)]]]
+                         for b in range(b0, b1 + 1)],
+        })
+    out.sort(key=lambda s: s["barRanges"][0][0])
+    return out
+
+
 def song_du_chart(chart: dict, audio_dir=None) -> dict | None:
     """La chanson complète attendue par la page, audio et retour compris.
 
@@ -555,6 +617,7 @@ def song_du_chart(chart: dict, audio_dir=None) -> dict | None:
 
     base["titre"] = chart.get("title") or chart.get("file") or "Sans titre"
     base["audio_url"] = chart.get("audio_url") or None
+    base["file"] = chart.get("file") or None
     if chart.get("file"):
         base["retour"] = {"href": "/?open=" + chart["file"], "label": "le chart"}
     return base
