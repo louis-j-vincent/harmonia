@@ -231,6 +231,50 @@ CANDIDATS = 24
 MAX_COUTURES = 3
 
 
+def _boucle(S, n: int) -> int | None:
+    """La période de la boucle du morceau, en mesures — `abababab` rend 2.
+
+    Louis, 2026-08-14 : « il faut donc un algo d'identification de
+    patterns/boucles, ici c'est du abababababab par exemple ». On la lit sur
+    la matrice : pour chaque décalage p, la ressemblance moyenne d'une mesure
+    avec celle qui est p plus loin. La boucle est le p qui tient le mieux.
+    On la cherche entre 2 et 16 mesures — en deçà c'est la mesure elle-même,
+    au-delà c'est une section, pas une boucle.
+    """
+    import numpy as np
+    if n < 12:
+        return None
+    scores = {}
+    for p in range(2, min(17, n // 3)):
+        d = np.array([S[b, b + p] for b in range(n - p)])
+        scores[p] = float(np.mean(d))
+    if not scores:
+        return None
+    return max(scores, key=scores.get)
+
+
+def _merite_du_trou(S, n: int, p: int):
+    """Pour chaque mesure, à quel point elle MÉRITE d'être le trou.
+
+    Louis : « le second critère, celui qui mérite d'être le trou, est
+    exactement le bon outil ». Une mesure insérée est celle qui ne ressemble
+    PAS à ce que la boucle annonce à sa place : on la note par son désaccord
+    avec la mesure d'une période avant et d'une période après. Une mesure bien
+    dans la boucle a deux voisines de période qui lui ressemblent ; la mesure
+    en trop, non — c'est elle qui décale tout ce qui suit.
+    """
+    import numpy as np
+    m = np.zeros(n)
+    for b in range(n):
+        vus = []
+        if b - p >= 0:
+            vus.append(S[b, b - p])
+        if b + p < n:
+            vus.append(S[b, b + p])
+        m[b] = 1.0 - (float(np.mean(vus)) if vus else 1.0)
+    return m
+
+
 def _jumelles(S, n: int):
     """(P, Q, W) — les paires de mesures manifestement jumelles, et leur poids.
 
@@ -368,31 +412,48 @@ def _meilleure_grille(S, n: int) -> tuple[list[int], dict]:
             x ^= enjambe[c]
         return float(np.sum(W[x == besoin]) / sw)
 
+    # LE SECOND CRITÈRE, ET POURQUOI IL FAUT UN SECOND CRITÈRE. Le score de
+    # parité est PLAT sur une fenêtre : mesuré sur Lost Without U, cinq paires
+    # de positions différentes atteignent toutes 100 % — la première couture
+    # peut tomber en 21, 22 ou 23, la seconde en 54, 55 ou 56. Le critère dit
+    # QU'IL Y A un trou dans cette fenêtre, jamais LEQUEL, et prendre le
+    # premier venu posait la mesure avalée à côté du vrai trou : Louis
+    # l'entendait (« sur robin thicke on détecte mal les trous d'une mesure »).
+    #
+    # Sa réponse, 2026-08-14 : « une fois que tu as identifié un pattern, tu
+    # vois le premier endroit qui casse cette boucle […] le second critère,
+    # celui qui mérite d'être le trou, est exactement le bon outil ». On
+    # départage donc les ex æquo par le MÉRITE : la mesure avalée doit être
+    # celle qui ne ressemble pas à ce que la boucle annonce à sa place.
+    periode = _boucle(S, n)
+    merite = _merite_du_trou(S, n, periode) if periode else np.zeros(n)
+
+    def merite_de(cuts):
+        return float(sum(merite[c] for c in cuts if 0 <= c < n))
+
     ok = np.arange(4, max(5, n - 5))
-    meilleur, coutures = base, ()
-    s1 = np.array([score((c,)) for c in ok])
-    j = int(np.argmax(s1))
-    if s1[j] - MARGE_COUTURE > meilleur:
-        meilleur, coutures = s1[j] - MARGE_COUTURE, (int(ok[j]),)
-    # toutes les PAIRES, vectorisées par première coupure
+    meilleur, coutures, mer = base, (), 0.0
+
+    def retiens(cand, v, k):
+        nonlocal meilleur, coutures, mer
+        v -= k * MARGE_COUTURE
+        m = merite_de(cand)
+        if v > meilleur + 1e-9 or (abs(v - meilleur) <= 1e-9 and m > mer):
+            meilleur, coutures, mer = v, cand, m
+
+    for c in ok:
+        retiens((int(c),), score((c,)), 1)
     for i, c1 in enumerate(ok):
-        v = np.array([score((c1, c2)) for c2 in ok[i + 1:]])
-        if not len(v):
-            continue
-        k = int(np.argmax(v))
-        if v[k] - 2 * MARGE_COUTURE > meilleur:
-            meilleur = v[k] - 2 * MARGE_COUTURE
-            coutures = (int(c1), int(ok[i + 1 + k]))
+        for c2 in ok[i + 1:]:
+            retiens((int(c1), int(c2)), score((c1, c2)), 2)
     # une troisième, en extension du meilleur couple (le cas à trois trous est
     # rare : on ne paie pas n³ pour lui)
     if len(coutures) == 2:
         for c3 in ok:
             if c3 in coutures:
                 continue
-            v = score(tuple(sorted(coutures + (int(c3),))))
-            if v - 3 * MARGE_COUTURE > meilleur:
-                meilleur = v - 3 * MARGE_COUTURE
-                coutures = tuple(sorted(coutures + (int(c3),)))
+            cand = tuple(sorted(coutures + (int(c3),)))
+            retiens(cand, score(cand), 3)
 
     # La LARGEUR (une mesure avalée, ou trois) ne change pas la parité — elle
     # change seulement l'alignement interne du jeton de couture. On la choisit
