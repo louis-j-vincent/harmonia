@@ -1,0 +1,185 @@
+"""Ingest a Spotify playlist's audio via the existing dataset lane.
+
+Two-step flow (Spotify side is done by spotdl, download side by harmonia):
+
+  1. ``spotdl save <playlist_url> --save-file playlist.spotdl --preload``
+     → per-track metadata (artist/title/album) + matched YouTube URL.
+  2. ``python scripts/ingest_spotify_playlist.py playlist.spotdl``
+     → downloads each match through
+     :class:`harmonia.dataset.ingest.YouTubeFetcher` (reuses ``docs/audio/``
+     and ``data/dataset_audio/`` caches, files keyed by video id) and appends
+     one JSON line per track to ``data/dataset_audio/manifest_spotify.jsonl``.
+
+The manifest is the annotation layer: artist / title / album / year / ISRC /
+Spotify ids + the video id and local file. Idempotent: tracks whose video id
+is already in the manifest are skipped, so re-running after failures is safe.
+
+A track whose YouTube duration differs from Spotify's by more than
+``--duration-tol`` seconds is still downloaded but flagged
+``duration_mismatch`` — those matches deserve an ear-check before use.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO))
+
+from harmonia.dataset.ingest import DATASET_AUDIO, YouTubeFetcher, slugify, youtube_id  # noqa: E402
+
+DEFAULT_MANIFEST = DATASET_AUDIO / "manifest_spotify.jsonl"
+
+
+def probe_duration(path: Path) -> float | None:
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+             "-of", "csv=p=0", str(path)],
+            capture_output=True, text=True, timeout=30,
+        ).stdout.strip()
+        return float(out) if out else None
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None
+
+
+def load_done(manifest: Path) -> tuple[set[str], set[str]]:
+    """(video ids, spotify ids) already recorded — both used to skip work."""
+    vids: set[str] = set()
+    sids: set[str] = set()
+    if manifest.exists():
+        for line in manifest.read_text().splitlines():
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if row.get("video_id"):
+                vids.add(row["video_id"])
+            if row.get("spotify_id"):
+                sids.add(row["spotify_id"])
+    return vids, sids
+
+
+def resolve_youtube(spotdl_bin: str, spotify_url: str) -> str | None:
+    """Match one Spotify track to a YouTube URL via `spotdl url` (slow, ~5 s)."""
+    try:
+        out = subprocess.run([spotdl_bin, "url", spotify_url],
+                             capture_output=True, text=True, timeout=180).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    for line in reversed(out.splitlines()):
+        line = line.strip()
+        if line.startswith("http") and ("youtu" in line):
+            return line
+    return None
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("spotdl_file", type=Path, help=".spotdl JSON from `spotdl save --preload`")
+    ap.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
+    ap.add_argument("--playlist", default=None, help="playlist name/url recorded in each row")
+    ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--duration-tol", type=float, default=10.0)
+    ap.add_argument("--sleep", type=float, default=1.0,
+                    help="pause between downloads (politeness, seconds)")
+    ap.add_argument("--min-free-gb", type=float, default=5.0,
+                    help="stop cleanly if free disk drops below this")
+    ap.add_argument("--resolve", action="store_true",
+                    help="resolve missing YouTube matches via `spotdl url` (slow)")
+    ap.add_argument("--spotdl-bin",
+                    default=os.environ.get(
+                        "SPOTDL", str(Path.home() / "harmonia/tools/spotdl-venv/bin/spotdl")))
+    ap.add_argument("--dry-run", action="store_true")
+    args = ap.parse_args()
+
+    tracks = json.loads(args.spotdl_file.read_text())
+    done, done_sids = load_done(args.manifest)
+    fetcher = YouTubeFetcher()
+    ok = skipped = failed = flagged = 0
+
+    args.manifest.parent.mkdir(parents=True, exist_ok=True)
+    with args.manifest.open("a") as mf:
+        for t in tracks[: args.limit]:
+            if not t:  # spotdl writes null for tracks whose preload failed
+                failed += 1
+                continue
+            free_gb = shutil.disk_usage(args.manifest.parent).free / 1e9
+            if free_gb < args.min_free_gb:
+                print(f"STOP: only {free_gb:.1f} GB free (< {args.min_free_gb}) — "
+                      f"resume with the same command after freeing space")
+                break
+            artist, title, album = t.get("artist"), t.get("name"), t.get("album_name")
+            label = f"{artist} - {title}"
+            if t.get("song_id") and t["song_id"] in done_sids:
+                skipped += 1
+                continue
+            yt = t.get("download_url")
+            if not yt and args.resolve and t.get("url") and not args.dry_run:
+                yt = resolve_youtube(args.spotdl_bin, t["url"])
+            if not yt:
+                print(f"SKIP (no YouTube match): {label}")
+                failed += 1
+                continue
+            vid = youtube_id(yt)
+            if vid and vid in done:
+                skipped += 1
+                continue
+            if args.dry_run:
+                print(f"would fetch {label}  <- {yt}")
+                continue
+            try:
+                path = fetcher.fetch(yt, prefer_stem=slugify(f"{artist} {title}"))
+            except Exception as e:  # noqa: BLE001 — one bad track must not kill the batch
+                print(f"FAIL: {label}: {e}")
+                failed += 1
+                time.sleep(args.sleep)
+                continue
+            time.sleep(args.sleep)
+            dur = probe_duration(path)
+            spotify_dur = t.get("duration")
+            mismatch = (
+                dur is not None and spotify_dur
+                and abs(dur - float(spotify_dur)) > args.duration_tol
+            )
+            row = {
+                "artist": artist,
+                "title": title,
+                "album": album,
+                "album_artist": t.get("album_artist"),
+                "year": t.get("year"),
+                "isrc": t.get("isrc"),
+                "spotify_id": t.get("song_id"),
+                "spotify_url": t.get("url"),
+                "youtube_url": yt,
+                "video_id": vid,
+                "file": str(path.relative_to(REPO) if path.is_relative_to(REPO) else path),
+                "duration_s": round(dur, 2) if dur is not None else None,
+                "spotify_duration_s": spotify_dur,
+                "duration_mismatch": bool(mismatch),
+                "playlist": args.playlist,
+            }
+            mf.write(json.dumps(row, ensure_ascii=False) + "\n")
+            mf.flush()
+            if vid:
+                done.add(vid)
+            ok += 1
+            if mismatch:
+                flagged += 1
+                print(f"OK (duration mismatch {dur:.0f}s vs {spotify_dur}s): {label}")
+            else:
+                print(f"OK: {label}")
+
+    print(f"\n{ok} downloaded, {skipped} already present, {failed} failed, "
+          f"{flagged} flagged duration_mismatch -> {args.manifest}")
+    return 0 if failed == 0 else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
