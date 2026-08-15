@@ -70,9 +70,10 @@ ETAT.mkdir(parents=True, exist_ok=True)
 CARNET = HERE / "scratchpad" / "carnet_oreille.json"
 OUT = HERE / "docs" / "plots" / "llm_forme.html"
 
-MODELE = "claude-sonnet-5"
-N_TIRAGES = 5
-SEUIL = 3          # une frontière tenue par ≥ SEUIL tirages sur N est retenue
+MODELE = "claude-haiku-4-5-20251001"   # Louis, 2026-08-14 : « lance-les sur haiku »
+N_TIRAGES = 3
+SEUIL = 2
+BUDGET_MAX = 8.0   # $ : le run s'arrête net au-delà, sans clé API on paie le harnais          # une frontière tenue par ≥ SEUIL tirages sur N est retenue
 TOL = 1            # deux frontières à ≤ 1 mesure sont la même
 
 
@@ -139,9 +140,13 @@ def appeler(prompt: str, modele=MODELE, temperature_hint="") -> dict | None:
     au premier appel).
     """
     cmd = ["claude", "-p", "--output-format", "json", "--model", modele,
-           "--system-prompt", SYSTEME,
-           "--disallowed-tools", "Bash,Read,Write,Edit,Glob,Grep,WebFetch,WebSearch,"
-                                 "TodoWrite,Task,NotebookEdit,Agent"]
+           "--system-prompt", SYSTEME, "--allowed-tools", "",
+           "--effort", "medium"]
+    # `--effort medium` : sans lui le modèle réfléchit 22 000 jetons avant de
+    # rendre le JSON, et la réflexion fait 45 % de la facture (mesuré). Les
+    # outils sont coupés : sinon on paie aussi les 18 k jetons de leur
+    # définition. Le harnais Claude Code reste payé à chaque appel — c'est ce
+    # qu'une vraie clé API supprimerait (0,004 $ au lieu de 0,11 $).
     try:
         r = subprocess.run(cmd, input=prompt + temperature_hint, capture_output=True,
                            text=True, timeout=300)
@@ -275,6 +280,8 @@ def forme(stem, n_tirages=N_TIRAGES, ancres=None, rebuild=False):
     pr = prompt_forme(stem, ancres)
     tirages, cout = [], 0.0
     for k in range(n_tirages):
+        if cout > BUDGET_MAX / 6:        # garde-fou par morceau
+            break
         d = appeler(pr, temperature_hint=f"\n\n(lecture n°{k + 1})")
         if d is None:
             continue

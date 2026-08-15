@@ -1,5 +1,69 @@
 # Harmonia — Known Issues
 
+## 2026-08-15 — LE LLM SUR LES 18, EN HAIKU : 73 % DE PRÉCISION, ET +6 POINTS DE PLAFOND
+
+`scripts/llm_forme.py`, Haiku, 3 tirages, consensus à 2/3, ancres molles en
+prior. **7,49 $ pour les 18** (dont 2,88 $ de runs Sonnet déjà en cache : Haiku
+seul revient à ~0,30 $ le morceau, soit 0,10 $ l'appel).
+
+**112 frontières proposées, 82 sur les siennes = 73 % de précision, 42 % de
+rappel**, 6,2 frontières par morceau. Trois morceaux parfaits : Bein' Green 6/6,
+Be My Baby **10/10**, Blue Lights 9/11. Quatre à zéro : Stand By Me, The Walk,
+Chain of Fools, Lazy Song — les vamps, exactement là où la suite d'accords ne
+dit rien, ce qui est le mode d'échec attendu.
+
+**LA MESURE QUI COMPTE POUR LE MÉLANGE**, sur les 12 morceaux du banc :
+
+| | rappel | précision |
+|---|---|---|
+| `mots4` seul | **72 %** | 71 % |
+| LLM seul | 34 % | 55 % |
+| **union des deux** | **78 %** | — |
+
+Le LLM apporte **9 frontières que `mots4` rate** ; `mots4` en apporte 58 que le
+LLM rate. Le plafond du mélange est donc à **78 %, soit +6 points** — réel, mais
+modeste, et il confirme la hiérarchie : `mots4` reste le squelette, le LLM
+ajoute. Aucune architecture où le LLM décide seul ne peut dépasser 34 %.
+
+**Deux défauts à réparer avant l'étape 4.** (1) Le validateur de partition rejette
+trop : Goodbye Yellow Brick Road a perdu ses 3 tirages, Lazy Song 2 sur 3 — on
+mesure donc en partie la sévérité du parseur, pas le modèle. (2) 30 frontières
+proposées tombent hors annotation : à écouter avant de les compter fausses,
+c'est exactement la population que Louis a dit ne pas avoir annotée.
+
+
+## 2026-08-15 — TÉLÉCHARGEMENT YOUTUBE SILENCIEUSEMENT MORT (403 partout) : RÉPARÉ
+
+Constat en montant la voie Spotify : **tout téléchargement YouTube échouait en
+403 sur cette machine** — le `YouTubeFetcher` du dataset, ET la liste de repli
+de l'app :7772 (`web_safari`/`android`/`ios`/`tv`, tous morts). Cassure
+silencieuse classe « silent fallback » : rien ne le signalait tant qu'on ne
+tentait pas une ingestion.
+
+Cause racine : yt-dlp 2026.7.4 (début juillet) trop vieux pour le YouTube
+d'août (jetons « PO token » exigés + expérience SABR-only servie aux clients
+anonymes). Correctif, vérifié par téléchargement réel des deux venvs :
+
+- **yt-dlp nightly 2026.08.04** dans `.venv` du projet (+ `yt-dlp-ejs`,
+  résolveur de défis JS via node/deno) et dans le venv spotdl. C'est LE fix.
+- Ceinture-bretelles : plugin `bgutil-ytdlp-pot-provider` (mint les PO tokens)
+  + serveur local `node ~/harmonia/tools/bgutil-pot/server/build/main.js`
+  (port 4416, tourne en arrière-plan ; le plugin s'en passe proprement s'il
+  est éteint). À relancer après reboot si YouTube re-durcit.
+- Leçon d'exploitation : yt-dlp est un composant qui PÉRIME (YouTube change
+  côté serveur) — au premier 403, mettre à jour vers la nightly avant tout
+  débogage de clients/cookies.
+
+Nouvelle voie d'ingestion Spotify (audio seul, annoté artiste/titre/album) :
+`spotdl save <playlist> --save-file x.spotdl --preload` (métadonnées Spotify +
+appariement YouTube Music) puis `scripts/ingest_spotify_playlist.py x.spotdl` —
+télécharge via le `YouTubeFetcher` existant (réutilise `docs/audio/` et
+`data/dataset_audio/`, fichiers par id vidéo) et écrit l'annotation dans
+`data/dataset_audio/manifest_spotify.jsonl` (artiste, titre, album, année,
+ISRC, id Spotify, id vidéo, fichier, drapeau `duration_mismatch` si la durée
+YouTube s'écarte de Spotify de >10 s — ces lignes-là méritent une oreille).
+
+
 ## 2026-08-14 (nuit, fin) — ANCRES MOLLES EN PRIOR DU LLM : LE CONTRAT S'INVERSE
 
 Louis : « avec le LLM, il nous faut des ancres MOLLES qui rentrent en prior du
