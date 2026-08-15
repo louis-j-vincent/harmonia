@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -113,18 +112,40 @@ def load_done(manifest: Path) -> tuple[set[str], set[str]]:
     return vids, sids
 
 
-def resolve_youtube(spotdl_bin: str, spotify_url: str) -> str | None:
-    """Match one Spotify track to a YouTube URL via `spotdl url` (slow, ~5 s)."""
+# Title words that usually mean "not the album take" — penalized unless the
+# Spotify title itself contains them.
+_VARIANT_WORDS = ("1 hour", "sped up", "slowed", "reverb", "nightcore", "8d",
+                  "live", "remix", "cover", "karaoke", "instrumental", "loop",
+                  "reaction", "extended")
+
+
+def resolve_youtube(t: dict) -> str | None:
+    """Match one Spotify track to a YouTube URL with yt-dlp search:
+    smallest duration gap to Spotify's, penalizing variant uploads."""
+    import yt_dlp
+    artist, title = t.get("artist") or "", t.get("name") or ""
+    target = float(t.get("duration") or 0)
+    spotify_title = f"{artist} {title}".lower()
+    opts = {"quiet": True, "no_warnings": True, "extract_flat": True}
     try:
-        out = subprocess.run([spotdl_bin, "url", spotify_url],
-                             capture_output=True, text=True, timeout=180).stdout
-    except (OSError, subprocess.TimeoutExpired):
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(f"ytsearch6:{artist} {title}", download=False)
+        entries = [e for e in (info.get("entries") or []) if e and e.get("id")]
+    except Exception:  # noqa: BLE001 — treat any search failure as no match
         return None
-    for line in reversed(out.splitlines()):
-        line = line.strip()
-        if line.startswith("http") and ("youtu" in line):
-            return line
-    return None
+    if not entries:
+        return None
+
+    def score(e: dict) -> float:
+        dur = float(e.get("duration") or 0)
+        gap = abs(dur - target) if (dur and target) else 60.0
+        name = (e.get("title") or "").lower()
+        penalty = sum(30.0 for w in _VARIANT_WORDS
+                      if w in name and w not in spotify_title)
+        return gap + penalty
+
+    best = min(entries, key=score)
+    return f"https://www.youtube.com/watch?v={best['id']}"
 
 
 def main() -> int:
@@ -139,10 +160,7 @@ def main() -> int:
     ap.add_argument("--min-free-gb", type=float, default=5.0,
                     help="stop cleanly if free disk drops below this")
     ap.add_argument("--resolve", action="store_true",
-                    help="resolve missing YouTube matches via `spotdl url` (slow)")
-    ap.add_argument("--spotdl-bin",
-                    default=os.environ.get(
-                        "SPOTDL", str(Path.home() / "harmonia/tools/spotdl-venv/bin/spotdl")))
+                    help="resolve missing YouTube matches via yt-dlp search")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -168,8 +186,8 @@ def main() -> int:
                 skipped += 1
                 continue
             yt = t.get("download_url")
-            if not yt and args.resolve and t.get("url") and not args.dry_run:
-                yt = resolve_youtube(args.spotdl_bin, t["url"])
+            if not yt and args.resolve and not args.dry_run:
+                yt = resolve_youtube(t)
             if not yt:
                 print(f"SKIP (no YouTube match): {label}")
                 failed += 1
