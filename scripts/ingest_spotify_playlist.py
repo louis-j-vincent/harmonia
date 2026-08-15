@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -35,6 +36,52 @@ sys.path.insert(0, str(REPO))
 from harmonia.dataset.ingest import DATASET_AUDIO, YouTubeFetcher, slugify, youtube_id  # noqa: E402
 
 DEFAULT_MANIFEST = DATASET_AUDIO / "manifest_spotify.jsonl"
+
+
+def _clean_name(s: str) -> str:
+    s = re.sub(r"[/:\\\x00-\x1f]", "-", s).strip().rstrip(".")
+    return s[:140] or "untitled"
+
+
+def finalize_file(path: Path, t: dict, vid: str | None) -> Path:
+    """Rename a fresh dataset download to '<Title>.m4a' (collision ->
+    '<Title> (<Artist>).m4a', then '[vid]') and embed MP4 tags + album cover.
+
+    Files reused from other dirs (docs/audio) are untouched. Note: title-based
+    names no longer carry the video id, so re-download protection comes from
+    the manifest (spotify_id/video_id skip), not YouTubeFetcher's cache scan.
+    """
+    if path.parent != DATASET_AUDIO:
+        return path
+    title, artist = t.get("name") or path.stem, t.get("artist") or ""
+    if vid and path.stem == vid:
+        base = _clean_name(title)
+        for cand in (base, f"{base} ({_clean_name(artist)})" if artist else f"{base} 2",
+                     f"{base} [{vid}]"):
+            new = path.with_name(f"{cand}{path.suffix}")
+            if not new.exists():
+                path = path.rename(new) or new
+                break
+    if path.suffix.lower() == ".m4a":
+        try:
+            from mutagen.mp4 import MP4, MP4Cover
+            m = MP4(path)
+            for key, val in (("\xa9nam", title), ("\xa9ART", artist),
+                             ("\xa9alb", t.get("album_name")), ("aART", t.get("album_artist")),
+                             ("\xa9day", str(t["year"]) if t.get("year") else None)):
+                if val:
+                    m[key] = [val]
+            if t.get("cover_url"):
+                try:
+                    import urllib.request
+                    with urllib.request.urlopen(t["cover_url"], timeout=30) as r:
+                        m["covr"] = [MP4Cover(r.read(), imageformat=MP4Cover.FORMAT_JPEG)]
+                except OSError:
+                    pass
+            m.save()
+        except Exception as e:  # noqa: BLE001 — tags are best-effort
+            print(f"  (tagging failed: {e})")
+    return path
 
 
 def probe_duration(path: Path) -> float | None:
@@ -141,6 +188,7 @@ def main() -> int:
                 failed += 1
                 time.sleep(args.sleep)
                 continue
+            path = finalize_file(path, t, vid)
             time.sleep(args.sleep)
             dur = probe_duration(path)
             spotify_dur = t.get("duration")
