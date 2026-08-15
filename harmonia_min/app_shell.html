@@ -4477,6 +4477,13 @@ window.APP = (function(){
         kitButton("Souder les sections",
           ()=>{ window.location="/soudure/"+encodeURIComponent(m.file); },
           {note:"à l'oreille"})));
+      // L'atelier (Louis, 2026-08-15): le chart brut, on surligne les mesures
+      // sous un nom, l'algo des quatre mots complete le reste. C'est l'entree
+      // par l'OEIL la ou Souder est l'entree par l'oreille.
+      tools.appendChild(box("les nommer",
+        kitButton("Nommer les sections",
+          ()=>{ window.location="/sections/"+encodeURIComponent(m.file); },
+          {note:"au surligneur"})));
       wrap.appendChild(tools);
     }
     return wrap;

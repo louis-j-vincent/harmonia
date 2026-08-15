@@ -267,6 +267,140 @@ def soudure_valider(file):
                     "url": "/?open=" + Path(file).stem})
 
 
+@app.post("/api/sections/inferer/<file>")
+def sections_inferer(file):
+    """Ce que Louis a surligné + ce que l'algo des quatre mots en déduit.
+
+    Corps : {humain: [{label, mesure_debut, mesure_fin}]} — ses coups de
+    surligneur, en mesures 1-indexées, fin incluse.
+
+    LA RÈGLE DE NOMMAGE, qui est tout l'intérêt : ses sections à lui sont
+    figées et gardent SON nom ; celles que l'algorithme trouve avec le MÊME
+    contenu prennent aussi son nom — c'est le « infère les sections
+    similaires » de sa demande. Le reste reçoit des lettres neuves, choisies
+    parmi celles qu'il n'a pas déjà utilisées, pour qu'un B de l'algo ne
+    puisse jamais être confondu avec un B de sa main.
+    """
+    from harmonia_min.phrases4 import LETTERS, phrases
+    from harmonia_min.soudure import song_du_chart
+    p = CHARTS_DIR / f"{Path(file).stem}.json"
+    if not p.exists():
+        return jsonify({"error": "no such chart"}), 404
+    song = song_du_chart(json.loads(p.read_text(encoding="utf-8")),
+                         audio_dir=AUDIO_DIR)
+    if not song:
+        return jsonify({"error": "chart trop court"}), 400
+    mot, bornes = song["mot"], song["jetons"]
+    humain = (request.get_json(silent=True) or {}).get("humain") or []
+
+    # mesure -> jeton, pour caler ses traits sur la grille de l'algorithme
+    jeton_de = {}
+    for j in range(len(bornes) - 1):
+        for b in range(bornes[j], bornes[j + 1]):
+            jeton_de[b] = j
+    fixes = []                       # (j0, j1, label) triés, sans chevauchement
+    for h in sorted(humain, key=lambda h: h["mesure_debut"]):
+        try:
+            j0 = jeton_de.get(int(h["mesure_debut"]) - 1)
+            j1 = jeton_de.get(int(h["mesure_fin"]) - 1)
+        except (TypeError, ValueError):
+            continue
+        if j0 is None or j1 is None or j1 < j0:
+            continue
+        if fixes and j0 <= fixes[-1][1]:
+            continue                 # deux traits sur le même jeton : le 1er gagne
+        fixes.append((j0, j1, str(h.get("label") or "?")))
+
+    depart, j = [], 0
+    for j0, j1, _lab in fixes:
+        while j < j0:
+            depart.append((j, j + 1, mot[j]))
+            j += 1
+        depart.append((j0, j1 + 1, mot[j0:j1 + 1]))
+        j = j1 + 1
+    while j < len(mot):
+        depart.append((j, j + 1, mot[j]))
+        j += 1
+
+    secs, info = phrases(mot, depart=depart)
+    # le contenu de chacune de ses sections -> son nom
+    par_contenu = {mot[j0:j1 + 1]: lab for j0, j1, lab in fixes}
+    # Les plages qu'il a VRAIMENT tracées, pour les distinguer à l'écran de
+    # celles où l'algorithme a propagé son nom. C'est toute la différence entre
+    # « c'est moi qui l'ai dit » et « la machine a suivi », et c'est ce qui
+    # rend l'outil relisible : sans ça il ne saurait plus ce qu'il a affirmé.
+    tracees = {(j0, j1) for j0, j1, _ in fixes}
+    siens = set(par_contenu.values())
+    libres = [c for c in LETTERS if c not in siens]
+    renom, k = {}, 0
+    out = []
+    for s in secs:
+        t = s["type"]
+        if t in par_contenu:
+            lab = par_contenu[t]
+            source = "humain" if (s["j0"], s["j1"] - 1) in tracees else "propage"
+        else:
+            if s["label"] not in renom:
+                renom[s["label"]] = libres[k % len(libres)] if libres else s["label"]
+                k += 1
+            lab, source = renom[s["label"]], "algo"
+        out.append({"label": lab + ("′" if s["prime"] else ""),
+                    "mesure_debut": bornes[s["j0"]] + 1,
+                    "mesure_fin": bornes[s["j1"]],
+                    "source": source, "reste": bool(s["queue"]), "type": t})
+    return jsonify({"sections": out, "cible": info["cible"]})
+
+
+@app.get("/sections/<file>")
+def page_sections(file):
+    """L'atelier sections : un chart brut, on surligne, l'algo complète.
+
+    Louis, 2026-08-15 : « un chart brut, je peux sélectionner le nom de la
+    section que je veux (intro A B C…), puis j'ai juste à surligner sur le
+    chart brut les accords concernés pour créer une section, granularité une
+    barre. Lorsque j'ai confirmé une sélection, l'algo 4 mots infère les
+    sections similaires + autres sections automatiquement […] l'essentiel est
+    que ce soit facile à utiliser et que ce soit un outil collaboratif
+    humain / algo. »
+
+    La page est autonome (`docs/plots/sections.html`) et reçoit ici tout ce
+    qu'elle affiche : les accords mesure par mesure, la grille de bi-mesures
+    (coutures comprises) qui sert à l'inférence, et le mot.
+    """
+    from harmonia_min.soudure import _bars_par_mesure, song_du_chart
+    p = CHARTS_DIR / f"{Path(file).stem}.json"
+    if not p.exists():
+        return jsonify({"error": "no such chart"}), 404
+    chart = json.loads(p.read_text(encoding="utf-8"))
+    song = song_du_chart(chart, audio_dir=AUDIO_DIR)
+    if not song:
+        return jsonify({"error": "chart trop court"}), 400
+    song["mesures"] = [
+        [{"root": c.get("root", 0), "q": c.get("q") or "",
+          "bass": c.get("bass", -1), "nc": bool(c.get("nc"))}
+         for c in (bar or [])]
+        for bar in _bars_par_mesure(chart)]
+    # ce que le chart dit AUJOURD'HUI, pour partir de quelque chose plutôt que
+    # d'une page blanche — Louis pourra tout refaire, mais il verra d'abord
+    # l'état des lieux
+    song["sections_actuelles"] = [
+        {"label": s.get("label") or "?", "mesure_debut": b0 + 1, "mesure_fin": b1 + 1}
+        for s in (chart.get("sections") or [])
+        for b0, b1 in (s.get("barRanges") or [])]
+    song["sections_actuelles"].sort(key=lambda s: s["mesure_debut"])
+    gabarit = (REPO / "docs" / "plots" / "sections.html").read_text(encoding="utf-8")
+    tete = ("<script>window.SONG = "
+            + json.dumps(song, ensure_ascii=False, separators=(",", ":"))
+            + ";</script>\n")
+    page = gabarit.replace("<body>", "<body>\n" + tete, 1)
+    page = page.replace("<title>Sections</title>",
+                        f"<title>Sections — {song['titre']}</title>", 1)
+    resp = app.make_response(page)
+    resp.headers["Content-Type"] = "text/html; charset=utf-8"
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
 @app.get("/min/<file>")
 def minimal(file):
     """The minimalist representation (Louis, 2026-08-02): one block per
