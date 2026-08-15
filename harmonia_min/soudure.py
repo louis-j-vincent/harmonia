@@ -83,13 +83,69 @@ def _basse_par_mesure(chart: dict) -> list[tuple]:
     return out
 
 
-def _jetons(n_mesures: int) -> list[int]:
+def _mesure1(chart: dict) -> int:
+    """L'index de la mesure que Louis a marquée « mesure 1 », 0 s'il n'a rien
+    marqué.
+
+    `chart["bar1"]` est sa marque EN SECONDES — la seule forme qui survive à
+    un recalcul (voir `pipeline._model`). La grille de mesures a été rebâtie
+    autour d'elle, donc une borne de `barGrid` tombe dessus : on la retrouve
+    en cherchant la plus proche, comme la pipeline recale la marque sur le
+    temps le plus proche.
+    """
+    grid = chart.get("barGrid") or []
+    n = len(grid) - 1
+    try:
+        t = float(chart["bar1"])
+    except (KeyError, TypeError, ValueError):
+        return 0
+    if n < 2:
+        return 0
+    return min(range(n), key=lambda b: abs(float(grid[b]) - t))
+
+
+def _depart_valide(depart: int, n_mesures: int) -> int:
+    """La marque, ramenée à ce qui laisse encore une bande derrière elle.
+
+    Une marque posée à trois mesures de la fin donnerait une bande de deux
+    plaques : on préfère le treillis d'origine à une bande qui ne montre plus
+    rien. `4` est le minimum que `grille_et_mot` exige déjà.
+    """
+    try:
+        depart = int(depart)
+    except (TypeError, ValueError):
+        return 0
+    return depart if 0 < depart <= n_mesures - 4 else 0
+
+
+def _tete(depart: int) -> list[int]:
+    """Les bornes des jetons AVANT la mesure 1 — l'intro, à son propre grain.
+
+    Elle garde la bi-mesure, et c'est le PREMIER jeton (donc le plus loin de
+    la structure) qui absorbe la mesure orpheline d'une intro de longueur
+    impaire. L'inverse — l'orpheline juste avant la marque — redécalerait
+    d'une mesure tout ce que la marque vient de caler.
+    """
+    if depart <= 0:
+        return []
+    if depart % 2 == 0:
+        return list(range(0, depart, 2))
+    return [0] + list(range(3, depart, 2))
+
+
+def _jetons(n_mesures: int, depart: int = 0) -> list[int]:
     """Les bornes des bi-mesures. La mesure orpheline d'un morceau impair est
     rattachée au dernier jeton plutôt que jetée — sinon la fin du morceau
-    disparaît de la bande sans que rien ne le dise."""
+    disparaît de la bande sans que rien ne le dise.
+
+    `depart` (2026-08-15) : la mesure 1 de Louis. Le treillis part de LÀ, pas
+    de la barre 0 — sinon une plaque sur deux enjambe la frontière qu'il vient
+    de poser, et aucune section ne peut commencer sur sa mesure 1.
+    """
     if n_mesures < 2:
         return [0, n_mesures]
-    bornes = list(range(0, n_mesures - 1, 2))
+    depart = _depart_valide(depart, n_mesures)
+    bornes = _tete(depart) + list(range(depart, n_mesures - 1, 2))
     bornes.append(n_mesures)
     return bornes
 
@@ -102,7 +158,7 @@ def mot_du_chart(chart: dict) -> dict | None:
     if n < 2:
         return None
     sig = _basse_par_mesure(chart)
-    bornes = _jetons(n)
+    bornes = _jetons(n, _mesure1(chart))
 
     vus: dict = {}
     lettres = []
@@ -476,7 +532,7 @@ def _meilleure_grille(S, n: int) -> tuple[list[int], dict]:
     return _grille(n, coutures), info
 
 
-def grille_et_mot(grid, triad):
+def grille_et_mot(grid, triad, depart: int = 0):
     """(bornes, mot, info) — la grille de jetons ET les lettres qui vont avec.
 
     Toujours pas de second détecteur : la matrice est celle de
@@ -493,13 +549,28 @@ def grille_et_mot(grid, triad):
     Différence assumée avec le mot de recherche (`vote_fill.bibar_word`) :
     celui-ci lit la BASSE, celui-là l'harmonie complète. Même règle de
     groupage, même seuil, substrat différent.
+
+    `depart` (2026-08-15) : la mesure 1 de Louis. La recherche de coutures
+    tourne alors sur le morceau À PARTIR d'elle, et l'intro reçoit sa propre
+    tête de bande — deux raisons, pas une : le treillis se cale sur sa
+    frontière (sans quoi une plaque sur deux l'enjambe et aucune section ne
+    peut y commencer), et l'intro cesse de peser dans une recherche de trous
+    qui ne parle que de la forme.
     """
     from harmonia_min import section_tool as st
     n = len(grid) - 1
     if n < 4:
         return None, None, {}
     S, _V, _M, _mute, _ch = st.substrates(grid, triad)
-    bornes, info = _meilleure_grille(S, n)
+    depart = _depart_valide(depart, n)
+    bornes, info = _meilleure_grille(S[depart:, depart:], n - depart)
+    if depart:
+        bornes = _tete(depart) + [depart + b for b in bornes]
+        # `info["coutures"]` sert à la page pour DIRE où sont les trous : en
+        # coordonnées du morceau, comme les bornes, sinon elle en montre à
+        # côté (elles sont comparées à `bornes` dans `song_du_chart`).
+        info = {**info, "coutures": [(depart + c, w)
+                                     for c, w in info.get("coutures", [])]}
     if len(bornes) < 3:
         return None, None, info
     return bornes, _mot_depuis(_matrice_bimesures(S, bornes)), info
@@ -595,7 +666,8 @@ def song_du_chart(chart: dict, audio_dir=None) -> dict | None:
         audio = (audio_dir or Path("docs/audio")) / f"{stem}.m4a"
         if stem and audio.exists():
             bornes, m, info = grille_et_mot(chart["barGrid"],
-                                            _musx.frame_posteriors(audio)[0])
+                                            _musx.frame_posteriors(audio)[0],
+                                            depart=_mesure1(chart))
             if m:
                 base["mot"] = m
                 base["jetons"] = bornes
@@ -615,6 +687,9 @@ def song_du_chart(chart: dict, audio_dir=None) -> dict | None:
         log.exception("soudure: mot par ressemblance indisponible, "
                       "repli sur la basse")
 
+    # La mesure 1 de Louis, 1-indexée comme tout ce que la page affiche : le
+    # treillis part de là, et une page qui le sait peut le dire.
+    base["mesure1"] = _mesure1(chart) + 1
     base["titre"] = chart.get("title") or chart.get("file") or "Sans titre"
     base["audio_url"] = chart.get("audio_url") or None
     base["file"] = chart.get("file") or None

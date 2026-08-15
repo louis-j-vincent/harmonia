@@ -1,5 +1,40 @@
 # Harmonia — Known Issues
 
+## 2026-08-15 — RÉSOLU : LA BANDE IGNORAIT « SET BAR 1 », DONC AUCUNE SECTION NE POUVAIT Y COMMENCER
+
+Louis : « lorsque je reset la mesure 1, le recalcul des sections est bloqué à
+l'ancienne version, il ne s'update pas, les sections commencent donc sur la
+mauvaise 1 ».
+
+**Ce n'était pas un cache.** La pipeline suit bien la marque (vérifié en la
+déplaçant : `intro[0,0] A[1,8] …` devient `intro[0,0] A[1,8]…` sur une autre
+grille, `pipeline._force_bar1_sections` fait son travail). C'est
+`soudure._jetons` qui posait son treillis de bi-mesures à partir de la barre
+**0**, toujours, marque ou pas : sur son chart (`min_Oextk-If8HQ`, mesure 1 à
+la barre 1) les jetons sortaient `[0, 2, 4, 6, …]` pendant que les sections du
+chart commençaient aux barres 1, 9, 17, 25, 33, 41, 49, 57, 61, 69, 73 —
+toutes impaires. **Une seule des 12 frontières du chart était exprimable sur
+la bande ; 12/12 après correctif.** Une plaque sur deux enjambait la frontière
+qu'il venait de poser, donc bouger la mesure 1 ne changeait rien à la bande :
+« bloqué à l'ancienne version » décrit exactement ça.
+
+Correctif (`harmonia_min/soudure.py`) : la marque est l'ancre du treillis,
+comme elle l'est déjà pour la phase des barres et pour les frontières de
+sections. Les mesures d'avant forment leur propre tête de bande (l'orpheline
+d'une intro impaire est absorbée par le PREMIER jeton, pas par celui qui
+touche la structure), et la recherche de coutures ne tourne plus que sur le
+morceau à partir de la marque. Le `/soudure` et l'atelier `/sections` en
+héritent tous les deux (`song_du_chart`). Test rouge d'abord :
+`tests/test_soudure_bar1.py`.
+
+**Ce que ça ne résout pas.** (1) Un chart dont l'intro a été DÉTECTÉE sans que
+Louis ait posé sa marque garde le treillis calé sur la barre 0 — `bar1` est la
+seule ancre lue, délibérément (sa marque prime, le détecteur n'a pas ce
+statut) ; c'est 45 charts sur 46 aujourd'hui, tous inchangés bit pour bit
+(chemin `depart=0`). (2) La page NUMÉROTE toujours à partir de la barre 0 :
+sa mesure 1 s'y affiche « mesure 2 » quand il y a une mesure d'intro. Décalage
+d'affichage, pas de treillis — à trancher par Louis.
+
 ## 2026-08-15 — LE LLM SUR LES 18, EN HAIKU : 73 % DE PRÉCISION, ET +6 POINTS DE PLAFOND
 
 `scripts/llm_forme.py`, Haiku, 3 tirages, consensus à 2/3, ancres molles en
