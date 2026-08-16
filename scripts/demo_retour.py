@@ -342,11 +342,22 @@ def bloc_morceau(fichier: str, titre: str) -> str:
                     f'<b class="occ flou">mesure {x["mesure"]} '
                     f'<i>≠ m.{x["mesure_modele"]} du modèle ({x["sim"]:.2f})</i>'
                     f'</b>' for _o, x in vs)
+                solos_v = ""
                 memo = (f'<p class="issue memo"><b>À écrire sur le chart au '
-                        f'repliement</b> — {sec["queue"]} mesure(s) de fin sont '
-                        f'exemptées de la comparaison ; celles-ci ne ressemblent '
-                        f'pas au modèle, donc elles jouent autre chose : '
-                        f'{lignes_v}</p>')
+                        f'repliement</b> — ces mesures-là ne ressemblent pas au '
+                        f'modèle : l\'occurrence y joue autre chose, et le '
+                        f'repliement doit l\'écrire au lieu de recopier le '
+                        f'modèle. {lignes_v}</p>')
+            solo = ""
+            if sec["solos"]:
+                liste_s = " ".join(f'<b class="occ flou">{o["b0"]}–{o["b1"]} '
+                                   f'<i>{o["moyenne"]:.2f}</i></b>'
+                                   for o in sec["solos"])
+                solo = (f'<p class="issue solo">Jeté — boucle de {sec["L"]} '
+                        f'mesures toute seule : {liste_s}. Une répétition de '
+                        f'section doit faire au moins {R.REPETITION_MIN} mesures ; '
+                        f'des occurrences collées s\'additionnent, un bloc isolé '
+                        f'non.</p>')
             ecart = ""
             if sec["ecartees"]:
                 liste = " ".join(f'<b class="occ flou">{o["b0"]}–{o["b1"]} '
@@ -365,7 +376,7 @@ def bloc_morceau(fichier: str, titre: str) -> str:
                      f'style="--c:{coul_algo[sec["label"]]}">{sec["label"]}</b> '
                      f'= {quoi}, qui commence mesure {d}. '
                      f'Ses {len(sec["occurrences"])} occurrences dans le morceau : '
-                     f'{occ}</p>{memo}{ecart}')
+                     f'{occ}</p>{memo}{solo}{ecart}')
         etapes.append(
             f'<div class="etape"><h3>Étape {i} — on repart de la mesure {d}'
             f'<span>{"section trouvée" if et["action"] == "section" else "rien ici"}'
@@ -455,6 +466,8 @@ table.cand em.vieux{background:#f2ddd6;color:#8c3a22}
 .issue.ecarte{background:#fbf1e4;color:#6b5a3a;margin-top:8px}
 .issue.memo{background:#f2ede0;color:#5a4f38;margin-top:8px;
  border-left:3px solid #c08a2e}
+.issue.solo{background:#f5eef0;color:#6b4a55;margin-top:8px;
+ border-left:3px solid #a4607a}
 .repet{margin:12px 0 4px}
 .paires{display:flex;flex-wrap:wrap;gap:2px}
 .paires b{width:52px;padding:2px;border-radius:4px;text-align:center;

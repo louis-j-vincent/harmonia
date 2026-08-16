@@ -94,6 +94,18 @@ CARRURE = 4
 #: seule section.
 PERIODE_MIN = 4
 
+#: CHOIX 8 (Louis, 2026-08-16) : « tu ne peux pas avoir une boucle de 4 solo qui
+#: traîne — tu peux filer tes 4 à la suite, mais pour définir une répétition de
+#: section plus tard dans le morceau il faut minimum de 8 barres ».
+#:
+#: Une occurrence isolée de quatre mesures n'est pas un retour de la section,
+#: c'est une coïncidence de boucle : dans une musique construite sur quatre
+#: accords, quatre mesures se ressemblent partout. Ce qui prouve qu'une section
+#: revient, c'est qu'elle revient ASSEZ LONGTEMPS. Les occurrences collées les
+#: unes aux autres s'additionnent — deux boucles de 4 côte à côte font bien un
+#: retour de 8 — mais un bloc de 4 tout seul entre deux trous est jeté.
+REPETITION_MIN = 8
+
 LETTRES = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
@@ -179,22 +191,31 @@ def seuil_fort(S: np.ndarray) -> float:
 
 # ── la comparaison de deux mots ─────────────────────────────────────────────
 
-def queue_pour(L: int) -> int:
-    """Combien de mesures de fin sont exemptées pour un modèle de `L` mesures.
+def queue_pour(L: int, boucle: bool) -> int:
+    """Combien de mesures de fin sont exemptées, pour un modèle de `L` mesures.
 
-    CHOIX 4, deuxième version (Louis, 2026-08-16). La règle littérale dit deux
-    mesures sur un mot de huit. La première version mettait la queue à ZÉRO dès
-    que le modèle était une boucle de quatre — sinon on n'aurait comparé que la
-    moitié du motif. Mesuré sur This Love, ça faisait payer plein tarif la
-    mesure de cadence : le B est une phrase de huit faite de deux boucles de
-    quatre dont seule la 4ᵉ mesure change (Bb ouverte, Ab fermée), et les cinq
-    secondes moitiés tombaient à 0,84 pendant que les premières faisaient 1,00.
+    CHOIX 4, ET SON ALLER-RETOUR — la trace compte, c'est le seul réglage que
+    Louis a demandé puis rejeté à l'oreille dans la même séance :
 
-    Une mesure sur quatre, deux sur huit : la proportion de Louis, appliquée à
-    la longueur du modèle. Plafonnée à `QUEUE_LIBRE` — au-delà de huit mesures,
-    exempter davantage n'est plus une cadence, c'est renoncer à comparer.
+    v1  queue = 0 sur une boucle. Sur une boucle de quatre, exempter deux
+        mesures ne comparerait que la moitié du motif.
+    v2  queue = L//4 (Louis : « exempte une seule mesure sur une boucle de 4,
+        ok go »). Le gain visé était réel — les secondes moitiés du B de This
+        Love passaient de 0,86 à 0,98.
+    v3  RETOUR À ZÉRO, sur son constat suivant : « sur This Love tu m'as
+        découpé les 8 mesures 50 à 57 alors que le A ne prend que 50 à 53 ».
+        Ces mesures-là sont EXACTEMENT ce que la v2 avait fait entrer : jeter
+        une mesure sur quatre, c'est jeter 25 % de la preuve, et le A se met
+        alors à mordre sur le pont. Avec queue = 0, le pont 48–55 ressort
+        entier dans le reste et les cinq B tombent pile sur les siens.
+
+    Ce que la v2 apportait vraiment n'était pas le seuil mais la MÉMOIRE des
+    mesures qui divergent ; c'est gardé, et élargi — `_occurrences` note
+    désormais toute mesure qui ne ressemble pas au modèle, exemptée ou non.
+    Les mesures non exemptées comptent donc dans le score ET sont notées pour
+    le repliement, ce qui est strictement mieux que de les exempter.
     """
-    return min(QUEUE_LIBRE, max(1, L // CARRURE))
+    return 0 if boucle else QUEUE_LIBRE
 
 
 def _compare(S, a: int, b: int, L: int, queue: int | None = None) -> dict:
@@ -302,17 +323,44 @@ def _occurrences(P, restants: list[int], modele: int, L: int, seuil: float,
             # recopier le modèle. `exemptees` porte les deux cas, `variante`
             # ne garde que les mesures qui divergent vraiment.
             k = L - len(o["queue_sims"])
+            tous = o["sims"] + o["queue_sims"]
             o["exemptees"] = [
                 {"mesure": o["b0"] + k + t, "mesure_modele": modele_b0 + k + t,
                  "sim": s, "differe": s < seuil_occ}
                 for t, s in enumerate(o["queue_sims"])]
-            o["variante"] = [x for x in o["exemptees"] if x["differe"]]
+            # TOUTE mesure qui ne ressemble pas au modèle, exemptée ou non :
+            # c'est ça que le repliement doit écrire au lieu de recopier le
+            # modèle. Se limiter à la queue laisserait passer les divergences du
+            # milieu — sur Grenade c'est la 3ᵉ mesure sur 4 qui change, pas la
+            # dernière.
+            o["variante"] = [
+                {"mesure": o["b0"] + t, "mesure_modele": modele_b0 + t,
+                 "sim": v, "exemptee": t >= k}
+                for t, v in enumerate(tous) if v < seuil_occ]
             retenu.append(o)
             fin = o["j"] + L - 1
+    # CHOIX 8 : on regroupe les occurrences COLLÉES, et un groupe qui n'atteint
+    # pas `REPETITION_MIN` mesures n'est pas un retour de la section.
+    groupes, courant = [], []
+    for o in retenu:
+        if courant and o["b0"] == courant[-1]["b1"] + 1:
+            courant.append(o)
+        else:
+            if courant:
+                groupes.append(courant)
+            courant = [o]
+    if courant:
+        groupes.append(courant)
+    gardes, solos = [], []
+    for g in groupes:
+        (gardes if g[-1]["b1"] - g[0]["b0"] + 1 >= REPETITION_MIN
+         else solos).extend(g)
+
     ecarte = [o for o in cand
               if seuil <= o["moyenne"] < seuil_occ]
-    return {"occurrences": retenu, "seuil_occ": float(seuil_occ),
-            "ecartees": ecarte, "n_fenetres": len(cand), "queue": queue}
+    return {"occurrences": gardes, "seuil_occ": float(seuil_occ),
+            "ecartees": ecarte, "solos": solos,
+            "n_fenetres": len(cand), "queue": queue}
 
 
 # ── l'algorithme ────────────────────────────────────────────────────────────
@@ -421,11 +469,23 @@ def sections(S: np.ndarray, seuil: float | None = None,
         boucle = periode_interne(S, depart, L, seuil)
         etape["boucle"] = boucle
         modele_L = boucle["retenue"]["p"] if boucle["retenue"] else L
-        queue = queue_pour(modele_L)                      # CHOIX 4
+        queue = queue_pour(modele_L, bool(boucle["retenue"]))   # CHOIX 4
 
         rec = _occurrences(P, restants, dep, modele_L, seuil, queue,
                            modele_b0=depart)
         occ = rec["occurrences"]
+        if not occ:
+            # CHOIX 8 a tout jeté : le « retour » n'était qu'une boucle de
+            # quatre isolée, même à l'endroit où on l'a trouvée. Ce n'est pas
+            # une section. On avance, comme quand aucun retour ne marche —
+            # sinon aucune mesure n'est prise, le pointeur ne bouge pas, et on
+            # tourne jusqu'à `max_etapes` en empilant des sections vides (vu
+            # sur Sunny : 36 sections, et Yesterday : 37).
+            etape["action"] = "avance"
+            etape["solos"] = rec["solos"]
+            pointeur = depart + 1
+            etapes.append(etape)
+            continue
         label = LETTRES[len(trouvees) % len(LETTRES)]
         for o in occ:
             for b in range(o["b0"], o["b1"] + 1):
@@ -434,7 +494,7 @@ def sections(S: np.ndarray, seuil: float | None = None,
                "boucle": boucle["retenue"]["p"] if boucle["retenue"] else None,
                "occurrences": occ, "seuil_occ": rec["seuil_occ"],
                "ecartees": rec["ecartees"], "n_fenetres": rec["n_fenetres"],
-               "queue": rec["queue"]}
+               "queue": rec["queue"], "solos": rec["solos"]}
         trouvees.append(sec)
         etape["action"] = "section"
         etape["section"] = sec
