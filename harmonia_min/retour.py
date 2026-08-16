@@ -177,26 +177,41 @@ def periode_interne(S, depart: int, L: int, seuil: float) -> dict:
     return {"periodes": out, "retenue": retenue}
 
 
-def _occurrences(S, modele: int, L: int, libre: list[bool], seuil: float,
-                 queue: int = QUEUE_LIBRE) -> list[dict]:
-    """Toutes les répétitions du mot `modele` (L mesures) dans les mesures libres.
+def _contigu(restants: list[int], i: int, L: int) -> bool:
+    """Les L mesures qui commencent en `i` DANS LA CHANSON RECOUSUE sont-elles
+    encore d'un seul tenant dans la vraie chanson ?
 
-    Balayage de toutes les positions, puis choix glouton de gauche à droite —
-    deux occurrences ne peuvent pas se chevaucher, et la première trouvée gagne.
+    Le recousu sert à rendre deux passages voisins comparables par-dessus une
+    section déjà retirée ; il ne donne pas le droit d'inventer une section qui
+    sauterait un trou. Une occurrence doit rester un morceau de musique
+    continu — sinon on ne peut pas l'écrire sur un chart.
     """
-    n = len(S)
+    return (i + L <= len(restants)
+            and restants[i + L - 1] - restants[i] == L - 1)
+
+
+def _occurrences(P, restants: list[int], modele: int, L: int, seuil: float,
+                 queue: int = QUEUE_LIBRE) -> list[dict]:
+    """Toutes les répétitions du mot `modele` dans la chanson recousue.
+
+    `P` est la SSM restreinte aux mesures encore libres, `restants` la table qui
+    ramène un index recousu à sa vraie mesure. Balayage de toutes les positions,
+    puis choix glouton de gauche à droite — deux occurrences ne peuvent pas se
+    chevaucher, et la première trouvée gagne.
+    """
     trouve = []
-    for j in range(0, n - L + 1):
-        if not all(libre[j:j + L]):
+    for j in range(0, len(restants) - L + 1):
+        if not _contigu(restants, j, L):
             continue
-        c = _compare(S, modele, j, L, queue)
+        c = _compare(P, modele, j, L, queue)
         if c["moyenne"] >= seuil:
-            trouve.append({"b0": j, "b1": j + L - 1, **c})
+            trouve.append({"b0": restants[j], "b1": restants[j + L - 1],
+                           "j": j, **c})
     retenu, fin = [], -1
     for o in trouve:
-        if o["b0"] > fin:
+        if o["j"] > fin:
             retenu.append(o)
-            fin = o["b1"]
+            fin = o["j"] + L - 1
     return retenu
 
 
@@ -218,41 +233,57 @@ def sections(S: np.ndarray, seuil: float | None = None,
     pointeur = 0
 
     for _ in range(max_etapes):
-        depart = next((b for b in range(pointeur, n) if libre[b]), None)
-        if depart is None or depart > n - 2 * LONGUEUR_MIN:
+        # LA CHANSON RECOUSUE (Louis, 2026-08-16) : « une fois qu'on a enlevé
+        # les A, les mesures 16 à 23 sont directement suivies des mesures 36 à
+        # 43, et il y a donc bien une répétition qui se trouve facilement ».
+        # Toute l'étape se joue donc dans ces coordonnées-là : `restants` est la
+        # chanson privée des sections déjà trouvées, `P` sa matrice, et deux
+        # passages séparés par une section retirée y sont VOISINS. Sans ça, le
+        # mot butait sur la première mesure prise et la répétition qui le
+        # valide n'avait littéralement pas la place d'exister.
+        restants = [b for b in range(n) if libre[b]]
+        if len(restants) < 2 * LONGUEUR_MIN:
             break
+        dep = next((i for i, b in enumerate(restants) if b >= pointeur), None)
+        if dep is None or dep > len(restants) - 2 * LONGUEUR_MIN:
+            break
+        P = S[np.ix_(restants, restants)]
+        depart = restants[dep]
 
-        # Jusqu'où le mot a le droit de courir : la prochaine mesure DÉJÀ prise.
-        limite = next((b for b in range(depart + 1, n) if not libre[b]), n)
-
-        etape: dict = {"depart": depart, "limite": limite, "candidats": [],
-                       "retenu": None, "action": None, "section": None}
+        etape: dict = {"depart": depart, "restants": list(restants),
+                       "coutures": [i for i in range(len(restants) - 1)
+                                    if restants[i + 1] != restants[i] + 1],
+                       "candidats": [], "retenu": None, "action": None,
+                       "section": None}
         premier_fort_vu = False
 
         # On évalue TOUS les retours, y compris ceux d'après le retenu : c'est
         # le contrefactuel (« et si on avait pris celui-là ? »), la seule façon
         # de voir sur la page ce que le choix du PREMIER retour a coûté.
-        for k in range(depart + ECART_MIN, limite + 1):
-            sim = float(S[depart, k]) if k < n else float("nan")
-            fort = k < n and sim >= seuil
-            cand = {"barre": k, "sim": sim, "fort": fort,
+        for k in range(dep + ECART_MIN, len(restants)):
+            sim = float(P[dep, k])
+            fort = sim >= seuil
+            L = k - dep
+            cand = {"barre": restants[k], "j": k, "sim": sim, "fort": fort,
                     "litteral": fort and not premier_fort_vu,
                     "apres_coup": etape["retenu"] is not None,
-                    "L": k - depart, "verdict": None, "repet": None,
-                    "passe": False}
+                    "L": L, "verdict": None, "repet": None, "passe": False}
             if not fort:
                 cand["verdict"] = "pas un retour"
                 etape["candidats"].append(cand)
                 continue
             premier_fort_vu = True
-            L = k - depart
 
-            if k + L <= n and all(libre[k:k + L]):
-                cand["repet"] = _compare(S, depart, k, L)
+            mot_entier = _contigu(restants, dep, L)
+            repet_entiere = _contigu(restants, k, L)
+            if repet_entiere:
+                cand["repet"] = _compare(P, dep, k, L)
 
             if L < LONGUEUR_MIN:
                 cand["verdict"] = f"mot de {L} mesures — il en faut plus de 6"
-            elif k + L > limite or not all(libre[k:k + L]):
+            elif not mot_entier:
+                cand["verdict"] = "le mot enjamberait une section déjà retirée"
+            elif not repet_entiere:
                 cand["verdict"] = "pas la place pour la répétition qui suit"
             elif cand["repet"]["moyenne"] < seuil:
                 cand["verdict"] = (f"ne se répète pas juste après "
@@ -279,12 +310,14 @@ def sections(S: np.ndarray, seuil: float | None = None,
         # La règle de la boucle interne : si le mot se répète lui-même à une
         # période d'au moins PERIODE_MIN mesures, c'est CETTE boucle le modèle,
         # pas le mot entier.
+        # Le mot est d'un seul tenant (on l'a exigé), donc le chercher dans la
+        # vraie chanson ou dans la recousue revient au même ici.
         boucle = periode_interne(S, depart, L, seuil)
         etape["boucle"] = boucle
         modele_L = boucle["retenue"]["p"] if boucle["retenue"] else L
         queue = 0 if boucle["retenue"] else QUEUE_LIBRE   # CHOIX 4
 
-        occ = _occurrences(S, depart, modele_L, libre, seuil, queue)
+        occ = _occurrences(P, restants, dep, modele_L, seuil, queue)
         label = LETTRES[len(trouvees) % len(LETTRES)]
         for o in occ:
             for b in range(o["b0"], o["b1"] + 1):

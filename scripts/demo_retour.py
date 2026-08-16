@@ -146,8 +146,33 @@ def strip_sims(etape, seuil, n, grid) -> str:
             f'<i class="seuil" style="bottom:{y}px"></i></div></div>')
 
 
-def table_candidats(etape, seuil) -> str:
-    """Les retours forts qui sont allés jusqu'au test, un par ligne."""
+def bloc_recousu(et, grid, chords) -> str:
+    """La chanson privée des sections déjà trouvées — avec ses coutures."""
+    rest, cout = et["restants"], set(et["coutures"])
+    if not cout:
+        return ""
+    cases = []
+    for i, b in enumerate(rest):
+        cases.append(f'<b class="case mini" data-t="{grid[b]:.3f}" '
+                     f'title="mesure {b}"><i>{e(chords[b])}</i><s>{b}</s></b>')
+        if i in cout:
+            cases.append('<b class="couture" title="ici on a retiré une '
+                         'section déjà trouvée">✂</b>')
+    return (f'<div class="recousu"><h5>La chanson recousue '
+            f'<span>{len(rest)} mesures restantes, {len(cout)} couture(s) — '
+            f'c\'est LÀ-DEDANS qu\'on cherche, donc les deux mesures de part et '
+            f'd\'autre d\'un ✂ sont voisines</span></h5>'
+            f'<div class="cases">{"".join(cases)}</div></div>')
+
+
+def table_candidats(etape, seuil, recousu: bool = False) -> str:
+    """Les retours forts qui sont allés jusqu'au test, un par ligne.
+
+    `recousu` ajoute le RANG de la mesure dans la chanson recousue : sans lui,
+    « retour mesure 36, mot de 8 mesures » depuis la mesure 16 se lit comme une
+    erreur d'arithmétique, alors que 8 est bien la distance une fois la section
+    A retirée.
+    """
     lignes = []
     for c in etape["candidats"]:
         if not c["fort"]:
@@ -168,14 +193,18 @@ def table_candidats(etape, seuil) -> str:
         if c["passe"] and c is not etape["retenu"]:
             marques.append('<em class="cf" title="l\'algo ne l\'a pas testé : '
                            'il s\'était déjà arrêté avant">contrefactuel</em>')
+        barre = (f'{c["barre"]} <i class="jx">{c["j"]}<sup>e</sup></i>'
+                 if recousu else str(c["barre"]))
         lignes.append(
-            f'<tr class="{" ".join(cls)}"><td>{c["barre"]}</td><td>{c["L"]}</td>'
+            f'<tr class="{" ".join(cls)}"><td>{barre}</td><td>{c["L"]}</td>'
             f'<td>{c["sim"]:.3f}</td><td>{rep}</td>'
             f'<td>{e(c["verdict"])} {" ".join(marques)}</td></tr>')
     if not lignes:
         return '<p class="rien">aucun retour fort assez loin pour faire un mot.</p>'
+    col1 = ('retour<br>mesure <i class="jx">rang</i>' if recousu
+            else 'retour<br>mesure')
     return ('<div class="tbl"><table class="cand">'
-            '<tr><th>retour<br>mesure</th><th>mot<br>mesures</th>'
+            f'<tr><th>{col1}</th><th>mot<br>mesures</th>'
             '<th>ressemblance<br>à la mesure de départ</th>'
             '<th>le mot suivant<br>est-il le même ?</th><th></th></tr>'
             + "".join(lignes) + "</table></div>")
@@ -269,9 +298,11 @@ def bloc_morceau(fichier: str, titre: str) -> str:
     etapes = []
     for i, et in enumerate(res["etapes"], 1):
         d = et["depart"]
+        rec = bool(et["coutures"])
+        tete = bloc_recousu(et, grid, chords)
         if et["action"] == "avance":
-            corps = (f'{strip_sims(et, seuil, n, grid)}'
-                     f'{table_candidats(et, seuil)}'
+            corps = (f'{tete}{strip_sims(et, seuil, n, grid)}'
+                     f'{table_candidats(et, seuil, rec)}'
                      f'<p class="issue avance">Aucun retour ne donne de section '
                      f'depuis la mesure {d}. On avance d\'une mesure ; la mesure '
                      f'{d} restera sans section.</p>')
@@ -284,8 +315,8 @@ def bloc_morceau(fichier: str, titre: str) -> str:
             quoi = (f'la boucle de {sec["L"]} mesures trouvée dans le mot de '
                     f'{sec["mot"]}' if sec["boucle"]
                     else f'le mot de {sec["L"]} mesures')
-            corps = (f'{strip_sims(et, seuil, n, grid)}'
-                     f'{table_candidats(et, seuil)}'
+            corps = (f'{tete}{strip_sims(et, seuil, n, grid)}'
+                     f'{table_candidats(et, seuil, rec)}'
                      f'{detail_repet(ret, seuil, d, grid)}'
                      f'{bloc_boucle(et, seuil, grid)}'
                      f'<p class="issue ok">Section <b class="lettre" '
@@ -388,6 +419,16 @@ table.cand em.cf{background:#d5e3ec;color:#1b4a6b}
 .paires b.non{background:#f6e0da;border:1px solid #d09b8a}
 .paires b.libre{background:#efeade;border:1px dashed #c8c0af}
 .repet p{font-size:12.5px;color:var(--doux);margin:6px 0 0}
+.recousu{margin:0 0 14px;padding:10px 12px;background:#f4f1e6;border-radius:6px;
+ border:1px solid #e7e0cf}
+.recousu h5{margin:0 0 8px}
+.case.mini{width:36px}
+.case.mini i{font-size:9.5px}
+.couture{width:16px;display:flex;align-items:center;justify-content:center;
+ color:#b4472c;font-size:13px;font-weight:700;cursor:default}
+.jx{font-style:normal;font-size:10px;color:#7d94a4;background:#e6eef3;
+ padding:0 4px;border-radius:6px;margin-left:3px}
+.jx sup{font-size:8px}
 .boucle{margin:14px 0 4px;padding:10px 12px;background:#f7f4ea;
  border-radius:6px;border:1px solid #e7e0cf}
 .boucle p{font-size:12.5px;color:var(--doux);margin:8px 0 0}
@@ -445,8 +486,11 @@ mot fait plus de 6 mesures et que le mot d'après est le même (les
 section. Avant d'aller chercher ses répétitions, on regarde si <b>le mot boucle
 sur lui-même</b> : s'il contient une boucle d'au moins {R.PERIODE_MIN} mesures,
 c'est la boucle qui devient le modèle, pas le mot — c'est ce qui rattrape les
-morceaux dont l'intro fait déjà tourner un bout du A. Puis on recommence à la
-première mesure encore libre. Chaque étape ci-dessous montre tous les retours
+morceaux dont l'intro fait déjà tourner un bout du A. On retire alors toutes
+ses occurrences, et on <b>recoud le morceau</b> : ce qui reste devient la
+chanson qu'on analyse à l'étape suivante, où deux passages séparés par une
+section retirée sont désormais voisins. Chaque étape ci-dessous montre tous les
+retours
 testés, celui que la règle littérale prend (<em>1er</em>), et — en bleu — ceux
 qui <em>auraient marché aussi</em> mais que l'algo n'a jamais testés parce
 qu'il s'était déjà arrêté. C'est là que se trouvent les réglages à trancher.
@@ -472,6 +516,19 @@ ceux de Louis (16–23, 36–43, 56–63, 64–71, 72–79). En échange, A ne f
 que 4 mesures et avale l'intro, la queue et une moitié du pont : le modèle est
 juste, mais rien ne regroupe deux boucles voisines en une phrase de 8. Il
 manque une passe de recollement au-dessus.</li>
+<li><b>Le recousu déplace la découverte du B là où il commence vraiment.</b>
+Sur This Love, le B se trouve maintenant à l'étape 2 depuis la mesure 16 : une
+fois les A retirés, la mesure 23 est directement suivie de la 36, le mot 16–23
+et sa répétition 36–43 sont voisins, ressemblance 0,997. Sans le recousu,
+l'étape butait sur « pas la place pour la répétition qui suit » et ne
+retrouvait le B que bien plus loin, mesure 58, par raccroc. Le résultat final
+est le même ici — mais il n'était plus trouvé pour la bonne raison, et sur un
+morceau où la deuxième section ne revient pas trois fois de plus, il ne serait
+pas trouvé du tout.</li>
+<li><b>Une occurrence ne peut pas enjamber une couture</b> — sinon on écrirait
+une section qui saute un trou et n'existe pas en musique. C'est le seul
+garde-fou du recousu, et il se lit dans les verdicts « le mot enjamberait une
+section déjà retirée ».</li>
 <li><b>Une ressemblance purement harmonique ne sépare pas couplet et refrain</b>
 quand ils partagent la grille : sur Let It Be un seul mot de 8 mesures pave tout
 le morceau, sur Stand By Me un seul aussi. Il faudra un second signal (le chant,
@@ -488,6 +545,14 @@ sévère.</li>
 toutes les occurrences sortent à 0,74–0,77, c'est-à-dire « faibles partout » :
 quand aucune occurrence n'est nette, c'est la longueur du mot qui est fausse, pas
 le morceau qui est flou. Il y a là un critère de rejet gratuit.</li>
+<li><b>Vérifié sur les 15 morceaux que Louis a annotés</b> (règle #5 : un
+résultat sur un morceau est une hypothèse) : rien ne plante, mais <b>11 sur 15
+ne rendent qu'UNE section</b>. La cause est la même partout — le plus bas score
+d'occurrence colle au seuil (0,74 pour 0,73 · 0,63 pour 0,62 · 0,61 pour 0,60 ·
+0,68 pour 0,65…). Le modèle de la première section ramasse donc tout le morceau
+et il ne reste rien à recoudre pour l'étape 2. Et 6 des 11 ont un mot de 7
+mesures, trop court pour la règle de la boucle. Les deux réglages du haut de
+cette liste ne sont pas des détails : ce sont eux qui tiennent le résultat.</li>
 </ul>
 <script>{JS}</script>
 </html>"""
