@@ -450,9 +450,10 @@ def bloc_morceau(fichier: str, titre: str) -> str:
                 f'{o["b0"]}–{o["b1"]} <i>{o["moyenne"]:.2f}</i>'
                 f'{" ✱" if o["variante"] else ""}</b>'
                 for o in sec["occurrences"])
-            quoi = (f'la boucle de {sec["L"]} mesures trouvée dans le mot de '
-                    f'{sec["mot"]}' if sec["boucle"]
-                    else f'le mot de {sec["L"]} mesures')
+            quoi = (f'la boucle de {sec["L"]} mesures'
+                    + (f' (motif court trouvé dans le retour de {sec["mot"]})'
+                       if sec["boucle"] else
+                       f', qui tient {sec["mot"]} mesures d\'affilée'))
             tours = " ".join(
                 f'<b class="occ {"net" if su["score"] >= NET else "flou"}">'
                 f'{su["b0"]}–{su["b1"]} <i>{su["tours"]} tours · '

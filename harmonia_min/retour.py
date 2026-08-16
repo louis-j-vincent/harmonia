@@ -690,20 +690,25 @@ def sections(S: np.ndarray, seuil: float | None = None,
             etapes.append(etape)
             continue
 
-        L = etape["retenu"]["L"]
+        L = etape["retenu"]["L"]                 # la longueur de la BOUCLE
+        portee = etape["retenu"]["portee"]       # ce qu'elle tient d'affilée
 
-        # La règle de la boucle interne : si le mot se répète lui-même à une
-        # période d'au moins PERIODE_MIN mesures, c'est CETTE boucle le modèle,
-        # pas le mot entier.
-        # Le mot est d'un seul tenant (on l'a exigé), donc le chercher dans la
-        # vraie chanson ou dans la recousue revient au même ici.
+        # La boucle retenue peut elle-même boucler plus court (un retour de 8
+        # dont le motif réel fait 4). C'est alors le motif court le modèle.
         boucle = periode_interne(S, depart, L, seuil)
         etape["boucle"] = boucle
         modele_L = boucle["retenue"]["p"] if boucle["retenue"] else L
         queue = exemption(modele_L)                       # la règle unique
 
+        # ON SÈME LA PORTÉE, PAS LA BOUCLE. `mot` était la longueur du mot du
+        # temps où une section naissait d'un mot ; depuis que c'est la PORTÉE
+        # de la répétition qui crée la section, semer `L` ne posait plus qu'un
+        # seul tour. Sur She Will Be Loved l'étape annonçait « boucle de 4 × 5
+        # tours = 20 mesures » et la section commençait quand même mesure 12 :
+        # les quatre premiers tours n'étaient jamais semés et retombaient sous
+        # le seuil d'occurrence.
         rec = _occurrences(P, restants, dep, modele_L, seuil, queue,
-                           modele_b0=depart, mot=L)
+                           modele_b0=depart, mot=portee)
         occ = rec["occurrences"]
         if not occ:
             # CHOIX 8 a tout jeté : le « retour » n'était qu'une boucle de
@@ -721,7 +726,7 @@ def sections(S: np.ndarray, seuil: float | None = None,
         for o in occ:
             for b in range(o["b0"], o["b1"] + 1):
                 libre[b] = False
-        sec = {"label": label, "L": modele_L, "mot": L, "modele": depart,
+        sec = {"label": label, "L": modele_L, "mot": portee, "modele": depart,
                "boucle": boucle["retenue"]["p"] if boucle["retenue"] else None,
                "occurrences": occ, "seuil_occ": rec["seuil_occ"],
                "ecartees": rec["ecartees"], "n_fenetres": rec["n_fenetres"],
