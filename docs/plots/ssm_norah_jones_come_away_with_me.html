@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>SSM — Norah Jones Come Away With Me — AVANT</title>
+<style>
+  :root{
+    --papier:#f7f3e9; --encre:#1c1c1c; --pale:#6f6a60; --trait:#ddd5c4;
+    --carte:#fffdf7; --accent:#8a2b2b;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --papier:#17171a; --encre:#ece8e0; --pale:#918c83; --trait:#33323a;
+           --carte:#1f1f24; --accent:#d4735e; }
+  }
+  *{ box-sizing:border-box; }
+  body{ margin:0; padding:18px 16px calc(28px + env(safe-area-inset-bottom));
+        background:var(--papier); color:var(--encre);
+        font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+        max-width:820px; margin-inline:auto; }
+  a{ color:var(--accent); }
+  h1{ font:italic 600 23px/1.25 Georgia,"Times New Roman",serif; margin:0 0 2px; }
+  .sous{ color:var(--pale); font-size:13.5px; margin:0 0 14px; }
+  .lede{ font:italic 14px/1.6 Georgia,serif; color:var(--pale);
+         margin:0 0 16px; }
+  .carte{ background:var(--carte); border:1px solid var(--trait);
+          border-radius:14px; padding:12px; }
+  #enveloppe{ position:relative; width:100%; }
+  canvas{ display:block; width:100%; height:auto; border-radius:8px;
+          touch-action:manipulation; cursor:crosshair; }
+  canvas.regle{ border-radius:0; cursor:default; margin-top:3px; }
+  #bulle{ position:absolute; pointer-events:none; opacity:0;
+          transform:translate(-50%,-130%); background:var(--encre);
+          color:var(--papier); font:600 11.5px ui-monospace,Menlo,monospace;
+          padding:4px 7px; border-radius:6px; white-space:nowrap;
+          transition:opacity .12s; }
+  .legende{ display:flex; justify-content:space-between; gap:10px;
+            font:500 11.5px ui-monospace,Menlo,monospace; color:var(--pale);
+            margin-top:8px; flex-wrap:wrap; }
+  .titraille{ font:600 10.5px sans-serif; letter-spacing:.08em;
+              text-transform:uppercase; color:var(--pale); margin:18px 0 6px; }
+  #transport{ display:flex; align-items:center; gap:12px; margin-top:14px; }
+  button{ font:600 14px sans-serif; border:1px solid var(--trait);
+          background:var(--carte); color:var(--encre); border-radius:11px;
+          padding:11px 16px; cursor:pointer; min-height:44px; }
+  button.principal{ background:var(--accent); color:#fff; border-color:transparent;
+                    min-width:104px; }
+  #horloge{ font:600 14px ui-monospace,Menlo,monospace; color:var(--pale);
+            font-variant-numeric:tabular-nums; }
+  #alerte{ display:none; margin-top:10px; padding:10px 12px; border-radius:10px;
+           background:var(--accent); color:#fff; font-size:13.5px; }
+  .pied{ margin-top:22px; font-size:13px; color:var(--pale); }
+</style>
+</head><body>
+<script>window.SSM = {"titre":"Norah Jones Come Away With Me — AVANT","stem":"norah_jones_come_away_with_me","file":"old_norah_jones_come_away_with_me","audio_url":"http://100.89.209.63:7772/audio/norah_jones_come_away_with_me.m4a","n":162,"par_mesure":2,"n_mesures":81,"t":[4.0,5.14,6.28,7.4,8.52,9.66,10.8,11.92,13.04,14.16,15.28,16.4,17.52,18.62,19.72,20.86,22.0,23.11,24.22,25.35,26.48,27.59,28.7,29.83,30.96,32.07,33.18,34.29,35.4,36.54,37.68,38.81,39.94,41.05,42.16,43.3,44.44,45.57,46.7,47.81,48.92,50.02,51.12,52.23,53.34,54.44,55.54,56.62,57.7,58.82,59.94,61.06,62.18,63.28,64.38,65.5,66.62,67.75,68.88,70.02,71.16,72.29,73.42,74.52,75.62,76.72,77.82,78.94,80.06,81.2,82.34,83.5,84.66,85.78,86.9,88.03,89.16,90.24,91.32,92.45,93.58,94.72,95.86,96.95,98.04,99.14,100.24,101.37,102.5,103.64,104.78,105.91,107.04,108.16,109.28,110.4,111.52,112.64,113.76,114.88,116.0,117.12,118.24,119.34,120.44,121.57,122.7,123.81,124.92,126.05,127.18,128.33,129.48,130.6,131.72,132.84,133.96,135.05,136.14,137.25,138.36,139.47,140.58,141.7,142.82,143.94,145.06,146.19,147.32,148.44,149.56,150.68,151.8,152.9,154.0,155.13,156.26,157.36,158.46,159.57,160.68,161.78,162.88,163.97,165.06,166.19,167.32,168.49,169.66,170.8,171.94,173.05,174.16,175.27,176.38,177.49,178.6,179.75,180.9,182.01,183.12,184.61,186.1],"m":"//+4uv79r7Li+aus/v6yt///rq7//6ej+/ykpaipUVj//3V0//+pqPz+qbH//aanq6ZgXv////9MS11j/////05OVlb//1BM//+opvv6pqj+/q6yqatjWf//VVf//6uo//6nqf//paipo2FV//9SUf//qKj//KWn+/62paSpU1H/////T0tuZf////9NSlVV//9ZT///paP9/Kyz//9aSrb///+6vP/+sbTj+a2u//6zuf//sLD//6il+/ymp6mqU1r//3d2//+rqv3+q7P//aeprKdiX/////9PTl9l/////1BQWFj//1NO//+qqPv6qKn//7C0qqtlW///V1n//6yq//+pqv//p6qqpGJX//9VU///qar//aao/P64qKWpVVP/////UU1xZ/////9PTVdX//9bUv//p6X9/a61//9cTLj/uLr//8TK/f302/r7w8b9/cPC/vy/vvr51ND5+n15nJ29uUdIuL78+8/J+vvDzfv8g3idnL26uLkmJpyeurm4uCcpmpu9uikmuLz6+dTV+frEw/7/fXudnr67LjK3vPr6wsP6+sLC+ft9c5ucu7krKbi++v2/z/n608r88nR6m5u+urm6KCaeobu5uLgmJZueu7swKLi9+fnLz/v7vrsxJHm4urz//8bL/f313Pr7xcf9/cTD/vzBwPn51dL5+Xt3oKG/u0pLusD8+9HL+fvEz/r8gXWioL+8ursoKKCivLq6uSkrn5+/vCsnur75+dbX+fnGxf3/e3mhosC9MDO5vfr5xMX6+sPE+ft7cZ+gvbotK7q/+v3B0fn61Mv883J3n5/Au7u7Kiiipr26urooJ5+ivb0yKrq/+fnN0fv7wL0zJny6/v/Exv//u77p/Le4//+9w///urr//7Ow/f6wsaeoXmT//nh3/v+1tP7/tb3//rKzq6Vsav/+/v5PTmlv//7+/lBQYmL//lJO/v+0sv39srT//7q+qKluZf//V1n+/7a0//+ztf//sbWoomxi//5VU/7/tLX//rGz/v/Bs6OnX13//v7+UU16cf/+/v5PTWFi//9bUv7/sbD//ri///9cTLj+/f7Ky///wcPs/b2////DyP//wMD+/rm2/v+2uKWmZGr+/nZ1/v67uv//u8P//7i5qaNyb/7+/v5NTG91/v79/U5PaGn+/lFM/f66uP7+uLr//8DEpqd0bP7+VVj9/ry6//+6u///t7umn3Jo/v5TUf7+urz+/7e5/v/HuKClZmT+/v7+T0t/d/7+/v1NS2ho/v5ZUP3+t7b//77E/v5aSrb9r7H9/bvB///x1P/+ur3//7q4/v+2tf7+zcn+/mVho6S0rycprrX//8fB/v+6xf//a16iorSwr64FBaGjsa+vrQYIoaK0sAgErrP+/szO/v68uf/8ZWKjpLWyDRGtsv7+ubv//7m5/v9lWaCksq4KCK60//62yP7/y8H/61thoqK1sK+vBgWYo7Kvr60FBKGlsrEPB66z/v7EyP//tbEQA12usrT9/b7D///z1v7+vcD//727/v+5uP7+z8v+/mhkoqK3siorsbj//srE/v+9yP7+bmGhobezsrEHB6CitLKysAgKn6C2swoGsbb+/s/Q/v6+vP/9aGWho7i0DxOwtf7+vL7+/ry8/v9oXZ6itbEMCrG3/v65y/7+zsT/615koaG4s7KyCQeXorWysrAHBqCktbQRCbG2/v7Gyv7/uLQSBWCx4uP09ens8fP/9u/w6erz9ejn8PHm5e3s8/Hs7YqIj5Pl4k9P4eXu7vDt7vLo7+3tkIWWlOXj4uEmJpOX4+Lh4CgpkJHl4iom4eTu7fPz7e7p6PHxi4qXlOXjMDPg5O/u6Onu7ujo7O6LgZSR4+EsK+Hl7u7m8Ozu8u304IKIkI/l4uLiKSaVmOPi4eAnJZCS4+MyKeHk7ezu8PDz5eMzJI3h+fnb3Pz91Nb2/9HS/PzW2vz709P7+s3L//7LzJ+fc3j6+Wlo+PrPz/79z9b8/s3OpJx/fPr5+fg/PnyB+fn5+EFBdnb6+UM++PrOzf/+zc78+9PVoKCBevr5SEr4+tDP+/zOz/v7zM+gmH52+fhFQ/j6zs/7/szO//3Zx5medHP6+fn5QT6Ggvn5+fg/PXV3+flMQvj6zMv+/tLX+vlNPar4q636+re9//7v0f/+t7n//ra0/f+ysf//ycb//1xXpKSwqxocqrH+/8S9//+2wv/+YlWiorCtq6oAAKGkraurqAAAoaKwrAAAqa///8nK//+4tv76W1mjpbGuAAKorv//trf//7W2//9cUKCkrqoAAKqx//2yxf//yL3+5lFXo6OxrKurAACUoq6rq6kAAKGmrq0BAKmv///AxP//sa4CAFGqrK77+7i//v7w0v7/uLr+/re2/f60sv7+y8f+/lxYr6+yrSQlq7L+/8W//v63w/7+YlaurrKurKwAAKyvr6ysqgEEra2yrQMAq7H+/svM/v65t/77XFmusLOvCAyqsP7+t7j+/ra3/v5cUauvr6sFA6yy/v60xv7/yb//61JYrq6zrq2tAgChrq+trKoAAK2xr68KAqux/v7Bxf7+sq8LAFir/v/Dxf//ur3p/Le4//+9wv//urr//7Ov/f6wsaanXGP//3Jx/v+1tP7/tb3//rKzqqRraP///v5JSGht//7+/ktLYWH//k1J/v+0sv39srT//7q9p6htZP//UlT+/7a0//+ztf//sbSnoWtg//5PTf7/tLT//rGz/v/BsKKmXlz////+S0d3b////v5JR2Bh//9WTP7/sbD//ri///9XR7T+/v7Gx///vcDq/Lm6//+/xf//vLz//7Wy/v6ztKenXmT//nNy/v+3tv7/t7///7S1qqRsav/+/v5KSWlv/v7+/kxMYmP//k5J/v+2tf79tLb//7y/qKlvZv/+U1X+/7m2//+2t///s7eooWxi/v5QTv7/trf//rO1/v/Ds6KnYF7//v7+TEh5cf7+/v5KSGFi/v5XTf7/s7L//rrB//5YSLT+srP9/b3D///z1v/+vb///7y7/v+5uP7+z8v+/mdioaK2sigqsbf//8rD/v+9yP7+bWChoLezsrEFBZ+itLKxrwYIn6C2sggFsLb+/s/Q/v6+vP/8Z2Shore0DhGvtf7+vL3+/ry8/v9nW56htbEKCbG3/v65yv7+zsT/6l1joKC3s7KyBwWWobSysbAFBJ+jtLQPCLC2/v7Gyv7/uLQQA16xt7n9/cPI///12v7+wsX//8LA/v++vf3909D9/W5qoKG8uDAyt73+/s7I/v7Czf7+dGehoLy5t7cNDZ+iubi3tQ4Qnp+8uBANtrv9/dPV/f3Dwf/9bmuhor26Fhm1u/7+wcP+/sHB/f5uY56hurcSEbe9/v2+z/3+0sn/62Rqn5+9ubi4Dw2Zorq4t7YNDJ+iurkXELa8/f3Lz/7/vboZC2e3///DxP//ur3o/La3//+8wv//ubn//7Kv/f6vsaeoWmD//3Jx/v+0s/7/tLz//rGyq6VpZv////5JSGVr/////ktLXl///01J/v+zsf38sbP//7m8qKlrYv//UlT+/7az//+ztP//sLSoomhe//5PTf7/s7T//rCy/f/Ar6OnXFr////+S0d1bf////5JR11e//9WTP7/sK///re+//9XR7T+///Cw///uLvn+7S2//+7wP//uLf//7Ct/f6ur6mqWWD//3V0//+ysv7/srr//q+xrKdoZf////9MS2Vq/////k5OXl7//1BM//+xsP38sLH//7i7qqtqYf//VVf+/7Sy//+xsv//r7KqpGhd//9SUf//sbL//q6w/f+/r6WpW1n/////T0t1bP////5NSl1e//9ZT///r63+/ra8//9aSrb/rrD+/rrA/v7w0/39urz+/rm4//61tP38zMj8/W9qoKCzrzIzrrT+/sbA/f25xP7+dGifnrOwrq4REZ2gsK6urRIUnZ6zrxMQrbL9/czN/f27uf/+bmyfobSxGRyssf39uLr9/bi4/P5vY5ygsa4WFK60/f61x/39ysD97mVqnp+0r6+vEhGZobGurq0REJ6hsbAaE62z/fzDx/79tLEcD2WtrrD8/LrA///x0//+urz//7m3/v+1tP7+zMj+/mVgpKSzriUnrbT//8bA/v+5xP//a16jo7Ovrq0DAqGksK6urAQGoqKzrwUCrbL+/szN/v67uP/8ZWKjpbSxCw6ssf7+uLr//7i4/v9lWaCksa0IBq2z//61x/7/y8D+6ltho6O0r66uBAKYpLGurqwDAqKmsbAMBayy/v7Dx///tLAOAVut//+/wf/+trnm+7K0//+5vv//tbX//66r/f2sraipV17//3Rz//+wr/3+sLj//q2uq6ZmY/////9LSmNo/////k1MXFz//09K//+vrvz8rq///7W5qapoX///U1X//7Kw//+vsP//rLCpo2Zb//9RT///r7D//qyu/f69rKOoWVf/////TUlzav////5LSVtb//9XTv//rav+/rS6//9YSLX///++wP/+tbjl+rGy//+4vf//tLT//62q/P2qrKioVl3//3Ny//+vrv3+r7f//qytq6ZlYv////9LSWJo/////kxMW1v//05K//+urPz7rK7//7S3qapnXv//U1X//7Gu//+ur///q6+pomVa//9QT///rq///aut/f68qqOoWFb/////TUlyaf////9LSFpa//9XTv//q6r+/bK5//9YSLX/p6j6+bO5/v7tzf/+s7X+/bKw/f6urf//xsL//1hTpKOspxUXpaz+/8C5//+yvv/+XlGhoqyop6YAAKCjqaempAAAoaGrpwAApav//8XG//+0sf75WFWipK2pAACkqv//srP//7Gx//9YTJ+kqqUAAKas//2uwf//xLn+5U5Uo6OtqKenAACRoKqnpqQAAKGlqakAAKWr//+8wf7+rakAAEumo6X5+bC2/v7sy//+r7L+/a+t/P6rqv//w7///1RPqKeooxMVoqn+/722//6vu//+Wk2lpamlo6IAAKSmpqOjoAAApaWopAAAoaj//8PE//+xrv35VFGlqKqmAACgp///rrD//66u//9USKKnpqIAAKKp//2rvv//wrb+5UpQpqeqpaSjAACUpKako6EAAKWppqUAAKGn//+5vv7+qqYAAEmi+/vU1f3+zc/z/8nL/f7P0/39zMz9/MbD///ExaCgb3X8+2tr+/zIx//+yM/9/8XGpJ18efz7+/tCQXl+/Pv7+kNEc3P8+0VB+/zHxf//xcf+/czOoaJ+dvz8S036/MnH/f3GyP39xMehmntz/PtIRvv8x8f9/8TG//7TwZugcG/8+/v7RECEf/z7+/pCQHJz/PxORfv8xMP+/8rQ/PxPP637/PzQ0v7/ycvx/sbH/v7L0P7+yMj9/cK////AwaOjaW79/Gxr/P3Ew///xMv+/8HCp6B2c/38/PxCQXN4/fz8+0REbG39/EZC/P3Dwf/+wcP+/sjLpKR4cP39S077/cXD/v7CxP7+wMOknHVs/fxIR/z9w8P9/8DC///PvZ2iamj9/Pz8RUF/ef38/PxDQGtt/fxPRfz9wL///8fN/f1QQK78pKb5+bC2/v7sy//+sLP+/a+u/P6sqv//xMD//1ZRpKOppBIUo6r+/763//6wvP/+XE6hoammpKMAAKCipqSkoQAAoaGppAAAoqj//8PE//+xr/35VVOhpKqmAAChqP//r7H//6+v//9WSp6kp6MAAKOq//ysv///wrf95EtRo6OqpaSkAACQoKekpKEAAKGlp6YAAKKo//+6vv7+qqcAAEijpaf6+bG4/v7tzP/+sbT+/bGv/f6trP//xcH//1pWo6KqphUXpKv+/7+4//6xvf/+YFOgoKqnpaQAAJ+hp6WlogAAn6CqpgAApKr//8TF//+ysP76Wlego6uoAACiqf//sLL//7Cw//9aTp2iqKQAAKSr//2twP//w7j+5VBWoaKrp6alAACQn6impaMAAKCkqKcAAKOq//+7v//+rKgAAEukqKl9e6elZWiKn1xcpqdnbqepb2WoqFhUoKNWWv//AAGmqaGeqqljXKGjWWCnpVxj//8NBaaoqKuhnwgKp6iorqGfAQCmqqKhq6hZV5+eV1ilp2p7//8NA6appKatqFtZp6dbWqemVmH//wwAp6uioaqoWWKno1ZZoaZkbf//AAClp6iqoZ88HKeoqKyhnwMAp6mmoqyqWFWkpGNkp6inn8epqap5d6imYWSIn1dYp6diaqiqamCpqFNPoKNRVv//AACnqqShq6pfV6GkVVyopVdf//8MBaepqayjoggJqKmqr6SiAACnq6WjrKlUU5+eU1Smp2V3//8MAqeqp6mvqVZVp6hWVqenUVz//wsAqKylpKupVV2oo1JUoaZgav//AACmqKmrpKI8G6ipqa6jogIAqKqppa2rU1CkpF5gqKmqosmqUVOcoF5ko6KPc6SvXF6hoFpZoKRXVqSob2mkowAA//9bURIWUlikqWxmpKNaZKSjAwD+/ltUUlIAAP7+VlJQUAAA//9cUwAAUFajpHF3pKReXaOfAAD+/15WAABPVKOjWlujpFpapKEAAP3/V1EAAFFWpKlXaKWpbWSorgAA//9gVVNVAADr+1dSUlIAAP//V1YAAFBVpKZjZqCiVlQAACdRWFqdoWRqpKKTeKSvY2SioWBgoKReXaOndW6jogEA//9iWBgbWF+kqXJso6RgaqSiBgD+/2JaWFkAAP/+XVlXVgAA//9jWgAAV1yjo3Z9o6RkY6OfAQD+/2RdAABWWqOjYGGjo2Bgo6EBAP7/XlgAAFhdpKlebqSoc2qprwAC//9mW1pbAADs/F5YWVgAAP//Xl0AAFdco6VpbKCiXVoAAC1Y//+9v//+tLfl+rCy//+2vP//s7P//6yo/P2pqqanW2L//3Rz//+urf3+rrb//qusqaRqZ/////9LSWdt/////kxMYGD//05K//+tq/z7q63//7O2p6htY///U1X+/6+t//+srv//qq2moGpf//9QT///ra7//aqs/P67qqGmXVv/////TUl3bv////9LSF9f//9XTv//qqn+/bG4//9YSLX///+5u/7+r7Li+aut//6yuP//r67//6ej+/ykpqmqUVj//3Z1//+pqPz+qbL//aanrKdhXv////9OTF5k/////09PVlf//1FN//+opvv6pqj+/q6yqqtjWf//Vlj//6uo//6oqf//pamqpGFW//9UUv//qKn//KWn+/62pqWpU1H/////UExvZf////9OS1VW//9aUf//paT9/K20//9bS7f/dXdHSnh2JypPaRokcnMoMHJ1MiV0cxUTa2wSFaGkEhh0dv//enkmH3FxFh9xbhskoqYmHnV0dXz5+SUjdXV1gPr6Gxh1evr5e3UWFG5zFBZzeC9HoqMjG3Z6+/t+dBgWcXEYGHFxEx2hpSUWdHz7+nl1GDJzbBQaa3QoaqOkFBJ2dXd7+vl0P3V0d3/5+R8UdHn7+nx3FBNtax0hcnX7+fF3dHZIS3d1KStPaBwlcXIqMnF0MydzchcVa2sUF56hFhtzdf//eXgnIXBwGCBwbR0mn6QpIXRzdHv5+SgmdHRzf/n6Hht0efr5enQXFm5yFhdydzBIoKEmHnV5+/t9cxkYcHAaGXBwFB6foygac3v6+nh0GjRyaxYca3MqbaGiFxZ1dHZ6+fl3Q3RzdX75+SIYc3j7+nt2FhRsax8icXT7+fF2//+4uv7+rrHh+Kqr/v6xt/7/rq3//6Wi+/yjpKqrUlj//3p5//+op/z9qLD+/aWmrahhXv////9SUV5k/////1RUV1f//1ZS//+npfv6pab+/q6yq6xkWv//W13//6mn/v6mqP7+pKerpWFW//9YV///p6j//KSm+/61pqaqU1H/////VVFxZv////9SUFVW//9fVf//pKL9/Kuy//9gULv///++wP/+tbjl+rGy//+3vf//tLT//6yp/P2qq6mqWF///3l4//+vrv3+rrf//qytradoZf////9QT2Rq/////1JSXV3//1RQ//+trPz8rK3//7S4qqtqYP//WVv//7Cu//+trv//q66qpGhc//9WVf//ra///aqt/f67raWpWlj/////U092bP////9QTlxd//9dU///q6n+/bK5//9eTrn/qav8/LW7///uz/7+tbf//rSy/v+wr/7+yMT+/mNfpKSuqSYnqK///8K7/v60wP//aV2ioq6qqagEBKGjq6mopwUIoaKuqgcEqK3+/sfJ/v62tP/9Y2Gjpa+sDBCnrP7+s7X//rOz/v9jWKCkrKgJCKiu/v6ww/7/xrz+61pfo6OvqqmpBgSYo6ypqKcEBKKmrKsOB6et/v6+wv/+r6sPAlmoqKr7+7S6//7uz///tLb//rOy/v+vrv//x8P//1xXqamtqB8hp67//8G7//+zv///YlWnp62qqKcAAKaoqqiopQAApqetqQAApqz//8fI//+1s/77XFmoqq6rBQilq///s7T//7Kz//9cUKWpq6cBAKeu//6vwv//xrv+6VJYqKiuqaioAACap6uoqKYAAKerq6oGAKas//+9wv7+rqoHAFOn/P3P0f7/x8rw/sTF/v7Kzv7+xsb9/cC9//++v6GhbHL9/HFw/P3Cwf//wsn+/7/ApZ56d/39/PxHRnd8/fz8/EhJcHD9/EtG/P3Bv///v8H+/sfJoqN7c/39UFL8/cPB/v7Awv7+vsGim3lw/fxNS/z9wcL9/77A///NvZyhbmz9/fz8SUWEfv38/PxHRW9w/f1TSvz9vr3//8XL/f1URLH8/v7Jy///wcTt/b2////DyP//wMD+/rm2/v+3uKOkZmz+/nFw/f67u///u8P//7m6p6Fzcf7+/v1HRnB2/v79/UlJamr+/ktH/f67uf7+ubr//8DDpKV2bf7+UFL9/r27//+6u///uLuknXNp/v1NTP3+urv+/7i6/v/Ht56jZ2X+/v7+SkZ+d/7+/v1HRWlq/v5USv3+uLb//77F/v5VRbL9qav6+bW7/v7uz//+tbf+/rSy/f6wr///yMT//1lVpKOuqRYYqK7+/8K7//+0wP/+X1Khoq6rqagAAKCjq6mppgAAoaGuqQAAp63//8fI//+2s/75WVaipK+rAACmrP//tLX//7O0//9ZTZ+jrKgAAKiu//2ww///xrv+5U9VoqOvqqmpAACRoKypqaYAAKGlrKsAAKet//++w/7/r6sAAE2osbP7+73D///y1v/+vb///ry6/f+4t//+z8v+/mBco6S2sh8gsLf+/8nD//+8x/7+ZlqiorazsbEAAKGks7KxrwAAoaK2sgAAsLX//87P//++u/76YF6jpbe0Awevtf//vL3//7u8/v9gVaCktLAAALG3//24yv7/zcP/51ZcoqO3s7KyAACVorSysa8AAKGltLMFALC1/v7Gyv7/t7QGAFew///DxP//ur3o/La3//+9wv//ubn//7Kv/f6wsaeoWmD//3Fw/v+0s/7/tLz//rGzqqVoZv////5IR2Vr/////klJXl7//kxH/v+zsv38srP//7m8qKlqYf//UFP+/7a0//+ztP//sbSooWhe//5OTP7/s7T//rGy/v/Br6KnW1n////+SkZ0bP///v5IRl1e//9US/7/sa///ri+//9VRbP+/f3Nz/7/xcjv/sLD/v/Izf7+xMT+/r67//+8vaWlZGr+/W5t/f7Av///wMf+/72+qaJyb/79/f1EQ290/f39/EZGaGn+/UhE/f6/vf/+vb///sXHpqZ0bP79TU/8/cG//v+/wP7+vMCmn3Fo/f1KSf3+v7/+/7y+///LuaCkZmT+/f39R0N8dv39/fxEQmdp/f1RR/3+vLv//8PJ/v1SQrD9pqf7+rK4//7tzf/+srT+/rGv/v+trP//xcH//1xXpKSrphsdpaz//7+5//6xvf//YlWioqunpqUAAKCjqKalowAAoaKqpgAApKr//8XG//+zsf77XFmipKyoAQWjqf//sbL//7Cw//9cUJ+kqaUAAKWr//6twP//xLn+6FJXo6Osp6amAACUoqmmpaQAAKGmqKgDAKSq//+7wP/+rKgEAFClp6n8/LO5//7tzv7+s7X+/rKx/v+urf7+xsL+/mNfo6KspyQmpq3//8C6/v6zvv//aV2hoayop6cDA5+iqaenpQQGoKCsqAYCpqv+/sbH/v60sv/8Y2Cho62qCw6lqv7+srP+/rGy/v9jWJ6iqqYIBqat/v6uwf7+xbr+61lfoaKtqKenBQOWoqqnp6UDAqCkqqkMBaar/v68wf/+rakOAVemq6yDgaupa26QpGJiqqptdKusdGurq15apKdcYP//AwaprKKfra1pYqWnX2aqqWJp//8SCqmrq66hnw0PqqussaGgBgWpraKhr6tfXaOiXV6pqnCB//8SCKmtpKaxrGFfqqphYKqqXGf//hEEqq6ioq2sX2irp1xfpalqc/7/AwGpq6utoZ9BIKurq7ChnwgEqqymoq+tXluoqGlqq6unn8ispqd4daWjXmGFnFVWpKRgZ6WnaF6mplFNnaBOU///AACkp6akqKddVZ6hUlqlolVd//8KA6SmpqmnpQYIpaanrKemAACkqainqqZSUJybUFGjpWN1//8KAKSoqqysplRSpKVUU6SkT1r//wkApaqoqKinUlyloE9SnqNdaf//AACjpqaoqKU8GaWmp6unpgAApaesqKqoUU6hoVxdpaatpcqnYGKdomxyoqGWf6Kua2yhoWlon6NmZaGlfHahoA0M/v5qYSYpYWiip3pzoaJocqKhEgr//2tjYWIHCf//ZmFgYAgN//5sYwkHYGWhoX2EoaJsbKKgDQ3//21lDQ9fY6GhaGmhoWhooZ8NBv/+Z2ELCmFloqhmdaKmenKosQYP/v5vZGNkCAnx/WdhYmIHCP7+ZmUNCWBkoaNwc56hZWMOBjxhXl+coGpvoqGUfKKuaGqgoGZlnqNjYqKleXOhoAUF/v9nXh4hXmWip3dxoqJmb6KhCgP//2hgXl8AAP//Y15dXAAF//9pYAEAXWKhoXuBoaJpaaKeBgX//2piBQZcYKGhZWehomVloZ8GAP//ZF4DAV5ioqhjcqKmd2+orwAH//5sYWBhAAHu/GReX14AAP//Y2IFAV1hoaNucJ6hYmAGADRe//+9v//+tLfl+rCy//+3vP//s7P//6yp/P2pqqanW2L//3V0//+urf3+rrb//qusqaRraP////9MSmdt/////k1NYGD//09L//+tq/z7q63//7O2p6htY///VFb+/7Ct//+srv//qq2noWtg//9SUP//ra7//aqs/f67q6KmXVv/////Tkp3b/////9MSl9g//9YT///qqn+/bG4//9ZSbb///+6vP7+sLPj+a2u//6zuf//sK///6il+/ymp6ipVFr//3Rz//+qqv3+q7P//aeoq6ZjYP////9MS2Bl/////05NWFn//1BL//+pqPv6qKn//7CzqaplW///VFb//6yq//+pqv//p6qpo2NY//9SUP//qar//aao/P63p6SoVVP/////TkpwZ/////9MSldY//9YT///p6X9/a61//9ZSbb///+4uv7+r7Li+aus/v6yt///rq7//6ej+/ykpaipUlj//3V0//+pqPz+qbH//aanq6ZhXv////9MS15k/////05OVlf//1BM//+opvv6pqj+/q6yqapkWv//VVf//6uo//6nqf//pampo2FW//9SUP//qKn//KWn+/62paSoVFH/////T0pvZf////9MSlVW//9ZT///paT9/Kyz//9aSrb///+5u/7+rrHh+Kqs/v6xt/7/rq3//6ai+/yjpKusUln//3x7//+op/z9qLH+/aWnrqliX/////9UUl9k/////1VVV1f//1dT//+npfv6paf+/66yrK1kWv//XF7//6qn/v6mqP7+pKispmJW//9aWP//p6n//KSm+/61p6esVFL/////VlJyZ/////9UUlZX//9gV///pKL9/Kyz//9hUbz/TE8mKE9NBQcmPwAASUoFDUlMEQNLSwAAQkIAAKGjAABLTvn5UlAEAEdHAABIRAADoacHAExMTFT//wYDTE1MWP//AABMUv//U0wAAEVIAABKTw0noqMDAE1R//9XTAAASEkAAEhIAAChpwYAS1T//1FNABBKQgAAQUoDSqWkAABNTE5T//9aIkxMTlj//wEAS1H//1RPAABDQgAASkz//+FOS04mKE5MBQcmPgAASEkFDUhLEQJKSQAAQUEAAJ+iAABJTPn5UU8EAEZGAABHQwADn6UJAEpLS1L//wgES0tLV///AABLUf//UksAAENHAABITQ0noaEFAEtQ//9VSgAAR0cAAEdHAACgpQcASlP//09LABBJQQAAQEkDSqOjAABLS01R//9cJEtLTVb//wMASk///1NOAABCQQAASEv//+FNXV+coGlvoaCTfKGsaGmfn2VlnaFjYqCkeXOgnwgI/v9nXiUoXmShpndwoKFlb6CfDQb//2dgXl8GCP//Yl5dXAcN//9oYAgGXWKgoHqBoKFpaaGeCQj//2piDA5cYJ+gZWafoGVloJ4JAv/+Y14KCV5ioadjcqGld2+nsAIK/v5sYWBhCAjx/WNeX14GB//+Y2IMCF1hoKJtcJyfYmANBTleY2Weom91o6KXgaSvbW+iomtqoKRoaKOmfniioQoJ/v5tZCMmZGqjqHx2o6RrdKOiDwj//21lZGQDBP//aGRiYgQJ//5uZQUDYmeiooCGoqNvbqOgCwr//29oCQtiZaKia2yio2troqAKA//+aWQHBmNoo6lpd6OnfHSpsQQM/v5xZ2ZnBAXw/WlkZGQDBP7+aWgKBWNnoqRzdZ+iaGUKAjpj//+6vP/+sbTj+a2v//60uf//sLD//6mm/P2mp6eoVl3//3V0//+rqv3+q7P//aipqqVmY/////9MS2Jo/////05NW1v//1BL//+qqPz7qKr//7C0qKloXv//VFb//62q//+pq///p6uoomZa//9SUP//qqv//aep/P64p6OoWFb/////Tkpzav////9MSlpb//9ZT///p6b+/a61//9ZSbb///+5uv7+r7Li+aus/v6yuP//rq7//6ej+/ykpaipUln//3V0//+pqPz+qbL//aanq6ZhXv////9NS15k/////05OV1f//1BM//+opvv6pqj+/q6yqatkWv//VVf//6uo//6nqf//pampo2FW//9SUf//qKn//KWn+/62paSpVFH/////T0tvZf////9NSlVW//9ZUP//paT9/K2z//9aSrf///+4uv79r7Lh+aus/v6xt///rq7//6aj+/ykpaiqUFf//3Vz//+oqPz9qbH//aWnrKdgXf////9MS11i/////05NVVX//1BM//+opvv6pqf+/q6xqqtiWP//VVf//6qo//6nqP//paippGBU//9SUP//p6j//KSm+/62pKWpUlD/////T0ptZP////9MSlRV//9ZT///paP9/Kyz//9aSrb///+4uf79rbDg+Kiq/v6vtf7+raz+/qSg+vuhoq6vUFb+/4B///+npfz9pq/+/KOlsaxgXP7///9YV1xi/////1paVVX+/1xY//+lo/r5o6X+/qyxr7BiWP7/YWP//6il/v6kpv7+oqavqWBU//9eXf//paf+/KKk+/2zpqquUU/+////W1dxZf////9ZVlRU//9lW///oqD9/Kqx/v9lVr//TlAnKVBOBggoQQABS0wGDktOEgRNTAAAQ0QAAKGkAABMT/r5VFIFAEhJAABJRgAEoacIAE1OTlX//wcETk5OWv//AABOVP//VU4AAEZKAABLUA4ooqMFAE5T//9YTQAASUoAAEpKAAChpwcATVX//1JOABFMRAAAQ0wFS6WkAABOTlBU//9bI05OUFn//wIATVL//1ZRAABFRAAAS07//+JQTlApK1BPCAopQQAES0wIEEtOFAZMTAAAREQAAJ+iAABMT/r6VFIIAElJAABJRgAGoKYNBU1NTlX//w0JTU5NWv//AwBOU///VE0AAEdLAABLUBEroaIKAk5T//9YTQAASUoAAEpKAACgpQwATVX//1JOABNMRAAAQ0wHTqOjAABOTk9U//9gKE1NT1n//wcATVL//1VQAABFRAAAS07//+JQVlian2JooZ+QdqGtYWKfnl5enaJcW6Glc2yhnwEA//9gVhseV12hpnBqoaFeaKGgBgD//2BYVlcAAP//W1dVVQAD//9hWAAAVVqgoXR7oaFiYaGdAQH+/2JbAgRUWKCgXl+goV5eoJ8BAP7/XFYBAFZboqdcbKKmcWimrgAD//9kWVhaAADu/FxWV1cAAP//XFsDAFVaoaNnaZ2fW1gDAC9WVlibn2JpoqCRdqKtYWOgn19enqJcW6Glc22hoAAA//9gVxgbV12ip3BqoaJeaaKgBQD+/2BZV1cAAP/+W1dVVQAA//9hWAAAVVqhoXR7oaJiYqGdAAD+/2NbAAFUWaGhXmChoV5eoZ8AAP7/XFYAAFZboqdcbKKmcWinrgAB//9kWllaAADt/FxXV1cAAP//XFsAAFVaoaNnap6gW1gAAC1W//+9v//+tLbl+rCy//+2vP//s7P//6uo/P2pqqanXGP//3V0//+urf3+rrb//qqsqaRsaf////9MS2hu/////k5OYWH//1BL//+tq/z7q6z//7O2p6huZP//VFb+/6+t//+srv//qq2noWxg//9SUP//rK7//aqs/P67q6GmXlz/////Tkp4cP////9MSmBh//9ZT///qqj+/bG4//9ZSbb///+6vP7+sLPi+ayt/v6yuP//r6///6ek+/ykpqqrU1r//3p5//+qqfz+qbL+/aaoraljYP////9SUWBl/////1RTWFj//1ZR//+op/v6p6j+/6+zq61lW///Wlz//6up//6oqf//pamrpWNX//9YVv//qKr//KWn/P63qKarVVP/////VFByaP////9SUFdY//9eVf//paT9/K20//9fT7r/UFMpK1JRCAoqQwADTU4IEE1QEwVPTgAARUYAAKKlAABOUfr6VlQHAEtLAABMSAAGoqgJAU9QUFf//wgFUFBQXP//AABQVv//V1AAAEhMAABNUhAqo6QGAFBV//9aTwAATEwAAExMAACiqAgAT1j//1RQABJORgAARU4GTKalAABQUFJW//9cJFBQUlv//wMAT1T//1hTAABHRgAATVD//+NSTE4mJ05MBAYmPgAASUkFDUlMEAJKSgAAQUIAAKGjAABKTfn5UlAEAEZHAABHRAACoacHAEtLTFP//wYDS0xMWP//AABLUf//UksAAERIAABJTg0noqMDAExR//9WSwAAR0gAAEhIAAChpwUAS1P//1BMAA9KQgAAQUoDSaWkAABMTE5S//9aIktLTlf//wEAS1D//1NPAABDQgAASUz//+FO//+4uv79rrHh+Kmr/v6wtv7/ra3//6Wh+/yipKusUFf//3t6//+opvz9p7D+/aSmr6pgXf////9TUl1i/////1VUVVX//1dS//+mpPv6pKb+/q2xrK5iWP//W13//6mn/v6mp/7+o6esp2BU//9ZV///pqj//KOl+/21pqesUlD+////VVFwZf////9TUVRV//9fVv//o6L9/Kuy//9gULv///+8vv/+s7bk+q+x//+2u///srL//6uo/P2oqqipVlz//3V0//+trP3+rbX//qqrq6ZlYv////9MS2Jn/////05NWlr//1BL//+sqvz7qqz//7K2qapnXf//VVf//6+t//+srf//qa2po2Va//9SUP//rK3//amr/P66qaSoV1X/////Tkpyaf////9MSlla//9ZT///qaj+/bG3//9ZSrb/qKr6+bS6/v7uzv/+tLb+/bOx/f6vrv//x8P//1lUo6OtqBYXp63+/8G7//+zv//+X1Khoa2pqKcAAKCiqqiopQAAoKGtqAAApqz//8bH//+1sv76WVahpK6qAAClq///s7T//7Kz//9ZTZ6jq6cAAKet//2vwv//xbr+5U9VoqKuqaioAACRoKuop6UAAKClq6oAAKas//+9wv7+rqoAAEynpqj5+bK4/v7tzf/+srX+/bGw/f6urP//xcH//1dTpKOrphQWpaz+/7+5//+yvf/+XVChoauopqUAAKCiqKamowAAoaGrpwAApKr//8XG//+zsf35V1SipKypAACjqv//sbP//7Gx//9XS56jqaUAAKWs//yuwP//xLn+5E1ToqOsp6amAACRoKmmpqQAAKGlqagAAKSq//+8wP7+rKkAAEul+/vU1v3+zM/z/8nL/f7P0/39zMz8/MXD///DxJ+fcXb8+25u+/zHx//+x879/8XGo5x9e/z7+/tFQ3qA/Pv7+kZHdHT8+0hE+/zGxf//xcb+/czOoKF/d/z8TVD6/MnH/f3Gx/39xMegmX10/PtLSfv8xsj8/8TG//7SwpqfcnD8+/v7R0OHgfz7+/tFQ3N1/PxRSPv8xMP+/8rQ/PtSQq/7+vrV1/3+ztDz/srM/f3Q1fz8zc38+8bE//7ExZ6ed337+nNy+vzJyP/+yM/8/sbHopuEgfv6+vpIR4GG+/r6+UpLe3v7+kxI+vvHxv//xsf9/c3Qn6CGfvz7UVT5+8rI/PzHyPz8xcifmIN7+/pPTfr7x8r8/sXH//7UxpmeeHf8+vr6S0eOiPv6+vpIR3p7+/tVS/r7xcT+/svR+/tWRrL6pqj5+bK4/v7tzf/+srT+/bGw/f6urP//xcH//1dTpKOrphQWpaz+/7+5//+yvf/+XVChoauopqUAAKCiqKamowAAoaGrpwAApKr//8XG//+zsf35V1WipKypAACjqv//sbP//7Gx//9XS56jqaUAAKWs//yuwP//xLn+5E1ToqOsp6amAACRoKmmpqQAAKGlqagAAKSq//+8wP7+rKkAAEulqKn6+bS6/v7uzv/+tLb+/bOx/f6vrv//x8P//1hUpKStqBYXpq3+/8G6//+zv//+XlGioq2pqKcAAKGjqqinpQAAoaKsqAAApqz//8bH//+1sv75WFWipa6qAAClq///srT//7Ky//9YTJ+kq6YAAKet//2vwv//xbr+5U5Uo6OuqaioAACSoauop6UAAKGmqqoAAKas//+9wf7+rqoAAEyn/v/Exv//vL7p/Li5//++w///u7v//7Sx/v6xsqWmXmT//nNy/v+2tf7/tr7//7O0qaNsaf///v5KSGlv//7+/ktLYmL//k1J/v+1s/79s7X//7u+pqduZf//UlT+/7e1//+0tv//srWmoGxi//5QTv7/tbb//rK0/v/CsaGmX13//v7+TEh4cP/+/v5KSGFi//9WTf7/srH//rnA//9XR7T+/v/Dxf//ubzo+7a3//+8wf//ubj//7Gu/f6vsKenXWP//nh3/v+0s/7/s7v//rGyqqVsaf///v9PTWlu//7+/lBQYWL//1JO/v+ysf39sbL//7m8qKluZf//V1n+/7Wz//+ys///sLOnoWxh//5UU/7/srT//q+y/f/AsaKnX13/////UU16cP/+/v5PTGFh//9bUv7/sK7+/re9//9cTLj+rrD+/brA///x0/7+urz//7m4//+1tP79zMj9/mplo6Ozri8wrrT//sfA/v65xf7/cGOiorOwrq4NDaGjsK6urA4RoaGzrxANrbL+/czN/f67uf/+ameipLSxFRmssf7+uLr+/ri4/f5qX6Cjsa4SEa60/v61x/3+y8D+7mBmoqK0r6+vDw2bpLGurq0NDKGlsbAXEK2z/v3Dx/7+tLEYC2KtsrT//77E/P3x1fr7vb/8/by7/vy5t/n5zsv5+nt3n5+2skdIsrj9+8nD+fq8x/v8gXWgnrazsrInJ56gtLKxsSgrnZ22syonsbb6+c7Q+fm+vP7/e3ifobe1LzOxtfr6u736+ru7+ft7cZ2ftLIsKrK3+v25yvn6zcT783J3np63s7KzKSegpLSysrEnJ56htLQwKrG2+fnFyfv7t7QyJnexqap9e6imZWiLoFtcp6hnbqiqbmWpqVhUoaRVWv//AAGnqqKgq6pjXKKkWWCoplxj//8NBqepqayioQkLqKmqr6KhAQCnq6OirKlZV6CfV1imqGp7//8OA6eqpaeuqVtZqKhaWqioVmD//wwAqKyjo6upWWKopFZYoqdkbf//AACmqKmro6A9HKipqa6ioQMAqKqno62rV1WlpWNkqKmoociqq6t7eamnYmWKoFlZqKlka6mrbGKqqlVRoqRTV///AACoq6OhrKthWaOlVl6ppllg//8NBaiqqq2joQgKqaursKOiAQCoraSjrqpWVKGgVVWnqWd4//8NA6ispqiwq1hWqalYWKmpU17//wwAqa6kpKyrVl+qpVNWo6dha///AACnqqqso6E9G6qrq6+joQMAqauopK6sVVKmpmBhqaqpocmrY2WdoW50o6GXgaOubW+hoWtqn6NoZ6KlfnihoA0M/v5tYyMmZGqjqHt2oqNqdKKhEgr//21lZGQDBf//aGRiYgUK/v5uZQYDYmehon+GoqJubqKfDg3//m9oCQthZaGhamyhompqoaANBv/+aWMIBmNoo6hod6KnfHSpsAcP/v5xZmVnBQXw/WljZGQEBP7+aWgKBWJnoaNydZ6hZ2ULAjpjWVueomVspKOUeqWwZGaiomJhoaVfXqSodnCkowMC//9jWRseWmClqnNtpKVhbKSjCAD//2NbWloAAP//XlpYWAAC//9kWwAAWF2kpHd+pKVlZaShAwP+/2ZeAgRXW6OkYWKjpGFhpKIDAP7/X1kAAFlepapfb6WpdGuqsQAF//9nXVtdAADt/F9aWloAAP//X14CAFhdpKZqbaCjXlsDADBZ//++wP/+tbjl+rGz//+3vf//tLT//62q/P2qq6anXmT//3Z1//+vrv3+r7f//qytqaRtav////9NS2pv/////k5OYmP//1BM//+urPz8rK7//7S3p6hvZv//VVf+/7Cu//+tr///q66noW1i//9TUf//rq///aut/f68rKKmYF3/////T0t6cf////5NS2Fi//9ZUP//q6r+/bK5//9aSrf///+7vf/+srTj+a6v//60uv//sbH//6mm/P2mqKmqVl3//3p5//+sq/3+q7T//aiqrahlYv////9RUGJo/////1NTW1v//1VR//+qqfz7qar//7G1qqxoXv//Wlz//62r//+qq///p6uqpGVa//9XVf//qqz//aep/P64qqWqWFb/////VE90av////9RT1pa//9eVP//p6b+/a+2//9eT7r/VVcuMFdVDQ8wSAAIUlMOFlJVGQtTUwAAS0sAAKSnAABTVvv7W1kMBVBQAANQTQELpKoNBVRUVVz//wwJVFVVYf//AgBUWv//W1UAAE1RAABSVxUvpaYJAlVa//9fVAAAUFEAAFFRAAOlqgwAVFz//1lVABhTSwAASlMMUaioAABVVVdb//9fKFVUV2D//wYAVFn//1xYAABMSwMGUlX//+VXV1kyM1lYERMzSgIMVFURGVRXHA5VVQAATU4AAKapAABVWPv7XVsQCFJSAAdTTwUOpqwPBlZWV17//w4LVldXY///BAFWXP//XVcAAFBUAABUWRkzp6gLBFdc//9hVgAAUlMCAVNTAAemqw4AVl7//1tXARtVTQADTVUPVKmpAABXV1hd//9hKVZWWGL//wgAVlv//15aAABOTQcJVFf//+ZZ//+3uf79rbDg+Kiq/v6vtf7+rKz//6Sg+vuhoq2vT1b+/359//+npfz9pq/+/KOlsaxfXP7///9XVVxi/////1hYVFT+/1pW//+lo/r5o6X+/qyxrrBhV/7/X2H//6il/v6lpv7+oqauqV9T//9dW///paf+/KKk+/20pqquUU/+////WVVwZP////9XVVNU//9jWv//oqD9/Kqx//9kVL7///+8vf/+srXk+q6w//+1u///sbH//6qn/P2oqaipVFr//3Rz//+sq/3+rLX//amqrKZjYP////9MSmBl/////01NWFn//09L//+rqvz7qqv//7G1qatlW///VFb//66s//+rrP//qKypo2NY//9SUP//q6z//aiq/P65qKSpVVP/////TkpwZ/////9MSldY//9YT///qKf+/bC3//9ZSbb/q6z6+ra8/v7v0P/+trn+/ra0/f6ysf//ycX//1tWo6OvqxgZqbD+/8O9//+2wf/+YVShobCsq6oAAJ+irauqqAAAoKGvqwAAqa///8nK//+3tf76W1iho7CtAACorv//tbf//7W1//9bT56jrqkAAKqw//2yxP//yL3+5VFWoqKwrKurAACRoK2rqqgAAKCkrawAAKmv///AxP//sa0AAE+qqKr6+bS6/v7uz//+tLb+/rOy/f6wrv//x8P//1lVo6OtqBYYp67+/8G7//+0v//+X1Khoa2qqKcAAKCiqqiopQAAoKGtqQAAp63//8fI//+1s/76WVahpK6rAAClrP//s7X//7Oz//9ZTZ6jq6cAAKeu//2wwv//xrv+5U9VoqKuqqmoAACRoKupqKYAAKClq6oAAKas//++wv7/rqsAAE2n///CxP//ubzo+7a3//+8wf//uLj//7Ku/f6vsKenWmD//3Fw/v+zs/7/tLz//rGyqqRoZf////5IR2Vr/////klJXl7//0xH/v+zsf38sbL//7i7qKlqYf//UFL+/7Wz//+ytP//sLOnoWhe//5OTP7/srP//rCy/f/ArqKnW1n////+SkZ0bP////5IRl1e//9US/7/sK7//re9//9VRbP//v/Dxf//u77p/Le4//+9w///urr//7Ow/f6xsqeoW2H//nFw/v+1tP7/tb3//7KzqqVpZ////v5JR2Zs//7+/kpKX2D//kxI/v+0s/38s7T//7q9qKlsYv//UVP+/7e1//+0tf//sbWooWlf//5OTf7/tLX//rGz/v/BsKKnXVv///7+S0d1bf/+/v5JRl5f//9VTP7/sbD//ri///9WRrP+p6n6+rO6//7uzv/+s7b+/rOx/f+vrv//xsL//1tWo6OsqBgapq3//8C6//+zv//+YVShoaypp6YAAJ+iqaenpAAAoKGsqAAApqz//8bH//+0sv76Wliho62qAAKlq///srT//7Ky//9bT56jqqYAAKat//2vwf//xbr+5lBWoqKtqainAACSoKqop6UAAKCkqqkAAKas//+9wf/+raoBAE6mqar6+rW7//7uz//+tbf+/rSy/f+wr///yMT//1pWpKOuqRgZqK7+/8K7//+0wP/+YFOhoq6qqagAAKCjq6mopgAAoaGuqQAAp63//8fI//+2s/76WliipK+rAAGmrP//tLX//7Oz//9aT5+krKgAAKiu//2ww///xrv+5lBWoqOvqqmpAACSoaypqKYAAKGlrKsAAKet//++wv//r6sAAE6o///Cw///ubzo+7W2//+8wf//uLj//7Gu/f6vsKenWmD//3Fw/v+zsv7/s7v//rCxqqRoZf////5IR2Vr/////kpKXl7//0xI/v+ysf38sbL//7i7qKlqYf//UVP+/7Wz//+ys///r7OnoWhe//5OTP//srP//q+x/f/ArqKnW1n/////SkZ0bP////5IRl1e//9VS/7/sK7//re9//9WRrP////CxP//ubzo+7a3//+8wf//uLj//7Gu/f6vsKanWmD//3Fw/v+zs/7/tLz//rCyqqRoZf////5IR2Vr/////kpKXl7//0xI/v+zsf38sbL//7i7qKlqYf//UVP+/7Wz//+ys///sLOnoWhe//5OTP//srP//rCx/f/ArqKnW1n/////SkZ0bP////5IRl1e//9VS/7/sK7//re9//9WRrP/paf5+bG3/v7szP/+sbP+/bCv/P6sq///xMD//1ZRpKOqpRMUpKv+/764//6xvP/+XE+hoaqnpaQAAKCip6WlogAAoKGqpQAAo6n//8TF//+ysP35VlOhpKunAACiqP//sLH//6+w//9WSp6jqKQAAKSr//ysv///w7j+5ExSoqOrpqWlAACQoKilpaIAAKGlqKcAAKOp//+7v/7+q6cAAEmkqKr7+7W7///uz//+tLf//rSy/v+wr///x8P//2FcoaGtqR0ep67//8G7//+0wP//Z1qfn62qqagAAJ6gq6mopgAAn5+tqQAAp63//8fI//+1s/77YF6goq6rAwemrP//s7X//7Oz//9hVZ2hq6cAAKiu//2wwv//xrv+51dcoKCuqqmpAACSn6upqKYAAJ+jq6oEAKet//++wv/+r6sGAFKnqap9e6imZWiLoFxcp6hnbqiqb2WpqVhUoaRWWv//AAGmqqGfq6pjXKKkWWCoplxj//8NBqepqayhoAkKqKmpr6GgAQCnq6KhrKlZV6CfV1imp2p7//8NA6eqpaauqVtZp6hbWqenVmH//wwAqKyioqupWWKopFZZoqdkbf//AACmqKmroqA8HKipqa2hoAMAqKqmoq2rWFWlpWNkqKmnoMeqo6RzcaKfWV2BmFBRoaFbY6KkY1mjokxImpxKTv//AACgpKWjpaRYUJudTVWhn1BY/v8GAKGjo6anpQIDoqOkqaelAAChpainp6NNS5mYS0ygoV9x//8GAKGkqqupo09NoaFPT6GhSlX//wUAoqeop6WjTVeinUpNm6BYZP//AACgoqOlp6U4FaKjo6inpQAAoqSsqKelTEmenldYoqOtpcmkYWKbn2xyoJ6UfqCra2yenmhonKBmZZ+ie3WenQwL/f5qYSUoYWigpXlzn6BocZ+eEQn//2tjYWIGB///ZmFgYAcM/v5sYwgFYGWenn2Dnp9sbKCdDAz//m1lDA5fY56eaGmen2honp0MBf/+Z2EKCGFln6VmdZ+keXGmrgUO/v1vZGNkBwjx/WdhYmIGB/7+ZmUMCGBknqBwcpueZWMNBTthVVecoGJopKKRdqSvYGKhoV5doKRbWqSnc2ykogAA//9fVhYaVlykqXBpo6ReaKSiBAD+/2BYVlYAAP7+WlZUVAAA//9gVwAAVFqjo3R7o6RiYaOfAAD+/2JaAABTWKOjXl+jpF5eo6EAAP7/W1YAAFVapKpbbKSocWeprwAB//9kWVhZAADs+1tWVlYAAP//W1oAAFRZpKZmaaCiWlgAACtV//+7vf/+srXj+a6v//61uv//sbH//6qm/P2nqKeoV17//3Rz//+sq/3+rLT//amqqqVnZP////9LSmNp/////01NXFz//09L//+rqfz7qav//7G0qKlpX///VFb//66r//+qrP//qKuoomdb//9RT///q6z//aiq/P65qKKnWVf/////TUlza/////9LSVtc//9YTv//qKb+/a+2//9YSbb///+5uv7+rrHh+Kqr/v6xt/7/rq3//6Wi+/yjpKusUVj//3x7//+op/z9qLD+/aWmrqphXv////9UU15k/////1VVVlb//1hT//+npfv6pab+/q6yrK5jWf//XF7//6mn/v6mqP7+pKesp2FW//9aWP//p6j//KSm+/61p6esU1H/////VlJxZv////9UUlVW//9gV///pKL9/Kuy//9hUbz/UlUrLVVTCgwsRQAFT1AKEk9SFghRUAAASEgAAKKlAABQVPv6WFYJAU1NAABOSgAIoqgLA1JSUlr//woHUlJSXv//AQBSWP//WVIAAEtPAABQVBIso6QIAFNX//9dUgAATk4AAE5OAACiqAoAUVr//1ZSABVQSAAASFAJT6alAABTUlRY//9eJlJSVF3//wUAUVb//1pVAABJSAACUFL//+RUUVMpK1NRCAorQwADTU4JEU1RFAZPTwAARkcAAKGkAABPUvr6V1UIAEtMAABMSQAGoqgKAVBQUFj//wkGUFFQXf//AABQVv//V1AAAElNAABOUxEqo6QGAFFV//9bUAAATE0AAExMAACipwgAT1j//1VRABNPRgAARk8HTaWlAABRUVJX//9dJVBQUlz//wMAUFX//1hTAABIRwABTlH//+NT//+4uv7+rrHh+Kqs/v6xt/7/rq3//6ai+/yjpKqrUVj//3l4//+op/z9qLH+/aWmrahhXv////9RT15j/////1JSVlb//1RQ//+npfv6paf+/q6yq6xjWf//WVv//6qn/v6mqP//pKirpWFV//9WVf//p6j//KSm+/61pqaqU1H/////U09wZf////9RTlVV//9dVP//pKL9/Kyz//9eTrn///++v//+tLfl+rGy//+3vf//tLP//6yp/P2qq6ipVl3//3V0//+urv3+rrf//qutrKdlYv////9NS2Jo/////05OW1v//1BM//+trPz7rK3//7S3qatoXv//VVf//7Cu//+trv//q66po2Va//9SUf//ra7//aqs/f67q6SpWFb/////T0tzav////9NSlpb//9ZUP//q6n+/bK5//9aSrf/qKn6+rS6//7uzv/+tLb+/rOx/f+vrv//x8P//1lVpKStqBgap63+/8G6//+zv//+X1Kioq2pqKcAAKGjqqinpQAAoqKsqAAApqz//8bH//+1sv76WVajpa6qAAGlq///srT//7Ky//9ZTZ+kq6cAAKet//2vwv//xbr+5k9Vo6OuqaioAACToquop6UAAKKmqqoAAKas//+9wv/+rqoAAE6nqKr9/bW8/v7uz/3+tLf+/bSy/v6wr/39x8P8/WJdqamuqTI0qK/+/sK7/f20v/7+aFyoqK6qqakQEKepq6mopxETp6euqhIPqK39/MjK/P22tP79Yl+oqq+sGBunrP39s7X9/bOz/P1iV6WqrKgVE6iu/f+wwv39xrz98lheqKivqqmqERChqqypqKcQD6irq6sZEqet/f2+wv39rqsaDmKo//+/wf/+trnm+7K0//+5vv//tbX//66r/f2sraeoV17//3Ny//+wr/3+sLj//q2uq6VmY/////9KSWNp/////kxMXFz//05K//+vrvz8rq///7W5qKpoX///U1X+/7Kw//+vsP//rLCoomZb//9QT///r7D//qyu/f69rKOoWVf/////TUlzav////5LSFtc//9XTf//rav+/rS6//9YSLX//P3P0f7/yMvw/sXG/v7Kz/7+x8f+/cG+//+/wKOjaG79/Gxr/P3Dwv//w8r+/8DBp6B1cv39/PxCQXJ3/fz8/EREbGz9/EZC/P3CwP/+wML+/sfKpKV3b/39S038/cTC/v7Bw/7+v8KknXVs/fxIRvz9wsL+/7/B///OvJ6jaWf9/fz8REF+eP38/PxCQGts/f1PRfz9v77//8bM/f1QQK78pab5+bG3/v7szP/+sbP+/bCu/f6sq///xMD//1ZSpaSqpRQWpKr+/764//6xvP/+XE+ioqqmpaQAAKGjp6WkogAAoqKqpQAAo6n//8TF//+yr/35VlOipaunAACiqP//sLH//6+w//9WSp+kqKQAAKSq//2sv///w7j+5UxSo6SrpqWlAACSoailpKIAAKKmqKcAAKOp//+7v/7+q6cAAEqkp6j6+rO5//7uzv//s7X+/rKw/f+urf//xsL//1lUqaispxocpq3//8C6//+yvv/+X1Kmpqyop6YAAKWnqaempAAApqaspwAApav//8bH//+0sv76WFanqa2pAAOkqv//srP//7Gx//9ZTaSoqqYAAKas//2uwf//xbr+6E9Up6itqKenAACYpqqnpqUAAKaqqqkBAKWr//+8wf7+rakCAE+m+/zT1P7+y87y/8jJ/v7O0v39ysv9/cTC///Cw6GhbXP8+2tr+/3Gxv/+xs3+/8TFpZ56d/38+/tBQHd8/Pv7+0NDcXH8/EVB+/zFxP//xMX+/cvNoqN8dP38Sk37/MjG/f7Fxv39w8aim3lx/PtIRvv9xcb9/8PF//7Rv5yhb239/Pz7RECDffz7+/tCQHBx/PxORfv8w8L//8nP/fxPP637/v7Ky///wcTt/b2////Eyf//wMD+/rm2/v+3uKamZGr+/nRz/v68u///u8P//7m6qaNyb/7+/v5KSW90/v7+/UxMaGj+/k5K/f66uf7+ubr//8DEp6d0a/7+U1X9/r27//+6u///uLunoHFn/v5QT/7+urz+/7i6/v/HuKGmZWP+/v7+TUl+dv7+/v1LSGdo/v5XTf3+uLb//77F/v5YSLT9trj8/MHH///02f7/wcP//8C//f69vP7+08/9/mRgqKm7tigqtbv+/s3H/v/By/7+al2oqLu3trUDA6epuLa2swUHpqe7twYDtbr+/tLU/v7CwP77ZGGpqry4DA+0uf7+wMH+/sDA/v5kWKapubUJB7W7/v29zv7+0cf/6lpgqKi8t7a2BQOdqLm2trQDA6aqubgOBrS6/v3Kzv7/vLgPAV+1pajy87O46+vgx+brsLPq66+v7uqsquXlwb3k5W1qrq+qpmptpq3r6b235eevuejrc2mxr6unpadKSrCxp6WkpktOrq6rqExJpqnl5MLG5OWxse7zbWuwsayqUVSmqOXlrrDm5q6u5OdtZK6vqKdPTaar5vKsvOXov7jq/2Vrrq6tp6aoTEq8uailpadKSrCwqKlSTKaq5eW3u+fnqqhTSYulpKV0cqOgW16CmVFSoqJdZKOlZVujo05Km51LUP//AAChpaOhpqVaUpyeT1aioFJZ/v8GAKKkpKelowIEo6SlqqWjAAChpqalp6RPTZqZTU6homBy//8HAKKlqKmqpFFPoqJQUKKiTFf//wUAoqempaakT1ijnkxPnKFaZf//AACho6SmpaM3FaOkpKmlowAAo6WppqimTUufn1lao6Sro8ilqal6d6elYWSInldYpqdjaqepamGoqFRQoKJRVv//AAKmqaSiqqlfWKGjVVynpFdf//8PB6aoqKykowoMqKmprqSjAwGmq6WkrKhVU5+eU1Smp2Z3//8PBaaqqKmuqVZVp6dWVqenUlz//w4Bp6ylpaqpVV6oo1JUoaZga///AACmqKiqpaM/Hqipqa2kowUBp6mppayqU1CkpF5gp6iqo8qpU1Wbn19moqGQdKOuXmCgn1xbnqNZWKOmcGqjoQAA//9dUxQXU1qjqG5noqJbZqOhAwD+/11VVFQAAP7+WFRSUQAA//9eVQAAUleionJ4oqNfX6KeAAD+/2BYAABRVaKiW12ioltboqAAAP7/WVMAAFNYo6hZaaOnb2WorgAA//9hV1VWAADr+1lTVFMAAP//WVgAAFJXoqVkZ56hWFUAAChTUVObn11koqGPc6OuXF6gn1pZn6NXVqOnb2ijogAA//9bURIWUVijqGxlo6NZZKOiAQD+/ltTUVIAAP7+VlFQTwAA//9cUwAAUFWio3B3o6NdXaKeAAD+/11WAABPU6KiWVuio1lZo6AAAP3/V1EAAFFWo6hXZ6SobWOorgAA//9fVFNUAADq+1dRUlEAAP//V1YAAFBVo6ViZZ+hVlMAACZR//++wP/+tbjl+rGz//+3vf//tLT//62q/P2qq6WmYGb//3Z1//+vrv3+r7f//qytqaNvbP////9NS2xx/////k5OZGT//1BM/v+urPz8rK7//7S3pqdxZ///VVf+/7Cu//+tr///q66moG9k//9TUf//rq///aut/f68raGmYV//////T0t7c/////5NS2Nk//9ZUP7/q6r+/bK5//9aSrf///+6u/7+sLPi+ayu//6zuf//r6///6il+/ylp6eoVVv//3V0//+qqf3+qrP//aeoq6ZkYf////9MS2Fn/////05OWVr//1BM//+pp/v6p6n+/6+zqKpmXf//VVf//6yq//+pqv//pqqoomRZ//9SUf//qar//aao/P63p6OoV1T/////T0tyaP////9MSlhZ//9ZT///pqX9/a61//9aSrb///+5u/7+r7Li+aut//6yuP//r67//6ek+/ykpqipU1r//3d2//+pqPz+qbL//aanq6ZjYP////9OTWBm/////1BPWFn//1JO//+opvv6pqj+/6+yqaplW///V1j//6up//6oqf//pampo2NY//9UUv//qKn//KWn/P62pqSoVVP/////UExxZ/////9OTFdY//9bUf//paT9/K20//9bTLj///+6u/7+r7Li+aut/v6yuP7/r67//6ej+/ykpaqrVVv//3t6//+pqPz+qbL+/aanrahkYf////9TUWFn/////1RUWlr//1ZS//+opvv6pqj+/6+zq6xnXf//W13//6uo/v6nqf//pamrpWRZ//9YV///qKr//KWn+/62qKaqVlT/////VVF0af////9TUVlZ//9fVv//paT9/K2z//9gULv/T1EoKlFPBgkpQQACS0wHD0tPEgRNTQAAREUAAKGkAABNUPr5VVMGAElKAABKRwAFoagIAE5OT1b//wgETk9PW///AABOVP//VU4AAEdLAABMUQ8po6MFAE9U//9ZTgAASksAAEpKAACipwcATVb//1NPABFNRAAARE0FTKWlAABPT1BV//9bI05OUFr//wIATlP//1ZRAABGRQAATE///+JRS00mKE1LBQcmPgAAR0gFDUdLEQJJSQAAQEEAAJ+iAABJTPn5UU8EAEVGAABGQwADn6UJAUpKSlL//wgFSktKV///AABKUP//UUoAAENHAABITQ0noKEFAEtP//9VSgAARkcAAEZGAACgpQgASVL//09LABBJQQAAQEkDSqOjAABLS0xR//9cJEpKTFb//wMASk///1JNAABCQQAASEv//+BNbnGeonp/mJeVhpShd3mWmXV1mZhzcpGUhH+QkDw86+x3b3R3cXaYmoR+kZV0fJSWQTzx7ndwb3JaXPHwc29tcVtg7u14clxacHKRkYeOkZJ4epugPT3w7Xp0X2FwcJGRdHWSknR0kJI8OPHsc3FeXXBzk6FzfpKYg36dvDc/6+p7cnF0W1z/+XRvcHNaW+/rc3RgXHBzkZJ6fJGUcnBgWX5vZWehpnF3o6KYgqKub3Ghom1soaRqaaCkf3mgnxwb+/xuZT9DZmyjp353oKJsdqKiIBn9/G9nZWciJP39amVkZSMo/PxwaCQiZWmgoIGIoKFwcKSkHBv9/HFqKClkZ6CgbG2goWxsoJ8cFf37a2YmJWVqoqpqeKGmfXaouRUe+/tzaGdpIyT5/2tlZmciI/37amooJGVpoKJ0dp6gaWcpIVFl//+7vf/+srXj+a6v//60uv//sbH//6qm/P2nqKeoV17//3V0//+sq/3+rLT//amqq6VnZP////9MS2Np/////05NXFz//1BL//+rqfz7qav//7G0qKppX///VVb//62r//+qrP//qKuoomdb//9SUP//q6z//aiq/P65qKOoWVf/////Tkp0a/////9MSltc//9ZT///qKb+/a+2//9ZSbb///+5uv7+r7Li+aut//6yuP//rq7//6ek+/ykpqipUlj//3Rz//+pqPz+qbL//aanq6ZhXv////9MS15k/////05NVlf//1BL//+opvv6pqj+/q6yqatjWv//VFb//6up//6oqf//pampo2FW//9SUP//qKn//KWn+/62paSpU1H/////TkpvZf////9MSlVW//9ZT///paT9/K20//9ZSbb///+4uv7+r7Lh+aus/v6xt///rq7//6aj+/ykpaipUln//3d1//+oqPz+qbH+/aWnq6diX/////9OTV9k/////1BPV1f//1JO//+npvv6pqf+/q6yqatkWv//V1j//6qo//6nqP//paipo2JW//9UUv//p6j//KSm+/62paSpVFL/////UExwZv////9OTFZX//9bUf//paP9/Kyz//9bTLj///+4uv79rbDg+Kmq/v6wtv7+raz+/6Sh+vyho6yuUlj//39+//+npvz9pq/+/KSlsKtiXv////9YVl5k/////1lZV1f//1tX//+lpPv6pKX+/q2xrq9kWv7/YGL//6im/v6lpv7+oqatqGJW//9dXP//paf+/KKl+/20p6mtU1H+////WlZzZ/////9YVVZW//9kWv//o6H9/Kqx//9lVb7/TU8mKE9NBQcnPwAASUoFDUlNEQNLSwAAQkMAAKGjAABLTvn5UlAEAEdHAABIRAADoacHAExMTFT//wYDTE1MWf//AABMUv//U0wAAEVIAABKTw0noqMEAE1R//9XTAAASEkAAEhIAAChpwYAS1T//1FNABBLQgAAQksDSqWkAABNTE5T//9aIkxMTlj//wEATFH//1RPAABEQgAASk3//+FPSk0lJ01LBAYlPQAAR0gEDEdKEAJJSAAAQEAAAJ+iAABIS/n5UE4EAEVFAABGQgACn6YIAEpKSlL//wcESkpKVv//AABKUP//UUoAAENHAABITAwnoaEEAEtP//9VSgAARkYAAEZGAACgpQcASVL//05KAA9IQAAAQEgDSqOjAABLSkxR//9bI0pKTFX//wIASU7//1JNAABBQAAASEr//+BMVVebn2FooaCQdaGtYGGfn11dnqJbWqGlcmuhoAMC//9fVR8iVVyip29poaFdZ6GgCAD+/19XVVYBA//+WlVUVAIH//9gVwMBVFmgoXN6oaFhYaGeAwP+/2FaBghTV6CgXV6goV1doZ8DAP7/W1UFA1Vaoqhba6KmcGemsAAF//9jWFdZAgPv/VtVVlYBAv//W1oHA1RZoaNmaJ2fWlcHADFVVVeeomJopaSSd6axYWKjol5eoaZbWqWpc22lpAAA//9fVhQYVl2mq3BqpaVeaaakBAD+/2BYVlcAAP7+W1ZVVAAA//9hWAAAVVqlpXV7paZiYaWhAAD+/2JaAABUWKSlXl+kpV5epaMAAP7/XFYAAFVbpqtcbKaqcWiqsAAB//9kWVhZAADr+1xWV1YAAP//W1oAAFVZpadnaqGjWlgAACpW//+7vf/+srXj+a6v//60uv//sbH//6mm/P2nqKeoV17//3Rz//+sq/3+rLT//aiqqqVmY/////9LSmNp/////01NXFz//09L//+rqfz7qar//7G0qKlpX///VFb//62r//+qrP//qKuoomZb//9RUP//qqv//aiq/P65qKOnWVf/////Tkpzav////9MSVtb//9YTv//qKb+/a+2//9ZSbb///+7vf/+sbTj+a2v//60uf//sLD//6ml/Pymp6mqVl3//3l4//+rqv3+q7P//aiprKdlYv////9RT2Jo/////1JSW1v//1RQ//+qqPz7qKr//7C0qqtoXv//WVv//6yq//+pq///p6qqpGVa//9WVf//qqv//aep/P64qaWpWFb/////U090av////9RTlpa//9dVP//p6X9/a61//9eTrn/WVswMltZDxEyTAEKVlcPF1ZZGgxXVwAATk8AAKapAABXWvv7X10OBlNUAAVUUQMMpqwNBVhYWWD//wwKWVlZZf//AwBZXv//X1kAAFFVAABWWxcwp6gKAlle//9jWAAAVFUAAFVVAASmrAwAWGD//11ZABlXTwABTlcOUqmpAABZWVtf//9gKFlZW2T//wcAWF3//2BcAABQTwUHVln//+dbT1IoKlJQBwkpQgACTE0IEExPEwVOTgAARUUAAKKlAABOUfr6VVMHAEpKAABLRwAFoqgJAU9PT1f//wgFT1BPW///AABPVf//Vk8AAEhLAABNUhAqo6QFAFBU//9aTwAAS0wAAEtLAACiqAgATlf//1RQABJNRQAARU0GTKalAABQT1FW//9cJE9PUVr//wMATlT//1dSAABGRQAATU///+NR//+4uv79rrHh+Kmr/v6wtv7/raz//6Wh+/yio6ytUFf//3x7//+npvz9p7D+/aSmr6pgXf////9UU11j/////1ZVVVX//1hT//+mpPv6pKb+/q2xra5iWP//XF7//6mm/v6mp/7+o6etp2BU//9aWP//pqf//KOl+/20pqisUlD+////VlJwZf////9UUlRV//9gV///o6L9/Kuy//9hUbz///+9v//+s7bk+q+x//+2vP//s7L//6un/P2oqqqrVVz//3d2//+trP3+rbX//qqrrahkYf////9PTmFn/////1FQWlr//1NP//+sqvz7qqz//7O2q6xnXf//WFr//6+s//+srf//qa2rpWRZ//9VU///rK3//amr/P66qqaqV1X/////UU1zaf////9PTVlZ//9cUv//qaj+/bG3//9cTbj/paf5+bG3/v7tzP/+sbP+/bCv/f6tq///xMD//1hTpKOqpRQWpKv+/764//6xvP/+XlGhoaqnpaQAAKCip6WlogAAoaGqpQAAo6n//8TF//+ysP75V1WhpKunAACiqP//sLH//7Cw//9YTJ6kqKQAAKSr//2tv///w7j+5U1ToqOrpqWlAACRoKilpaMAAKGlqKcAAKOp//+7v/7+q6gAAEqko6X5+bC2/v7sy//+sLL+/a+t/P6rqv//w7///1VQpqWppBMUoqn+/722//6vu//+W06jo6mlpKIAAKKkpqSjoAAAo6OopAAAoqj//8PE//+xrv35VVKjpqqmAACgp///rrD//66u//9VSaCmpqIAAKKp//2rvv//wrb95UtQpaWqpaSkAACSoqako6EAAKOnpqUAAKKo//+5vv7+qqYAAEii/f3Lzf//xMbu/sDB///Gy//+w8P+/ry5/v+6u6SkY2n+/W1s/f6+vf//vsb//7u8qKFwbv79/f1DQm1z/v39/UVFZ2f+/UdD/f69vP7+vL3//sPFpaZyav7+TE79/sC+//+9vv//u76lnnBm/v1JSP3+vb7+/7u8///Kt5+kZGL+/f39RkJ6dP79/f1EQWZn/v1QRv3+u7n//8HH/v5RQa/9/P3P0f7/yMrw/sTF/v7Kz/7+x8f+/cG+//++v6SkZmz9/Gtr/P3Cwv//w8r+/8DBqKFzcP39/PxCQXB1/fz8/EREaWr9/EZC/P3CwP/+wMH+/sfJpaZ1bf39S038/cTC/v7Bwv7+v8KlnnJp/fxIR/z9wsL+/7/B///Ou5+kZ2X9/fz8RUF8dv38/PxCQGhq/f1PRfz9v77//8bL/f1QQK78rK77+7i+//7w0v/+uLr+/re2/v+0sv7+ysf+/2NeoKCxrR0fq7L//sW+/v64w///aVyenrGurKwAAJyfrq2sqgAAnZ6xrQAAq7H+/srL/v65t/77Y2CeoLKvAweqsP/+t7j//7e3/v9jV5ugr6sAAKyy//20xv7+yb7+51lenp+yrq2tAACRnq+trKoAAJ2hr64FAKux/v7Bxv//sq8GAFSrs7X7+7/E///z1//+v8H//768/f+6uf7+0M3+/mRgoqK4tCEisrn+/svF//++yf7+al2hobi1s7MAAJ+itbOzsQAAn6C4tAAAsrf+/tDR/v7Avf77ZGGho7m2Bgmxt///vb/+/729/v5kWJ6itrICAbO5/v26zP7+z8X/51pgoaG5tbSzAACUoLa0s7EAAJ+jtrUHALK3/v7Hy///ubYJAFmy//++wP/+tbjl+rGy//+4vf//tLT//62q/P2qrKeoVl3//3Jx//+vrv3+r7f//qytq6VlYv////9KSGJo/////ktLW1v//01J//+urPz7rK7//7S3qKlnXv//UlT//7Gu//+tr///q6+oomVa//9QTv//rq7//aut/f68qqOnWFb/////TEhyaf////9KSFpa//9WTf//q6r+/bK5//9XR7T///+7vf/+sbTj+a6v//60uv//sbD//6mm/P2nqKipVFr//3V0//+rqv3+q7T//aipq6ZjYP////9MS2Bl/////05OWFj//1BM//+qqfv7qar//7G0qaplW///VVf//62r//+qq///p6upo2NY//9SUf//qqv//aep/P64qKSoVVP/////T0twZ/////9NSldY//9ZT///qKb+/a+2//9aSrb/WlwxM1xaEBIzTQILV1gQGVdaHA5YWAAAT1AAAKeqAABYW/v7YF4PB1RVAAZVUgQOp60OBllZWmH//w0KWVpaZf//AwBZX///YFkAAFJWAABXXBgyqKkLA1pe//9kWQAAVVYBAFZWAAanrQ0AWGH//15aABpYUAACT1gPU6uqAABaWltg//9gKVlZW2X//wcAWV7//2FcAABRUAYJV1r//uhcSkwkJkxKAwUkPQAAR0gDC0dKDwFISAAAP0AAAJ+iAABIS/n5UE4CAERFAABFQgABn6UGAElJSlH//wUCSUpKVv//AABJT///UEoAAEJGAABHTAsmoaECAEpP//9USQAARUYAAEZGAACgpQUASVH//05KAA5IQAAAP0gBSaOjAABKSkxQ//9ZIUlJTFX//wAASU7//1FNAABBQAAAR0r+/+BMtrh5fLi2XWCNqlFYtLReZ7S2ZVu1tUtJra5IS8fJJy21t/Hxu7lZU7GyTVezsFBXyMo8NLa2trzh4Tk6tre2v+LiLy22uuPhu7ZMS6+yS0y0uGJ3yMk6MLe65ea+tk9Ns7NOTrOzSVLHyTsrtrzk47m3TmK1rkpPrbRfi8jKKCa3tri74uB+Uba2uL7h4DEqtrnn47y4SkivrlRZtLbo4P+4//+4uv79rrHh+Kqr/v6xt/7/ra3//6ai+/yjpKmqUVj//3d2//+op/z9qLD+/aWmrKdhXv////9OTV5j/////1BQVlb//1JO//+npfv6paf+/q2xqqtjWf//V1n//6qn//6mqP//pKeqpGFV//9UU///p6j//KSm+/21paWpU1H/////UU1vZf////9PTFVW//9bUf//pKL9/Kuy//9cTLj/","plage":[0.02,1.0],"etirement":[0.086,1.0],"frontieres":[{"label":"intro","mesure":0},{"label":"A","mesure":8},{"label":"B","mesure":16},{"label":"A","mesure":18},{"label":"C","mesure":26},{"label":"B","mesure":34},{"label":"A","mesure":36},{"label":"B","mesure":44},{"label":"A","mesure":46},{"label":"B","mesure":54},{"label":"A","mesure":56},{"label":"C","mesure":64},{"label":"B","mesure":72}],"source_frontieres":"le chart","mesure1":null,"cmap":["#fbf7ec","#cfe0ea","#84b3cf","#3d7fa6","#1b4a6b","#0d2437"],"couleur_frontiere":"#b4472c","retour":"http://100.89.209.63:7772/?open=old_norah_jones_come_away_with_me"};</script>
+
+<h1 id="titre"></h1>
+<p class="sous" id="sous"></p>
+<p class="lede">Clique n'importe où dans la matrice : le son saute à cette
+mesure. Sous la matrice, la ligne de la tête de lecture — <b>ce qui ressemble
+à maintenant</b> — se clique aussi.</p>
+
+<div class="carte">
+  <div id="enveloppe">
+    <canvas id="mat"></canvas>
+    <div id="bulle"></div>
+  </div>
+  <canvas class="regle" id="regle1"></canvas>
+  <div class="legende">
+    <span id="echelle"></span>
+    <span id="src"></span>
+  </div>
+</div>
+
+<div class="titraille">Ce qui ressemble à maintenant</div>
+<div class="carte">
+  <canvas id="ligne"></canvas>
+  <canvas class="regle" id="regle2"></canvas>
+  <div class="legende"><span id="ou"></span></div>
+</div>
+
+<div id="transport">
+  <button class="principal" id="jouer">Écouter</button>
+  <span id="horloge">0:00</span>
+</div>
+<div id="alerte"></div>
+<p class="pied" id="pied"></p>
+
+<script>
+(function(){
+  "use strict";
+  var D = window.SSM, N = D.n, PM = D.par_mesure;
+
+  /* la matrice, dépliée une fois */
+  var brut = atob(D.m), M = new Uint8Array(N * N);
+  for (var i = 0; i < M.length; i++) M[i] = brut.charCodeAt(i);
+
+  /* Les octets sont la similarité ÉTIRÉE (5e–99e centile) : ce qu'on affiche
+     doit être la vraie, sinon la page annonce 1.00 là où le cosinus vaut 0.96
+     et l'étirement se met à mentir au lieu d'aider. */
+  var LO = D.etirement[0], HI = D.etirement[1];
+  function val(i, j){ return LO + M[i * N + j] / 255 * (HI - LO); }
+
+  /* la palette, échantillonnée une fois en 256 teintes */
+  function lit(h){ return [parseInt(h.substr(1,2),16), parseInt(h.substr(3,2),16),
+                           parseInt(h.substr(5,2),16)]; }
+  var stops = D.cmap.map(lit), PAL = new Uint8Array(256 * 3);
+  for (var v = 0; v < 256; v++){
+    var x = v / 255 * (stops.length - 1), k = Math.min(stops.length - 2, Math.floor(x)),
+        f = x - k;
+    for (var c = 0; c < 3; c++)
+      PAL[v * 3 + c] = Math.round(stops[k][c] + f * (stops[k + 1][c] - stops[k][c]));
+  }
+
+  /* la matrice en pixels, une seule fois : ensuite on ne fait que la recopier
+     agrandie, ce qui rend le redessin de la tête de lecture gratuit */
+  var fond = document.createElement("canvas");
+  fond.width = fond.height = N;
+  (function(){
+    var g = fond.getContext("2d"), im = g.createImageData(N, N), p = im.data;
+    for (var i = 0; i < N * N; i++){
+      var v = M[i] * 3;
+      p[i*4] = PAL[v]; p[i*4+1] = PAL[v+1]; p[i*4+2] = PAL[v+2]; p[i*4+3] = 255;
+    }
+    g.putImageData(im, 0, 0);
+  })();
+
+  var mat = document.getElementById("mat"), gm = mat.getContext("2d");
+  var lig = document.getElementById("ligne"), gl = lig.getContext("2d");
+  var regles = [document.getElementById("regle1"), document.getElementById("regle2")];
+  var bulle = document.getElementById("bulle");
+  var cote = 0, DPR = Math.min(2, window.devicePixelRatio || 1);
+  var tete = 0;                      // la case sous la tête de lecture
+  var PAS = 8;                       // l'écart des repères, en mesures
+
+  function css(n){ return getComputedStyle(document.documentElement)
+                     .getPropertyValue(n).trim(); }
+
+  /* Une tête de lecture doit se voir sur une case claire ET sur une case
+     foncée : on la trace deux fois, un halo couleur papier dessous, le trait
+     d'accent dessus. Sans le halo elle disparaît dans les colonnes claires —
+     constaté sur This Love, où la mesure 61 est justement une bande pâle. */
+  function trait(g, x0, y0, x1, y1, large){
+    g.lineCap = "butt";
+    g.strokeStyle = css("--papier"); g.lineWidth = large + DPR * 2.2;
+    g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+    g.strokeStyle = css("--accent"); g.lineWidth = large;
+    g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+  }
+
+  function taille(){
+    var l = document.getElementById("enveloppe").clientWidth;
+    if (!l) return;
+    cote = l;
+    mat.width = Math.round(l * DPR); mat.height = Math.round(l * DPR);
+    mat.style.height = l + "px";
+    lig.width = Math.round(l * DPR); lig.height = Math.round(54 * DPR);
+    lig.style.width = "100%"; lig.style.height = "54px";
+    // assez de repères pour se situer, assez peu pour rester lisible à 390 px
+    PAS = 8;
+    while (D.n_mesures / PAS > Math.max(4, l / 58)) PAS *= 2;
+    regles.forEach(function(r){
+      r.width = Math.round(l * DPR); r.height = Math.round(15 * DPR);
+      r.style.width = "100%"; r.style.height = "15px";
+    });
+    dessine();
+  }
+
+  /* La règle des mesures, partagée par la matrice et par la ligne : même axe
+     des x, donc un pic repéré sur la ligne se retrouve sur la matrice. */
+  function dessineRegle(){
+    regles.forEach(function(r){
+      var g = r.getContext("2d"), L = r.width, H = r.height, u = L / N;
+      g.clearRect(0, 0, L, H);
+      g.font = (10 * DPR) + "px ui-monospace,Menlo,monospace";
+      g.textBaseline = "top";
+      for (var m = 0; m < D.n_mesures; m += PAS){
+        var x = m * PM * u;
+        g.fillStyle = css("--trait");
+        g.fillRect(x, 0, Math.max(1, DPR * 0.8), H * 0.42);
+        g.fillStyle = css("--pale");
+        g.textAlign = m === 0 ? "left" : "center";
+        g.fillText(String(m + 1), m === 0 ? 2 : x, H * 0.44);
+      }
+      var p = (tete + 0.5) * u;
+      g.fillStyle = css("--accent");
+      g.beginPath(); g.moveTo(p, 0); g.lineTo(p - DPR * 3.2, H * 0.55);
+      g.lineTo(p + DPR * 3.2, H * 0.55); g.closePath(); g.fill();
+    });
+  }
+
+  function dessine(){
+    if (!cote) return;
+    var S = cote * DPR, u = S / N;
+    gm.imageSmoothingEnabled = false;
+    gm.clearRect(0, 0, S, S);
+    gm.drawImage(fond, 0, 0, N, N, 0, 0, S, S);
+
+    /* les frontières : deux traits fins par section, un par axe */
+    gm.strokeStyle = D.couleur_frontiere; gm.lineWidth = Math.max(1, DPR * 0.8);
+    gm.globalAlpha = 0.75;
+    D.frontieres.forEach(function(f){
+      var x = f.mesure * PM * u;
+      gm.beginPath(); gm.moveTo(x, 0); gm.lineTo(x, S);
+      gm.moveTo(0, x); gm.lineTo(S, x); gm.stroke();
+    });
+    gm.globalAlpha = 1;
+
+    /* la mesure 1 de Louis, si elle est posée */
+    if (D.mesure1){
+      var x1 = D.mesure1 * PM * u;
+      gm.strokeStyle = css("--encre"); gm.lineWidth = Math.max(1.5, DPR);
+      gm.setLineDash([DPR * 5, DPR * 4]);
+      gm.beginPath(); gm.moveTo(x1, 0); gm.lineTo(x1, S);
+      gm.moveTo(0, x1); gm.lineTo(S, x1); gm.stroke();
+      gm.setLineDash([]);
+    }
+
+    /* la croix de lecture */
+    var p = (tete + 0.5) * u, e = Math.max(2, DPR * 1.6);
+    trait(gm, p, 0, p, S, e);
+    trait(gm, 0, p, S, p, e);
+    gm.fillStyle = css("--papier");
+    gm.beginPath(); gm.arc(p, p, Math.max(5, DPR * 4.4), 0, 6.284); gm.fill();
+    gm.fillStyle = css("--accent");
+    gm.beginPath(); gm.arc(p, p, Math.max(3, DPR * 2.8), 0, 6.284); gm.fill();
+
+    dessineLigne();
+    dessineRegle();
+  }
+
+  /* la LIGNE de la tête de lecture : S[tete, :], le profil « qu'est-ce qui
+     ressemble à la mesure où j'en suis » */
+  function dessineLigne(){
+    var L = lig.width, H = lig.height, u = L / N;
+    gl.clearRect(0, 0, L, H);
+    for (var j = 0; j < N; j++){
+      var v = M[tete * N + j] * 3;
+      gl.fillStyle = "rgb(" + PAL[v] + "," + PAL[v+1] + "," + PAL[v+2] + ")";
+      gl.fillRect(j * u, 0, Math.ceil(u), H);
+    }
+    gl.strokeStyle = D.couleur_frontiere; gl.lineWidth = Math.max(1, DPR * 0.8);
+    gl.globalAlpha = 0.75;
+    D.frontieres.forEach(function(f){
+      var x = f.mesure * PM * u;
+      gl.beginPath(); gl.moveTo(x, 0); gl.lineTo(x, H); gl.stroke();
+    });
+    gl.globalAlpha = 1;
+    trait(gl, (tete + 0.5) * u, 0, (tete + 0.5) * u, H, Math.max(2, DPR * 1.6));
+    /* la meilleure ressemblance ailleurs : le tap suivant, nommé */
+    var loin = 4 * PM, best = -1, ou = -1;
+    for (var k = 0; k < N; k++){
+      if (Math.abs(k - tete) < loin) continue;
+      if (M[tete * N + k] > best){ best = M[tete * N + k]; ou = k; }
+    }
+    document.getElementById("ou").textContent =
+      "mesure " + (Math.floor(tete / PM) + 1) +
+      (ou < 0 ? "" : " · elle ressemble le plus à la mesure " +
+        (Math.floor(ou / PM) + 1) + " (" + val(tete, ou).toFixed(2) +
+        ") — tape le pic pour l'écouter");
+  }
+
+  /* ── le son ─────────────────────────────────────────────────────────────
+     Deux pièges iPhone, déjà payés ailleurs (voir l'en-tête du module) :
+     la tête est battue par `timeupdate`, jamais par rAF, et le fichier est
+     rejoué depuis un blob parce que le lecteur média d'iOS ne bufferise pas
+     toujours un fichier servi en Range. */
+  var el = null, lien = null, joue = false, garde = null;
+
+  function dit(msg){
+    var a = document.getElementById("alerte");
+    a.textContent = msg; a.style.display = msg ? "block" : "none";
+  }
+
+  function precharge(){
+    if (!window.fetch) return;
+    fetch(D.audio_url).then(function(r){ return r.ok ? r.blob() : null; })
+      .then(function(b){ if (!b) return;
+        lien = URL.createObjectURL(b);
+        if (el && !joue) el.src = lien; })
+      ["catch"](function(){});
+  }
+
+  function media(){
+    if (el) return el;
+    el = new Audio();
+    el.preload = "auto";
+    el.playsInline = true;
+    try { el.setAttribute("playsinline", "");
+          el.setAttribute("webkit-playsinline", ""); } catch(e){}
+    el.src = lien || D.audio_url;
+    el.addEventListener("timeupdate", tic);
+    el.addEventListener("seeked", tic);
+    el.addEventListener("ended", function(){ joue = false; bouton(); });
+    el.addEventListener("error", function(){
+      dit("le fichier audio n'a pas pu être lu — " + D.audio_url); });
+    document.body.appendChild(el);   // posé dans la page : inspectable
+    return el;
+  }
+
+  function mmss(t){
+    t = Math.max(0, Math.floor(t || 0));
+    return Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0");
+  }
+
+  function caseDe(t){
+    var T = D.t, lo = 0, hi = N - 1, k = 0;
+    while (lo <= hi){ var mid = (lo + hi) >> 1;
+      if (T[mid] <= t){ k = mid; lo = mid + 1; } else hi = mid - 1; }
+    return Math.max(0, Math.min(N - 1, k));
+  }
+
+  function tic(){
+    if (!el) return;
+    document.getElementById("horloge").textContent = mmss(el.currentTime);
+    var k = caseDe(el.currentTime);
+    if (k !== tete){ tete = k; dessine(); }        // on n'écrit que si ça bouge
+  }
+
+  function bouton(){
+    document.getElementById("jouer").textContent = joue ? "Pause" : "Écouter";
+  }
+
+  /* Si au bout d'1,5 s l'horloge n'a pas bougé, on le DIT — une page muette
+     ne doit pas faire semblant de jouer. */
+  function veille(essai){
+    clearTimeout(garde);
+    if (!el) return;
+    var depart = el.currentTime, n = essai || 0;
+    garde = setTimeout(function(){
+      if (!joue || !el) return;
+      if (el.currentTime > depart + 0.05) return;
+      if (lien && el.src !== lien){                 // le blob est arrivé
+        var t = el.currentTime;
+        el.src = lien;
+        try { el.currentTime = t; } catch(e){}
+        el.play(); veille(n + 1); return;
+      }
+      if (n < 2){ el.play(); veille(n + 1); return; }
+      dit("le son ne démarre pas sur cet appareil — l'horloge est restée à " +
+          mmss(el.currentTime) + ".");
+    }, 1500);
+  }
+
+  function vers(t, lance){
+    var a = media();
+    try { a.currentTime = Math.max(0, t); } catch(e){}
+    tete = caseDe(t); dessine();
+    document.getElementById("horloge").textContent = mmss(t);
+    if (lance && !joue){ bascule(true); } else if (joue){ veille(0); }
+  }
+
+  function bascule(force){
+    var a = media();
+    if (joue && force !== true){ a.pause(); joue = false; clearTimeout(garde); }
+    else {
+      dit("");
+      var p = a.play();
+      if (p && p["catch"]) p["catch"](function(e){
+        joue = false; bouton();
+        dit("le navigateur a refusé la lecture (" + (e && e.name || e) + ")");
+      });
+      joue = true; veille(0);
+    }
+    bouton();
+  }
+
+  /* ── les gestes ─────────────────────────────────────────────────────── */
+  function colonne(ev, cible){
+    var r = cible.getBoundingClientRect();
+    var x = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
+    return Math.max(0, Math.min(N - 1, Math.floor(x / r.width * N)));
+  }
+
+  mat.addEventListener("click", function(ev){ vers(D.t[colonne(ev, mat)], true); });
+  lig.addEventListener("click", function(ev){ vers(D.t[colonne(ev, lig)], true); });
+
+  mat.addEventListener("pointermove", function(ev){
+    var r = mat.getBoundingClientRect();
+    var j = colonne(ev, mat);
+    var i = Math.max(0, Math.min(N - 1,
+              Math.floor((ev.clientY - r.top) / r.height * N)));
+    bulle.style.left = (ev.clientX - r.left) + "px";
+    bulle.style.top = (ev.clientY - r.top) + "px";
+    bulle.style.opacity = 1;
+    bulle.textContent = "mes. " + (Math.floor(j / PM) + 1) + " ↔ " +
+      (Math.floor(i / PM) + 1) + "  ·  " + val(i, j).toFixed(2);
+  });
+  mat.addEventListener("pointerleave", function(){ bulle.style.opacity = 0; });
+
+  document.getElementById("jouer").addEventListener("click", function(){ bascule(); });
+  document.addEventListener("keydown", function(ev){
+    if (ev.code === "Space"){ ev.preventDefault(); bascule(); }
+  });
+
+  /* ── l'habillage ────────────────────────────────────────────────────── */
+  document.getElementById("titre").textContent = D.titre;
+  document.getElementById("sous").textContent =
+    D.n_mesures + " mesures · grain demi-mesure · matrice chord-tone (celle de la prod)";
+  document.getElementById("echelle").textContent =
+    "contraste étiré " + D.etirement[0].toFixed(2) + "–" + D.etirement[1].toFixed(2) +
+    " (valeurs réelles " + D.plage[0].toFixed(2) + "–" + D.plage[1].toFixed(2) + ")";
+  document.getElementById("src").textContent =
+    "traits rouges : " + D.source_frontieres +
+    (D.mesure1 ? " · pointillés : ta mesure 1" : "");
+  var pied = document.getElementById("pied");
+  if (D.retour){
+    var a = document.createElement("a");
+    a.href = D.retour; a.textContent = "‹ ouvrir le chart dans l'app";
+    pied.appendChild(a);
+  }
+
+  window.addEventListener("resize", taille);
+  taille();
+  precharge();
+})();
+</script>
+</body></html>
