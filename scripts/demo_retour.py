@@ -188,11 +188,15 @@ def table_candidats(etape, seuil, recousu: bool = False) -> str:
             cls.append("aurait")
         marques = []
         if c["litteral"]:
-            marques.append('<em title="le premier retour fort : ce que la '
-                           'règle littérale prend">1er</em>')
-        if c["passe"] and c is not etape["retenu"]:
-            marques.append('<em class="cf" title="l\'algo ne l\'a pas testé : '
-                           'il s\'était déjà arrêté avant">contrefactuel</em>')
+            marques.append('<em title="le premier retour fort rencontré">'
+                           '1er retour</em>')
+        if c is etape.get("premier_passant") and c is not etape["retenu"]:
+            marques.append('<em class="vieux" title="ce que la règle « le '
+                           'premier qui passe » aurait pris">l\'ancien choix'
+                           '</em>')
+        if c["passe"] and c.get("hors_carrure"):
+            marques.append(f'<em class="cf" title="sa longueur n\'est pas un '
+                           f'multiple de {R.CARRURE}">hors carrure</em>')
         barre = (f'{c["barre"]} <i class="jx">{c["j"]}<sup>e</sup></i>'
                  if recousu else str(c["barre"]))
         lignes.append(
@@ -315,6 +319,16 @@ def bloc_morceau(fichier: str, titre: str) -> str:
             quoi = (f'la boucle de {sec["L"]} mesures trouvée dans le mot de '
                     f'{sec["mot"]}' if sec["boucle"]
                     else f'le mot de {sec["L"]} mesures')
+            ecart = ""
+            if sec["ecartees"]:
+                liste = " ".join(f'<b class="occ flou">{o["b0"]}–{o["b1"]} '
+                                 f'<i>{o["moyenne"]:.2f}</i></b>'
+                                 for o in sec["ecartees"])
+                ecart = (f'<p class="issue ecarte">Écartées : {liste} — '
+                         f'au-dessus du seuil de retour ({seuil:.3f}) mais en '
+                         f'dessous du seuil d\'occurrence '
+                         f'(<b>{sec["seuil_occ"]:.3f}</b>). Ces mesures restent '
+                         f'sans section.</p>')
             corps = (f'{tete}{strip_sims(et, seuil, n, grid)}'
                      f'{table_candidats(et, seuil, rec)}'
                      f'{detail_repet(ret, seuil, d, grid)}'
@@ -323,7 +337,7 @@ def bloc_morceau(fichier: str, titre: str) -> str:
                      f'style="--c:{coul_algo[sec["label"]]}">{sec["label"]}</b> '
                      f'= {quoi}, qui commence mesure {d}. '
                      f'Ses {len(sec["occurrences"])} occurrences dans le morceau : '
-                     f'{occ}</p>')
+                     f'{occ}</p>{ecart}')
         etapes.append(
             f'<div class="etape"><h3>Étape {i} — on repart de la mesure {d}'
             f'<span>{"section trouvée" if et["action"] == "section" else "rien ici"}'
@@ -409,6 +423,8 @@ table.cand tr.aurait td{background:#eef3f6}
 table.cand em{font-style:normal;font-size:10px;padding:1px 5px;border-radius:9px;
  background:#e6dfd0;color:var(--doux)}
 table.cand em.cf{background:#d5e3ec;color:#1b4a6b}
+table.cand em.vieux{background:#f2ddd6;color:#8c3a22}
+.issue.ecarte{background:#fbf1e4;color:#6b5a3a;margin-top:8px}
 .repet{margin:12px 0 4px}
 .paires{display:flex;flex-wrap:wrap;gap:2px}
 .paires b{width:52px;padding:2px;border-radius:4px;text-align:center;
@@ -491,21 +507,35 @@ ses occurrences, et on <b>recoud le morceau</b> : ce qui reste devient la
 chanson qu'on analyse à l'étape suivante, où deux passages séparés par une
 section retirée sont désormais voisins. Chaque étape ci-dessous montre tous les
 retours
-testés, celui que la règle littérale prend (<em>1er</em>), et — en bleu — ceux
-qui <em>auraient marché aussi</em> mais que l'algo n'a jamais testés parce
-qu'il s'était déjà arrêté. C'est là que se trouvent les réglages à trancher.
+testés, et lequel a été choisi : parmi ceux qui passent, on prend le plus court
+dont la longueur est un <b>multiple de {R.CARRURE} mesures</b> — la carrure.
+Enfin, reconnaître une occurrence est plus sévère que repérer un retour : le
+seuil d'occurrence se lit sur les scores du modèle lui-même, et ce qui tombe
+entre les deux est <em>écarté</em> et reste sans section.
 Cliquez n'importe quelle mesure pour l'écouter.</p>
 {"".join(blocs)}
 <h2>Ce que la démo montre à régler</h2>
 <ul class="pied">
-<li><b>Le premier retour n'est pas le bon retour — et maintenant ça coûte deux
-fois.</b> Sur Stand By Me l'algo s'arrête au retour de la mesure 7 (mot de 7
-mesures) alors que le retour de la mesure 8 donne une meilleure répétition et
-tombe sur les phrases de 8 mesures de Louis. Et comme un mot de 7 est trop court
-pour qu'une boucle de 4 s'y referme, la règle de la boucle interne ne s'y
-applique même pas : Stand By Me est le seul des trois à ne pas en profiter.
-Prendre le <i>meilleur</i> retour, ou le plus long parmi ceux qui passent,
-plutôt que le premier.</li>
+<li><b>Réglé — la carrure choisit le retour.</b> Stand By Me prenait le retour
+de la mesure 7, donc un mot de 7 mesures : une longueur qui n'existe pas dans ce
+morceau. Parmi les retours qui passent, on prend maintenant le plus court dont
+la longueur est un multiple de 4 : le mot fait 8, et les occurrences tombent
+enfin sur une grille de 8. Sur les 15 morceaux annotés, le nombre de ceux qui ne
+rendaient qu'UNE section est passé de 11 à 8, cette règle et le seuil
+d'occurrence comptant chacun pour moitié.</li>
+<li><b>Réglé — reconnaître n'est pas repérer.</b> This Love 50–53 entrait dans le
+A à 0,726 pour un seuil de 0,672, en plein milieu du pont, alors que les vraies
+occurrences du A sortent entre 0,91 et 1,00. Le seuil d'occurrence se lit
+désormais sur les scores du modèle lui-même (Otsu), jamais en dessous du seuil
+de retour : 50–53 est écarté, et le pont 48–55 ressort entier comme « sans
+section » — exactement le pont de Louis.</li>
+<li><b>La boucle de Stand By Me rate d'un cheveu, et c'est la cadence.</b> Le
+mot de 8 boucle à 4 avec des ressemblances 0,72 · 0,79 · 0,86 · <b>0,55</b> —
+moyenne 0,732 contre un seuil de 0,732. C'est la 4<sup>e</sup> mesure, celle qui
+cadence, qui fait tout tomber. La tolérance « modulo les 2 dernières mesures »
+existe pour exactement ça, mais elle ne s'applique qu'au mot, pas à la boucle.
+Question ouverte : faut-il l'étendre ? (Elle a été mise à zéro pour les
+occurrences d'une boucle, pour une raison inverse — voir CHOIX 4.)</li>
 <li><b>Rien n'ancre la phase.</b> L'algo démarre mesure 0 ; Louis fait commencer
 Let It Be mesure 4 et Stand By Me mesure 6. Tout le découpage est décalé
 d'autant. La marque « mesure 1 » (<code>chart["bar1"]</code>) est faite pour ça
@@ -533,26 +563,17 @@ section déjà retirée ».</li>
 quand ils partagent la grille : sur Let It Be un seul mot de 8 mesures pave tout
 le morceau, sur Stand By Me un seul aussi. Il faudra un second signal (le chant,
 l'énergie) ou une règle de longueur pour couper.</li>
-<li><b>Les occurrences dérivent, et elles se dénoncent toutes seules.</b> Elles
-sont posées de gauche à droite sans contrainte de phase : sur This Love une
-occurrence tombe mesure 20 là où Louis attend 16 et enjambe sa frontière. Mais
-regardez leurs scores — les bonnes sortent à 0,93–1,00 et les trois qui dérivent
-à 0,69–0,71 (encadré orange). Sur les trois morceaux la coupure est nette :
-0,88–1,00 d'un côté, 0,69–0,77 de l'autre. Le seuil qui accepte une occurrence
-est le même que celui qui détecte un retour ; il devrait être bien plus
-sévère.</li>
-<li><b>Un mot de 7 mesures sur un morceau en 8 est un aveu.</b> Sur Stand By Me
-toutes les occurrences sortent à 0,74–0,77, c'est-à-dire « faibles partout » :
-quand aucune occurrence n'est nette, c'est la longueur du mot qui est fausse, pas
-le morceau qui est flou. Il y a là un critère de rejet gratuit.</li>
+<li><b>Les occurrences dérivent encore d'une mesure.</b> Elles sont posées de
+gauche à droite sans contrainte de phase : sur Let It Be, une occurrence tombe
+maintenant en 33–36 (0,87) alors que 32–35 est juste en dessous du seuil (0,76).
+Le seuil plus sévère n'a pas causé ce décalage, il l'a révélé — c'est le
+problème de phase du point ci-dessus. Une occurrence devrait préférer la phase
+du modèle plutôt que la position la plus à gauche.</li>
 <li><b>Vérifié sur les 15 morceaux que Louis a annotés</b> (règle #5 : un
-résultat sur un morceau est une hypothèse) : rien ne plante, mais <b>11 sur 15
-ne rendent qu'UNE section</b>. La cause est la même partout — le plus bas score
-d'occurrence colle au seuil (0,74 pour 0,73 · 0,63 pour 0,62 · 0,61 pour 0,60 ·
-0,68 pour 0,65…). Le modèle de la première section ramasse donc tout le morceau
-et il ne reste rien à recoudre pour l'étape 2. Et 6 des 11 ont un mot de 7
-mesures, trop court pour la règle de la boucle. Les deux réglages du haut de
-cette liste ne sont pas des détails : ce sont eux qui tiennent le résultat.</li>
+résultat sur un morceau est une hypothèse) : rien ne plante, et le nombre de
+morceaux qui ne rendent qu'UNE section est tombé de <b>11 à 8</b>. Ce qui
+reste bloqué là-dessus, ce n'est plus un seuil : c'est que l'harmonie seule ne
+sépare pas deux sections qui partagent la grille.</li>
 </ul>
 <script>{JS}</script>
 </html>"""

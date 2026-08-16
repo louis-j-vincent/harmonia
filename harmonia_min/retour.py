@@ -78,6 +78,16 @@ QUEUE_LIBRE = 2
 #: garde-fou que `harmonic_sections.LAG_MIN`.
 ECART_MIN = 2
 
+#: CHOIX 6 (Louis, 2026-08-16 : « quand il y a plusieurs candidats, privilégie
+#: les multiples de 4 barres »). Entre tous les retours qui passent le test, on
+#: prend le plus court dont la longueur est un multiple de 4 — la carrure de la
+#: musique populaire. Sans cette règle on prenait le PREMIER, et sur Stand By Me
+#: c'était un mot de 7 mesures : une longueur qui n'existe pas dans ce morceau,
+#: qui décalait tout le découpage, et qui était en plus trop courte pour qu'une
+#: boucle de 4 s'y referme. Repli sur le premier qui passe si aucun n'est un
+#: multiple de 4.
+CARRURE = 4
+
 #: « un pattern de répétition interne d'au moins 4 barres » — en dessous, une
 #: boucle de deux mesures n'est plus un motif de section, c'est un balancement
 #: d'accords (I-V I-V), et le prendre pour modèle ferait de tout le morceau une
@@ -191,28 +201,46 @@ def _contigu(restants: list[int], i: int, L: int) -> bool:
 
 
 def _occurrences(P, restants: list[int], modele: int, L: int, seuil: float,
-                 queue: int = QUEUE_LIBRE) -> list[dict]:
+                 queue: int = QUEUE_LIBRE) -> dict:
     """Toutes les répétitions du mot `modele` dans la chanson recousue.
 
     `P` est la SSM restreinte aux mesures encore libres, `restants` la table qui
     ramène un index recousu à sa vraie mesure. Balayage de toutes les positions,
     puis choix glouton de gauche à droite — deux occurrences ne peuvent pas se
     chevaucher, et la première trouvée gagne.
+
+    CHOIX 5 (Louis, 2026-08-16 : « pourquoi on vire les mesures 50–53 ? elles
+    n'ont pas passé le seuil pour valider que c'est un A ») — RECONNAÎTRE une
+    occurrence est plus exigeant que REPÉRER un retour, et ça ne peut pas être
+    le même nombre. Le seuil de retour est le plus lâche de l'algorithme : il
+    sert à dire « tiens, ça se ressemble, regardons », pas à trancher. Réutilisé
+    tel quel pour accepter une occurrence, il laissait passer This Love 50–53 à
+    0,726 pour un seuil de 0,672, au milieu d'un pont — alors que les vraies
+    occurrences du A sortent toutes entre 0,91 et 1,00.
+
+    Le seuil d'occurrence se lit donc sur les scores de CE modèle-là : Otsu
+    entre le tas des fenêtres qui ne ressemblent pas et le petit tas de celles
+    qui sont vraiment le motif. Jamais en dessous du seuil de retour.
     """
-    trouve = []
+    from harmonia_min.soudure import _otsu
+    cand = []
     for j in range(0, len(restants) - L + 1):
         if not _contigu(restants, j, L):
             continue
-        c = _compare(P, modele, j, L, queue)
-        if c["moyenne"] >= seuil:
-            trouve.append({"b0": restants[j], "b1": restants[j + L - 1],
-                           "j": j, **c})
+        cand.append({"b0": restants[j], "b1": restants[j + L - 1], "j": j,
+                     **_compare(P, modele, j, L, queue)})
+    v = np.array([c["moyenne"] for c in cand])
+    seuil_occ = max(seuil, _otsu(v, defaut=seuil)) if v.size else seuil
+
     retenu, fin = [], -1
-    for o in trouve:
-        if o["j"] > fin:
+    for o in cand:
+        if o["moyenne"] >= seuil_occ and o["j"] > fin:
             retenu.append(o)
             fin = o["j"] + L - 1
-    return retenu
+    ecarte = [o for o in cand
+              if seuil <= o["moyenne"] < seuil_occ]
+    return {"occurrences": retenu, "seuil_occ": float(seuil_occ),
+            "ecartees": ecarte, "n_fenetres": len(cand)}
 
 
 # ── l'algorithme ────────────────────────────────────────────────────────────
@@ -257,16 +285,15 @@ def sections(S: np.ndarray, seuil: float | None = None,
                        "section": None}
         premier_fort_vu = False
 
-        # On évalue TOUS les retours, y compris ceux d'après le retenu : c'est
-        # le contrefactuel (« et si on avait pris celui-là ? »), la seule façon
-        # de voir sur la page ce que le choix du PREMIER retour a coûté.
+        # On évalue TOUS les retours avant d'en choisir un : le choix se fait
+        # ensuite sur l'ensemble (CHOIX 6, la carrure), et la page peut montrer
+        # ce que chaque candidat écarté aurait donné.
         for k in range(dep + ECART_MIN, len(restants)):
             sim = float(P[dep, k])
             fort = sim >= seuil
             L = k - dep
             cand = {"barre": restants[k], "j": k, "sim": sim, "fort": fort,
                     "litteral": fort and not premier_fort_vu,
-                    "apres_coup": etape["retenu"] is not None,
                     "L": L, "verdict": None, "repet": None, "passe": False}
             if not fort:
                 cand["verdict"] = "pas un retour"
@@ -291,11 +318,18 @@ def sections(S: np.ndarray, seuil: float | None = None,
                                    f"< {seuil:.3f})")
             else:
                 cand["passe"] = True
-                cand["verdict"] = "retenu" if etape["retenu"] is None \
-                    else "aurait marché aussi"
-                if etape["retenu"] is None:
-                    etape["retenu"] = cand
             etape["candidats"].append(cand)
+
+        # CHOIX 6 : parmi les retours qui passent, le plus court dont la
+        # longueur est un multiple de 4. À défaut, le premier qui passe.
+        passants = [c for c in etape["candidats"] if c["passe"]]
+        carrures = [c for c in passants if c["L"] % CARRURE == 0]
+        etape["retenu"] = (carrures or passants)[0] if passants else None
+        etape["premier_passant"] = passants[0] if passants else None
+        for c in passants:
+            c["verdict"] = ("retenu" if c is etape["retenu"]
+                            else "aurait marché aussi")
+            c["hors_carrure"] = c["L"] % CARRURE != 0
 
         if etape["retenu"] is None:
             # CHOIX 3 : rien depuis cette mesure — on avance d'une, elle reste
@@ -317,14 +351,16 @@ def sections(S: np.ndarray, seuil: float | None = None,
         modele_L = boucle["retenue"]["p"] if boucle["retenue"] else L
         queue = 0 if boucle["retenue"] else QUEUE_LIBRE   # CHOIX 4
 
-        occ = _occurrences(P, restants, dep, modele_L, seuil, queue)
+        rec = _occurrences(P, restants, dep, modele_L, seuil, queue)
+        occ = rec["occurrences"]
         label = LETTRES[len(trouvees) % len(LETTRES)]
         for o in occ:
             for b in range(o["b0"], o["b1"] + 1):
                 libre[b] = False
         sec = {"label": label, "L": modele_L, "mot": L, "modele": depart,
                "boucle": boucle["retenue"]["p"] if boucle["retenue"] else None,
-               "occurrences": occ}
+               "occurrences": occ, "seuil_occ": rec["seuil_occ"],
+               "ecartees": rec["ecartees"], "n_fenetres": rec["n_fenetres"]}
         trouvees.append(sec)
         etape["action"] = "section"
         etape["section"] = sec
