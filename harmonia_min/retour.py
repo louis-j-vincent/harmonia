@@ -311,6 +311,23 @@ def periode_interne(S, depart: int, L: int, seuil: float) -> dict:
     return {"periodes": out, "retenue": retenue}
 
 
+def _segments(restants: list[int], i: int, L: int) -> list[tuple]:
+    """Les tronçons de VRAIES mesures que couvrent `L` mesures recousues.
+
+    Un seul tronçon = le mot est d'un seul tenant. Deux ou plus = il enjambe
+    une section déjà retirée, et il faut le DIRE en vraies mesures : « mesures
+    16–29 puis 46–49 » se comprend, « le mot enjamberait une section » laisse
+    croire qu'on parle d'un mot de huit mesures alors qu'il en fait dix-huit.
+    """
+    seg, a = [], restants[i]
+    for t in range(i, min(i + L, len(restants)) - 1):
+        if restants[t + 1] != restants[t] + 1:
+            seg.append((a, restants[t]))
+            a = restants[t + 1]
+    seg.append((a, restants[min(i + L, len(restants)) - 1]))
+    return seg
+
+
 def _contigu(restants: list[int], i: int, L: int) -> bool:
     """Les L mesures qui commencent en `i` DANS LA CHANSON RECOUSUE sont-elles
     encore d'un seul tenant dans la vraie chanson ?
@@ -543,7 +560,11 @@ def sections(S: np.ndarray, seuil: float | None = None,
             if L < LONGUEUR_MIN:
                 cand["verdict"] = f"mot de {L} mesures — il en faut plus de 6"
             elif not mot_entier:
-                cand["verdict"] = "le mot enjamberait une section déjà retirée"
+                seg = _segments(restants, dep, L)
+                ou = " puis ".join(f"{a}–{b}" for a, b in seg)
+                cand["verdict"] = (
+                    f"ce mot fait {L} mesures (mesures {ou}) : il enjamberait "
+                    f"la coupure après la mesure {seg[0][1]}")
             elif not repet_entiere:
                 cand["verdict"] = "pas la place pour la répétition qui suit"
             elif cand["repet"]["moyenne"] < seuil:
