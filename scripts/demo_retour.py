@@ -191,10 +191,10 @@ def table_candidats(etape, seuil, recousu: bool = False) -> str:
     for c in etape["candidats"]:
         if not c["fort"]:
             continue
-        montre = (c["repet"] is not None and c["L"] >= R.LONGUEUR_MIN) or c["litteral"]
+        montre = c["L"] >= R.PERIODE_MIN or c["litteral"]
         if not montre:
             continue
-        rep = f'{c["repet"]["moyenne"]:.3f}' if c["repet"] else "—"
+        rep = f'{c["tours"]}× = {c["portee"]} mes.' if c["tours"] else "—"
         cls = []
         if c is etape["retenu"]:
             cls.append("ok")
@@ -222,9 +222,9 @@ def table_candidats(etape, seuil, recousu: bool = False) -> str:
     col1 = ('retour<br>mesure <i class="jx">rang</i>' if recousu
             else 'retour<br>mesure')
     return ('<div class="tbl"><table class="cand">'
-            f'<tr><th>{col1}</th><th>mot<br>mesures</th>'
+            f'<tr><th>{col1}</th><th>boucle<br>mesures</th>'
             '<th>ressemblance<br>à la mesure de départ</th>'
-            '<th>le mot suivant<br>est-il le même ?</th><th></th></tr>'
+            '<th>tient combien<br>de tours ?</th><th></th></tr>'
             + "".join(lignes) + "</table></div>")
 
 
@@ -333,6 +333,15 @@ def explication() -> str:
 
     return f"""<section class="expli">
 <h2>Comment une section est décrite, et d'où vient chaque distance</h2>
+
+<h3>Comment une section naît</h3>
+<p>Un retour fort à <i>p</i> mesures d'écart propose une boucle de <i>p</i>
+mesures (au moins {R.PERIODE_MIN}). On compte alors combien de tours elle tient
+d'affilée à partir de là&nbsp;; si le total atteint {R.MESURES_MIN} mesures,
+c'est une section. <b>Ce n'est pas la longueur de la boucle qui décide, c'est la
+portée de sa répétition</b>&nbsp;: une boucle de 4 jouée trois fois fait 12
+mesures et vaut section, alors qu'une boucle de 6 jouée une seule fois ne vaut
+rien.</p>
 
 <h3>Une section, c'est une boucle et des séjours</h3>
 <p>Une section n'a pas de longueur fixe. Elle est décrite par&nbsp;:</p>
@@ -677,10 +686,12 @@ def main() -> None:
 <style>{CSS}</style>
 <h1>L'algo du retour, pas à pas</h1>
 <p class="chapo">On part de la première mesure et on cherche <b>où elle
-revient</b>. La première mesure qui lui ressemble fortement ferme un mot ; si ce
-mot fait plus de 6 mesures et que le mot d'après est le même (les
-{R.QUEUE_LIBRE} dernières mesures exemptées, c'est la cadence), c'est une
-section. Avant d'aller chercher ses répétitions, on regarde si <b>le mot boucle
+revient</b>. La première mesure qui lui ressemble fortement ferme une
+<b>boucle</b>. On regarde alors combien de fois cette boucle tient d'affilée —
+la dernière mesure de chaque tour exemptée, c'est la cadence — et si elle
+atteint <b>{R.MESURES_MIN} mesures</b>, c'est une section. Une boucle de 4
+jouée trois fois suffit donc&nbsp;; ce n'est plus la longueur de la boucle qui
+décide, c'est la portée de sa répétition. Avant d'aller chercher ses répétitions, on regarde si <b>le mot boucle
 sur lui-même</b> : s'il contient une boucle d'au moins {R.PERIODE_MIN} mesures,
 c'est la boucle qui devient le modèle, pas le mot — c'est ce qui rattrape les
 morceaux dont l'intro fait déjà tourner un bout du A. On retire alors toutes

@@ -66,8 +66,20 @@ log = logging.getLogger(__name__)
 #: hors-diagonale. Aucun réglage à choisir : c'est la distribution du morceau
 #: qui le pose.
 
-#: « + de 6 barres ». Un mot de 6 barres ou moins n'est pas une section.
-LONGUEUR_MIN = 7
+#: « + de 6 barres » — la règle de départ, REMPLACÉE le 2026-08-16 par Louis :
+#: « sur Norah Jones, les 12 premières mesures sont une répétition d'une boucle
+#: de 4 barres 3 fois — il faudrait détecter les répétitions à 4 et s'en servir
+#: pour créer des sections si leur répétition est telle qu'elle dépasse les 8
+#: barres. »
+#:
+#: Ce n'est donc plus la longueur du MOT qui décide, c'est la PORTÉE de la
+#: boucle : un retour à 4 mesures crée une section dès que la boucle tient au
+#: moins `MESURES_MIN` mesures d'affilée. Sur Don't Know Why, le retour de la
+#: mesure 4 ressemblait à 1,000 et la boucle se répétait à 0,882 — la section
+#: était pourtant refusée pour « mot de 4 mesures ».
+#:
+#: Gardé sous le coude : la borne basse est maintenant `PERIODE_MIN` (une boucle
+#: fait au moins 4 mesures) et `MESURES_MIN` (elle doit tenir 8 mesures).
 
 #: « modulo les 2 dernières barres » — les deux dernières barres du mot sont
 #: exemptées de la comparaison, c'est la cadence qui a le droit de changer.
@@ -589,10 +601,10 @@ def sections(S: np.ndarray, seuil: float | None = None,
         # mot butait sur la première mesure prise et la répétition qui le
         # valide n'avait littéralement pas la place d'exister.
         restants = [b for b in range(n) if libre[b]]
-        if len(restants) < 2 * LONGUEUR_MIN:
+        if len(restants) < MESURES_MIN:
             break
         dep = next((i for i, b in enumerate(restants) if b >= pointeur), None)
-        if dep is None or dep > len(restants) - 2 * LONGUEUR_MIN:
+        if dep is None or dep > len(restants) - MESURES_MIN:
             break
         P = S[np.ix_(restants, restants)]
         depart = restants[dep]
@@ -613,7 +625,8 @@ def sections(S: np.ndarray, seuil: float | None = None,
             L = k - dep
             cand = {"barre": restants[k], "j": k, "sim": sim, "fort": fort,
                     "litteral": fort and not premier_fort_vu,
-                    "L": L, "verdict": None, "repet": None, "passe": False}
+                    "L": L, "verdict": None, "repet": None, "passe": False,
+                    "tours": None, "portee": None}
             if not fort:
                 cand["verdict"] = "pas un retour"
                 etape["candidats"].append(cand)
@@ -625,22 +638,37 @@ def sections(S: np.ndarray, seuil: float | None = None,
             if repet_entiere:
                 cand["repet"] = _compare(P, dep, k, L)
 
-            if L < LONGUEUR_MIN:
-                cand["verdict"] = f"mot de {L} mesures — il en faut plus de 6"
+            if L < PERIODE_MIN:
+                cand["verdict"] = (f"une boucle fait au moins {PERIODE_MIN} "
+                                   f"mesures, celle-ci en fait {L}")
             elif not mot_entier:
                 seg = _segments(restants, dep, L)
                 ou = " puis ".join(f"{a}–{b}" for a, b in seg)
                 cand["verdict"] = (
-                    f"ce mot fait {L} mesures (mesures {ou}) : il enjamberait "
-                    f"la coupure après la mesure {seg[0][1]}")
+                    f"cette boucle fait {L} mesures (mesures {ou}) : elle "
+                    f"enjamberait la coupure après la mesure {seg[0][1]}")
             elif not repet_entiere:
-                cand["verdict"] = "pas la place pour la répétition qui suit"
-            elif cand["repet"]["moyenne"] < seuil:
-                cand["verdict"] = (f"ne se répète pas juste après "
-                                   f"(moyenne {cand['repet']['moyenne']:.3f} "
-                                   f"< {seuil:.3f})")
+                cand["verdict"] = "pas la place pour une deuxième fois"
             else:
-                cand["passe"] = True
+                # COMBIEN DE FOIS LA BOUCLE TIENT-ELLE D'AFFILÉE ? C'est ça,
+                # désormais, le test d'existence d'une section (Louis,
+                # 2026-08-16) : pas la longueur du mot, mais la portée de sa
+                # répétition. La dernière mesure de chaque tour est exemptée —
+                # c'est la cadence, elle a le droit de changer.
+                tours = 1
+                while (_contigu(restants, dep, (tours + 1) * L)
+                       and _compare(P, dep, dep + tours * L, L,
+                                    1)["moyenne"] >= seuil):
+                    tours += 1
+                cand["tours"], cand["portee"] = tours, tours * L
+                if cand["portee"] < MESURES_MIN:
+                    cand["verdict"] = (
+                        f"la boucle de {L} ne tient que {cand['portee']} "
+                        f"mesures — il en faut {MESURES_MIN}")
+                else:
+                    cand["verdict"] = (f"boucle de {L} mesures × {tours} tours "
+                                       f"= {cand['portee']} mesures")
+                    cand["passe"] = True
             etape["candidats"].append(cand)
 
         # CHOIX 6 : parmi les retours qui passent, le plus court dont la
@@ -650,8 +678,8 @@ def sections(S: np.ndarray, seuil: float | None = None,
         etape["retenu"] = (carrures or passants)[0] if passants else None
         etape["premier_passant"] = passants[0] if passants else None
         for c in passants:
-            c["verdict"] = ("retenu" if c is etape["retenu"]
-                            else "aurait marché aussi")
+            c["verdict"] = (f"RETENU — {c['verdict']}" if c is etape["retenu"]
+                            else f"aurait marché aussi ({c['verdict']})")
             c["hors_carrure"] = c["L"] % CARRURE != 0
 
         if etape["retenu"] is None:
