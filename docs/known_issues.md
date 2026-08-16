@@ -90,13 +90,39 @@ anonymes). Correctif, vérifié par téléchargement réel des deux venvs :
   débogage de clients/cookies.
 
 Nouvelle voie d'ingestion Spotify (audio seul, annoté artiste/titre/album) :
-`spotdl save <playlist> --save-file x.spotdl --preload` (métadonnées Spotify +
-appariement YouTube Music) puis `scripts/ingest_spotify_playlist.py x.spotdl` —
-télécharge via le `YouTubeFetcher` existant (réutilise `docs/audio/` et
-`data/dataset_audio/`, fichiers par id vidéo) et écrit l'annotation dans
-`data/dataset_audio/manifest_spotify.jsonl` (artiste, titre, album, année,
-ISRC, id Spotify, id vidéo, fichier, drapeau `duration_mismatch` si la durée
-YouTube s'écarte de Spotify de >10 s — ces lignes-là méritent une oreille).
+métadonnées via l'API Spotify (app perso de Louis, clés dans
+`~/harmonia/tools/spotify_creds.json`, hors repo) puis
+`scripts/ingest_spotify_playlist.py meta.json --resolve` — appariement YouTube
+par recherche yt-dlp (écart de durée vs Spotify + pénalité sur « 1 hour /
+sped up / live / remix »), téléchargement via le `YouTubeFetcher` existant,
+fichiers nommés « Titre.m4a » avec tags MP4 + pochette embarqués, annotation
+dans `data/dataset_audio/manifest_spotify.jsonl` (artiste, titre, album,
+année, ISRC, ids, drapeau `duration_mismatch` si la durée YouTube s'écarte de
+Spotify de >10 s — ces lignes-là méritent une oreille).
+
+**Bilan final (2026-08-16)** : 1537/1542 morceaux uniques en local (6,0 Go,
+`data/dataset_audio/`), en 4 passes sur ~24 h à cause des vagues de blocage
+YouTube (recherche puis « confirm you're not a bot » — les deux se lèvent
+seules en quelques heures ; la relance lente à 4 s/morceau passe). 5 vrais
+absents (3 titres explicites que la recherche YouTube filtre, 2 vidéos
+mortes). 47 morceaux signalés `duration_mismatch` →
+`data/dataset_audio/a_verifier_oreille.md` (pire écart en premier ; les ~6
+pires sont probablement de mauvaises prises, le reste des éditions
+différentes). 29 entrées Spotify supplémentaires sont des doublons d'édition
+pointant vers le même audio. Tags complets (titre/artiste/album/année/pochette
+/n° piste) — pour Apple Music, il faut RÉIMPORTER le dossier après tout
+re-tagging, l'app ne relit jamais un fichier déjà indexé, et sans n° de piste
+elle éclate les albums en instances séparées.
+
+Trois autres pièges appris en route, même journée : (1) le matcher interne de
+spotdl (`spotdl url` / `--preload`) répond « no usable results » même sur des
+tubes alors que ytmusicapi marche depuis la même IP — remplacé par la
+recherche yt-dlp, on ne le débogue pas ; (2) les quotas anonymes Spotify
+(app partagée spotdl ET jeton web-player) se sont épuisés ~20 h après un scan
+de 1555 morceaux — d'où l'app perso ; (3) l'index git est PARTAGÉ entre
+sessions : un `git add` + `git commit` sans pathspec a embarqué la
+suppression stagée d'une autre session — committer avec
+`git commit <chemins>` explicites dans ce repo.
 
 
 ## 2026-08-14 (nuit, fin) — ANCRES MOLLES EN PRIOR DU LLM : LE CONTRAT S'INVERSE
