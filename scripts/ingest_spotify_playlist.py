@@ -70,6 +70,10 @@ def finalize_file(path: Path, t: dict, vid: str | None) -> Path:
                              ("\xa9day", str(t["year"]) if t.get("year") else None)):
                 if val:
                     m[key] = [val]
+            if t.get("track_number"):
+                m["trkn"] = [(int(t["track_number"]), int(t.get("tracks_count") or 0))]
+            if t.get("disc_number"):
+                m["disk"] = [(int(t["disc_number"]), 0)]
             if t.get("cover_url"):
                 try:
                     import urllib.request
