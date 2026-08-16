@@ -107,8 +107,8 @@ moi les distances et laisse-MOI juger »**.
 
 `docs/plots/retour_basse_vs_accords.html` met les trois matrices côte à côte
 avec ses frontières dessus, et la distance entre chaque paire de ses sections,
-terme par terme. La démo tourne sur `accords*basse` avec l'ancien substrat en
-regard. **Le défaut du module reste `accords`** tant qu'il n'a pas tranché — une
+terme par terme. La démo tourne sur `accords` avec `accords*basse` en
+regard, bandeau à bandeau. **Le défaut du module reste `accords`** tant qu'il n'a pas tranché — une
 SSM de basse seule serait ce qu'il a interdit le 2026-07-30.
 
 Ce que ça donne, morceau par morceau : Stand By Me passe de 1 à 3 sections (la
