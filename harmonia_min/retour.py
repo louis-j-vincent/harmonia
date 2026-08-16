@@ -191,31 +191,33 @@ def seuil_fort(S: np.ndarray) -> float:
 
 # ── la comparaison de deux mots ─────────────────────────────────────────────
 
-def queue_pour(L: int, boucle: bool) -> int:
-    """Combien de mesures de fin sont exemptées, pour un modèle de `L` mesures.
+def exemption(L: int) -> int:
+    """Combien de mesures de fin sont exemptées sur une suite de `L` mesures.
 
-    CHOIX 4, ET SON ALLER-RETOUR — la trace compte, c'est le seul réglage que
-    Louis a demandé puis rejeté à l'oreille dans la même séance :
+    LA RÈGLE UNIQUE (Louis, 2026-08-16, après deux allers-retours) : « on ne va
+    faire qu'une règle pour l'instant — lors d'une suite consécutive d'au moins
+    8 barres, exemption sur la dernière barre, et c'est tout. »
 
-    v1  queue = 0 sur une boucle. Sur une boucle de quatre, exempter deux
-        mesures ne comparerait que la moitié du motif.
-    v2  queue = L//4 (Louis : « exempte une seule mesure sur une boucle de 4,
-        ok go »). Le gain visé était réel — les secondes moitiés du B de This
-        Love passaient de 0,86 à 0,98.
-    v3  RETOUR À ZÉRO, sur son constat suivant : « sur This Love tu m'as
-        découpé les 8 mesures 50 à 57 alors que le A ne prend que 50 à 53 ».
-        Ces mesures-là sont EXACTEMENT ce que la v2 avait fait entrer : jeter
-        une mesure sur quatre, c'est jeter 25 % de la preuve, et le A se met
-        alors à mordre sur le pont. Avec queue = 0, le pont 48–55 ressort
-        entier dans le reste et les cinq B tombent pile sur les siens.
+    Donc : une seule mesure, la dernière, et seulement si la suite atteint
+    `REPETITION_MIN`. En dessous, rien n'est exempté — quatre mesures dont on
+    en pardonne une, c'est 25 % de la preuve jetée, et c'est exactement ce qui
+    avait fait mordre le A de This Love sur le pont (mesures 50–57).
 
-    Ce que la v2 apportait vraiment n'était pas le seuil mais la MÉMOIRE des
-    mesures qui divergent ; c'est gardé, et élargi — `_occurrences` note
-    désormais toute mesure qui ne ressemble pas au modèle, exemptée ou non.
-    Les mesures non exemptées comptent donc dans le score ET sont notées pour
-    le repliement, ce qui est strictement mieux que de les exempter.
+    L'HISTORIQUE, pour qu'on ne le refasse pas :
+      v1  zéro sur une boucle, deux sur un mot — la règle littérale de départ ;
+      v2  une mesure sur quatre, deux sur huit — demandée, puis rejetée à
+          l'oreille le jour même (« le A ne prend que 50 à 53 ») ;
+      v3  zéro partout sur les boucles ;
+      v4  CELLE-CI — une seule règle, au niveau de la SUITE et non du bloc.
+          C'est le bon niveau : sur This Love le B est une suite de 8 mesures
+          faite de deux boucles de 4, et la mesure qui change est la dernière
+          de la SUITE (m.23, 43, 63, 71, 79), jamais celle du premier bloc.
+
+    Ce que l'exemption ne dispense PAS de faire : noter la mesure exemptée.
+    `_occurrences` la garde dans `exemptees`, et toute mesure qui diverge —
+    exemptée ou non — reste dans `variante` pour le repliement du chart.
     """
-    return 0 if boucle else QUEUE_LIBRE
+    return 1 if L >= REPETITION_MIN else 0
 
 
 def _compare(S, a: int, b: int, L: int, queue: int | None = None) -> dict:
@@ -227,7 +229,7 @@ def _compare(S, a: int, b: int, L: int, queue: int | None = None) -> dict:
     occurrence-là est une variante à écrire sur le chart ou une simple redite.
     Sans ça l'exemption serait un oubli, pas une tolérance.
     """
-    queue = QUEUE_LIBRE if queue is None else queue
+    queue = exemption(L) if queue is None else queue
     k = max(1, L - queue)
     tous = [float(S[a + t, b + t]) for t in range(L)]
     return {"sims": tous[:k], "queue_sims": tous[k:],
@@ -322,21 +324,7 @@ def _occurrences(P, restants: list[int], modele: int, L: int, seuil: float,
             # chose à cet endroit, et le repliement doit l'écrire au lieu de
             # recopier le modèle. `exemptees` porte les deux cas, `variante`
             # ne garde que les mesures qui divergent vraiment.
-            k = L - len(o["queue_sims"])
-            tous = o["sims"] + o["queue_sims"]
-            o["exemptees"] = [
-                {"mesure": o["b0"] + k + t, "mesure_modele": modele_b0 + k + t,
-                 "sim": s, "differe": s < seuil_occ}
-                for t, s in enumerate(o["queue_sims"])]
-            # TOUTE mesure qui ne ressemble pas au modèle, exemptée ou non :
-            # c'est ça que le repliement doit écrire au lieu de recopier le
-            # modèle. Se limiter à la queue laisserait passer les divergences du
-            # milieu — sur Grenade c'est la 3ᵉ mesure sur 4 qui change, pas la
-            # dernière.
-            o["variante"] = [
-                {"mesure": o["b0"] + t, "mesure_modele": modele_b0 + t,
-                 "sim": v, "exemptee": t >= k}
-                for t, v in enumerate(tous) if v < seuil_occ]
+            o["exemptees"], o["variante"] = [], []   # posés par suite, plus bas
             retenu.append(o)
             fin = o["j"] + L - 1
     # CHOIX 8 : on regroupe les occurrences COLLÉES, et un groupe qui n'atteint
@@ -351,15 +339,47 @@ def _occurrences(P, restants: list[int], modele: int, L: int, seuil: float,
             courant = [o]
     if courant:
         groupes.append(courant)
-    gardes, solos = [], []
+    gardes, solos, suites = [], [], []
     for g in groupes:
-        (gardes if g[-1]["b1"] - g[0]["b0"] + 1 >= REPETITION_MIN
-         else solos).extend(g)
+        long = g[-1]["b1"] - g[0]["b0"] + 1
+        if long < REPETITION_MIN:
+            solos.extend(g)
+            continue
+        gardes.extend(g)
+
+        # L'EXEMPTION, AU NIVEAU DE LA SUITE (`exemption`, la règle unique de
+        # Louis). La suite fait au moins REPETITION_MIN mesures : sa DERNIÈRE
+        # mesure est exemptée, et c'est tout. C'est le bon niveau — sur This
+        # Love le B est une suite de 8 faite de deux boucles de 4, et la mesure
+        # qui change est la dernière de la SUITE (m.23, 43, 63, 71, 79), jamais
+        # celle du premier bloc. Exempter bloc par bloc pardonnait deux mesures
+        # sur huit au lieu d'une, et le A mordait sur le pont.
+        bars = [{"mesure": o["b0"] + t, "mesure_modele": modele_b0 + t, "sim": v}
+                for o in g for t, v in enumerate(o["sims"] + o["queue_sims"])]
+        ex = bars[-1] if exemption(long) else None
+        notes = bars[:-1] if ex else bars
+        suites.append({
+            "b0": g[0]["b0"], "b1": g[-1]["b1"], "n": long,
+            "score": float(np.mean([x["sim"] for x in notes])) if notes else 1.0,
+            "exemptee": ex,
+            "variante": [x for x in notes if x["sim"] < seuil_occ],
+            "occurrences": g})
+
+    # Chaque occurrence reporte ce que SA suite a décidé : la page et le
+    # repliement lisent l'occurrence, pas la suite.
+    for su in suites:
+        for o in su["occurrences"]:
+            o["suite"] = (su["b0"], su["b1"])
+            o["exemptees"] = ([su["exemptee"]] if su["exemptee"]
+                              and su["exemptee"]["mesure"] <= o["b1"]
+                              and su["exemptee"]["mesure"] >= o["b0"] else [])
+            o["variante"] = [x for x in su["variante"]
+                             if o["b0"] <= x["mesure"] <= o["b1"]]
 
     ecarte = [o for o in cand
               if seuil <= o["moyenne"] < seuil_occ]
     return {"occurrences": gardes, "seuil_occ": float(seuil_occ),
-            "ecartees": ecarte, "solos": solos,
+            "ecartees": ecarte, "solos": solos, "suites": suites,
             "n_fenetres": len(cand), "queue": queue}
 
 
@@ -469,7 +489,7 @@ def sections(S: np.ndarray, seuil: float | None = None,
         boucle = periode_interne(S, depart, L, seuil)
         etape["boucle"] = boucle
         modele_L = boucle["retenue"]["p"] if boucle["retenue"] else L
-        queue = queue_pour(modele_L, bool(boucle["retenue"]))   # CHOIX 4
+        queue = exemption(modele_L)                       # la règle unique
 
         rec = _occurrences(P, restants, dep, modele_L, seuil, queue,
                            modele_b0=depart)
@@ -494,7 +514,8 @@ def sections(S: np.ndarray, seuil: float | None = None,
                "boucle": boucle["retenue"]["p"] if boucle["retenue"] else None,
                "occurrences": occ, "seuil_occ": rec["seuil_occ"],
                "ecartees": rec["ecartees"], "n_fenetres": rec["n_fenetres"],
-               "queue": rec["queue"], "solos": rec["solos"]}
+               "queue": rec["queue"], "solos": rec["solos"],
+               "suites": rec["suites"]}
         trouvees.append(sec)
         etape["action"] = "section"
         etape["section"] = sec

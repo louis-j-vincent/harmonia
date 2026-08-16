@@ -287,14 +287,24 @@ def bloc_boucle(et, seuil, grid) -> str:
             f'{"".join(lignes)}{mot}</div>')
 
 
+#: Le substrat sur lequel la démo tourne. Louis, 2026-08-16 : « essayons
+#: d'utiliser la matrice accords*basse pour voir ». La page montre en regard ce
+#: que l'ancien substrat (accords seuls) donnait, pour que la comparaison soit
+#: sous les yeux et pas dans un tableau de moyennes.
+SUBSTRAT = "accords*basse"
+SUBSTRAT_REF = "accords"
+
+
 def bloc_morceau(fichier: str, titre: str) -> str:
     chart = json.loads((CHARTS / f"{fichier}.json").read_text(encoding="utf-8"))
     stem = Path(chart.get("audio_url") or "").stem
     grid = chart["barGrid"]
-    S = R.ssm_mesures(chart)
-    if S is None:
+    S = R.ssm_mesures(chart, substrat=SUBSTRAT)
+    Sref = R.ssm_mesures(chart, substrat=SUBSTRAT_REF)
+    if S is None or Sref is None:
         return f'<section><h2>{e(titre)}</h2><p>pas de SSM.</p></section>'
     res = R.sections(S)
+    res_ref = R.sections(Sref)
     n = res["n_mesures"]
     seuil = res["seuil"]
 
@@ -304,6 +314,8 @@ def bloc_morceau(fichier: str, titre: str) -> str:
 
     coul_algo = {s["label"]: TEINTES[i % len(TEINTES)]
                  for i, s in enumerate(res["sections"])}
+    coul_ref = {s["label"]: TEINTES[i % len(TEINTES)]
+                for i, s in enumerate(res_ref["sections"])}
     coul_louis = couleurs_louis(louis)
     faibles = {b: o["moyenne"] for s in res["sections"] for o in s["occurrences"]
                if o["moyenne"] < NET for b in range(o["b0"], o["b1"] + 1)}
@@ -390,11 +402,13 @@ def bloc_morceau(fichier: str, titre: str) -> str:
 
     return f"""<section data-audio="/audio/{e(stem)}.m4a">
 <h2>{e(titre)}</h2>
-<p class="meta">{n} mesures · seuil de « ressemblance forte » <b>{seuil:.3f}</b>
-(Otsu sur les cases hors-diagonale) · sortie : {resume}
+<p class="meta">{n} mesures · substrat <b>{SUBSTRAT}</b> · seuil de
+« ressemblance forte » <b>{seuil:.3f}</b> · sortie : {resume}
 · <span class="reste">{len(res["reste"])} mesures sans section</span></p>
 <audio controls preload="none"></audio>
-{bandeau(algo, coul_algo, grid, "Ce que l'algo trouve", chords, faibles)}
+{bandeau(algo, coul_algo, grid, f"L'algo sur {SUBSTRAT}", chords, faibles)}
+{bandeau(R.par_mesure(res_ref), coul_ref, grid,
+         f"L'algo sur {SUBSTRAT_REF} (l'ancien substrat, pour comparer)")}
 {bandeau(louis, coul_louis, grid, "Ce que Louis a annoté à la main")}
 <div class="etapes">{"".join(etapes)}</div>
 </section>"""
