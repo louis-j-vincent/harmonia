@@ -295,6 +295,89 @@ SUBSTRAT = "accords*basse"
 SUBSTRAT_REF = "accords"
 
 
+
+def explication() -> str:
+    """Comment une section est décrite, et comment une distance est calculée.
+
+    Louis, 2026-08-16 : « montre-moi comment les sections sont décrites et
+    comment les distances sont calculées ». Les nombres de l'exemple sont
+    calculés à la volée sur Grenade, pas recopiés à la main — ils suivent donc
+    le code s'il change.
+    """
+    import numpy as np
+    from harmonia_min import harmonic_sections as HS, musx as M
+    ch = json.loads((CHARTS / "min_bruno_mars_grenade_official_music_video.json")
+                    .read_text(encoding="utf-8"))
+    grid = ch["barGrid"]
+    pr = M.frame_posteriors(Path("docs/audio") /
+                            "bruno_mars_grenade_official_music_video.m4a")
+    V, Bs = HS.harmonic_vectors(pr[0], grid), R.basse_par_mesure(pr[1], grid)
+    acc = accords_par_mesure(ch)
+
+    def paire(i, j):
+        ca, cb = float(V[i] @ V[j]), float(Bs[i] @ Bs[j])
+        top = lambda X, k, n: " ".join(
+            f"{NOTES[t]}&nbsp;{X[k][t]:.2f}" for t in np.argsort(-X[k])[:n])
+        return (f'<tr><td>mesure <b>{i}</b> ({e(acc[i])}) ↔ mesure <b>{j}</b> '
+                f'({e(acc[j])})</td>'
+                f'<td>{top(V, i, 3)}<br><i>{top(V, j, 3)}</i></td>'
+                f'<td>{top(Bs, i, 2)}<br><i>{top(Bs, j, 2)}</i></td>'
+                f'<td>{ca:.3f}</td><td>{cb:.3f}</td>'
+                f'<td class="r"><b>{ca * cb:.3f}</b></td></tr>')
+
+    return f"""<section class="expli">
+<h2>Comment une section est décrite, et d'où vient chaque distance</h2>
+
+<h3>Une section, c'est une boucle et des séjours</h3>
+<p>Une section n'a pas de longueur fixe. Elle est décrite par&nbsp;:</p>
+<ul>
+<li><b>une boucle</b> — sa longueur en mesures (au moins {R.PERIODE_MIN}) et la
+mesure du morceau où on l'a prélevée, qui sert de modèle&nbsp;;</li>
+<li><b>une liste de suites</b> — chaque endroit du morceau où cette boucle
+tourne plusieurs fois d'affilée. Une suite porte ses mesures de début et de fin,
+son <b>nombre de tours</b>, son score, la <b>mesure exemptée</b> (la dernière,
+sa cadence) et ses <b>variantes</b>.</li>
+</ul>
+<p>Une suite n'est retenue que si elle fait au moins <b>{R.MESURES_MIN}
+mesures</b> — que la boucle s'y répète ou non. Deux suites de la même section
+peuvent donc être de longueurs différentes&nbsp;; c'est voulu, on écrit chaque
+section à la longueur qu'elle joue vraiment. Les <b>variantes</b> sont les
+mesures qui ne ressemblent pas au modèle&nbsp;: au repliement du chart, il
+faudra les écrire au lieu de recopier le modèle par-dessus.</p>
+
+<h3>La distance entre deux mesures</h3>
+<p>Chaque mesure devient <b>deux vecteurs de 12 notes</b>, calculés sur les
+probabilités que musx sort image par image, moyennées sur la durée de la
+mesure&nbsp;: un vecteur d'<b>accords</b> (les notes de l'accord entendu) et un
+vecteur de <b>basse</b>. La distance est le produit des deux cosinus —
+deux mesures se ressemblent si elles ont les mêmes notes d'accord
+<b>ET</b> la même basse.</p>
+<div class="tbl"><table class="cand">
+<tr><th>les deux mesures</th><th>notes d'accord<br>(les 3 plus fortes)</th>
+<th>basse<br>(les 2 plus fortes)</th><th>cos<br>accords</th>
+<th>cos<br>basse</th><th>distance</th></tr>
+{paire(16, 20)}
+{paire(16, 24)}
+</table></div>
+<p>C'est tout l'écart entre les deux substrats sur Grenade&nbsp;: les mesures 16
+et 24 (D- et Bb) partagent D et F — relatif majeur/mineur — donc les accords
+seuls les trouvent très proches. Leurs basses, elles, sont D et Bb. Le produit
+divise donc la ressemblance, et la mesure 24 cesse d'être un « retour » de la
+mesure 16.</p>
+
+<h3>La distance entre deux passages</h3>
+<p>Pour comparer une boucle de <i>p</i> mesures posée en deux endroits, on
+aligne les deux passages et on prend la <b>moyenne des distances mesure à
+mesure</b> — 1<sup>re</sup> contre 1<sup>re</sup>, 2<sup>e</sup> contre
+2<sup>e</sup>, et ainsi de suite. Rien n'est pondéré. Deux seuils s'appliquent
+ensuite, et ils ne sont pas les mêmes&nbsp;: celui qui <i>repère</i> un retour
+est lâche (il dit « tiens, regardons »), celui qui <i>accepte</i> une occurrence
+est plus sévère et se lit sur les scores du modèle lui-même. Enfin, si le
+passage atteint {R.MESURES_MIN} mesures, sa <b>dernière</b> mesure est exemptée
+de la moyenne — c'est la cadence, elle a le droit de changer.</p>
+</section>"""
+
+
 def bloc_morceau(fichier: str, titre: str) -> str:
     chart = json.loads((CHARTS / f"{fichier}.json").read_text(encoding="utf-8"))
     stem = Path(chart.get("audio_url") or "").stem
@@ -371,8 +454,8 @@ def bloc_morceau(fichier: str, titre: str) -> str:
                                    for o in sec["solos"])
                 solo = (f'<p class="issue solo">Jeté — la boucle n\'y fait '
                         f'qu\'UN tour : {liste_s}. Une section est une boucle '
-                        f'jouée au moins {R.TOURS_MIN} fois de suite ; un tour '
-                        f'isolé est une coïncidence, pas un retour.</p>')
+                        f'longue d\'au moins {R.MESURES_MIN} mesures ; plus '
+                        f'court, c\'est une coïncidence, pas un retour.</p>')
             ecart = ""
             if sec["ecartees"]:
                 liste = " ".join(f'<b class="occ flou">{o["b0"]}–{o["b1"]} '
@@ -523,6 +606,15 @@ table.cand em.vieux{background:#f2ddd6;color:#8c3a22}
 .rien{font-size:12.5px;color:var(--doux);margin:0}
 .pied{color:var(--doux);font-size:13px;max-width:78ch}
 .pied li{margin:0 0 6px}
+.expli{background:#f7f4ea;border:1px solid #e7e0cf;border-radius:8px;
+ padding:16px 18px;margin:0 0 40px}
+.expli h2{font-size:18px}
+.expli h3{font-size:14px;margin:18px 0 6px;border:0;padding:0;display:block}
+.expli p,.expli li{font-size:13.5px;color:#4a463c;max-width:80ch}
+.expli ul{margin:6px 0 10px;padding-left:20px}
+.expli td.r{font-weight:700}
+.expli table.cand td{vertical-align:top;line-height:1.35}
+.expli table.cand i{font-style:normal;color:var(--doux)}
 """
 
 JS = """
@@ -576,11 +668,12 @@ entre les deux est <em>écarté</em> et reste sans section.</p>
 fois.</b> La boucle fait au moins {R.PERIODE_MIN} mesures et se reconnaît
 <i>modulo sa dernière mesure</i> — celle qui cadence a le droit de changer.
 Chercher les occurrences de la section, c'est alors juste compter combien de
-tours la boucle fait à chaque endroit : en dessous de {R.TOURS_MIN} tours ce
-n'est pas un retour, c'est une coïncidence. Deux occurrences d'une même section
+tours la boucle fait à chaque endroit : une section est valide dès qu'elle
+atteint {R.MESURES_MIN} mesures, que la boucle s'y répète ou non. Deux occurrences d'une même section
 peuvent donc avoir des longueurs différentes — c'est voulu, on écrit chaque
 section à la longueur qu'elle joue vraiment.
 Cliquez n'importe quelle mesure pour l'écouter.</p>
+{explication()}
 {"".join(blocs)}
 <h2>Ce que la démo montre à régler</h2>
 <ul class="pied">

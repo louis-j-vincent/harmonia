@@ -104,7 +104,7 @@ PERIODE_MIN = 4
 #: C'est le modèle de données de tout le module : une section N'EST PAS un
 #: gabarit de longueur fixe, c'est UNE BOUCLE et un NOMBRE DE TOURS. Chercher
 #: ses occurrences, c'est compter combien de tours la boucle fait à chaque
-#: endroit ; en dessous de `TOURS_MIN`, ce n'est pas un retour de la section,
+#: endroit ; en dessous de `MESURES_MIN` mesures, ce n'est pas un retour,
 #: c'est une coïncidence — dans une musique à quatre accords, quatre mesures se
 #: ressemblent partout.
 #:
@@ -112,11 +112,20 @@ PERIODE_MIN = 4
 #: LONGUEURS DIFFÉRENTES (2 tours ici, 6 tours là). C'est la règle du
 #: sous-repliement — on écrit chaque section à la longueur qu'elle joue
 #: vraiment — et non un défaut à corriger.
-TOURS_MIN = 2
-
-#: Combien de mesures fait une occurrence viable d'une boucle de `p` mesures.
-def mesures_min(p: int) -> int:
-    return TOURS_MIN * p
+#:
+#: RÈGLE CORRIGÉE le 2026-08-16 par Louis : « j'ai dit que pour qu'une section
+#: soit valide il fallait qu'une boucle se répète au moins 2 fois, je souhaite
+#: modifier la règle : pour qu'une section soit valide il faut qu'elle ait au
+#: moins 8 barres, cela peut impliquer qu'une boucle de 4 se répète ou non à
+#: l'intérieur. »
+#:
+#: Le critère est donc une LONGUEUR EN MESURES, pas un nombre de tours. Une
+#: boucle de 4 doit tourner deux fois pour y arriver ; une boucle de 8 y arrive
+#: du premier coup ; une boucle de 7 doit tourner deux fois. La différence
+#: compte : sous l'ancienne règle, une section dont le modèle faisait 8 mesures
+#: exigeait 16 mesures d'affilée pour être reconnue, et This Love perdait son B
+#: pour cette seule raison.
+MESURES_MIN = 8
 
 LETTRES = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
@@ -231,7 +240,7 @@ def exemption(L: int) -> int:
     8 barres, exemption sur la dernière barre, et c'est tout. »
 
     Donc : une seule mesure, la dernière, et seulement si la suite atteint
-    `TOURS_MIN * PERIODE_MIN` mesures. En dessous, rien n'est exempté — quatre mesures dont on
+    `MESURES_MIN` mesures. En dessous, rien n'est exempté — quatre mesures dont on
     en pardonne une, c'est 25 % de la preuve jetée, et c'est exactement ce qui
     avait fait mordre le A de This Love sur le pont (mesures 50–57).
 
@@ -249,7 +258,7 @@ def exemption(L: int) -> int:
     `_occurrences` la garde dans `exemptees`, et toute mesure qui diverge —
     exemptée ou non — reste dans `variante` pour le repliement du chart.
     """
-    return 1 if L >= TOURS_MIN * PERIODE_MIN else 0
+    return 1 if L >= MESURES_MIN else 0
 
 
 def _compare(S, a: int, b: int, L: int, queue: int | None = None) -> dict:
@@ -400,7 +409,7 @@ def _occurrences(P, restants: list[int], modele: int, L: int, seuil: float,
     # jusqu'à ce qu'elle change »).
     #
     # POURQUOI IL FAUT UNE PASSE SÉPARÉE. L'exemption de cadence porte sur une
-    # SUITE d'au moins `TOURS_MIN` tours ; un bloc isolé de 4 mesures est donc
+    # SUITE d'au moins `MESURES_MIN` mesures ; un bloc isolé de 4 est donc
     # jugé sans exemption, sa mesure de cadence comptant plein tarif. Mais un
     # bloc qui PROLONGE un tour déjà accepté forme précisément une suite de
     # deux tours : il a droit à l'exemption, et il faut la lui donner avant de
@@ -439,7 +448,7 @@ def _occurrences(P, restants: list[int], modele: int, L: int, seuil: float,
 
     # CHOIX 8 : on regroupe les blocs COLLÉS — chaque groupe est donc « la
     # boucle rejouée n fois de suite ». Un groupe qui ne fait pas au moins
-    # `TOURS_MIN` tours n'est pas un retour de la section.
+    # `MESURES_MIN` mesures n'est pas un retour de la section.
     groupes, courant = [], []
     for o in retenu:
         if courant and o["b0"] == courant[-1]["b1"] + 1:
@@ -453,13 +462,13 @@ def _occurrences(P, restants: list[int], modele: int, L: int, seuil: float,
     gardes, solos, suites = [], [], []
     for g in groupes:
         long = g[-1]["b1"] - g[0]["b0"] + 1
-        if len(g) < TOURS_MIN:
+        if long < MESURES_MIN:
             solos.extend(g)
             continue
         gardes.extend(g)
 
         # L'EXEMPTION, AU NIVEAU DE LA SUITE (`exemption`, la règle unique de
-        # Louis). La suite fait au moins deux tours : sa DERNIÈRE
+        # Louis). La suite fait au moins `MESURES_MIN` mesures : sa DERNIÈRE
         # mesure est exemptée, et c'est tout. C'est le bon niveau — sur This
         # Love le B est une suite de 8 faite de deux boucles de 4, et la mesure
         # qui change est la dernière de la SUITE (m.23, 43, 63, 71, 79), jamais
