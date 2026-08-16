@@ -117,6 +117,11 @@ def e(s) -> str:
 NET = 0.85
 
 
+def nb(v) -> str:
+    """Un score, ou « ⊘ » quand la mesure n'a pas d'accord et ne vote pas."""
+    return "⊘" if not np.isfinite(v) else f"{v:.2f}"
+
+
 def bandeau(labels, coul, grid, titre, chords=None, faibles=None) -> str:
     """Une bande de mesures cliquables, coloriée par étiquette."""
     faibles = faibles or {}
@@ -231,9 +236,10 @@ def detail_repet(cand, seuil, depart, grid) -> str:
     cases = []
     for t, v in enumerate(sims):
         a, b = depart + t, cand["barre"] + t
-        cl = "oui" if v >= seuil else "non"
-        cases.append(f'<b class="{cl}" data-t="{grid[a]:.3f}">'
-                     f'<u>{a}↔{b}</u><s>{v:.2f}</s></b>')
+        cl = "nul" if not np.isfinite(v) else ("oui" if v >= seuil else "non")
+        cases.append(f'<b class="{cl}" data-t="{grid[a]:.3f}" '
+                     f'title="{"mesure sans accord : ne compte pas" if not np.isfinite(v) else ""}">'
+                     f'<u>{a}↔{b}</u><s>{nb(v)}</s></b>')
     for t in range(len(sims), L):
         a, b = depart + t, cand["barre"] + t
         cases.append(f'<b class="libre" data-t="{grid[a]:.3f}">'
@@ -263,9 +269,9 @@ def bloc_boucle(et, seuil, grid) -> str:
     for c in b["periodes"]:
         pris = c is b["retenue"]
         cases = "".join(
-            f'<b class="{"oui" if v >= seuil else "non"}" '
-            f'data-t="{grid[d + t]:.3f}">'
-            f'<u>{d + t}↔{d + t + c["p"]}</u><s>{v:.2f}</s></b>'
+            f'<b class="{"nul" if not np.isfinite(v) else ("oui" if v >= seuil else "non")}" '
+            f'data-t="{grid[d + t]:.3f}" title="{"mesure sans accord : ne compte pas" if not np.isfinite(v) else ""}">'
+            f'<u>{d + t}↔{d + t + c["p"]}</u><s>{nb(v)}</s></b>'
             for t, v in enumerate(c["sims"]))
         lignes.append(
             f'<div class="per {"pris" if pris else ""}">'
@@ -365,7 +371,21 @@ seuls les trouvent très proches. Leurs basses, elles, sont D et Bb. Le produit
 divise donc la ressemblance, et la mesure 24 cesse d'être un « retour » de la
 mesure 16.</p>
 
+<h3>Une mesure sans accord ne vote pas</h3>
+<p>Quand musx n'entend aucun accord dans une mesure (un blanc, une intro à la
+basse seule, une rupture), on ne peut <b>ni</b> dire que c'est le même accord
+<b>ni</b> dire que c'en est un autre. La case est donc mise hors-jeu&nbsp;: elle
+est retirée de la moyenne au lieu de compter pour 0 (ce qui ferait échouer une
+reprise à cause d'un simple silence) ou pour 1 (ce qui rendrait identiques deux
+blancs sans rapport).</p>
+
 <h3>La distance entre deux passages</h3>
+<p>Une section est <b>une succession de tours de la boucle interne</b>, la
+dernière mesure du dernier tour étant exemptée — c'est la cadence. Le mot qui a
+servi à créer la section en fait partie d'office&nbsp;: il a déjà été validé,
+on ne le lui refait pas passer. Pour chercher des reprises plus loin dans le
+morceau, il suffit ensuite qu'un passage atteigne
+<b>{R.MESURES_MIN} mesures</b>.</p>
 <p>Pour comparer une boucle de <i>p</i> mesures posée en deux endroits, on
 aligne les deux passages et on prend la <b>moyenne des distances mesure à
 mesure</b> — 1<sup>re</sup> contre 1<sup>re</sup>, 2<sup>e</sup> contre
@@ -492,9 +512,13 @@ def bloc_morceau(fichier: str, titre: str) -> str:
 « ressemblance forte » <b>{seuil:.3f}</b> · sortie : {resume}
 · <span class="reste">{len(res["reste"])} mesures sans section</span></p>
 <audio controls preload="none"></audio>
-{bandeau(algo, coul_algo, grid, f"L'algo sur {SUBSTRAT}", chords, faibles)}
-{bandeau(R.par_mesure(res_ref), coul_ref, grid,
-         f"L'algo sur {SUBSTRAT_REF} (l'autre substrat, pour comparer)")}
+{bandeau(algo, coul_algo, grid,
+         f"L'algo — substrat {SUBSTRAT} — c'est LUI qui est expliqué ci-dessous",
+         chords, faibles)}
+<details class="temoin"><summary>voir aussi ce que donnerait
+{SUBSTRAT_REF} seul — témoin, ce n'est PAS l'algo expliqué ici</summary>
+{bandeau(R.par_mesure(res_ref), coul_ref, grid, f"témoin : {SUBSTRAT_REF}")}
+</details>
 {bandeau(louis, coul_louis, grid, "Ce que Louis a annoté à la main")}
 <div class="etapes">{"".join(etapes)}</div>
 </section>"""
@@ -577,6 +601,8 @@ table.cand em.vieux{background:#f2ddd6;color:#8c3a22}
 .paires b.oui{background:#dcebd9;border:1px solid #9cc294}
 .paires b.non{background:#f6e0da;border:1px solid #d09b8a}
 .paires b.libre{background:#efeade;border:1px dashed #c8c0af}
+.paires b.nul{background:#f1f0ee;border:1px dashed #cfcbc2;color:#a9a49a}
+.paires b.nul u,.paires b.nul s{color:#a9a49a}
 .repet p{font-size:12.5px;color:var(--doux);margin:6px 0 0}
 .recousu{margin:0 0 14px;padding:10px 12px;background:#f4f1e6;border-radius:6px;
  border:1px solid #e7e0cf}
@@ -615,6 +641,9 @@ table.cand em.vieux{background:#f2ddd6;color:#8c3a22}
 .expli td.r{font-weight:700}
 .expli table.cand td{vertical-align:top;line-height:1.35}
 .expli table.cand i{font-style:normal;color:var(--doux)}
+details.temoin{margin:0 0 12px}
+details.temoin summary{font-size:12px;color:var(--doux);cursor:pointer}
+details.temoin .bande{margin-top:8px;opacity:.75}
 """
 
 JS = """
@@ -677,64 +706,23 @@ Cliquez n'importe quelle mesure pour l'écouter.</p>
 {"".join(blocs)}
 <h2>Ce que la démo montre à régler</h2>
 <ul class="pied">
-<li><b>Réglé — la carrure choisit le retour.</b> Stand By Me prenait le retour
-de la mesure 7, donc un mot de 7 mesures : une longueur qui n'existe pas dans ce
-morceau. Parmi les retours qui passent, on prend maintenant le plus court dont
-la longueur est un multiple de 4 : le mot fait 8, et les occurrences tombent
-enfin sur une grille de 8. Sur les 15 morceaux annotés, le nombre de ceux qui ne
-rendaient qu'UNE section est passé de 11 à 8, cette règle et le seuil
-d'occurrence comptant chacun pour moitié.</li>
-<li><b>Réglé — reconnaître n'est pas repérer.</b> This Love 50–53 entrait dans le
-A à 0,726 pour un seuil de 0,672, en plein milieu du pont, alors que les vraies
-occurrences du A sortent entre 0,91 et 1,00. Le seuil d'occurrence se lit
-désormais sur les scores du modèle lui-même (Otsu), jamais en dessous du seuil
-de retour : 50–53 est écarté, et le pont 48–55 ressort entier comme « sans
-section » — exactement le pont de Louis.</li>
-<li><b>La boucle de Stand By Me rate d'un cheveu, et c'est la cadence.</b> Le
-mot de 8 boucle à 4 avec des ressemblances 0,72 · 0,79 · 0,86 · <b>0,55</b> —
-moyenne 0,732 contre un seuil de 0,732. C'est la 4<sup>e</sup> mesure, celle qui
-cadence, qui fait tout tomber. La tolérance « modulo les 2 dernières mesures »
-existe pour exactement ça, mais elle ne s'applique qu'au mot, pas à la boucle.
-Question ouverte : faut-il l'étendre ? (Elle a été mise à zéro pour les
-occurrences d'une boucle, pour une raison inverse — voir CHOIX 4.)</li>
-<li><b>Rien n'ancre la phase.</b> L'algo démarre mesure 0 ; Louis fait commencer
-Let It Be mesure 4 et Stand By Me mesure 6. Tout le découpage est décalé
-d'autant. La marque « mesure 1 » (<code>chart["bar1"]</code>) est faite pour ça
-et n'est pas encore lue ici.</li>
-<li><b>La boucle interne rend le A et le B séparables, mais elle ne dit pas
-où le A s'arrête.</b> Sur This Love elle fait tomber les cinq B exactement sur
-ceux de Louis (16–23, 36–43, 56–63, 64–71, 72–79). En échange, A ne fait plus
-que 4 mesures et avale l'intro, la queue et une moitié du pont : le modèle est
-juste, mais rien ne regroupe deux boucles voisines en une phrase de 8. Il
-manque une passe de recollement au-dessus.</li>
-<li><b>Le recousu déplace la découverte du B là où il commence vraiment.</b>
-Sur This Love, le B se trouve maintenant à l'étape 2 depuis la mesure 16 : une
-fois les A retirés, la mesure 23 est directement suivie de la 36, le mot 16–23
-et sa répétition 36–43 sont voisins, ressemblance 0,997. Sans le recousu,
-l'étape butait sur « pas la place pour la répétition qui suit » et ne
-retrouvait le B que bien plus loin, mesure 58, par raccroc. Le résultat final
-est le même ici — mais il n'était plus trouvé pour la bonne raison, et sur un
-morceau où la deuxième section ne revient pas trois fois de plus, il ne serait
-pas trouvé du tout.</li>
-<li><b>Une occurrence ne peut pas enjamber une couture</b> — sinon on écrirait
-une section qui saute un trou et n'existe pas en musique. C'est le seul
-garde-fou du recousu, et il se lit dans les verdicts « le mot enjamberait une
-section déjà retirée ».</li>
-<li><b>Une ressemblance purement harmonique ne sépare pas couplet et refrain</b>
-quand ils partagent la grille : sur Let It Be un seul mot de 8 mesures pave tout
-le morceau, sur Stand By Me un seul aussi. Il faudra un second signal (le chant,
-l'énergie) ou une règle de longueur pour couper.</li>
-<li><b>Les occurrences dérivent encore d'une mesure.</b> Elles sont posées de
-gauche à droite sans contrainte de phase : sur Let It Be, une occurrence tombe
-maintenant en 33–36 (0,87) alors que 32–35 est juste en dessous du seuil (0,76).
-Le seuil plus sévère n'a pas causé ce décalage, il l'a révélé — c'est le
-problème de phase du point ci-dessus. Une occurrence devrait préférer la phase
-du modèle plutôt que la position la plus à gauche.</li>
-<li><b>Vérifié sur les 15 morceaux que Louis a annotés</b> (règle #5 : un
-résultat sur un morceau est une hypothèse) : rien ne plante, et le nombre de
-morceaux qui ne rendent qu'UNE section est tombé de <b>11 à 8</b>. Ce qui
-reste bloqué là-dessus, ce n'est plus un seuil : c'est que l'harmonie seule ne
-sépare pas deux sections qui partagent la grille.</li>
+<li><b>Rien n'ancre la phase.</b> L'algo démarre à la première mesure libre ;
+Louis fait commencer Let It Be mesure 4 et Stand By Me mesure 6. Sa marque
+« mesure 1 » (<code>chart["bar1"]</code>) est faite pour ça et n'est toujours
+pas lue.</li>
+<li><b>Deux sections qui partagent la grille ne se séparent pas.</b> Let It Be
+sort en une seule section sous les deux substrats : couplet et refrain y ont les
+mêmes accords, et la basse n'y suffit pas non plus. Il faudra un autre signal —
+le chant, l'énergie.</li>
+<li><b>Le produit accords × basse coûte deux morceaux.</b> Goodbye Yellow Brick
+Road ne rend plus aucune section, et Sunny une seule (56 mesures sur 88 sans
+étiquette). Les deux marchaient mieux sur les accords seuls ; c'est visible en
+dépliant le témoin sous chaque morceau.</li>
+<li><b>Le seuil de retour est plus lâche que le seuil d'occurrence, et ça se
+voit.</b> Un mot peut être validé par une répétition que le seuil d'occurrence
+refuse ensuite. On force désormais le mot dans sa propre section, mais la
+tension entre les deux seuils reste — c'est elle qui décide où une section
+s'arrête.</li>
 </ul>
 <script>{JS}</script>
 </html>"""

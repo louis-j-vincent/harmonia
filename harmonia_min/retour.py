@@ -159,6 +159,29 @@ def basse_par_mesure(bass: np.ndarray, grid) -> np.ndarray:
 SUBSTRAT = "accords*basse"
 
 
+def nc_par_mesure(triad: np.ndarray, grid) -> np.ndarray:
+    """Les mesures où musx n'entend AUCUN accord (colonne N de son plan triade).
+
+    Règle de Louis, 2026-08-16 : « un No Chord ne compte pas dans le produit
+    scalaire, on ne le prend pas en compte, car on ne peut ni dire si c'est un
+    accord différent, ni dire si c'est le même accord. »
+
+    C'est la bonne façon de traiter une absence : ni ressemblance (qui ferait
+    passer pour identiques deux silences sans rapport), ni différence (qui
+    ferait échouer une reprise juste parce que le chanteur laisse un blanc). La
+    case est mise à NaN dans la matrice et EXCLUE des moyennes — elle ne vote
+    ni pour ni contre.
+    """
+    from harmonia_min import musx as _musx
+    out = []
+    for b in range(len(grid) - 1):
+        a = int(grid[b] / _musx.FRAME_DT)
+        z = max(a + 1, int(grid[b + 1] / _musx.FRAME_DT))
+        seg = triad[a:min(z, len(triad))]
+        out.append(bool(len(seg)) and int(seg.mean(0).argmax()) == 0)
+    return np.asarray(out, dtype=bool)
+
+
 def ssm_mesures(chart: dict, audio_dir=None, substrat: str = SUBSTRAT
                 ) -> np.ndarray | None:
     """S[i,j] — à quel point la mesure i ressemble à la mesure j.
@@ -204,14 +227,21 @@ def ssm_mesures(chart: dict, audio_dir=None, substrat: str = SUBSTRAT
     probs = _musx.frame_posteriors(audio)
     if substrat == "basse":
         V = basse_par_mesure(probs[1], grid)
-        return V @ V.T
-    S = np.asarray(HS.ssm(probs[0], grid), dtype=float)
-    if substrat == "accords":
-        return S
-    if substrat != "accords*basse":
-        raise ValueError(f"retour: substrat inconnu {substrat!r}")
-    V = basse_par_mesure(probs[1], grid)
-    return S * (V @ V.T)
+        S = V @ V.T
+    else:
+        S = np.asarray(HS.ssm(probs[0], grid), dtype=float)
+        if substrat == "accords*basse":
+            V = basse_par_mesure(probs[1], grid)
+            S = S * (V @ V.T)
+        elif substrat != "accords":
+            raise ValueError(f"retour: substrat inconnu {substrat!r}")
+    # Les mesures sans accord ne votent ni pour ni contre : NaN, exclu partout.
+    nc = nc_par_mesure(probs[0], grid)
+    if nc.any():
+        S = S.copy()
+        S[nc, :] = np.nan
+        S[:, nc] = np.nan
+    return S
 
 
 def hors_diagonale(S: np.ndarray) -> np.ndarray:
@@ -220,7 +250,8 @@ def hors_diagonale(S: np.ndarray) -> np.ndarray:
     tireraient n'importe quel seuil vers le haut (même raisonnement que
     `harmonic_sections.off_diagonal`)."""
     i = np.arange(len(S))
-    return S[np.abs(i[:, None] - i[None, :]) >= ECART_MIN]
+    v = S[np.abs(i[:, None] - i[None, :]) >= ECART_MIN]
+    return v[np.isfinite(v)]
 
 
 def seuil_fort(S: np.ndarray) -> float:
@@ -273,8 +304,10 @@ def _compare(S, a: int, b: int, L: int, queue: int | None = None) -> dict:
     queue = exemption(L) if queue is None else queue
     k = max(1, L - queue)
     tous = [float(S[a + t, b + t]) for t in range(L)]
-    return {"sims": tous[:k], "queue_sims": tous[k:],
-            "moyenne": float(np.mean(tous[:k])), "n_compare": k}
+    notes = [x for x in tous[:k] if np.isfinite(x)]     # les N.C. ne votent pas
+    return {"sims": tous[:k], "queue_sims": tous[k:], "n_compare": k,
+            "n_notes": len(notes),
+            "moyenne": float(np.mean(notes)) if notes else 0.0}
 
 
 def periode_interne(S, depart: int, L: int, seuil: float) -> dict:
@@ -310,9 +343,11 @@ def periode_interne(S, depart: int, L: int, seuil: float) -> dict:
         detail = [{"t": t, "sim": float(S[depart + t, depart + t + p]),
                    "cadence": (t % p) == p - 1}
                   for t in range(L - p)]
-        notes = [d["sim"] for d in detail if not d["cadence"]] or \
-                [d["sim"] for d in detail]
-        moy = float(np.mean(notes))
+        notes = [d["sim"] for d in detail
+                 if not d["cadence"] and np.isfinite(d["sim"])]
+        if not notes:
+            notes = [d["sim"] for d in detail if np.isfinite(d["sim"])]
+        moy = float(np.mean(notes)) if notes else 0.0
         out.append({"p": p, "detail": detail,
                     "sims": [d["sim"] for d in detail],
                     "moyenne": moy, "passe": moy >= seuil})
@@ -351,7 +386,8 @@ def _contigu(restants: list[int], i: int, L: int) -> bool:
 
 
 def _occurrences(P, restants: list[int], modele: int, L: int, seuil: float,
-                 queue: int | None = None, modele_b0: int = 0) -> dict:
+                 queue: int | None = None, modele_b0: int = 0,
+                 mot: int = 0) -> dict:
     """Toutes les répétitions du mot `modele` dans la chanson recousue.
 
     `P` est la SSM restreinte aux mesures encore libres, `restants` la table qui
@@ -394,6 +430,28 @@ def _occurrences(P, restants: list[int], modele: int, L: int, seuil: float,
     # tôt pour tout le reste du morceau (31, 35, 39…) ; la 30 était déjà mangée.
     # Par score décroissant, la 30 sert la première et la 27 tombe.
     retenu, pris = [], set()
+    par_j = {c["j"]: c for c in cand}
+
+    # LE MODÈLE FAIT PARTIE DE SA PROPRE SECTION (Louis, 2026-08-16 : « on
+    # définit une section comme une succession de boucles internes répétées n
+    # fois »). Le mot a DÉJÀ été validé — il fait plus de 6 mesures et le mot
+    # suivant est le même — donc les tours de boucle qui le composent sont
+    # acquis, sans repasser par le seuil d'occurrence.
+    #
+    # Sans ce préalable, le départ de l'étape pouvait disparaître de sa propre
+    # section : sur She Will Be Loved, le modèle est pris mesures 0–7, mais le
+    # bloc 4–7 échouait au seuil d'occurrence (plus sévère que celui qui avait
+    # validé le mot), la suite en 0 tombait à un seul tour, et les 4 mesures
+    # restantes étaient jetées comme trop courtes. L'étape annonçait « départ
+    # mesure 0 » et la section commençait mesure 12.
+    for t in range(max(1, mot // L)):
+        o = par_j.get(modele + t * L)
+        if o is None or any(x in pris for x in range(o["j"], o["j"] + L)):
+            continue
+        pris.update(range(o["j"], o["j"] + L))
+        o["exemptees"], o["variante"], o["modele"] = [], [], True
+        retenu.append(o)
+
     for o in sorted(cand, key=lambda c: -c["moyenne"]):
         if o["moyenne"] < seuil_occ:
             break
@@ -475,7 +533,8 @@ def _occurrences(P, restants: list[int], modele: int, L: int, seuil: float,
         # celle du premier bloc. Exempter bloc par bloc pardonnait deux mesures
         # sur huit au lieu d'une, et le A mordait sur le pont.
         bars = [{"mesure": o["b0"] + t, "mesure_modele": modele_b0 + t, "sim": v}
-                for o in g for t, v in enumerate(o["sims"] + o["queue_sims"])]
+                for o in g for t, v in enumerate(o["sims"] + o["queue_sims"])
+                if np.isfinite(v)]
         ex = bars[-1] if exemption(long) else None
         notes = bars[:-1] if ex else bars
         suites.append({
@@ -550,7 +609,7 @@ def sections(S: np.ndarray, seuil: float | None = None,
         # ce que chaque candidat écarté aurait donné.
         for k in range(dep + ECART_MIN, len(restants)):
             sim = float(P[dep, k])
-            fort = sim >= seuil
+            fort = np.isfinite(sim) and sim >= seuil
             L = k - dep
             cand = {"barre": restants[k], "j": k, "sim": sim, "fort": fort,
                     "litteral": fort and not premier_fort_vu,
@@ -616,7 +675,7 @@ def sections(S: np.ndarray, seuil: float | None = None,
         queue = exemption(modele_L)                       # la règle unique
 
         rec = _occurrences(P, restants, dep, modele_L, seuil, queue,
-                           modele_b0=depart)
+                           modele_b0=depart, mot=L)
         occ = rec["occurrences"]
         if not occ:
             # CHOIX 8 a tout jeté : le « retour » n'était qu'une boucle de
