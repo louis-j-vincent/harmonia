@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """scripts/demo_retour.py — la démo pas-à-pas de `harmonia_min.retour`.
 
-Écrit `docs/plots/retour_3morceaux.html` : pour chacun des trois morceaux, la
+Écrit `docs/plots/retour_10morceaux.html` : pour chacun des dix morceaux, la
 grille de mesures avec les accords, l'annotation à la main de Louis en regard,
 puis CHAQUE étape de l'algorithme — les retours testés, ceux qui ont été jugés
 forts, le mot proposé, le contrôle de répétition mesure par mesure, et les
 occurrences retenues. Tout est cliquable : un clic sur une mesure place la tête
 de lecture du disque.
 
-Les trois morceaux sont pris dans `state/sections/`, donc parmi ceux dont Louis
+Les dix morceaux sont pris dans `state/sections/`, donc parmi ceux dont Louis
 a lui-même posé les frontières — l'algo se lit contre son oreille, pas contre
 une vérité de corpus (mémoire : les GT brick0 sont condamnées).
 
@@ -30,12 +30,21 @@ from harmonia_min import retour as R          # noqa: E402
 
 CHARTS = REPO / "harmonia_min" / "state" / "charts"
 ANNOT = REPO / "harmonia_min" / "state" / "sections"
-SORTIE = REPO / "docs" / "plots" / "retour_3morceaux.html"
+SORTIE = REPO / "docs" / "plots" / "retour_10morceaux.html"
 
 MORCEAUX = [
     ("min_maroon_5_this_love", "Maroon 5 — This Love"),
     ("min_let_it_be_remastered_2009", "The Beatles — Let It Be"),
     ("min_ben_e_king_stand_by_me_audio", "Ben E. King — Stand By Me"),
+    ("min_bobby_hebb_sunny_official_audio", "Bobby Hebb — Sunny"),
+    ("min_bruno_mars_grenade_official_music_video", "Bruno Mars — Grenade"),
+    ("min_maroon_5_she_will_be_loved_official_music_video",
+     "Maroon 5 — She Will Be Loved"),
+    ("min_norah_jones_don_t_know_why", "Norah Jones — Don't Know Why"),
+    ("min_the_police_every_breath_you_take_official_music_video",
+     "The Police — Every Breath You Take"),
+    ("min_yesterday_remastered_2009", "The Beatles — Yesterday"),
+    ("min_the_ronettes_be_my_baby_music_video", "The Ronettes — Be My Baby"),
 ]
 
 #: Une teinte par lettre de section. Reprises du bleu de `ssm_page.CMAP` pour

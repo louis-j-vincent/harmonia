@@ -99,12 +99,43 @@ LETTRES = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 # ── le substrat ─────────────────────────────────────────────────────────────
 
-def ssm_mesures(chart: dict, audio_dir=None) -> np.ndarray | None:
-    """S[i,j] — la ressemblance harmonique entre la mesure i et la mesure j.
+def basse_par_mesure(bass: np.ndarray, grid) -> np.ndarray:
+    """(n_mesures, 12) — la basse que musx entend dans chaque mesure, normée.
 
-    C'est LA matrice de la prod (`harmonic_sections.ssm`, vecteurs de notes
-    d'accord), au grain de la mesure. Louis, 2026-07-30, catégorique : jamais
-    de SSM fondamentale-seule, un Bb doit être plus proche d'un Gm que d'un F.
+    `bass` est le plan de basse de musx (13 colonnes : N puis les 12 classes de
+    hauteur). La colonne N est jetée : « pas de basse » n'est pas une hauteur, et
+    la garder ferait ressembler entre elles toutes les mesures silencieuses.
+    """
+    from harmonia_min import musx as _musx
+    out = []
+    for b in range(len(grid) - 1):
+        a = int(grid[b] / _musx.FRAME_DT)
+        z = max(a + 1, int(grid[b + 1] / _musx.FRAME_DT))
+        seg = bass[a:min(z, len(bass))]
+        out.append(seg.mean(0) if len(seg) else np.zeros(bass.shape[1]))
+    V = np.asarray(out, dtype=float)[:, 1:]
+    return V / np.maximum(np.linalg.norm(V, axis=1, keepdims=True), 1e-9)
+
+
+def ssm_mesures(chart: dict, audio_dir=None, substrat: str = "accords"
+                ) -> np.ndarray | None:
+    """S[i,j] — à quel point la mesure i ressemble à la mesure j.
+
+    `substrat` :
+      "accords"        — LE DÉFAUT, la matrice de la prod
+                         (`harmonic_sections.ssm`, vecteurs de notes d'accord).
+                         Louis, 2026-07-30, catégorique : jamais de SSM
+                         fondamentale-seule, un Bb doit être plus proche d'un Gm
+                         que d'un F.
+      "basse"          — la basse que musx entend, et rien d'autre.
+      "accords*basse"  — le produit : deux mesures se ressemblent si elles ont
+                         les mêmes notes d'accord ET la même basse.
+
+    Les deux derniers sont là POUR REGARDER (Louis, 2026-08-16 : « sur Let It Be
+    on chope mal les différences harmoniques […] je me demande si utiliser la
+    matrice SSM de la basse ne pourrait pas aider »), pas pour décider : le
+    défaut ne change pas tant que Louis n'a pas tranché sur les distances que
+    `docs/plots/retour_basse_vs_accords.html` lui met sous les yeux.
     """
     from harmonia_min import harmonic_sections as HS
     from harmonia_min import musx as _musx
@@ -117,8 +148,17 @@ def ssm_mesures(chart: dict, audio_dir=None) -> np.ndarray | None:
     if not stem or not audio.exists():
         log.warning("retour: pas d'audio pour %s", stem)
         return None
-    triad = _musx.frame_posteriors(audio)[0]
-    return np.asarray(HS.ssm(triad, grid), dtype=float)
+    probs = _musx.frame_posteriors(audio)
+    if substrat == "basse":
+        V = basse_par_mesure(probs[1], grid)
+        return V @ V.T
+    S = np.asarray(HS.ssm(probs[0], grid), dtype=float)
+    if substrat == "accords":
+        return S
+    if substrat != "accords*basse":
+        raise ValueError(f"retour: substrat inconnu {substrat!r}")
+    V = basse_par_mesure(probs[1], grid)
+    return S * (V @ V.T)
 
 
 def hors_diagonale(S: np.ndarray) -> np.ndarray:
