@@ -141,25 +141,45 @@ def basse_par_mesure(bass: np.ndarray, grid) -> np.ndarray:
     return V / np.maximum(np.linalg.norm(V, axis=1, keepdims=True), 1e-9)
 
 
-def ssm_mesures(chart: dict, audio_dir=None, substrat: str = "accords"
+#: CHOIX 9 — le substrat de ressemblance. Louis, 2026-08-16, sans ambiguïté :
+#: « qu'on soit clairs, je veux l'algo sur accords*basse ». C'est le défaut du
+#: module, pas seulement celui de la page de démo : `ssm_mesures()` appelé sans
+#: argument rend maintenant le produit. Le laisser sur "accords" ici pendant que
+#: la démo tournait sur le produit donnait deux algorithmes pour une seule
+#: question, celui qu'il regardait et celui que le code exécuterait ailleurs.
+SUBSTRAT = "accords*basse"
+
+
+def ssm_mesures(chart: dict, audio_dir=None, substrat: str = SUBSTRAT
                 ) -> np.ndarray | None:
     """S[i,j] — à quel point la mesure i ressemble à la mesure j.
 
     `substrat` :
-      "accords"        — LE DÉFAUT, la matrice de la prod
-                         (`harmonic_sections.ssm`, vecteurs de notes d'accord).
-                         Louis, 2026-07-30, catégorique : jamais de SSM
-                         fondamentale-seule, un Bb doit être plus proche d'un Gm
-                         que d'un F.
+      "accords*basse"  — LE DÉFAUT depuis le 2026-08-16. Le produit : deux
+                         mesures se ressemblent si elles ont les mêmes notes
+                         d'accord ET la même basse.
+      "accords"        — la matrice de la prod seule (`harmonic_sections.ssm`,
+                         vecteurs de notes d'accord). Reste le témoin affiché
+                         en second bandeau sur la page de démo.
       "basse"          — la basse que musx entend, et rien d'autre.
-      "accords*basse"  — le produit : deux mesures se ressemblent si elles ont
-                         les mêmes notes d'accord ET la même basse.
 
-    Les deux derniers sont là POUR REGARDER (Louis, 2026-08-16 : « sur Let It Be
-    on chope mal les différences harmoniques […] je me demande si utiliser la
-    matrice SSM de la basse ne pourrait pas aider »), pas pour décider : le
-    défaut ne change pas tant que Louis n'a pas tranché sur les distances que
-    `docs/plots/retour_basse_vs_accords.html` lui met sous les yeux.
+    POURQUOI LE PRODUIT. Louis, 2026-08-16 : « sur Let It Be on chope mal les
+    différences harmoniques », puis, après avoir lu les distances lui-même,
+    « qu'on soit clairs, je veux l'algo sur accords*basse ». Ce qu'il a arbitré
+    sur `docs/plots/retour_basse_vs_accords.html` : les accords seuls écrivent
+    C au départ du couplet ET du refrain de Let It Be, alors que les basses
+    partent l'une sur G et l'autre sur A.
+
+    CE QUE ÇA NE CONTREDIT PAS : sa règle du 2026-07-30 (« jamais de SSM
+    fondamentale-seule, un Bb doit être plus proche d'un Gm que d'un F »). Le
+    terme notes-d'accord est TOUJOURS là — c'est un produit, pas un
+    remplacement. Le substrat "basse" seul serait exactement ce qu'il a
+    interdit ; il n'est ouvert que pour la page de comparaison.
+
+    CE QUE ÇA NE RÉSOUT PAS : Let It Be, justement, sort toujours en une seule
+    section — les deux substrats y échouent pareil. Et le produit dégrade
+    nettement Sunny, Don't Know Why et Goodbye Yellow Brick Road, ce qui est
+    visible bandeau contre bandeau sur `docs/plots/retour_10morceaux.html`.
     """
     from harmonia_min import harmonic_sections as HS
     from harmonia_min import musx as _musx
