@@ -356,20 +356,70 @@ def _occurrences(P, restants: list[int], modele: int, L: int, seuil: float,
     v = np.array([c["moyenne"] for c in cand])
     seuil_occ = max(seuil, _otsu(v, defaut=seuil)) if v.size else seuil
 
-    retenu, fin = [], -1
-    for o in cand:
-        if o["moyenne"] >= seuil_occ and o["j"] > fin:
-            # CE QUI DEVRA ÊTRE ÉCRIT SUR LE CHART (Louis, 2026-08-16 :
-            # « attention à noter quelque part ces exemptions, car lors du
-            # repliement du chart il faudra les noter sur le chart »).
-            # Une mesure exemptée n'a pas été comparée ; si en plus elle ne
-            # ressemble PAS au modèle, alors cette occurrence-là joue autre
-            # chose à cet endroit, et le repliement doit l'écrire au lieu de
-            # recopier le modèle. `exemptees` porte les deux cas, `variante`
-            # ne garde que les mesures qui divergent vraiment.
-            o["exemptees"], o["variante"] = [], []   # posés par suite, plus bas
-            retenu.append(o)
-            fin = o["j"] + L - 1
+    # CHOIX 10 — LE MEILLEUR D'ABORD, PAS LE PLUS À GAUCHE (Louis, 2026-08-16 :
+    # « bon correctif, mets en place »). On pose les occurrences par score
+    # décroissant, chacune interdisant ses mesures aux suivantes.
+    #
+    # Le balayage gauche→droite laissait une fenêtre médiocre voler sa phase à
+    # la bonne. Grenade, section A, modèle « D- D- A- A- » :
+    #     mesure 27  « D- Bb N.C. D- »  0,678  <- passait de justesse (seuil 0,657)
+    #     mesure 30  « D- D- A- A- »    0,995  <- la vraie reprise
+    # La 27 prenait les mesures 27–30 et verrouillait la phase trois mesures trop
+    # tôt pour tout le reste du morceau (31, 35, 39…) ; la 30 était déjà mangée.
+    # Par score décroissant, la 30 sert la première et la 27 tombe.
+    retenu, pris = [], set()
+    for o in sorted(cand, key=lambda c: -c["moyenne"]):
+        if o["moyenne"] < seuil_occ:
+            break
+        if any(t in pris for t in range(o["j"], o["j"] + L)):
+            continue
+        pris.update(range(o["j"], o["j"] + L))
+        o["exemptees"], o["variante"] = [], []       # posés par suite, plus bas
+        retenu.append(o)
+    retenu.sort(key=lambda o: o["j"])
+
+    # ON PROLONGE LA BOUCLE JUSQU'À CE QU'ELLE CHANGE (Louis, 2026-08-16 :
+    # « s'il y a une sous-boucle qui la compose, on prolonge cette boucle
+    # jusqu'à ce qu'elle change »).
+    #
+    # POURQUOI IL FAUT UNE PASSE SÉPARÉE. L'exemption de cadence porte sur une
+    # SUITE d'au moins `TOURS_MIN` tours ; un bloc isolé de 4 mesures est donc
+    # jugé sans exemption, sa mesure de cadence comptant plein tarif. Mais un
+    # bloc qui PROLONGE un tour déjà accepté forme précisément une suite de
+    # deux tours : il a droit à l'exemption, et il faut la lui donner avant de
+    # compter les tours, pas après.
+    #
+    # Sans cette passe, sur This Love en accords*basse, seules les premières
+    # moitiés du B matchaient (16–19, 36–39, 56–59… à 1,00) ; les secondes
+    # tombaient parce que leur cadence vaut 0,012 sur ce substrat (0,506 en
+    # accords seuls). Chaque B restait à un tour, la règle des deux tours les
+    # jetait tous, et le B disparaissait entièrement du morceau.
+    def _voisin(j, k):
+        """`k` colle-t-il à `j` dans la VRAIE chanson ?"""
+        return (restants[j + L - 1] + 1 == restants[k]
+                or restants[k + L - 1] + 1 == restants[j])
+
+    croissance = True
+    while croissance:
+        croissance = False
+        for o in sorted(retenu, key=lambda c: c["j"]):
+            for k in (o["j"] - L, o["j"] + L):
+                if k < 0 or k + L > len(restants):
+                    continue
+                if any(t in pris for t in range(k, k + L)):
+                    continue
+                if not _contigu(restants, k, L) or not _voisin(o["j"], k):
+                    continue
+                c = _compare(P, modele, k, L, 1)    # sa cadence est exemptée
+                if c["moyenne"] < seuil_occ:
+                    continue
+                pris.update(range(k, k + L))
+                n = {"b0": restants[k], "b1": restants[k + L - 1], "j": k,
+                     "prolongation": True, "exemptees": [], "variante": [], **c}
+                retenu.append(n)
+                croissance = True
+        retenu.sort(key=lambda c: c["j"])
+
     # CHOIX 8 : on regroupe les blocs COLLÉS — chaque groupe est donc « la
     # boucle rejouée n fois de suite ». Un groupe qui ne fait pas au moins
     # `TOURS_MIN` tours n'est pas un retour de la section.
