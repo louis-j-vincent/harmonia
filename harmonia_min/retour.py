@@ -78,6 +78,12 @@ QUEUE_LIBRE = 2
 #: garde-fou que `harmonic_sections.LAG_MIN`.
 ECART_MIN = 2
 
+#: « un pattern de répétition interne d'au moins 4 barres » — en dessous, une
+#: boucle de deux mesures n'est plus un motif de section, c'est un balancement
+#: d'accords (I-V I-V), et le prendre pour modèle ferait de tout le morceau une
+#: seule section.
+PERIODE_MIN = 4
+
 LETTRES = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
@@ -123,18 +129,56 @@ def seuil_fort(S: np.ndarray) -> float:
 
 # ── la comparaison de deux mots ─────────────────────────────────────────────
 
-def _compare(S, a: int, b: int, L: int) -> dict:
-    """Les L−2 premières mesures du mot en `a` contre celles du mot en `b`.
+def _compare(S, a: int, b: int, L: int, queue: int = QUEUE_LIBRE) -> dict:
+    """Le mot en `a` contre le mot en `b`, ses `queue` dernières mesures exemptées.
 
-    Rend {sims, moyenne, n_forts, n_compare}. La queue (`QUEUE_LIBRE` mesures)
-    n'est pas comparée du tout : c'est ça, le « modulo les 2 dernières ».
+    Rend {sims, moyenne, n_compare}. La queue n'est pas comparée du tout :
+    c'est ça, le « modulo les 2 dernières ».
+
+    CHOIX 4 — `queue` tombe à 0 quand le modèle est une BOUCLE interne. La
+    tolérance de Louis parle de la cadence d'une phrase de huit mesures ; sur
+    une boucle de quatre, exempter deux mesures reviendrait à ne comparer que
+    la moitié du motif, et n'importe quoi passerait.
     """
-    k = max(1, L - QUEUE_LIBRE)
+    k = max(1, L - queue)
     sims = [float(S[a + t, b + t]) for t in range(k)]
     return {"sims": sims, "moyenne": float(np.mean(sims)), "n_compare": k}
 
 
-def _occurrences(S, modele: int, L: int, libre: list[bool], seuil: float) -> list[dict]:
+def periode_interne(S, depart: int, L: int, seuil: float) -> dict:
+    """Le mot boucle-t-il sur lui-même ? — la règle de Louis du 2026-08-16 :
+
+      « lorsqu'on a identifié la 1ère section, il faut regarder si elle a
+        elle-même un pattern de répétition interne d'au moins 4 barres. Si
+        c'est le cas, c'est lui qu'on prend comme template pour détecter les
+        similarités avec les barres suivantes (ça permet de prendre en compte
+        le cas des chansons qui ont une partie du A qui boucle en intro avant
+        que la chanson commence). »
+
+    Ce que ça corrige : une intro qui répète en boucle quatre mesures du A fait
+    un mot de huit mesures qui n'est PAS le A — c'est le A vu deux fois. Prendre
+    la boucle comme modèle, et non le mot entier, rend le motif reconnaissable
+    partout où il joue, intro comprise.
+
+    Rend {periodes, retenue} : `periodes` liste chaque période testée avec son
+    détail (c'est ce que la page affiche), `retenue` est la plus courte qui
+    passe, ou None. La plus COURTE : si un mot de 16 boucle à 4, il boucle
+    aussi à 8, et c'est 4 le motif.
+    """
+    out = []
+    for p in range(PERIODE_MIN, L // 2 + 1):
+        # Le mot contre lui-même décalé de p. On compare sur toute la longueur
+        # disponible, sans exempter de queue : ici on ne cherche pas une
+        # cadence, on cherche une boucle.
+        sims = [float(S[depart + t, depart + t + p]) for t in range(L - p)]
+        moy = float(np.mean(sims))
+        out.append({"p": p, "sims": sims, "moyenne": moy, "passe": moy >= seuil})
+    retenue = next((c for c in out if c["passe"]), None)
+    return {"periodes": out, "retenue": retenue}
+
+
+def _occurrences(S, modele: int, L: int, libre: list[bool], seuil: float,
+                 queue: int = QUEUE_LIBRE) -> list[dict]:
     """Toutes les répétitions du mot `modele` (L mesures) dans les mesures libres.
 
     Balayage de toutes les positions, puis choix glouton de gauche à droite —
@@ -145,7 +189,7 @@ def _occurrences(S, modele: int, L: int, libre: list[bool], seuil: float) -> lis
     for j in range(0, n - L + 1):
         if not all(libre[j:j + L]):
             continue
-        c = _compare(S, modele, j, L)
+        c = _compare(S, modele, j, L, queue)
         if c["moyenne"] >= seuil:
             trouve.append({"b0": j, "b1": j + L - 1, **c})
     retenu, fin = [], -1
@@ -231,12 +275,23 @@ def sections(S: np.ndarray, seuil: float | None = None,
             continue
 
         L = etape["retenu"]["L"]
-        occ = _occurrences(S, depart, L, libre, seuil)
+
+        # La règle de la boucle interne : si le mot se répète lui-même à une
+        # période d'au moins PERIODE_MIN mesures, c'est CETTE boucle le modèle,
+        # pas le mot entier.
+        boucle = periode_interne(S, depart, L, seuil)
+        etape["boucle"] = boucle
+        modele_L = boucle["retenue"]["p"] if boucle["retenue"] else L
+        queue = 0 if boucle["retenue"] else QUEUE_LIBRE   # CHOIX 4
+
+        occ = _occurrences(S, depart, modele_L, libre, seuil, queue)
         label = LETTRES[len(trouvees) % len(LETTRES)]
         for o in occ:
             for b in range(o["b0"], o["b1"] + 1):
                 libre[b] = False
-        sec = {"label": label, "L": L, "modele": depart, "occurrences": occ}
+        sec = {"label": label, "L": modele_L, "mot": L, "modele": depart,
+               "boucle": boucle["retenue"]["p"] if boucle["retenue"] else None,
+               "occurrences": occ}
         trouvees.append(sec)
         etape["action"] = "section"
         etape["section"] = sec

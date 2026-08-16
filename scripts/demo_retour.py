@@ -204,6 +204,47 @@ def detail_repet(cand, seuil, depart, grid) -> str:
             f'contre un seuil de {seuil:.3f}</p></div>')
 
 
+def bloc_boucle(et, seuil, grid) -> str:
+    """Le mot boucle-t-il sur lui-même ? — chaque période testée, et laquelle
+    devient le modèle."""
+    b = et.get("boucle")
+    d, L = et["depart"], et["retenu"]["L"]
+    if not b:
+        return ""
+    if not b["periodes"]:
+        return (f'<div class="boucle"><h5>Le mot boucle-t-il sur lui-même ?</h5>'
+                f'<p class="rien">un mot de {L} mesures ne peut pas boucler sur '
+                f'{R.PERIODE_MIN} : il faut au moins {2 * R.PERIODE_MIN} mesures '
+                f'pour qu\'une boucle de {R.PERIODE_MIN} se referme une fois. '
+                f'Le modèle reste le mot entier.</p></div>')
+    lignes = []
+    for c in b["periodes"]:
+        pris = c is b["retenue"]
+        cases = "".join(
+            f'<b class="{"oui" if v >= seuil else "non"}" '
+            f'data-t="{grid[d + t]:.3f}">'
+            f'<u>{d + t}↔{d + t + c["p"]}</u><s>{v:.2f}</s></b>'
+            for t, v in enumerate(c["sims"]))
+        lignes.append(
+            f'<div class="per {"pris" if pris else ""}">'
+            f'<span class="p">{c["p"]} mesures</span>'
+            f'<div class="paires">{cases}</div>'
+            f'<span class="m">{c["moyenne"]:.3f}'
+            f'{" → modèle" if pris else (" ✓" if c["passe"] else " ✗")}</span></div>')
+    if b["retenue"]:
+        mot = (f'<p>Le mot de {L} mesures est la boucle de '
+               f'<b>{b["retenue"]["p"]} mesures</b> jouée deux fois. C\'est la '
+               f'boucle qui devient le modèle — c\'est elle qu\'on cherchera '
+               f'dans la suite du morceau.</p>')
+    else:
+        mot = (f'<p>Aucune boucle interne d\'au moins {R.PERIODE_MIN} mesures. '
+               f'Le modèle reste le mot de {L} mesures.</p>')
+    return (f'<div class="boucle"><h5>Le mot boucle-t-il sur lui-même ? '
+            f'<span>une boucle d\'au moins {R.PERIODE_MIN} mesures devient le '
+            f'modèle à la place du mot</span></h5>'
+            f'{"".join(lignes)}{mot}</div>')
+
+
 def bloc_morceau(fichier: str, titre: str) -> str:
     chart = json.loads((CHARTS / f"{fichier}.json").read_text(encoding="utf-8"))
     stem = Path(chart.get("audio_url") or "").stem
@@ -240,12 +281,16 @@ def bloc_morceau(fichier: str, titre: str) -> str:
                 f'<b class="occ {"net" if o["moyenne"] >= NET else "flou"}">'
                 f'{o["b0"]}–{o["b1"]} <i>{o["moyenne"]:.2f}</i></b>'
                 for o in sec["occurrences"])
+            quoi = (f'la boucle de {sec["L"]} mesures trouvée dans le mot de '
+                    f'{sec["mot"]}' if sec["boucle"]
+                    else f'le mot de {sec["L"]} mesures')
             corps = (f'{strip_sims(et, seuil, n, grid)}'
                      f'{table_candidats(et, seuil)}'
                      f'{detail_repet(ret, seuil, d, grid)}'
+                     f'{bloc_boucle(et, seuil, grid)}'
                      f'<p class="issue ok">Section <b class="lettre" '
                      f'style="--c:{coul_algo[sec["label"]]}">{sec["label"]}</b> '
-                     f'= le mot de {sec["L"]} mesures qui commence mesure {d}. '
+                     f'= {quoi}, qui commence mesure {d}. '
                      f'Ses {len(sec["occurrences"])} occurrences dans le morceau : '
                      f'{occ}</p>')
         etapes.append(
@@ -255,8 +300,9 @@ def bloc_morceau(fichier: str, titre: str) -> str:
 
     resume = " · ".join(
         f'<b class="lettre" style="--c:{coul_algo[s["label"]]}">{s["label"]}</b> '
-        f'{s["L"]} mesures × {len(s["occurrences"])}' for s in res["sections"]) \
-        or "aucune section"
+        f'{s["L"]} mesures × {len(s["occurrences"])}'
+        f'{f" (boucle du mot de {s['mot']})" if s["boucle"] else ""}'
+        for s in res["sections"]) or "aucune section"
 
     return f"""<section data-audio="/audio/{e(stem)}.m4a">
 <h2>{e(titre)}</h2>
@@ -315,8 +361,8 @@ audio{width:100%;max-width:420px;height:32px;margin:0 0 14px;display:block}
  padding-bottom:2px}
 .barres{position:relative;display:flex;align-items:flex-end;gap:1px;
  height:40px;flex:1;border-bottom:1px solid var(--trait)}
-.barres b{flex:1 1 0;min-width:1px;background:#e3ddcf;cursor:pointer;
- border-radius:1px 1px 0 0}
+.barres b{flex:1 1 0;min-width:1px;max-width:9px;background:#e3ddcf;
+ cursor:pointer;border-radius:1px 1px 0 0}
 .barres b.fort{background:#84b3cf}
 .barres b.retenu{background:#b4472c}
 .barres b:hover{outline:1px solid var(--fg)}
@@ -342,6 +388,16 @@ table.cand em.cf{background:#d5e3ec;color:#1b4a6b}
 .paires b.non{background:#f6e0da;border:1px solid #d09b8a}
 .paires b.libre{background:#efeade;border:1px dashed #c8c0af}
 .repet p{font-size:12.5px;color:var(--doux);margin:6px 0 0}
+.boucle{margin:14px 0 4px;padding:10px 12px;background:#f7f4ea;
+ border-radius:6px;border:1px solid #e7e0cf}
+.boucle p{font-size:12.5px;color:var(--doux);margin:8px 0 0}
+.boucle p b{color:var(--fg)}
+.per{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 5px;
+ padding:4px 6px;border-radius:5px}
+.per.pris{background:#e6efd9;box-shadow:inset 0 0 0 1px #a8c188}
+.per .p{font-size:12px;font-weight:600;width:80px;flex:none}
+.per .m{font-size:12px;color:var(--doux);white-space:nowrap}
+.per.pris .m{color:#42631f;font-weight:600}
 .issue{margin:12px 0 0;padding:8px 10px;border-radius:6px;font-size:13.5px}
 .issue.ok{background:#eef3f6}
 .issue.avance{background:#f7f1e4;color:#6b5a3a}
@@ -386,7 +442,10 @@ def main() -> None:
 revient</b>. La première mesure qui lui ressemble fortement ferme un mot ; si ce
 mot fait plus de 6 mesures et que le mot d'après est le même (les
 {R.QUEUE_LIBRE} dernières mesures exemptées, c'est la cadence), c'est une
-section, et on va chercher toutes ses répétitions. Puis on recommence à la
+section. Avant d'aller chercher ses répétitions, on regarde si <b>le mot boucle
+sur lui-même</b> : s'il contient une boucle d'au moins {R.PERIODE_MIN} mesures,
+c'est la boucle qui devient le modèle, pas le mot — c'est ce qui rattrape les
+morceaux dont l'intro fait déjà tourner un bout du A. Puis on recommence à la
 première mesure encore libre. Chaque étape ci-dessous montre tous les retours
 testés, celui que la règle littérale prend (<em>1er</em>), et — en bleu — ceux
 qui <em>auraient marché aussi</em> mais que l'algo n'a jamais testés parce
@@ -395,15 +454,24 @@ Cliquez n'importe quelle mesure pour l'écouter.</p>
 {"".join(blocs)}
 <h2>Ce que la démo montre à régler</h2>
 <ul class="pied">
-<li><b>Le premier retour n'est pas le bon retour.</b> Sur Stand By Me l'algo
-s'arrête au retour de la mesure 7 (mot de 7 mesures, répétition 0,916) alors que
-le retour de la mesure 8 donne 0,946 et tombe sur les phrases de 8 mesures de
-Louis. Prendre le <i>meilleur</i> retour, ou le plus long parmi ceux qui
-passent, plutôt que le premier.</li>
+<li><b>Le premier retour n'est pas le bon retour — et maintenant ça coûte deux
+fois.</b> Sur Stand By Me l'algo s'arrête au retour de la mesure 7 (mot de 7
+mesures) alors que le retour de la mesure 8 donne une meilleure répétition et
+tombe sur les phrases de 8 mesures de Louis. Et comme un mot de 7 est trop court
+pour qu'une boucle de 4 s'y referme, la règle de la boucle interne ne s'y
+applique même pas : Stand By Me est le seul des trois à ne pas en profiter.
+Prendre le <i>meilleur</i> retour, ou le plus long parmi ceux qui passent,
+plutôt que le premier.</li>
 <li><b>Rien n'ancre la phase.</b> L'algo démarre mesure 0 ; Louis fait commencer
 Let It Be mesure 4 et Stand By Me mesure 6. Tout le découpage est décalé
 d'autant. La marque « mesure 1 » (<code>chart["bar1"]</code>) est faite pour ça
 et n'est pas encore lue ici.</li>
+<li><b>La boucle interne rend le A et le B séparables, mais elle ne dit pas
+où le A s'arrête.</b> Sur This Love elle fait tomber les cinq B exactement sur
+ceux de Louis (16–23, 36–43, 56–63, 64–71, 72–79). En échange, A ne fait plus
+que 4 mesures et avale l'intro, la queue et une moitié du pont : le modèle est
+juste, mais rien ne regroupe deux boucles voisines en une phrase de 8. Il
+manque une passe de recollement au-dessus.</li>
 <li><b>Une ressemblance purement harmonique ne sépare pas couplet et refrain</b>
 quand ils partagent la grille : sur Let It Be un seul mot de 8 mesures pave tout
 le morceau, sur Stand By Me un seul aussi. Il faudra un second signal (le chant,
