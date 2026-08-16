@@ -291,8 +291,8 @@ def bloc_boucle(et, seuil, grid) -> str:
 #: d'utiliser la matrice accords*basse pour voir ». La page montre en regard ce
 #: que l'ancien substrat (accords seuls) donnait, pour que la comparaison soit
 #: sous les yeux et pas dans un tableau de moyennes.
-SUBSTRAT = "accords*basse"
-SUBSTRAT_REF = "accords"
+SUBSTRAT = "accords"
+SUBSTRAT_REF = "accords*basse"
 
 
 def bloc_morceau(fichier: str, titre: str) -> str:
@@ -341,6 +341,10 @@ def bloc_morceau(fichier: str, titre: str) -> str:
             quoi = (f'la boucle de {sec["L"]} mesures trouvée dans le mot de '
                     f'{sec["mot"]}' if sec["boucle"]
                     else f'le mot de {sec["L"]} mesures')
+            tours = " ".join(
+                f'<b class="occ {"net" if su["score"] >= NET else "flou"}">'
+                f'{su["b0"]}–{su["b1"]} <i>{su["tours"]} tours · '
+                f'{su["score"]:.2f}</i></b>' for su in sec["suites"])
             # LE MÉMO DU REPLIEMENT (Louis, 2026-08-16 : « attention à noter
             # quelque part ces exemptions, car lors du repliement du chart il
             # faudra les noter sur le chart »). Une mesure exemptée qui ne
@@ -365,11 +369,10 @@ def bloc_morceau(fichier: str, titre: str) -> str:
                 liste_s = " ".join(f'<b class="occ flou">{o["b0"]}–{o["b1"]} '
                                    f'<i>{o["moyenne"]:.2f}</i></b>'
                                    for o in sec["solos"])
-                solo = (f'<p class="issue solo">Jeté — boucle de {sec["L"]} '
-                        f'mesures toute seule : {liste_s}. Une répétition de '
-                        f'section doit faire au moins {R.REPETITION_MIN} mesures ; '
-                        f'des occurrences collées s\'additionnent, un bloc isolé '
-                        f'non.</p>')
+                solo = (f'<p class="issue solo">Jeté — la boucle n\'y fait '
+                        f'qu\'UN tour : {liste_s}. Une section est une boucle '
+                        f'jouée au moins {R.TOURS_MIN} fois de suite ; un tour '
+                        f'isolé est une coïncidence, pas un retour.</p>')
             ecart = ""
             if sec["ecartees"]:
                 liste = " ".join(f'<b class="occ flou">{o["b0"]}–{o["b1"]} '
@@ -387,8 +390,8 @@ def bloc_morceau(fichier: str, titre: str) -> str:
                      f'<p class="issue ok">Section <b class="lettre" '
                      f'style="--c:{coul_algo[sec["label"]]}">{sec["label"]}</b> '
                      f'= {quoi}, qui commence mesure {d}. '
-                     f'Ses {len(sec["occurrences"])} occurrences dans le morceau : '
-                     f'{occ}</p>{memo}{solo}{ecart}')
+                     f'Elle joue {len(sec["suites"])} fois dans le morceau : '
+                     f'{tours}</p>{memo}{solo}{ecart}')
         etapes.append(
             f'<div class="etape"><h3>Étape {i} — on repart de la mesure {d}'
             f'<span>{"section trouvée" if et["action"] == "section" else "rien ici"}'
@@ -396,8 +399,8 @@ def bloc_morceau(fichier: str, titre: str) -> str:
 
     resume = " · ".join(
         f'<b class="lettre" style="--c:{coul_algo[s["label"]]}">{s["label"]}</b> '
-        f'{s["L"]} mesures × {len(s["occurrences"])}'
-        f'{f" (boucle du mot de {s['mot']})" if s["boucle"] else ""}'
+        f'boucle de {s["L"]} mesures, jouée '
+        f'{"+".join(str(x["tours"]) for x in s["suites"])} fois'
         for s in res["sections"]) or "aucune section"
 
     return f"""<section data-audio="/audio/{e(stem)}.m4a">
@@ -408,7 +411,7 @@ def bloc_morceau(fichier: str, titre: str) -> str:
 <audio controls preload="none"></audio>
 {bandeau(algo, coul_algo, grid, f"L'algo sur {SUBSTRAT}", chords, faibles)}
 {bandeau(R.par_mesure(res_ref), coul_ref, grid,
-         f"L'algo sur {SUBSTRAT_REF} (l'ancien substrat, pour comparer)")}
+         f"L'algo sur {SUBSTRAT_REF} (l'autre substrat, pour comparer)")}
 {bandeau(louis, coul_louis, grid, "Ce que Louis a annoté à la main")}
 <div class="etapes">{"".join(etapes)}</div>
 </section>"""
@@ -568,7 +571,15 @@ testés, et lequel a été choisi : parmi ceux qui passent, on prend le plus cou
 dont la longueur est un <b>multiple de {R.CARRURE} mesures</b> — la carrure.
 Enfin, reconnaître une occurrence est plus sévère que repérer un retour : le
 seuil d'occurrence se lit sur les scores du modèle lui-même, et ce qui tombe
-entre les deux est <em>écarté</em> et reste sans section.
+entre les deux est <em>écarté</em> et reste sans section.</p>
+<p class="chapo"><b>Une section est une boucle jouée un certain nombre de
+fois.</b> La boucle fait au moins {R.PERIODE_MIN} mesures et se reconnaît
+<i>modulo sa dernière mesure</i> — celle qui cadence a le droit de changer.
+Chercher les occurrences de la section, c'est alors juste compter combien de
+tours la boucle fait à chaque endroit : en dessous de {R.TOURS_MIN} tours ce
+n'est pas un retour, c'est une coïncidence. Deux occurrences d'une même section
+peuvent donc avoir des longueurs différentes — c'est voulu, on écrit chaque
+section à la longueur qu'elle joue vraiment.
 Cliquez n'importe quelle mesure pour l'écouter.</p>
 {"".join(blocs)}
 <h2>Ce que la démo montre à régler</h2>

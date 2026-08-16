@@ -94,17 +94,29 @@ CARRURE = 4
 #: seule section.
 PERIODE_MIN = 4
 
-#: CHOIX 8 (Louis, 2026-08-16) : « tu ne peux pas avoir une boucle de 4 solo qui
-#: traîne — tu peux filer tes 4 à la suite, mais pour définir une répétition de
-#: section plus tard dans le morceau il faut minimum de 8 barres ».
+#: CHOIX 8 (Louis, 2026-08-16, sa définition finale) : « il faut réussir à
+#: définir une section comme une mini-boucle interne jouée un certain nombre de
+#: fois. Une fois qu'on a ça, pour vérifier les matchs de notre section, on a
+#: juste à voir combien de fois la boucle est rejouée quelque part. Quand je
+#: parle de boucle c'est minimum 4 barres, et il faut minimum 2 répétitions de
+#: cette boucle pour avoir une section viable. »
 #:
-#: Une occurrence isolée de quatre mesures n'est pas un retour de la section,
-#: c'est une coïncidence de boucle : dans une musique construite sur quatre
-#: accords, quatre mesures se ressemblent partout. Ce qui prouve qu'une section
-#: revient, c'est qu'elle revient ASSEZ LONGTEMPS. Les occurrences collées les
-#: unes aux autres s'additionnent — deux boucles de 4 côte à côte font bien un
-#: retour de 8 — mais un bloc de 4 tout seul entre deux trous est jeté.
-REPETITION_MIN = 8
+#: C'est le modèle de données de tout le module : une section N'EST PAS un
+#: gabarit de longueur fixe, c'est UNE BOUCLE et un NOMBRE DE TOURS. Chercher
+#: ses occurrences, c'est compter combien de tours la boucle fait à chaque
+#: endroit ; en dessous de `TOURS_MIN`, ce n'est pas un retour de la section,
+#: c'est une coïncidence — dans une musique à quatre accords, quatre mesures se
+#: ressemblent partout.
+#:
+#: Conséquence voulue : deux occurrences de la même section peuvent avoir des
+#: LONGUEURS DIFFÉRENTES (2 tours ici, 6 tours là). C'est la règle du
+#: sous-repliement — on écrit chaque section à la longueur qu'elle joue
+#: vraiment — et non un défaut à corriger.
+TOURS_MIN = 2
+
+#: Combien de mesures fait une occurrence viable d'une boucle de `p` mesures.
+def mesures_min(p: int) -> int:
+    return TOURS_MIN * p
 
 LETTRES = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
@@ -199,7 +211,7 @@ def exemption(L: int) -> int:
     8 barres, exemption sur la dernière barre, et c'est tout. »
 
     Donc : une seule mesure, la dernière, et seulement si la suite atteint
-    `REPETITION_MIN`. En dessous, rien n'est exempté — quatre mesures dont on
+    `TOURS_MIN * PERIODE_MIN` mesures. En dessous, rien n'est exempté — quatre mesures dont on
     en pardonne une, c'est 25 % de la preuve jetée, et c'est exactement ce qui
     avait fait mordre le A de This Love sur le pont (mesures 50–57).
 
@@ -217,7 +229,7 @@ def exemption(L: int) -> int:
     `_occurrences` la garde dans `exemptees`, et toute mesure qui diverge —
     exemptée ou non — reste dans `variante` pour le repliement du chart.
     """
-    return 1 if L >= REPETITION_MIN else 0
+    return 1 if L >= TOURS_MIN * PERIODE_MIN else 0
 
 
 def _compare(S, a: int, b: int, L: int, queue: int | None = None) -> dict:
@@ -258,12 +270,23 @@ def periode_interne(S, depart: int, L: int, seuil: float) -> dict:
     """
     out = []
     for p in range(PERIODE_MIN, L // 2 + 1):
-        # Le mot contre lui-même décalé de p. On compare sur toute la longueur
-        # disponible, sans exempter de queue : ici on ne cherche pas une
-        # cadence, on cherche une boucle.
-        sims = [float(S[depart + t, depart + t + p]) for t in range(L - p)]
-        moy = float(np.mean(sims))
-        out.append({"p": p, "sims": sims, "moyenne": moy, "passe": moy >= seuil})
+        # Le mot contre lui-même décalé de p — MODULO LA DERNIÈRE MESURE DE
+        # CHAQUE TOUR (Louis, 2026-08-16 : « s'il y a une sous-boucle qui la
+        # compose — 4 barres modulo la dernière — on prolonge cette boucle
+        # jusqu'à ce qu'elle change »). Sans cette exemption la boucle `abac`
+        # n'est jamais trouvée : sur Stand By Me le mot de 8 boucle à 4 avec
+        # 0,72 · 0,79 · 0,86 · 0,55, moyenne 0,732 pour un seuil de 0,732 —
+        # raté d'un cheveu, et à cause de la seule mesure qui a le DROIT de
+        # changer, celle qui cadence.
+        detail = [{"t": t, "sim": float(S[depart + t, depart + t + p]),
+                   "cadence": (t % p) == p - 1}
+                  for t in range(L - p)]
+        notes = [d["sim"] for d in detail if not d["cadence"]] or \
+                [d["sim"] for d in detail]
+        moy = float(np.mean(notes))
+        out.append({"p": p, "detail": detail,
+                    "sims": [d["sim"] for d in detail],
+                    "moyenne": moy, "passe": moy >= seuil})
     retenue = next((c for c in out if c["passe"]), None)
     return {"periodes": out, "retenue": retenue}
 
@@ -327,8 +350,9 @@ def _occurrences(P, restants: list[int], modele: int, L: int, seuil: float,
             o["exemptees"], o["variante"] = [], []   # posés par suite, plus bas
             retenu.append(o)
             fin = o["j"] + L - 1
-    # CHOIX 8 : on regroupe les occurrences COLLÉES, et un groupe qui n'atteint
-    # pas `REPETITION_MIN` mesures n'est pas un retour de la section.
+    # CHOIX 8 : on regroupe les blocs COLLÉS — chaque groupe est donc « la
+    # boucle rejouée n fois de suite ». Un groupe qui ne fait pas au moins
+    # `TOURS_MIN` tours n'est pas un retour de la section.
     groupes, courant = [], []
     for o in retenu:
         if courant and o["b0"] == courant[-1]["b1"] + 1:
@@ -342,13 +366,13 @@ def _occurrences(P, restants: list[int], modele: int, L: int, seuil: float,
     gardes, solos, suites = [], [], []
     for g in groupes:
         long = g[-1]["b1"] - g[0]["b0"] + 1
-        if long < REPETITION_MIN:
+        if len(g) < TOURS_MIN:
             solos.extend(g)
             continue
         gardes.extend(g)
 
         # L'EXEMPTION, AU NIVEAU DE LA SUITE (`exemption`, la règle unique de
-        # Louis). La suite fait au moins REPETITION_MIN mesures : sa DERNIÈRE
+        # Louis). La suite fait au moins deux tours : sa DERNIÈRE
         # mesure est exemptée, et c'est tout. C'est le bon niveau — sur This
         # Love le B est une suite de 8 faite de deux boucles de 4, et la mesure
         # qui change est la dernière de la SUITE (m.23, 43, 63, 71, 79), jamais
@@ -359,7 +383,7 @@ def _occurrences(P, restants: list[int], modele: int, L: int, seuil: float,
         ex = bars[-1] if exemption(long) else None
         notes = bars[:-1] if ex else bars
         suites.append({
-            "b0": g[0]["b0"], "b1": g[-1]["b1"], "n": long,
+            "b0": g[0]["b0"], "b1": g[-1]["b1"], "n": long, "tours": len(g),
             "score": float(np.mean([x["sim"] for x in notes])) if notes else 1.0,
             "exemptee": ex,
             "variante": [x for x in notes if x["sim"] < seuil_occ],
