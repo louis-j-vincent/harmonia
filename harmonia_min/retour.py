@@ -179,20 +179,38 @@ def seuil_fort(S: np.ndarray) -> float:
 
 # ── la comparaison de deux mots ─────────────────────────────────────────────
 
-def _compare(S, a: int, b: int, L: int, queue: int = QUEUE_LIBRE) -> dict:
+def queue_pour(L: int) -> int:
+    """Combien de mesures de fin sont exemptées pour un modèle de `L` mesures.
+
+    CHOIX 4, deuxième version (Louis, 2026-08-16). La règle littérale dit deux
+    mesures sur un mot de huit. La première version mettait la queue à ZÉRO dès
+    que le modèle était une boucle de quatre — sinon on n'aurait comparé que la
+    moitié du motif. Mesuré sur This Love, ça faisait payer plein tarif la
+    mesure de cadence : le B est une phrase de huit faite de deux boucles de
+    quatre dont seule la 4ᵉ mesure change (Bb ouverte, Ab fermée), et les cinq
+    secondes moitiés tombaient à 0,84 pendant que les premières faisaient 1,00.
+
+    Une mesure sur quatre, deux sur huit : la proportion de Louis, appliquée à
+    la longueur du modèle. Plafonnée à `QUEUE_LIBRE` — au-delà de huit mesures,
+    exempter davantage n'est plus une cadence, c'est renoncer à comparer.
+    """
+    return min(QUEUE_LIBRE, max(1, L // CARRURE))
+
+
+def _compare(S, a: int, b: int, L: int, queue: int | None = None) -> dict:
     """Le mot en `a` contre le mot en `b`, ses `queue` dernières mesures exemptées.
 
-    Rend {sims, moyenne, n_compare}. La queue n'est pas comparée du tout :
-    c'est ça, le « modulo les 2 dernières ».
-
-    CHOIX 4 — `queue` tombe à 0 quand le modèle est une BOUCLE interne. La
-    tolérance de Louis parle de la cadence d'une phrase de huit mesures ; sur
-    une boucle de quatre, exempter deux mesures reviendrait à ne comparer que
-    la moitié du motif, et n'importe quoi passerait.
+    Rend {sims, queue_sims, moyenne, n_compare}. Les mesures exemptées ne
+    comptent PAS dans la moyenne, mais leur ressemblance est calculée quand
+    même et rendue dans `queue_sims` : c'est ce qui dit, plus tard, si cette
+    occurrence-là est une variante à écrire sur le chart ou une simple redite.
+    Sans ça l'exemption serait un oubli, pas une tolérance.
     """
+    queue = QUEUE_LIBRE if queue is None else queue
     k = max(1, L - queue)
-    sims = [float(S[a + t, b + t]) for t in range(k)]
-    return {"sims": sims, "moyenne": float(np.mean(sims)), "n_compare": k}
+    tous = [float(S[a + t, b + t]) for t in range(L)]
+    return {"sims": tous[:k], "queue_sims": tous[k:],
+            "moyenne": float(np.mean(tous[:k])), "n_compare": k}
 
 
 def periode_interne(S, depart: int, L: int, seuil: float) -> dict:
@@ -241,7 +259,7 @@ def _contigu(restants: list[int], i: int, L: int) -> bool:
 
 
 def _occurrences(P, restants: list[int], modele: int, L: int, seuil: float,
-                 queue: int = QUEUE_LIBRE) -> dict:
+                 queue: int | None = None, modele_b0: int = 0) -> dict:
     """Toutes les répétitions du mot `modele` dans la chanson recousue.
 
     `P` est la SSM restreinte aux mesures encore libres, `restants` la table qui
@@ -275,12 +293,26 @@ def _occurrences(P, restants: list[int], modele: int, L: int, seuil: float,
     retenu, fin = [], -1
     for o in cand:
         if o["moyenne"] >= seuil_occ and o["j"] > fin:
+            # CE QUI DEVRA ÊTRE ÉCRIT SUR LE CHART (Louis, 2026-08-16 :
+            # « attention à noter quelque part ces exemptions, car lors du
+            # repliement du chart il faudra les noter sur le chart »).
+            # Une mesure exemptée n'a pas été comparée ; si en plus elle ne
+            # ressemble PAS au modèle, alors cette occurrence-là joue autre
+            # chose à cet endroit, et le repliement doit l'écrire au lieu de
+            # recopier le modèle. `exemptees` porte les deux cas, `variante`
+            # ne garde que les mesures qui divergent vraiment.
+            k = L - len(o["queue_sims"])
+            o["exemptees"] = [
+                {"mesure": o["b0"] + k + t, "mesure_modele": modele_b0 + k + t,
+                 "sim": s, "differe": s < seuil_occ}
+                for t, s in enumerate(o["queue_sims"])]
+            o["variante"] = [x for x in o["exemptees"] if x["differe"]]
             retenu.append(o)
             fin = o["j"] + L - 1
     ecarte = [o for o in cand
               if seuil <= o["moyenne"] < seuil_occ]
     return {"occurrences": retenu, "seuil_occ": float(seuil_occ),
-            "ecartees": ecarte, "n_fenetres": len(cand)}
+            "ecartees": ecarte, "n_fenetres": len(cand), "queue": queue}
 
 
 # ── l'algorithme ────────────────────────────────────────────────────────────
@@ -389,9 +421,10 @@ def sections(S: np.ndarray, seuil: float | None = None,
         boucle = periode_interne(S, depart, L, seuil)
         etape["boucle"] = boucle
         modele_L = boucle["retenue"]["p"] if boucle["retenue"] else L
-        queue = 0 if boucle["retenue"] else QUEUE_LIBRE   # CHOIX 4
+        queue = queue_pour(modele_L)                      # CHOIX 4
 
-        rec = _occurrences(P, restants, dep, modele_L, seuil, queue)
+        rec = _occurrences(P, restants, dep, modele_L, seuil, queue,
+                           modele_b0=depart)
         occ = rec["occurrences"]
         label = LETTRES[len(trouvees) % len(LETTRES)]
         for o in occ:
@@ -400,7 +433,8 @@ def sections(S: np.ndarray, seuil: float | None = None,
         sec = {"label": label, "L": modele_L, "mot": L, "modele": depart,
                "boucle": boucle["retenue"]["p"] if boucle["retenue"] else None,
                "occurrences": occ, "seuil_occ": rec["seuil_occ"],
-               "ecartees": rec["ecartees"], "n_fenetres": rec["n_fenetres"]}
+               "ecartees": rec["ecartees"], "n_fenetres": rec["n_fenetres"],
+               "queue": rec["queue"]}
         trouvees.append(sec)
         etape["action"] = "section"
         etape["section"] = sec

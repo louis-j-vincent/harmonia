@@ -323,11 +323,30 @@ def bloc_morceau(fichier: str, titre: str) -> str:
             sec, ret = et["section"], et["retenu"]
             occ = " ".join(
                 f'<b class="occ {"net" if o["moyenne"] >= NET else "flou"}">'
-                f'{o["b0"]}–{o["b1"]} <i>{o["moyenne"]:.2f}</i></b>'
+                f'{o["b0"]}–{o["b1"]} <i>{o["moyenne"]:.2f}</i>'
+                f'{" ✱" if o["variante"] else ""}</b>'
                 for o in sec["occurrences"])
             quoi = (f'la boucle de {sec["L"]} mesures trouvée dans le mot de '
                     f'{sec["mot"]}' if sec["boucle"]
                     else f'le mot de {sec["L"]} mesures')
+            # LE MÉMO DU REPLIEMENT (Louis, 2026-08-16 : « attention à noter
+            # quelque part ces exemptions, car lors du repliement du chart il
+            # faudra les noter sur le chart »). Une mesure exemptée qui ne
+            # ressemble PAS au modèle est une mesure que cette occurrence-là
+            # joue autrement : le repliement doit l'écrire, pas recopier le
+            # modèle par-dessus.
+            vs = [(o, x) for o in sec["occurrences"] for x in o["variante"]]
+            memo = ""
+            if vs:
+                lignes_v = " ".join(
+                    f'<b class="occ flou">mesure {x["mesure"]} '
+                    f'<i>≠ m.{x["mesure_modele"]} du modèle ({x["sim"]:.2f})</i>'
+                    f'</b>' for _o, x in vs)
+                memo = (f'<p class="issue memo"><b>À écrire sur le chart au '
+                        f'repliement</b> — {sec["queue"]} mesure(s) de fin sont '
+                        f'exemptées de la comparaison ; celles-ci ne ressemblent '
+                        f'pas au modèle, donc elles jouent autre chose : '
+                        f'{lignes_v}</p>')
             ecart = ""
             if sec["ecartees"]:
                 liste = " ".join(f'<b class="occ flou">{o["b0"]}–{o["b1"]} '
@@ -346,7 +365,7 @@ def bloc_morceau(fichier: str, titre: str) -> str:
                      f'style="--c:{coul_algo[sec["label"]]}">{sec["label"]}</b> '
                      f'= {quoi}, qui commence mesure {d}. '
                      f'Ses {len(sec["occurrences"])} occurrences dans le morceau : '
-                     f'{occ}</p>{ecart}')
+                     f'{occ}</p>{memo}{ecart}')
         etapes.append(
             f'<div class="etape"><h3>Étape {i} — on repart de la mesure {d}'
             f'<span>{"section trouvée" if et["action"] == "section" else "rien ici"}'
@@ -434,6 +453,8 @@ table.cand em{font-style:normal;font-size:10px;padding:1px 5px;border-radius:9px
 table.cand em.cf{background:#d5e3ec;color:#1b4a6b}
 table.cand em.vieux{background:#f2ddd6;color:#8c3a22}
 .issue.ecarte{background:#fbf1e4;color:#6b5a3a;margin-top:8px}
+.issue.memo{background:#f2ede0;color:#5a4f38;margin-top:8px;
+ border-left:3px solid #c08a2e}
 .repet{margin:12px 0 4px}
 .paires{display:flex;flex-wrap:wrap;gap:2px}
 .paires b{width:52px;padding:2px;border-radius:4px;text-align:center;
