@@ -455,9 +455,9 @@ def bloc_morceau(fichier: str, titre: str) -> str:
                        if sec["boucle"] else
                        f', qui tient {sec["mot"]} mesures d\'affilée'))
             tours = " ".join(
-                f'<b class="occ {"net" if su["score"] >= NET else "flou"}">'
-                f'{su["b0"]}–{su["b1"]} <i>{su["tours"]} tours · '
-                f'{su["score"]:.2f}</i></b>' for su in sec["suites"])
+                f'<b class="occ net">{su["b0"]}–{su["b1"]} '
+                f'<i>{su["tours"]} tours · {su["score"]:.2f}</i></b>'
+                for su in sec["suites"])
             # LE MÉMO DU REPLIEMENT (Louis, 2026-08-16 : « attention à noter
             # quelque part ces exemptions, car lors du repliement du chart il
             # faudra les noter sur le chart »). Une mesure exemptée qui ne
@@ -524,7 +524,7 @@ def bloc_morceau(fichier: str, titre: str) -> str:
 <audio controls preload="none"></audio>
 {bandeau(algo, coul_algo, grid,
          f"L'algo — substrat {SUBSTRAT} — c'est LUI qui est expliqué ci-dessous",
-         chords, faibles)}
+         chords)}
 <details class="temoin"><summary>voir aussi ce que donnerait
 {SUBSTRAT_REF} seul — témoin, ce n'est PAS l'algo expliqué ici</summary>
 {bandeau(R.par_mesure(res_ref), coul_ref, grid, f"témoin : {SUBSTRAT_REF}")}
