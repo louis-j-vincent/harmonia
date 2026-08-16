@@ -119,9 +119,9 @@ _VARIANT_WORDS = ("1 hour", "sped up", "slowed", "reverb", "nightcore", "8d",
                   "reaction", "extended")
 
 
-def resolve_youtube(t: dict) -> str | None:
-    """Match one Spotify track to a YouTube URL with yt-dlp search:
-    smallest duration gap to Spotify's, penalizing variant uploads."""
+def resolve_youtube(t: dict, n: int = 3) -> list[str]:
+    """Match one Spotify track to YouTube candidates with yt-dlp search:
+    ranked by duration gap to Spotify's, penalizing variant uploads."""
     import yt_dlp
     artist, title = t.get("artist") or "", t.get("name") or ""
     target = float(t.get("duration") or 0)
@@ -132,9 +132,7 @@ def resolve_youtube(t: dict) -> str | None:
             info = ydl.extract_info(f"ytsearch6:{artist} {title}", download=False)
         entries = [e for e in (info.get("entries") or []) if e and e.get("id")]
     except Exception:  # noqa: BLE001 — treat any search failure as no match
-        return None
-    if not entries:
-        return None
+        return []
 
     def score(e: dict) -> float:
         dur = float(e.get("duration") or 0)
@@ -144,8 +142,8 @@ def resolve_youtube(t: dict) -> str | None:
                       if w in name and w not in spotify_title)
         return gap + penalty
 
-    best = min(entries, key=score)
-    return f"https://www.youtube.com/watch?v={best['id']}"
+    entries.sort(key=score)
+    return [f"https://www.youtube.com/watch?v={e['id']}" for e in entries[:n]]
 
 
 def main() -> int:
@@ -161,13 +159,15 @@ def main() -> int:
                     help="stop cleanly if free disk drops below this")
     ap.add_argument("--resolve", action="store_true",
                     help="resolve missing YouTube matches via yt-dlp search")
+    ap.add_argument("--backoff", type=float, default=120.0,
+                    help="pause after 3 consecutive search misses (rate-limit ride-out)")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
     tracks = json.loads(args.spotdl_file.read_text())
     done, done_sids = load_done(args.manifest)
     fetcher = YouTubeFetcher()
-    ok = skipped = failed = flagged = 0
+    ok = skipped = failed = flagged = misses = 0
 
     args.manifest.parent.mkdir(parents=True, exist_ok=True)
     with args.manifest.open("a") as mf:
@@ -186,23 +186,36 @@ def main() -> int:
                 skipped += 1
                 continue
             yt = t.get("download_url")
-            if not yt and args.resolve and not args.dry_run:
-                yt = resolve_youtube(t)
-            if not yt:
+            cands = [yt] if yt else []
+            if not cands and args.resolve and not args.dry_run:
+                cands = resolve_youtube(t)
+                if not cands and misses >= 2 and args.backoff > 0:
+                    print(f"  ({misses + 1} consecutive search misses — "
+                          f"pausing {args.backoff:.0f}s)")
+                    time.sleep(args.backoff)
+                    cands = resolve_youtube(t)
+                misses = 0 if cands else misses + 1
+            if not cands:
                 print(f"SKIP (no YouTube match): {label}")
                 failed += 1
                 continue
-            vid = youtube_id(yt)
+            vid = youtube_id(cands[0])
             if vid and vid in done:
                 skipped += 1
                 continue
             if args.dry_run:
-                print(f"would fetch {label}  <- {yt}")
+                print(f"would fetch {label}  <- {cands[0]}")
                 continue
-            try:
-                path = fetcher.fetch(yt, prefer_stem=slugify(f"{artist} {title}"))
-            except Exception as e:  # noqa: BLE001 — one bad track must not kill the batch
-                print(f"FAIL: {label}: {e}")
+            path = None
+            for yt in cands:  # best candidate first; fall through on dead videos
+                vid = youtube_id(yt)
+                try:
+                    path = fetcher.fetch(yt, prefer_stem=slugify(f"{artist} {title}"))
+                    break
+                except Exception as e:  # noqa: BLE001
+                    print(f"  candidate {vid} failed: {str(e).splitlines()[-1][:110]}")
+            if path is None:
+                print(f"FAIL: {label}: all candidates failed")
                 failed += 1
                 time.sleep(args.sleep)
                 continue
