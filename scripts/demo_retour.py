@@ -287,12 +287,12 @@ def bloc_boucle(et, seuil, grid) -> str:
             f'{"".join(lignes)}{mot}</div>')
 
 
-#: Le substrat sur lequel la démo tourne. Louis, 2026-08-16 : « essayons
-#: d'utiliser la matrice accords*basse pour voir ». La page montre en regard ce
-#: que l'ancien substrat (accords seuls) donnait, pour que la comparaison soit
-#: sous les yeux et pas dans un tableau de moyennes.
-SUBSTRAT = "accords"
-SUBSTRAT_REF = "accords*basse"
+#: Le substrat sur lequel la démo tourne. Louis, 2026-08-16 : « accords*basse,
+#: c'est ce qui nous intéresse ». Il vient en PREMIER, toujours — l'avoir mis en
+#: second une fois lui a fait lire le mauvais bandeau (« tu as inversé les
+#: lignes, ça m'a perturbé »). `SUBSTRAT_REF` est le témoin, jamais la vedette.
+SUBSTRAT = "accords*basse"
+SUBSTRAT_REF = "accords"
 
 
 def bloc_morceau(fichier: str, titre: str) -> str:
