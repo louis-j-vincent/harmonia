@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>X, U et V — en fonction de k</title>
+<style>
+ :root{--papier:#f7f3e9;--encre:#1c1c1c;--pale:#6f6a60;--trait:#ddd5c4;
+       --carte:#fffdf7;--accent:#8a2b2b}
+ @media(prefers-color-scheme:dark){:root{--papier:#17171a;--encre:#ece8e0;
+  --pale:#918c83;--trait:#33323a;--carte:#1f1f24;--accent:#d4735e}}
+ *{box-sizing:border-box}
+ body{margin:0 auto;max-width:1000px;padding:20px 16px 90px;background:var(--papier);
+      color:var(--encre);font:15px/1.6 -apple-system,BlinkMacSystemFont,sans-serif}
+ a{color:var(--accent)}
+ h1{font:italic 600 25px/1.2 Georgia,serif;margin:0 0 4px}
+ .lede{font:italic 14.5px/1.6 Georgia,serif;color:var(--pale);margin:0 0 14px}
+ .ctl{display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin:12px 0 18px;
+      position:sticky;top:0;background:var(--papier);padding:10px 0;z-index:5;
+      border-bottom:1px solid var(--trait)}
+ .grp{display:flex;gap:5px;align-items:center}
+ .grp b{font:600 10px sans-serif;letter-spacing:.08em;text-transform:uppercase;
+        color:var(--pale);margin-right:3px}
+ .ctl button{font:600 13px sans-serif;border:1px solid var(--trait);
+   background:var(--carte);color:var(--encre);border-radius:9px;padding:7px 12px;
+   cursor:pointer;min-height:38px}
+ .ctl button.on{background:var(--accent);color:#fff;border-color:transparent}
+ .bloc{margin:22px 0}
+ .tit{font:600 14px sans-serif;margin-bottom:1px}
+ .exp{font:italic 12.5px/1.5 Georgia,serif;color:var(--pale);margin-bottom:7px}
+ .wrap{display:flex;gap:10px;align-items:flex-start;overflow-x:auto}
+ .lab{flex:0 0 auto;font:10px ui-monospace,Menlo,monospace;color:var(--pale);
+      text-align:right;padding-top:1px}
+ .lab div{height:18px;line-height:18px;white-space:nowrap;cursor:pointer}
+ .lab div:hover{color:var(--accent);font-weight:700}
+ canvas{display:block;border:1px solid var(--trait);border-radius:6px;
+        image-rendering:pixelated;cursor:crosshair}
+ .cols{font:10px ui-monospace,Menlo,monospace;color:var(--pale);margin-top:3px;
+       display:flex}
+ .cols span{text-align:center;flex:1 1 0}
+ .acc{font:600 12.5px Georgia,serif;margin-left:8px}
+ .accs div{height:18px;line-height:18px;white-space:nowrap}
+ .res{font:600 12px ui-monospace,Menlo,monospace;color:var(--pale);margin-top:5px}
+ #bar{position:fixed;bottom:0;left:0;right:0;background:var(--papier);
+      border-top:1px solid var(--trait);padding:10px 16px;display:flex;gap:12px;
+      align-items:center;z-index:6}
+ #bar button{background:var(--accent);color:#fff;border:none;border-radius:11px;
+   padding:11px 16px;font:600 14px sans-serif;cursor:pointer;min-width:104px;min-height:44px}
+ #ou{font:600 13px ui-monospace,Menlo,monospace;color:var(--pale)}
+</style></head><body>
+<script>window.D = {"titre":"Easy On Me","n":63,"L":4,"ks":[2,3,4,5,6,8],"audio_url":"http://100.89.209.63:7772/audio/X-yIEMduRXk.m4a","retour":"http://100.89.209.63:7772/?open=min_X-yIEMduRXk","trou_page":"http://100.89.209.63:7772/plots/trou_demo.html","sorties":{"sans":{"X":"7QIOAiTVATEFuw8CMwDKARzUAx4A4AMC3gIZAZldAQYB8QIBHAHIBgTjAQUBDNoB0QE0AQ/xACEBsjQBGgDWABDTAxcA3AQBzQIzAZZoAgYB+gIBKgHHBQvmABUBDdUB3QAJAAncAA8BzgkAPwDLASbSBDMB2AYC3AAEANIMANoABQEAwQ1oB5qXAZsBFY8BSAKkEQjsABEBDuMBDgHTAwLaAAkABdsBtwA3AATnAQcA4QgB9AAJAcU0AboAQgMBIwHZAQsjANMAJdQCHAHIBALiAAYACtsAvAAzAAflAQoA3wgA+AELAbtDAbgASQMBKQHZAQopANAAKdMCCgDUAgHdAAMACNgA3gEOAQvhABUBxhIAEgDRAAbaAQYA3QEAwgI/AJRsAQIA/wEBGQHQAgjhAA0ACdUA4AEGAQffAA8JyQYAHwDYABrPBCMA2gMB3QAGAM8SANwABAIAJADOAhXdABkAA9gAzgAhAATqAAYByx4AFgDYABDVAxYA2AMB2wADANMKANoAAwEAgAShBVDVAVIAE8YBBwDVAgHbAAMAA9kAugAyAATlAQYA4QYA8QEHAcspAL0AOwMBKwHXAQkqANIAK9ICGQHJAwLiAAQACNwAxQAnAAPoAAYB1hMA8wAIAcUzAL8AOwMBKwHXAAcqANIAK9MCEwDNAwLfAAQABtsA4AAGAQjeABEAyA8AEgDcAQrWAxMA0xEB1QIjAahPAQQA9AIAUQKZDQbuAAgBDecAyAEvAQPyAAkBwDEAEgDYAA7TAxIA2wIB4gAMAcMnAd4BDQIAPwG5BRPnABgADNoAGQDQAgreABAAA9gAxAAmAAbiAQgA3gUB8wEIAcYyAb4APAIBLgHXAQkqANMALNECDwHQAgHeAAMABtoAwQApAAPkAQYA3QgB9gEHAcI4ALwAQAIBLAHXAREiANIALdICFAHNAwLgAAMACNoA","xhi":0.6808,"nb":15,"blocs":[{"a":1,"b":4,"t":0.54},{"a":5,"b":8,"t":14.04},{"a":9,"b":12,"t":27.56},{"a":13,"b":16,"t":41.08},{"a":17,"b":20,"t":54.62},{"a":21,"b":24,"t":68.12},{"a":25,"b":28,"t":81.64},{"a":29,"b":32,"t":95.16},{"a":33,"b":36,"t":108.68},{"a":37,"b":40,"t":122.22},{"a":41,"b":44,"t":135.74},{"a":45,"b":48,"t":149.24},{"a":49,"b":52,"t":162.78},{"a":53,"b":56,"t":176.3},{"a":57,"b":60,"t":189.82}],"saut":[],"k":{"2":{"U":"cY51imSb/wD/APwDxTr0C7hHrlGvUEe4DPMA/wD/","V":"ogFhA4A+ALABKWgBAAH/AgDlARoAI+YBuwA3ARj3AQACvCcAowFfAUuwAk4AxQABnABCAAroAgAB6wABzgEiAJ86AZwAhQABPwGuBD1OAHoAFrwBMAKtAwDjAAEBDdAA","UV":"pwFUAkGlAVIBnTABeQGKAV2MAWcAXmsBfAF/Ay6hAUcBZIABaAKRAiPXASUAY3oBqQFVAkSjAVYBmjMBdgGPAVuRAWYAXXABfwF+Ai6lAUYBaH8BawKRAiXYAScAaHcBmQFMATafAUIBmScBeQF0AV14AWUAW1cBawF6AiyLAEgBVH0BWgGJAhzIAR4AUnoBjAFUA242AJgBJFoBAAHcAgDGARYAHscBoQAvARTWAQACoiIAjQFSAUGYAUMAqgABlAFYA3Q4AKABJl4BAAHoAgDQARcAINEBqgAyARXhAQACqyQAlAFXAUWgAUcAswABmAFbA3Y8AKMBKWABAwHsAgLUARoAItQBrQA1ARfmAQICricAlwFaAUamAUgAtgMBqAFeA2lpAY4BWVQBMQHWAibHATkAPLoBpgFVAiHaAR0BnUwAjwF2AT3EAT8AojEBnwFeA3hEAKUBMWEBCQHwAgfZAR4AJtgBsgE7ARnrAQUCsS0AmwFgAUevAUkAuQkBoAFYAl9tAX8BX0sBOQHBAiy1AT0APqYBmAFXAiLIASIBjlABgwF0ATe+ATkAkjkBoQFYAlp1AXgBZ0cBQgG5AjOvAUMAQ50BlAFdAiPCAScBh1cBfwF4AjPBATYAi0MBnwFXAlpyAXgBZUcBQAG4AjGuAUIAQZwBkwFbAiPBASYBh1UBfgF2AjO+ATUAikEBoQFMASu8ATIBuB0BlwFhAXVrAXoAbEEBYwGPAzN/AFoBRZUBUgKaAxXZARcAQZkBngBFABDiAggB5AUBxgEtAJlDAZcAggsBRQGqBDtXAHYAHrcBNgKrAwTjAAUBFsgApgBGAAv2AgAB+QAB2gEkAKg9AqUBjQABQwG4BEBTAIEAF8gBMwK3AwDxAAEBDtwApgBHAAv2AgAB+QAB2wEkAKg9AqUBjgABQwG4BEBTAIIAF8gBMwK3AwDxAAEBDt0A","vhi":0.8712,"argmax":[1,1,1,0,0,0,0,0,0,0,0,1,1,1,1],"purete":[0.557,0.54,0.609,1.0,1.0,0.987,0.773,0.958,0.723,0.68,0.686,0.723,0.952,1.0,1.0],"residu":0.4908,"accords":[["C7","B♭","F","Dm7"],["F","Am7","Gm7","B♭"]]},"3":{"U":"gn0AiHcAd4gA/wAA4AAfxgA5myc9ewCEBhHoABfoABTrIKA/AeAfAPMMAPQL","V":"agF/BRp4AFoBTI4BAADoAgD/AQAAQ50B+AEAADu1AQMC+gAAcgJ5Amt5AmwAZhkBdwA/AADOAQABzwAAtAALAJEsAXgAcAABNgGJAzE2AHQAFI4BGgKbAwC6AAEAAL0AsQAJALYAAK8AEgAAMwKZAhROAHQACbIBEACYAgDJAAABBaUAkgAjAAC7AQAAywAA","UV":"jQF4AxHLAToBsFoBbwCbAVm+AkoAcGQBwAFUAkOVAUkBrFcBWQKsA0TAAUUAQYQBjgF7AxLLAT0BrmABagCkAVbHAkcAcGoByAFRAkWbAUcBtVQBXQKuA0nAAUkARYEBgwFrAg7AATEBqUwBbwCEAVqkAUoAalQBpwFUAj6DAUkBk1cBTgKhAzq0AToAN4MBaQF+BRp3AFoBTIwBAADmAgD9AQAAQ5sB9wEAADq0AQMC+AAAcQJ4Amp4AmsAZRkBeAF2BC9vAGoBSYMBBgDqAgL2AQ8AP6cB6AETADfBAQMC6BUAfAF0AmOIAmQAeBgBhgFvBENnAHgBRnkBDAHsAgXuARwAPLIB2QElATLMAQMC2CgAhgFwAlyWAVwAiRYBlwFrA0h+AXUBY2gBMAHYAiDaATgASaYBxQFFATTJARgCvUoAgwF/Ak+xAU8AhTUBrQFQA4JGAKMBOFMBIAHoAgzGAUkALcsBmwFfAiPoAQIBlmcAnwFdAT+8AT8Auw8B2gAUANMVAc0AKAUASgK5AiNmAJAAFtIBHwG7AwbyAAoBEMoArwA5AAPrAQQA7REA3gASANYYAc0ALQAAUAK1AihhAJYAF9EBGQHCAwbyAA0BCdIArwA6AADxAQAA7hYA3AARANYVAc0AKgAATgK1AiZgAJQAFtEBGAHAAwXxAAwBCNAArgA4AADuAQAA7hMAogBHATyyAUMBsRYBmwFbAXZhAYAAZE4BVQGYAy+DAFoBOKABUwKVAhDbABEATpYBnABGABvgAhoB4wABywEkAKA8AZQAexsBPgGrBDVZAH4AF7IBMwKuAwDmAAEAH80AnABOAAv8AgsB/gAB3wEXALI6AZoBigsBQwGwBDtOAI4AGbcBKQK/AwDuAAEBDOcAnABOAAr8AgoB/gAB3wEXALM6ApoBigoBQwGwBDxOAI4AGbcBKALAAwDuAAEBC+gA","vhi":1.0115,"argmax":[0,0,1,0,0,0,0,2,2,2,2,1,1,1,1],"purete":[0.51,0.534,0.534,1.0,0.88,0.777,0.608,0.517,0.908,0.911,0.92,0.627,0.877,0.952,0.956],"residu":0.3945,"accords":[["Gm7","B♭","F","Dm7"],["F","Am7","Gm","B♭"],["C","Gm7","B♭","F"]]},"4":{"U":"2QwKEL4SAC+4IAAnCgYA7gAADPMbACy3XgBLVTgAh0EALNMAADHOAAAwzwAAnwpWANAALyTbAAAl2gAA","V":"/wEAACLaAAYD2wABHwDOABDjAwoA1AAB9AEAAKotAU8CxQABEwXgBhvWASMBFbsBTQBYAACtAgAAsQAA0AEAAKsDAJMAQgAABQGyBABWAGQAAMcBKgB7AQCwAAAAE5MA1AAAANkAAM0AAwAAGgK9AgBrAHAAANsBJgCOAQDXAAABHJUAkQAvAADFAQAA6QAAAAGWBABBAE8AE5EBCAB6AgCSAAAAAIwAhwAJAQCjAQABkQAAeAAjAGA0AV4ATgAA","UV":"9wEOASjVABQC0woBKQDNABjfAxUAxhMB6wEPAJ1BAU0CwBABIQTYBSDZASYBI7MB4wEnAR3ZARYC0B8BLgDNARzlAxQAvR4B8QEQAZRRAUwCyhABLQTTBSzSATIBJK4BzAEkARnHARICwRgBNQCwASPFAxsAqhcB0AEZAYFIAUkCrhoBJwTABSXCASoBH6IBEwHeBgJzAXMAMdMCFgG/AwjjAAYAEMsA1QATAgv0AQkB4AgAsgBFAI5hAYsAdBIBEAHhBxBhAYYAHdkCDgHFAwDjAAgAAOIAzgAXAgD/AQAB3AsAvwA3AJFdAY0AhwABXwGgBT1oAYkBOJoBFAHTAgPbAR4AIs0BwAEtARvsAQ0BwSYAqAFUAWuMAWkAkh4BzgFCAmWHAHUBdEABHQHjAgjZAjAAZ5MBwQE7AVOxASYCqzoBdgKOAzjLAToBh1sB2gEyAp9UAKkBRzABHQHlAgW7AVAAPcUBjAFkATHWARYCfGcAkAFrAijVASkAwDUB4wASANkkAMwAKAAARgK9AiRsAI8ADtsBJwGzAgDoABUBHL8AmQBIAADpAQAA7B8A5QAVANkpAMwALAAASwK9AihsAJMAENsBJwG4AgDqABgBHMQAmgBLAADuAQAA7SMA4wAUANcnAMsAKwAASQK8AidrAJEAD9oBJgG2AgDoABcBHMIAmQBKAADrAQAA6yIAUwCbAg2/AjQArEgBxQFIAZ1SAI4APVMASgGwBACtAFwASr8BawCFATDHAC8AR4cAWgCOAQDcAhUA1CYB9gEgAcgrAK0BTSUBKgHTBQCQAHUAJukBUQGZARrcABkAK60AhQBjAAbrAgEB7wAB8AEmAMMuAagBcQABMwHJBR9pAH8AJOABMwG0AgXtAAYAGcgAhgBiAAbrAgEB8AAB7wEnAMMvAacBcgABNAHIBSBpAH8AJd8BMwG0AgXtAAcAGckA","vhi":1.0051,"argmax":[0,0,0,3,3,3,0,2,2,2,2,1,1,1,1],"purete":[0.852,0.747,0.72,0.934,0.952,0.719,0.37,0.528,0.826,0.809,0.813,0.622,0.815,0.86,0.856],"residu":0.3153,"accords":[["F","Dm","Am","B♭"],["Dm7","C","Gm7","B♭"],["C","Gm7","B♭","F"],["Gm7","B♭","F","Am7"]]},"5":{"U":"JAEAANokAgAB2AAAAh3gAAAA1ikPAAnnAI8GAGoAnhICAE67AEQAABsUzwAABRDZABEACd0CFwCXE1UAAtUAJwAAvwAAQAC8AABD","V":"jQFUAIMWAZIAXjsBCgHKAgLtAAAAAM8A6AEAAADsAAAF8QAAAAD/AADdAwAA3wABQgBVAAOYAgAApgAAvAEAAJwLAH8AMAAAEAGZBABWAFgAALABDgCFAQCmAAAAGoYAxAAAALUMALAADAAAMgKiARFFAIoAG64BAACsAgC4AAAAALgAtAAAAAKyAAcAtgAAAAGDBQBGAD8ABYYBCgBoAgF1AAAACnEAZAAWAQCHAQAAbAUAkwAAAGoZAGcALgAAcgAAAQB4AAABYQAAFgBVAA1UAhUAcQABWAENAFoBADIAOwAAKQNAAxxSAB4AAGUA","UV":"8wEZASbbACoCxxEBLADRARnZAyYAxzwB3wEZAJ9GAVoBrgIBSAW7BTHSATUBQbQB8QEbASbaACsCxxIBLQDQARrYAycAxTwB3gEaAJ1IAVkBrQMBSQW7BTHSATUBQbMB4wEhAwP8ABMCvyIBLwDEABrDBCsA3x8CxgEiALAmAWIAjwQBeAZ9BlGqAFUBDsYBJAHZCACaAWkBJt0BFwHHAwXdAQcANLwBwQApAh3gARAAxQgA/wIUAblEALQBTCABGwHdCBl0AYEAEt4BFAHHAwLaAAgAEdcAugAuAgD/AQAAxxMA+QEbAKxLAaYAbQABaQGHA2A7AY4ATXQBEwHNAgfuAAQAB9UA4QERAQD5AAMD7AgAUAC/ADq1AjgAvQQBqgFNAG1RAXoBhDEBIwHKAhXmARUAM6sA5AEVACXLAB0E3hIBEwH4AQvoAwwAuzYBrQFEAKAVAawAUDABFwHVAgfWACkACNwAvQEzAQD3AAAExTcANQDQAAHpAgIA6wAB4wAUAMweAMkAKQgBRwLCAiJoAJoAIc8BIQHAAwDmAAkBIc8AuwAwAALmAQcA3A0A8AAJANAkAMsAJgIASgLEAiFcAKgALcoBDwHQAwjeAAwADN4A0AAYAQXkAAsB1RQA8wAFANEkAMwAIQEARQLGAh1bAKgAMMoCDAHQAwvaAAoACN4A1wEPAQfgAA0B0xMAWACbAxm7AjkApUkBwgFNAZpUAIwAOFQARgG2BAC1AFYAO8UBdQCBATvFADkASYIAWACQAQXYAhEA3CEB+QEcAc0uAKYBQh4AMAHOBQCVAHQBHegBNgCyARrjABkAMK8AgABpAAPrAgAB8wAB8AEjAMUwAaQBaQABOAHBBCVqAIEAGNgBIgG9AgvuAAwAH80AggBoAAPsAgAB9AAB7wElAMMyAaMBawABOQHABCdpAIEAGtcBIgG+AgzuAA0AH88A","vhi":1.1193,"argmax":[4,4,4,3,3,0,0,0,2,2,2,1,1,1,1],"purete":[0.855,0.847,0.88,0.839,0.907,0.561,0.618,0.734,0.814,0.852,0.867,0.59,0.837,0.749,0.738],"residu":0.2573,"accords":[["Am7","B♭","F","Dm"],["Dm7","C","Gm7","B♭"],["C","Gm","B♭","F"],["Gm7","B♭","F","C"],["F","Dm","Am7","B♭"]]},"6":{"U":"IwQAANkAIgAAANcGAAADGuIAAAIB0ioADgAO4wAAgwAAYQAbjwIAAEokswBMAAAAFQLHAAAgAwvZABQEAAPbABkIAAAJABLlAJQAEwBYAMkAADYAAMYAADkA","V":"kQFHAIERAJAAVjkBBQDHAgDnAAAAAMoA4QAAAADbAAAE7wAAAAD/AADUAwAA1QABVAAsAAV7AQUAfwAAmwAAAIALAIwAAAAACwCKAAAtAGkAC4sBAACHAQCCAAAAAIcApAAAAJYGAJQABwAAKQGGAQ43AHkADJMBAACQAQCUAAAAAJcAjwAEAAORAAcAkQAAAgF0BQA/AD4AAIQBBgBlAgBuAAAAAHIAXQAWAAB3AAQAawAAgQAAAGoRAGYAHwAAZgAAAQBxAAABXAAAFQBQAAxPAhAAbgABUwEKAFUEACsANgAAKAM4AxpOABwAAFwAAAB6AABhAgEAZgYAZAEFAFEhAAQAZAAAIgFDBwB9AAABAGsAUAAZAABtAAEAUxcA","UV":"7QEXASfcACsCyhEBLQDRARrZAyIAzjwB4AEYAJ5LAVQBrAUBSwW5BTHVATUBQLEB6QEcASbdASoCyxEBLgDQARrYAx4A0zsB3wEXAZ5PAVEBqgYBUAW1BTHVATUBQ60B3QEcAwX9ABQCwiABLgDGABnDBCUA6SACxgEgAbIrAVwAiwUBeQZ2BlGtAFUBDMIBKgHNCQGYAG0BI+gBFgHOAwfeAQkAJ8oBwAAtAB7UARkAzwQA8QEWAcQ8AL0AOCMBJQHOCB5uAIkACugBEAHQAwLbAA0AAekAtgA1AADyAQgA0BAA7AEbALZDAa8AWwABbQGHA2A+AY0AT3QBFwHLAg3sAAEAD9QA3wEWAQD3AAID7BAAUwDAADq3AjgAuwQBpQFUAGtTAXgBhTABJAHHAhfnAQkAQ6cA5QEUASTRABQE3BcBIgHxAQvoAgwAwS4BtQE8AKMQAK8ASzABEwHYAgXWACwABN8AvgE0AQDuAAAEyTYAMwDYAAHnAwMA6AAB3QAiAMkfAMgAKgkBSQLAAiNoAJcAI84BJAHAAwDsAAEBH9AAvwAtAATlAQkA3gYA9wAHANEiAM4AIwEASALHAiBbALIAIs4BEQHSAgvXAA0ADNwAywAcAQjiAA0AzRYA9gAHANIiAM4AIAAARQLJAhxbAK4AKM0CDwHRAg3XAAkACdsA0gETAQngAA4BzxIAHAD0AAvVAw4A2w0B0AIgAaZSARMA2gsAUgKTDQ3/AAcBCOEAsQE7AQTyAAYBsT0AYACWAQbYAg8A1xgB9gESAcozAKMBRBEAMgHOBQCaAHkBHegBSQCrARDhAA8APaoApABBAAjhAQcA4AAB7AAgAcEvAdUBKwABMQHPASFFAKwAJs0CEAHdAwreAAsAAOwApQBAAAjjAQcA4QAB6wAiAcAxAdQBLgABMwHOASREAKwAJ8wCEQHdAwveAAwAAOwA","vhi":1.3303,"argmax":[4,4,4,3,3,0,0,0,2,2,2,5,1,1,1],"purete":[0.849,0.842,0.885,0.823,0.888,0.512,0.562,0.7,0.782,0.851,0.859,0.898,0.581,0.789,0.777],"residu":0.2117,"accords":[["Am7","B♭","F","Dm"],["F","C","Gm","B♭"],["C","Gm","B♭","F"],["Gm7","B♭","F","C"],["F","Dm","Am7","B♭"],["Dm","Am","B♭","F"]]},"8":{"U":"ugEEAB0AIwDDAAAnABAABQAAAAr1AAAABgEA1QAJGQAAAAqRAAAAZAABAAcACCnGAAAAAgka2gAAAB0AAACjQAADpAAAHikRBhDXAAQGCgABCdEEFwkAAAAACAAQ5wAAAIoAAABOACcAxAAAOwAAAADBAAA+AAAA","V":"6AEYAhbtASUDvBsBIwDTABTSAxwA7AAB2AIkAaJZAgEA/wABEwHRBgDuAQEBA+kBPgAgAANfAQAAXgAAcQAAAF0GAGcAAQAABgBnAAAiAEUAEGcBAABjAQBfAAAAAGgAhwAAAH0CAH4AAgAAIAFwAQotAGMADHkBAAB3AQB7AAAAAHwAdgAEAAF6AAQAeQAADwFJBQA/ABoABFwABQBOAQBUAAAAAFYARAAUAABWAAMAWAAAcQAAAFwDAFkADQAAPwAAAAI6AAMAOgAAEQAzAAo2AQwAPgABOQABADgAAD8AAAAAMAMbAiUqACUABiYAAABaAABMAQAATgQASwEEAD0ZAAMATAAAGgEyBQBdAAAAAE8APgARAABRAAIAOxMAOAAAAC8PAAsAJwAAAgA0AAA8AAAAADgAOgAAAAAzAAICOgAAAAA+AAUvAQcANQAAAAA2AAAAAEMAADEBAQArAAAvAAAAACsAMAAAAAQwAAIAKQAAAAArAAAuAAAAKwEA","UV":"5wEWAh7hASYDuRkBJADRABTRAx0A3gwB1QIjAZpcAQoB8AMBGgHLBQboAQcBD9gB2AErAhTqASgDsysBJwDRABbTAxoA3hEB1gIoAZRqAgEA+wYBKgHCBRHiAREBC9cB5gALAQfdAA8B0g4AQADEASXRBCwA4A0C2wAGAMoNAOQADgEBvgxjB5OZAZQBF4kBPwKwCg6rAEABJ9MBFgHLAwneAAQAFtIAuAA2AQngAQgB5gkB/wEgAdIrAcsAMhEBLAHMCBB1AJUAB+kCDgHUAwHdAA0AAeUAugA0AAXsAQkA1xAA4AA2AatPAaQAXgEBLADYASMgAPkAK7sCFADJAgvjAAMAC8wA4gAMAQ7oAAsByA4AFwDJAA/TARAAygcA0QEoAahhASoAtgUAKAHEAhvsAAMAKckA5QEWAgnfABAH0SEBJgHmABrPBCIA1w4ByAE1AK0nAJYAZDEBFAHeAgTaACwABewBwgA0AQTlAAcFujcANADGAAzYAxIA5QEB3gAiAMogAMkAKgkBSALAAiJnAJYAJs8BJAHAAwHqAAMBHNAAwAAqAAPlAQgA3ggA9QAJANEfANEAHwEASALGAiBbALEAIssBEQHTAgjaAAoAEdwAxgAhAQPlAAcAzhgA8gALAM8eANIAHAMARwLHAh5bAK8AJcwCEAHRAgvZABEABtwA1QEVAQvgABAAzxEAGQDyAQ3ZAw0A3QsB0QIgAadSARQA2gwAUAKTDQv/AAsBAeAAvAE0AQfuAAwBrToAYACYAAXWAh0A1hkB8QEWAcY0AKEBRRMANQHLBQKaAGwAK+QBNwC6AQDtAAIAR7IApABAAAfjAQIA4QAB7gAfAcItAdYBJwABMAHRASJEALEAIM8CHQLXAxbZABYABOkApQBAAAfjAQIA4QAB7QAhAcEvAdUBKgABMgHPASREALMAIM0CHwLXAxjZABgABOkA","vhi":1.9167,"argmax":[0,0,4,3,3,7,6,6,2,2,2,5,1,1,1],"purete":[0.73,0.766,0.959,0.837,0.569,0.775,0.853,0.638,0.643,0.841,0.818,0.905,0.541,0.77,0.756],"residu":0.144,"accords":[["F","Dm","Am","B♭"],["F","C","Gm","B♭"],["C","Gm","B♭","F"],["B♭","B♭","F","C"],["F","Dm","C","C7"],["Dm","Am","B♭","F"],["Am","B♭","F","Dm"],["Gm","B♭","F","Dm"]]}}},"avec":{"X":"8gIOAiTZATIFvg8CNADOAR3YAx8A5AMC4gIaAZxfAQYB9gIBHAHMBgTnAQUBDN8B1QE1ARD2ACIBtTUBGgDaABDXAxcA4QQB0QI0AZhqAgYB/wIBKwHKBQzrABUBDdkB4QAJAQngAA8B0gkAQADPASfWBDQB3AYC4AAEANYMAN4ABQEAxQ1qB52aAZ4BFpIBSQKoEQjxABEBD+cBDgHXAwLfAAkABd8BugA4AATrAQcA5QgB+QAJAck1Ab4AQwMBJAHeAQsjANcAJdgCHAHMBALnAAYACt8AwAA0AAfpAQsA5AgA/AELAb9EAbwASwMBKQHeAQsqANQAKtcCCwDYAgHhAAMACNwA4wEOAQvmABYByRMAEgDVAAbeAQYA4QEA5AEGAQfjABAKzQYAIADdABrTBCQA3gMB4QAGANMSAOAABAIAJQDSAhXhABkAA9wA0gAhAATuAAYBzx4AFwDcABDZAxYA3QMB4AADANcKAN4AAwEAggSkBVHZAVMAFMoBCADZAgHfAAMAA90AvgAzAATqAQYA5QYA9gEHAc8qAMAAPAMBLAHbAQkqANYALNYCGgHNAwLmAAQACOAAyQAoAAPsAAYB2hMA+AAIAcg0AMIAPQMBLAHbAAgqANYALNcCFADRAwLkAAQABt8A5AAGAQjjABIBzA8AEgDhAQvbAxMA2BIB2QIjAatRAQQA+QIAUwKcDgbzAAkBDesAzAEwAQP3AAkBxDIAEwDcAA7XBBMA3wIB5wAMAccoAeIBDQIAQAG9BRPrABgADN8AGgDUAgriABAAA90AyAAnAAbmAQgA4wUB9wEJAcozAcIAPQIBLwHbAQkrANcALdUCDwHUAgHiAAMABt4AxQAqAAPpAQYA4QgB+gEHAcU5AL8AQQIBLQHbAREjANcALtYCFAHRAwLkAAMACN4A4wAKAQflABIByxIAOgDJARvaAx4A5gQC","xhi":0.6679,"nb":15,"blocs":[{"a":1,"b":4,"t":0.54},{"a":5,"b":8,"t":14.04},{"a":9,"b":12,"t":27.56},{"a":13,"b":16,"t":41.08},{"a":17,"b":20,"t":54.62},{"a":21,"b":24,"t":68.12},{"a":27,"b":30,"t":88.42},{"a":31,"b":34,"t":101.92},{"a":35,"b":38,"t":115.46},{"a":39,"b":42,"t":128.98},{"a":43,"b":46,"t":142.5},{"a":47,"b":50,"t":156.02},{"a":51,"b":54,"t":169.54},{"a":55,"b":58,"t":183.06},{"a":59,"b":62,"t":196.58}],"saut":[{"a":25,"b":26}],"k":{"2":{"U":"J9g2yR7h7RL/ANMsAP8L9E6xT7DgH9Yp7RL/ANgn","V":"HwHnBguFAIAABv8BSQGnAgHwAAUAJcMApQBXAQD/AQAA9QsB0wAyAKZSAZkAgwABwgEjAQvvAAADriMBSwCoABfQAx0A+QAB4wEFAdoKAK4AOQEBLwTQBBO7AEwAB+UB","UV":"sAFDAQvnABQDmkcBTgCuABTdAxsA4R8B4gESAcAxAZkAWQIBSgO/BCqxAVsAGskBqwFSAgvnAB0DlFcBUAC0ARPmAxoA2iwB5QEYAbhCAZMAaAMBWAO7BDawAWMAI8EBtAE8AQvpAA8Dnz4BTQCtABXaAxsA5xcB4gEPAcYoAZ8AUgIBRAPDBCW0AVgAFtABKwHcBguOAHgAEvIBSgGpAgPwAAcANLcAqwBSAQ/wAQwA6gsBygA+AZ1aAZUAfBABHgHkBgqDAH4ABvsBSAGkAgHsAAUAJMAAogBVAQD7AQAA8QsB0AAxAKNRAZYAgQABOAG7BQqPAGUBIc4BRgGeAgXeAAkARZkApgBFASPKARwAyQkBrgFJAYVfAYQAaCUBxgEkAQv0AAADsiQBTQCsABfVAx4A/gAB6AEFAd8KAbIAOwEBMATUBBO/AE4AB+oBwgEtAQvzAAYDrS4BTgCvABfZAx0A+QkB6QEJAdkVAa0ARAEBOATRBBq9AFIADOMBkgFhAgvRACgCfGgBTACrARDdAhYAuz0B0wEeAZpWAXsAdAQBYwOiA0GdAWUALaEBkgFjAgvSACkCfGoBTACsARDfAhYAuz4B1AEfAZpYAXsAdgQBZAOiA0KeAWYALqEBLQG3BQmBAGQAF8oBQQGUAgPQAAcAN5gAmABEABfHARMAxAkBqQE9AYNTAX8AZxgBNgG8BQqNAGUAH84BRQGdAgTdAAkAQ5oApQBFASHLARsAygkBrgFHAYZdAYQAaSMBKwHcBguOAHkAEvIBSgGpAgPwAAcANLgAqwBSAQ/xAQwA6gsBygA+AZ5aAZUAfBABHgHiBgqCAH0ABvkBSAGjAgHrAAUAJL8AoQBVAQD6AQAA8AsBzwAxAKJQAZUAgAABNgHCBQqQAGkAHtYBRwGhAgTjAAkAQqAAqABIASDSARoA0QkBtAFHAYteAYgAbCIB","vhi":0.8953,"argmax":[1,1,1,0,0,0,1,1,1,1,0,0,0,0,0],"purete":[0.849,0.788,0.883,0.93,1.0,0.829,1.0,0.958,0.693,0.689,0.88,0.838,0.931,1.0,0.848],"residu":0.3965,"accords":[["Gm7","B♭","F","Am7"],["F","Dm","C","B♭"]]},"3":{"U":"O8QAO7QQAMA/cwCMpABb7BMABPsAAt4fAIZ5AIV6FQTnAA3ydACLpQBa7xAA","V":"OQHFAREaANUAKr0CAAH9AwLQAAQAAP8A5QEAAQDwAAAB7w4AcgBxAVGjAj0AmQAB1AERAAzjAAQEvQkBMwC8ABjLAx8A9QAB8wEAAegAALQALwABHATdBQLLADsAAPgBCQG4CQHfAAAAAOcAqAAWAQLLAAgBfTIAOQCQABeoAiYAnwUB5gEAALwAAMUAPQsB","UV":"uwE+AA6/ADcDpDYBKgDYARTYAxoAyD4B/gEAAb07AJMAYQMBMwPQBBXNAT8AJsoBtAFMAQ7HADkDnkgBMwDVARThAxoAx0UB+wEKAbZJAI4AbQQBQwPJBCPHAUwAK8EBsgFAAgr5AAMDnUYBWACiABXfAxwA7Q4B2QEnAccuAZ8AUgEBVgO3BDWoAGcAEdABIwHcBgmbAG8AFvYBawGSAgLuAAcAUKUAnABcAQ/oARgA4goBzgE7AKJVAZ4AdwcBLQHbBA1tAJsAH+gCRAHCAgLqAAYAM84AvgA7AQn0ARAB7wwBsQBSAYd3AX0AiQUBRwG9AREqAMsBNrUCBAH/AwTWAQYAE/MA7QEAARLlAA4B5w0AbwB8AU2qAj8AkhMB0gETAAzhAAcEvAwBMgC+ABjMAx8A8wQB9AEAAeYEALIAMgABHgTcBAPLADwAAvUBxwEpAQvwAAUDsCgBRQC0ABfYAx4A9AkB6wETAdsYAawAQwEBOQTPBBu+AFEACegBgwFtBQf/AAICcYIAeQB9ABDmAhcB1hsBsAFOAZdbAYAAcgMBjQOEA2d5AI4AIZoBhAFuBQf/AAICcYQAegB9ABDoAhcB1xsBsAFPAZhcAYAAcwMBjwOEA2h5AI8AIpoBEQHFCALfABMAB/MApQAvAQLbAAkBfkcATwCNABq5AigAsQYB6wENAL8RAMcASQ8BFgHMCQH/AAAAC/8AvAAkAQTrAAsBmDcATQCfACe5AjUAswUB/wENAM8MAN0ARBsBJAHcBgmaAHAAFvYBagGUAgLuAAcAT6cAnQBbAQ/pARgA4woBzgE8AKFWAZ0AeAcBLQHZBA1rAJwAH+YCQgHDAgLpAAYAMc8AvgA5AQnzAQ8B7gwBrwBSAYZ3AXsAiQQBRQHAAREoAM4BNbgCAwH/AwTXAAYAEPcA7gEAAQ/pAAwB6w0AcQB8AU6rAj8AlRAB","vhi":0.8743,"argmax":[1,1,1,2,0,0,1,1,1,1,2,2,2,0,0],"purete":[0.769,0.705,0.753,0.55,0.642,0.926,0.985,0.87,0.525,0.522,0.905,0.95,0.544,0.649,0.936],"residu":0.3137,"accords":[["Gm","B♭","F","Dm7"],["F","Dm","C","B♭"],["B♭","F","Dm","C"]]},"4":{"U":"BLsAQBOtAD8yzQAAiAgAb1cAAKgABA/sAPEOAA/cEwAAEOkFAhLlBqQAQhnHADgAhAcAc1gAAKcAAxHs","V":"MAF6CAS+AAAABaYAWwBJAQWpAAwARlAAIwCCAACuAgAArAMB/wEAAdYAAKEAIAAAswAAAAqsAAQDogAAEwCeABSSAxoArQABowEBAJsIAHEAMwAALwOHBBqkAB0AAKQBAACJAQCIAAAAAJEAigAGAAGPAAIAkQAAiAARAHYfAHcAIQMAEgCFAAAXAHoAK3oBEgBrAAgAAHgAFWMBAAB5AQBnAAAAAH8AfAAAAABzAAAAbwgAHgBCABBcARUAWgAA","UV":"2AEtAA/MADMExCsBGADpARjWAx8AyjQB7gEFAbM7AIMAawMBSAS2BCniAS4BJb4B0wE6AQ/VADQDvDsBIADnARffAx4AyDwB6QERAatMAX0AeQMBXgSvBD3aATwBKLUB3wEjAw3+AAQEvjABMADNABnbAyIA3hcBxwEnAbQ8AYQAbQEBfwSdBVu/AFABCb8BQgG8CAqzAFgAHd0BUwGjAgbsAAwASKUAhAB0AAjxAgYA7gkB/QE4Ac1NAaEBXwkBNQHQBQx4AJIAHeICOgHCAgPpAAgALM0ArgBSAQD6AQAA9AsBxgFRAZtwAX8AggABKAHdABAWAOQALc0CEQHrAwHaAAEAF/EA/wECARPeABIB2A8APACSAR+3AjcAsRQB7AELAA7tAAUE1QsBJADRABvMBCMA8AAB4QEDAdUNAZ8ARgABPwS8BSLaATABA+IB5AEaAQ32AAQEyx4BLwDMABrVAyIA7wcB3QEPAc8dAZsAUgEBUgS3BTPPAEABB9oBFAHVAgHjAAUAEuEA1AAeAAPuAAYB7wUA5QEbAcU0AcIAPAUBIQHbAAM4AL4ARMwCFgHVAgLlAAUAFOEA0wAhAAPwAQYB7wYA5QEcAcU2AcAAPgUBJQHaAAc5AL4ARMwCLgGtCAXbABAACNYAgwBUAQXZAAwBclkAYQB6ACu2AisAtQUB7gE5AcIVAL8AOCwBNQGwCgT6AAAABuMAjwFSAQbmAA4BeVgAUACUACTJAiUAxwQB/wIpAesHANYBMCYBQQG+BwqvAFwAHd4BUQGlAgbrAAwARqgAhgByAAfyAgUA7wkB+QE5AcpPAZ8BYggBNQHPBQx5AJAAHeECOgHAAgPoAAgALMwArABSAQD5AQAA8wsBxgFQAZtvAX8AgQABJgHfABAWAOQAK9ACEwHrAwHcAAEAF/IA/wECARPfABIB2Q8APACTAB63AjgAshQB","vhi":1.2608,"argmax":[1,1,1,0,3,3,1,1,2,2,0,0,0,3,3],"purete":[0.734,0.68,0.803,0.531,0.657,0.926,0.944,0.864,0.914,0.898,0.644,0.781,0.519,0.655,0.924],"residu":0.2462,"accords":[["B♭","Dm7","Dm","C"],["F","Dm","C","B♭"],["B♭","F","C","Gm"],["Gm","B♭","F","Dm"]]},"5":{"U":"AJwAMzAAhwAxRyqsKQAAigoAJ0SEAAB7AAMMA+0AANgnAAAPwS8AAAADwB0gAAS7HSQAAAAU6x8ADADTjgkAKz2KAAB1AA0LAuUA","V":"MQGHBgh/ADkAEqQBBAGoAgSpAAgAALIAjAAgAAGqAQwAnAEA/wEAAc8AANUAAAABuwEAAAumAAEDqQAABwCjABWJAxsApQABmQEBAJMIAGUANgAALgN/BBqoABAAAJ4ABABmAQB7AAAAAGwAbAAMAAJ2AAMAfAAAhAAAAHwAAIAAAAAAFAF1AAEGAIUAA30BCABpAAcAAG8ADWABBwBZAQBhAAAAAGIAYgAFAABtAAAAaQkABgBUAABhAQAAbAAADAAtAgFHAAAAADoAQwAAAAE8AAQAPgAAAABGAAA6AQAAQQMANgACAC0QABAAKQAA","UV":"4QE4ARDaACsEyToBIwDfARnaAyAA1iUB1wEdAatHAXUAfgQBSwS1BS/uARgBOLgB2gFFAQ/iAC4EwEkBMgDZARjjAyAA3CgB0gEsAaNXAXAAjAUBVQSxBDfsARsBRK8B0gE9Ag3uAA8DtkUBIwDZARfaAx8AzS4B5gEJALo0AY0AYQABdwSjBFGyAGkBAcYBRQG1BwuqAFYAIdUBJwHGAgblAAwAKscArQBCAAzfARMA1wUB/wEhAeAuANcBMQsBMgHLBgxvAIwAGt0CCQHaAwPiAAcAAOsAygAhAAHtAQsA3QgA5AFEAbVPAboAWAABJwHfAA8YAOcALs4CEQHOAgLgAAMAFc8A4wEMARPnAA4B4xIAGADAAAjcAgoA4RQB7QEXAA7uAAEE1RkBIQDRABvJBCIA7gAB4AEBAdcKAJ0ARAABPgS8BSHXADIBAeUB4gEqAQ7yAAYEyC4BJwDTABnTAyEA5hEB5wEEAdEZAZwATgABUwS4BTLIAEwBAd4BEAHMAgLfABsAB9cAxAAtAATsAQYA3xgA9AAUAc4qANMALAMBMwHXAA8qAN4AK9ACEgHLAwLhABsACdcAxQAuAATtAQcA4BgA8wAXAc0tANEAMAMBNQHWABEsANwALM8CLQG2CAXzAB8ABOEA5wAZAQXmAA0B0hwAHAHvAQHkBAAA+g0BuwAdAZpQATgAqAAAMwG3CQX8ABYAB+UAwABCAQbtAA0Bs0QASQDCARTXAxgA5AgB8gEWAcQpAZABaRMBRAG2BwulAFkAINYBIwHJAgbkAAsAJcwAsAA/AAvgARIA1wUB/wEiAd8vANgBMQoBMgHKBgxyAIgAGt0CCQHaAwPiAAcAAOsAyQAhAAHsAQsA3AgA6gFAAbpKAcAAUwABKAHhAQ8gAOIALNMCEAHSAgLjAAQAEtUA5AEOARDrAA0B5hIALQC2ABnRAhwA1xEB","vhi":1.2928,"argmax":[1,1,1,0,0,3,1,1,2,2,4,4,0,0,3],"purete":[0.611,0.528,0.673,0.539,0.52,0.929,0.846,0.755,0.752,0.732,0.923,0.829,0.555,0.541,0.898],"residu":0.1773,"accords":[["B♭","B♭","F","C"],["F","Dm","C","B♭"],["B♭","F","C","Gm"],["Gm","B♭","F","Dm"],["B♭","F","Dm","Am"]]},"6":{"U":"DJoAA1UADogAA2YAAIQhAABaUQgAAD9oawAALABoVxAAmQAAAMwpAAAKAKMoAAA0CgC8DSwACwG3DTAAAAAAJ8cQBwAJAL8wVAcBADhrbgAAJQBsVQ0AlgAH","V":"CAHMAQ4UAIEAAOUCAADGAgCXAAAAAOkA1AACAAD/AAAA9wMAAAAAAAApABMAAAAAqwAAAAuIAA0DnAABAACeABN7AxcAkwABmAEAAIYNAFUAOAAADAKBBACoAAAAAJMACABuAQCDAAAABHMAcgATAAKCAAQAhwAAlQAAAIkAAIwAAAAAFAGDAAAPAIoACokBAwArAAAAAE0ADxEBDQAOAAA5AAAAABAAFAAIAAALAAIAAAsAHAB3AAxsAQAApAABCAAuAgI/AAAAAD4APgAAAAE0AAIAOwAAAABAAABBAQAASwIAHQAAABkHAAMAFwEALwACBQBkAAAAGQcABwApAQVOAAoAABkABwAcAAcAABsAAAEA+wIAAcsAALwAGwAB","UV":"5AE3ARHgACAEy0QBLQDhABnWAyAA6RgB2wEuAa5ZAW4AmAIBJQOrBRLnAQQBFcAB3QFGAhHmACMEwlcBOgDeABjeAx8A7R4B2AE8AadtAWkAqgMBKgOkBBfgAQUBGrgB1wEfBAz6AA0DtyMBIwDIARjcAyEAvhIBywEUALYNAJEAOwEAxgSqBZK1AawBFr8BRQG4BwyfAGIAI9gBLAHJAgflAQ0ALcgAsQBCABDnASAA6gUB/wIJAdYvAMgBKAsBMgHMBQ1qAJIAHNwCCwHdAwXjAAkAAPAAzgAdAAbsARgA4QgA5gIsAbdOAbYAVAABJQHmAA0kANoBLdUCEwHOAgPgAAQAFtYA4gANARTjAA8B0xMAKgDAARHYAg8A7RYB5gEdAQ/dABEE0B8BHgDYABrKBCEA5QIB8AECAdUQAJYASgABJQTMBQ7iATEBBeYB4QEhAg3wAA8ExiQBJADSABnYAyEA1woB5AELAcsPAJkAQwEBdATBBU7OAXEBDdgBEAHOAgLfABMACNoAxQAuAATsAQYA4hUA9gAYAdAuANUALwMBKwHUAAopANQAKtACEgHPAgLhABQACdsAxQAwAATtAQcA4xYA9gAaAc4xANMAMwMBLAHSAAsqANIAKs8CKgG5CAbuADMAEd4A3QAVAQTqAAsBxREADwHjAQLiAwkA+w4BuQFPAJRhAT0AwQIBOQGnCQb/AA0AEtkAwwA0AQbpAA4BtikALQDGARfQAyUA6gcB/wIRAdUbAKABVBQBQwG6BgybAGUAItkBKAHMAgflAA0AKM0AtgA+ABDoASEA6gUB/wIJAdQuAMoBJgoBMgHKBQ1sAI0AG90CCgHeAwXhAAkAAPEAzgAdAAbtARkA4ggA6QIlAbpHAboASwABJAHmAQ0oANsAK9UCFAHNAgPjAAQAEtgA3wAPARHjAA8B0hMAOgC9AR7UAhsA7xIB","vhi":1.5083,"argmax":[1,1,1,5,0,3,1,1,2,2,4,4,5,0,3],"purete":[0.604,0.534,0.516,0.41,0.421,0.599,0.8,0.639,0.736,0.718,0.781,0.75,0.419,0.431,0.59],"residu":0.153,"accords":[["Gm","B♭","F","G7"],["F","Dm","C","B♭"],["B♭","F","C","Gm"],["Gm","B♭","Dm7","Dm"],["B♭","F","Dm","Am"],["F","B♭","Gm","C"]]},"8":{"U":"AAIAAvgCAQAEAAIE8wAAAgCAAgAAfQAAuwIDEAAQHwAAAAQDAGaRAAAAAF4SAI4AAK8AHTEAAAEEoAAXAEAABAACACUAAwPRAwMAJwAAANEAAJNsAAAAABAAWQAYbAASpAAACgAaLwgDAAIAAGeSAAAAAFoODYoA","V":"PwGWCwzjAAABCMgADQC9AgXCAAsAAMUApAAsAAHOAQIAywUB3gAAALUnAK4ALAABkgAGAAKbAAYDkAAAFQCVABOHAhkAnQABngAAAJkBAKIAAAAAIwRmAxGFAAoAAIgAGgHCCADrAAEAAOgA8QAAAQXeAA0B3xEAAAD/AAHnBAcA6wkBxQEAAKEUACwAcAAAEAASAAUQAAYACRcABwANAAAjAAEAAAgAFQAAAAENAA0AAAkAAAB1AABmAQAAgQABMgAEAAYwAAkBKQQABwAtAAUsAQYAMQAALgAHACEUAAAANQAABAAsAQAyAAEAADAAGgAAAQMOAAUADgoACQALAAIeAAMAAQMAAAALAAQFAAQABgAAdAEAAWMAAHYAAAAAAABXAAIAAFkACE4BAABQAQBGAAAAAFwAUgAFAABaAAAAVQMAEAAGAAUZAAAAFQAABABuAQB2AAAAAHQAagATAAJ3AAIAeQMAfwAEAG0VAGYAHwAAFABiAAIDAHUAAHQB","UV":"6gEXARvhASwEwBcBIgDVABfTAxsA4wIB2AIiAZ1dAQYB9QEBGgHPBQXuAQkBBeAB4AEpAhruASgDsy4BLQDTABbdAxsA4Q4B2QIsAZZtAgYB/gIBKQHKBRLlARUBD9cB3wENAQfgAA0EzBIALQDPARvZAyUA0wQBzQAUAMsOANcADQAAxQeEBZisAaQBA7ABRwGvDA3zABABDeMBEwDVAgbgAAwABd0AvAAzAALqAQYA5QYB9wAMAck3AcAAPgEBLgHbAgspANkAKtoCIQHOAwToAAYAEt4AwQAwAAbsAQkA4QcA8QIVArxCAcYBQQABJgHgAA0lANQAK9MCDAHUAgHfAAMADtoA5AENAQvjABQBzRMAJADIAAzeAgAA7w4B3AAPAAboAA0E1AgBIgDeABvQBCQA6AIB7QADAN0MAN8AFQIAMQW2BBfeAA8AHcsB2wAVAQbqAAwEzhUAKADbABvaAyQA3AoB5gAIANcOAOYACwIAdwamBFTLAVgBG74BEAHTAgLhAAUABt8AxAAsAAPrAQUA4AsA9QEIAcwuAMIAOwMBKQHbAQYqANkAK9cCEgHSAwLlAAIAB98AwgAvAAPsAQYA3w4A9gEJAcoxAMAAPgMBLAHaAQgsANgALdUCJAHDBwPoAAYABusA6AAJAQXqAA0B0hUADgDxAQHjAw8A3g4BuQFRAJhZASoAwwAAPAGvCAXsAAcAFdsAxgEuAQfsAA8BuygBMQDIABrLAxgA1wcB/wIXAeEdAa4BVhoBRAG0Cw3rABoBDeUBEwHWAgXiAAwABt8AwgAvAAboAQkA5AYB9QENAcY0AcUAOQUBLwHXAgsrANYAKtcCGAHUAwTlAAYACuMAxQApAAbqAQgA4AcA8wIOAr49AcsBNwABKAHgAA0lANUAK9UCDgHUAgLjAAQAC9wA4QEPAQrjABQBzBMAPADDACHZAhkA7QsB","vhi":1.5229,"argmax":[4,4,1,0,6,6,1,1,7,7,2,5,0,6,6],"purete":[0.972,0.953,0.501,0.733,0.57,0.559,0.688,0.627,0.82,0.821,0.577,0.423,0.645,0.573,0.543],"residu":0.0673,"accords":[["B♭","B♭","F","C"],["F","Dm","C","B♭"],["B♭","F","Dm","Am"],["B♭","B♭","C7","Dm"],["F","Dm","Am","B♭"],["F","Dm7","Dm","C"],["Gm","B♭","F","F"],["B♭","F","C","Gm"]]}}}}};</script>
+<h1 id="t"></h1>
+<p class="lede">Les vraies matrices. Les 48 colonnes de X et de V sont
+<b>4 mesures × 12 hauteurs</b> — les traits verticaux séparent les mesures.
+Clique une ligne pour l'écouter.</p>
+
+<div class="ctl">
+  <div class="grp"><b>k</b><span id="ks"></span></div>
+  <div class="grp"><b>grille</b><span id="gs"></span></div>
+</div>
+
+<div class="bloc">
+  <div class="tit">X — ce qu'on donne</div>
+  <div class="exp">une ligne = un bloc de 4 mesures du morceau, mis bout à bout</div>
+  <div class="wrap"><div class="lab" id="lx"></div><div><canvas id="cx"></canvas>
+    <div class="cols" id="colx"></div></div></div>
+</div>
+
+<div class="bloc">
+  <div class="tit">U — où sont les sections</div>
+  <div class="exp">une ligne = le même bloc ; une colonne = une section.
+    Clair = « ce bloc EST cette section ». Idéalement une seule case allumée par ligne.</div>
+  <div class="wrap"><div class="lab" id="lu"></div><div><canvas id="cu"></canvas></div>
+    <div class="lab accs" id="au"></div></div>
+</div>
+
+<div class="bloc">
+  <div class="tit">V — les sections elles-mêmes</div>
+  <div class="exp">une ligne = une section, écrite une fois : ses 4 mesures d'accords</div>
+  <div class="wrap"><div class="lab" id="lv"></div><div><canvas id="cv"></canvas>
+    <div class="cols" id="colv"></div></div>
+    <div class="lab accs" id="av"></div></div>
+</div>
+
+<div class="bloc">
+  <div class="tit">U·V — ce qu'on récupère</div>
+  <div class="exp">à comparer avec X, à l'œil, sur la même échelle de couleur.
+    Ce qui manque ici est le « ≈ ».</div>
+  <div class="wrap"><div class="lab" id="lr"></div><div><canvas id="cr"></canvas></div></div>
+  <div class="res" id="res"></div>
+</div>
+
+<div id="bar"><button id="jouer">Écouter</button><span id="ou"></span>
+  <a href="#" id="lien" style="margin-left:auto;font-size:13px"></a></div>
+
+<script>
+(function(){
+ "use strict";
+ var D = window.D, k = "5", g = "avec", CELL = 18;
+ document.getElementById("t").textContent = D.titre + " — X, U et V";
+
+ function bytes(b64){
+   var s = atob(b64), a = new Uint8Array(s.length);
+   for (var i = 0; i < s.length; i++) a[i] = s.charCodeAt(i);
+   return a;
+ }
+ /* clair -> fonce, une seule teinte : une magnitude, pas une categorie */
+ function couleur(v){
+   var st = [[251,247,236],[207,224,234],[132,179,207],[61,127,166],
+             [27,74,107],[13,36,55]];
+   var x = v/255*(st.length-1), i = Math.min(st.length-2, Math.floor(x)), f = x-i;
+   return "rgb(" + st[i].map(function(c,j){
+     return Math.round(c + f*(st[i+1][j]-c)); }).join(",") + ")";
+ }
+ function peins(id, arr, rows, cols, sep, large){
+   var c = document.getElementById(id), x = c.getContext("2d");
+   /* U n'a que k colonnes : a 14 px elle sort en timbre-poste et on ne voit
+      plus ce qui est justement le plus lisible du lot. */
+   var w = large ? 34 : Math.max(4, Math.min(14, Math.floor(760/cols)));
+   c.width = cols*w; c.height = rows*CELL;
+   c.style.width = (cols*w) + "px"; c.style.height = (rows*CELL) + "px";
+   for (var i = 0; i < rows; i++) for (var j = 0; j < cols; j++){
+     x.fillStyle = couleur(arr[i*cols+j]);
+     x.fillRect(j*w, i*CELL, w, CELL);
+   }
+   if (sep){
+     x.strokeStyle = "rgba(138,43,43,.55)"; x.lineWidth = 1;
+     for (var m = 1; m < D.L; m++){
+       x.beginPath(); x.moveTo(m*12*w + .5, 0); x.lineTo(m*12*w + .5, rows*CELL);
+       x.stroke();
+     }
+   }
+   return {w: w, cols: cols};
+ }
+ function etiquettes(id, items, clic){
+   var h = document.getElementById(id); h.innerHTML = "";
+   items.forEach(function(txt, i){
+     var e = document.createElement("div");
+     e.textContent = txt;
+     if (clic) e.onclick = function(){ clic(i); };
+     h.appendChild(e);
+   });
+ }
+ function colonnes(id, w, cols){
+   var h = document.getElementById(id); h.innerHTML = "";
+   h.style.width = (cols*w) + "px";
+   for (var m = 0; m < D.L; m++){
+     var s = document.createElement("span");
+     s.textContent = "mesure " + (m+1);
+     h.appendChild(s);
+   }
+ }
+
+ function dessine(){
+   var S = D.sorties[g], C = S.k[k];
+   Array.prototype.forEach.call(document.querySelectorAll("#ks button"), function(b){
+     b.className = (b.dataset.v === k) ? "on" : ""; });
+   Array.prototype.forEach.call(document.querySelectorAll("#gs button"), function(b){
+     b.className = (b.dataset.v === g) ? "on" : ""; });
+
+   var nb = S.nb, K = parseInt(k, 10);
+   var lignes = S.blocs.map(function(b){ return "mes. " + b.a + "–" + b.b; });
+   var clic = function(i){ vers(S.blocs[i].t); };
+
+   var mx = peins("cx", bytes(S.X), nb, 48, true);
+   etiquettes("lx", lignes, clic); colonnes("colx", mx.w, 48);
+
+   peins("cu", bytes(C.U), nb, K, false, true);
+   etiquettes("lu", lignes, clic);
+   etiquettes("au", C.argmax.map(function(j, i){
+     return "→ section " + (j+1) + "  (" + C.purete[i].toFixed(2) + ")"; }), clic);
+
+   var mv = peins("cv", bytes(C.V), K, 48, true);
+   etiquettes("lv", C.accords.map(function(_a, j){ return "section " + (j+1); }));
+   colonnes("colv", mv.w, 48);
+   etiquettes("av", C.accords.map(function(a){ return "| " + a.join(" | ") + " |"; }));
+
+   peins("cr", bytes(C.UV), nb, 48, true);
+   etiquettes("lr", lignes, clic);
+   document.getElementById("res").textContent =
+     "résidu ‖X − U·V‖ / ‖X‖ = " + C.residu +
+     "   ·   X " + nb + "×48   U " + nb + "×" + K + "   V " + K + "×48" +
+     (S.saut.length ? "   ·   trou : mesures " + S.saut[0].a + "–" + S.saut[0].b
+                    : "   ·   aucun trou");
+ }
+
+ var hk = document.getElementById("ks");
+ D.ks.forEach(function(x){
+   if (!D.sorties[g].k[String(x)]) return;
+   var b = document.createElement("button");
+   b.textContent = x; b.dataset.v = String(x);
+   b.onclick = function(){ k = String(x); dessine(); };
+   hk.appendChild(b);
+ });
+ var hg = document.getElementById("gs");
+ [["avec", "avec le trou"], ["sans", "sans trou"]].forEach(function(p){
+   var b = document.createElement("button");
+   b.textContent = p[1]; b.dataset.v = p[0];
+   b.onclick = function(){ g = p[0]; dessine(); };
+   hg.appendChild(b);
+ });
+ var L2 = document.getElementById("lien");
+ L2.href = D.trou_page; L2.textContent = "où placer le trou →";
+
+ /* son : timeupdate, jamais rAF ; blob, jamais Range */
+ var el=null, lien=null, joue=false;
+ if (window.fetch) fetch(D.audio_url).then(function(r){return r.ok?r.blob():null;})
+  .then(function(b){ if(b){ lien=URL.createObjectURL(b); if(el&&!joue) el.src=lien; }})
+  ["catch"](function(){});
+ function media(){
+   if (el) return el;
+   el=new Audio(); el.preload="auto"; el.playsInline=true;
+   try{ el.setAttribute("playsinline",""); el.setAttribute("webkit-playsinline",""); }catch(e){}
+   el.src = lien || D.audio_url;
+   el.addEventListener("timeupdate", function(){
+     var t=el.currentTime;
+     document.getElementById("ou").textContent =
+       Math.floor(t/60)+":"+String(Math.floor(t%60)).padStart(2,"0"); });
+   document.body.appendChild(el); return el;
+ }
+ function vers(t){ var a=media(); try{ a.currentTime=t; }catch(e){}
+   if(!joue){ a.play(); joue=true; document.getElementById("jouer").textContent="Pause"; } }
+ document.getElementById("jouer").onclick=function(){
+   var a=media();
+   if(joue){ a.pause(); joue=false; this.textContent="Écouter"; }
+   else { a.play(); joue=true; this.textContent="Pause"; } };
+
+ dessine();
+})();
+</script></body></html>
