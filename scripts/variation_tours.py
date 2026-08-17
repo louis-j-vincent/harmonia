@@ -54,6 +54,17 @@ CHARTS = REPO / "harmonia_min" / "state" / "charts"
 SORTIE = REPO / "docs" / "plots" / "variation_tours.html"
 P = 4                        # le tour, en mesures
 
+# LE SEUIL, ANCRÉ SUR SES DEUX ARBITRAGES (2026-08-18). C'est lui qui a lu les
+# deux cas et tranché, la valeur ne vient pas d'une optimisation :
+#   * Easy On Me, lettre A, A- contre C, distance 0,83 → « on replie, C est une
+#     variation de A- » ;
+#   * This Love, lettre D, C-7 contre G7, distance 0,74 → « C-7 est assez
+#     harmoniquement différent de G7, on le voit dans le score 0,74, donc là
+#     pas de repliement ! ».
+# Pour mémoire, deux tours au texte identique sont à 0,94 et deux lettres
+# différentes à 0,69 (mesuré sur 5 morceaux).
+SEUIL = 0.80
+
 MORCEAUX = [
     ("min_X-yIEMduRXk", "Adele — Easy On Me"),
     ("min_norah_jones_don_t_know_why", "Norah Jones — Don't Know Why"),
@@ -171,19 +182,35 @@ def morceau(stem: str, titre: str) -> str:
                 propose.append(f'<span class="ac flou">{html.escape(maj)}'
                                f'<sup>?</sup></span>')
 
-        if pattern is None:
-            verdict = ("<b>une seule occurrence</b> — rien ne s'est répété, "
-                       "donc le test du pattern ne dit rien. La règle "
-                       "s'abstient.")
+        # L'ORDRE DES DEUX TESTS EST LE SIEN (2026-08-18). La distance
+        # tranche d'abord : deux tours trop éloignés ne sont pas deux
+        # lectures du même tour, et il n'y a alors rien à replier — le test
+        # du pattern n'a même pas à être posé. La version d'avant demandait
+        # le pattern en premier et répondait « une seule occurrence, la règle
+        # s'abstient » sur le pont de This Love, alors que la vraie réponse
+        # était déjà écrite dans le 0,74.
+        d_med = float(np.median(diff)) if diff else None
+        if d_med is not None and d_med < SEUIL:
+            verdict = (f"<b>trop loin ({d_med:.2f} &lt; {SEUIL:.2f})</b> — ce "
+                       "ne sont pas deux lectures d'un même tour, ce sont deux "
+                       "tours. On ne replie pas.")
+        elif pattern is None:
+            verdict = ("<b>on replie</b> — les tours sont proches, donc c'est "
+                       "le même tour et on note la variante. Le pattern reste "
+                       "intestable : une seule occurrence de la lettre, rien "
+                       "ne s'est encore répété qui puisse en révéler un.")
         elif pattern:
-            verdict = ("<b>pattern</b> — la variante tombe toujours au même "
-                       "tour, donc c'est une forme (1re/2e fin) : on ne "
+            verdict = ("<b>pattern</b> — les tours sont proches, mais la "
+                       "variante tombe toujours au même tour : c'est une "
+                       "forme (1re/2e fin), pas une interprétation. On ne "
                        "replie pas.")
         else:
-            verdict = ("<b>pas de pattern</b> — la variante ne tombe pas au "
-                       "même tour d'une occurrence à l'autre, donc c'est "
-                       "l'interprétation : on replie et on note la variante.")
-        if floues:
+            verdict = ("<b>pas de pattern</b> — les tours sont proches et la "
+                       "variante ne tombe pas au même tour d'une occurrence à "
+                       "l'autre : c'est l'interprétation du musicien. On "
+                       "replie et on note la variante.")
+        replie = not (d_med is not None and d_med < SEUIL) and not pattern
+        if floues and replie:
             verdict += (f' <span class="flouv">{floues} position(s) ont plus '
                         f'de deux lectures — la règle ne les tranche pas.</span>')
         blocs.append(f"""
@@ -194,7 +221,9 @@ def morceau(stem: str, titre: str) -> str:
     &nbsp;·&nbsp; tours qui divergent : <b>{_st(diff)}</b>
   </p>
   <p class="verdict2">{verdict}</p>
-  <div class="propose"><i>ce que la règle écrirait</i>{''.join(propose)}</div>
+  <div class="propose"><i>{"ce que la règle écrirait" if replie
+     else "on ne replie pas — chaque tour garde son texte"}</i>{
+     ''.join(propose) if replie else ""}</div>
 """ if ident or diff else "")
 
     if not blocs:
