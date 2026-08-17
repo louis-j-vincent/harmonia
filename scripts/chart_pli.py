@@ -43,9 +43,15 @@ from harmonia_min.soudure import accords_par_mesure         # noqa: E402
 NOTE = "C Db D Eb E F Gb G Ab A Bb B".split()
 CHARTS = REPO / "harmonia_min" / "state" / "charts"
 MARQUES = REPO / "harmonia_min" / "state" / "sections"
+BROUILLONS = REPO / "harmonia_min" / "state" / "sections_draft"
 LETTRES = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-P = 4
+#: Les longueurs de tour essayées. Louis, 2026-08-18, après avoir vu le pli à 4
+#: alourdir 24 charts sur 31 : « autoriser des tours de 2, 6 et 8 mesures et
+#: choisir par morceau celui qui laisse le moins de queue ». Une queue est une
+#: mesure qu'aucun tour ne couvre : elle prend une lettre à elle seule, et 86
+#: des 246 sections écrites par le pli à 4 étaient exactement ça.
+TOURS = (8, 6, 4, 2)
 SEUIL = 0.80
 MIN_TOURS = 3
 
@@ -66,7 +72,50 @@ def min_var(n: int) -> int:
     return max(2, math.ceil(math.sqrt(n)))
 
 
-def construire(stem: str) -> dict | None:
+def _cout(secs: list[dict]) -> int:
+    """Ce qu'il faut ÉCRIRE pour dire la chanson entière — même forme que
+    `phrases4.cout`, l'arbitrage que le projet utilise déjà pour départager
+    une cible de 4 et une cible de 6.
+
+        dictionnaire : les mesures écrites, une fois chacune
+      + partition    : un renvoi par passage joué
+      + queues       : leur longueur ENTIÈRE, en plus — un bloc qui n'explique
+                       rien se paie au prix fort, il faut l'écrire tel quel.
+
+    C'est ce qui empêche le tour de 2 de gagner par défaut : il ne laisse
+    presque jamais de queue, mais il éclate le morceau en renvois.
+    """
+    ecrit = sum(len(s["bars"]) for s in secs)
+    renvois = sum(s["reps"] for s in secs)
+    queues = sum(len(s["bars"]) for s in secs
+                 if s["reps"] == 1 and len(s["bars"]) < 4)
+    return ecrit + renvois + queues
+
+
+def meilleur_tour(stem: str) -> tuple[dict | None, list]:
+    """Le pli le moins cher parmi les longueurs de tour de TOURS.
+
+    Rend (chart, [(P, coût, n_sections, n_queues)]) — la deuxième valeur est le
+    détail de l'arbitrage, pour qu'on puisse toujours dire POURQUOI ce tour-là.
+    """
+    essais = []
+    for P in TOURS:
+        try:
+            neuf = construire(stem, P)
+        except Exception:
+            continue
+        if neuf is None:
+            continue
+        q = sum(1 for s in neuf["sections"]
+                if s["reps"] == 1 and len(s["bars"]) < 4)
+        essais.append((P, _cout(neuf["sections"]), len(neuf["sections"]), q, neuf))
+    if not essais:
+        return None, []
+    essais.sort(key=lambda e: (e[1], -e[0]))     # à coût égal, le tour le PLUS long
+    return essais[0][4], [(P, c, n, q) for P, c, n, q, _ in essais]
+
+
+def construire(stem: str, P: int = 4) -> dict | None:
     chart = json.loads((CHARTS / f"{stem}.json").read_text(encoding="utf-8"))
     grid = chart["barGrid"]
     n_bars = chart.get("nBars") or (len(grid) - 1)
@@ -77,8 +126,15 @@ def construire(stem: str) -> dict | None:
     Vb = _bar_vecs(halfbar_features(grid, arr, times), n_bars)
     bars = accords_par_mesure(chart)
 
-    fm = MARQUES / f"{Path(chart['audio_url']).stem}.json"
-    if fm.exists():
+    # LE PLUS RÉCENT DES DEUX, comme `server._sections_known`. Ne lire que
+    # `state/sections/` ratait l'annotation que Louis vient de faire : celle
+    # d'Another Day était dans `sections_draft/` et le script repliait sur les
+    # sections de la machine sans le dire.
+    stem_audio = Path(chart["audio_url"]).stem
+    cands = [f for f in (MARQUES / f"{stem_audio}.json",
+                         BROUILLONS / f"{stem_audio}.json") if f.exists()]
+    fm = max(cands, key=lambda f: f.stat().st_mtime) if cands else None
+    if fm is not None:
         ancres = [(x["b0"], x["b1"])
                   for x in json.loads(fm.read_text(encoding="utf-8"))["sections"]]
     else:
@@ -138,7 +194,7 @@ def construire(stem: str) -> dict | None:
         if not replie:
             # chaque tour garde son texte : une section par tour
             for a in g:
-                secs.append(_section(chart, bars, lab, a, P, [a]))
+                secs.append(_section(chart, bars, lab, a, P, [a], P=P))
                 lab = LETTRES[i_lettre % len(LETTRES)]
                 i_lettre += 1
             continue
@@ -149,15 +205,16 @@ def construire(stem: str) -> dict | None:
                             and (a + P) in rang)
             if paires:
                 secs.append(_section(chart, bars, lab, paires[0], 2 * P, paires,
-                                     modele_de=g, rang=rang, alterne=True))
+                                     modele_de=g, rang=rang, alterne=True,
+                                     P=P))
                 continue
 
-        secs.append(_section(chart, bars, lab, g[0], P, g, modele_de=g))
+        secs.append(_section(chart, bars, lab, g[0], P, g, modele_de=g, P=P))
 
     for q0, q1 in queues:
         lab = LETTRES[i_lettre % len(LETTRES)]
         i_lettre += 1
-        secs.append(_section(chart, bars, lab, q0, q1 - q0 + 1, [q0]))
+        secs.append(_section(chart, bars, lab, q0, q1 - q0 + 1, [q0], P=P))
 
     secs.sort(key=lambda s: s["barRanges"][0][0])
     secs = _souder_voisines(secs, chart)
@@ -168,7 +225,8 @@ def construire(stem: str) -> dict | None:
     neuf["fold"] = {}
     neuf["form"] = None
     neuf["meta"] = {**(chart.get("meta") or {}), "source": "chart_pli",
-                    "seuil": SEUIL, "min_tours": MIN_TOURS, "tour": P}
+                    "seuil": SEUIL, "min_tours": MIN_TOURS, "tour": P,
+                    "cout": _cout(secs)}
     return neuf
 
 
@@ -205,7 +263,7 @@ def _souder_voisines(secs: list[dict], chart: dict) -> list[dict]:
 
 
 def _section(chart, bars, lab, modele, L, departs, *, modele_de=None,
-             rang=None, alterne=False) -> dict:
+             rang=None, alterne=False, P=4) -> dict:
     """Une section écrite une fois, jouée `len(departs)` fois.
 
     `modele_de` : les tours dont on tire le texte écrit — la majorité case par

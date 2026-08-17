@@ -25,11 +25,27 @@ un tour + une queue de 2 ; un morceau dont les sections ne sont pas des
 multiples de 4 explose en lettres orphelines. 88 autres (36 %) sont des
 sections à passage unique. Seules 72 sont de vrais replis.
 
-**LA SUITE** : la queue ne doit pas devenir une lettre. Deux pistes, à
-mesurer avant de choisir — (1) la rattacher à sa voisine (le tour précédent
-devient 6 mesures) ; (2) autoriser des tours de 2, 6 et 8 mesures, et choisir
-par morceau celui qui laisse le moins de queue. La (2) est plus proche de
-l'algorithme des quatre mots, qui arbitre déjà 4 contre 6 par coût épistémique.
+**LA PISTE (2) A ÉTÉ MESURÉE LE MÊME JOUR, ET NE SUFFIT PAS.** Tours de 2, 4,
+6 et 8 mesures, arbitrés par morceau au coût épistémique (mesures écrites +
+renvois + longueur des queues, la forme de `phrases4.cout`) : **9 charts
+simplifiés, 20 alourdis** — mieux que 7/24, pas assez. Ancrer les tours sur la
+grille au lieu des sections : 14/23, pas mieux non plus.
+
+**CE QUI SÉPARE VRAIMENT LES DEUX POPULATIONS**, et c'est la vraie trouvaille :
+
+    charts AVEC une annotation de sections à la main : 9 simplifiés sur 18
+    charts SANS                                      : 2 sur 19
+
+Le pli ne dépend pas de la longueur du tour, il dépend de la **qualité des
+frontières qu'on lui donne**. Sur Fallin' — sans annotation — les sections du
+détecteur ont des passages de 2, 3 et 6 mesures ; chacun laisse une queue,
+chaque queue prend une lettre, et le chart passe de 2 à 8 sections. Sur les
+morceaux que Louis a annotés, ses frontières sont des multiples du tour et la
+règle rend exactement ce qu'il voulait.
+
+**LA SUITE** : le pli est un outil pour morceau ANNOTÉ, pas un remplaçant du
+détecteur. Soit on ne l'applique qu'aux morceaux annotés (19 aujourd'hui), soit
+on fait d'abord tomber les frontières du détecteur sur des multiples du tour.
 
 En attendant, la règle vit sur les charts `pli_*`, à côté des originaux, et
 `scripts/chart_pli.py --en-prod` refuse d'écrire un chart qui perdrait des
