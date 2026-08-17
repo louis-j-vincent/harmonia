@@ -55,6 +55,31 @@ GRIS = "#d8d2c6"
 
 NOTES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
 
+#: La rampe de `ssm_page.CMAP` — une seule teinte, clair vers foncé, parce
+#: qu'une similarité est une MAGNITUDE. Un arc-en-ciel inventerait des
+#: frontières là où la valeur monte régulièrement.
+CMAP = ["#fbf7ec", "#cfe0ea", "#84b3cf", "#3d7fa6", "#1b4a6b", "#0d2437"]
+
+
+def matrice_png(S) -> str:
+    """La matrice en base64, un octet par case — même transport que `ssm_page`.
+
+    L'étirement se lit HORS diagonale : la diagonale vaut 1 par construction et
+    tirerait tout le haut de l'échelle à elle seule. Les cases sans accord (NaN)
+    sortent au plus clair, comme une absence.
+    """
+    import base64
+    S = np.asarray(S, dtype=float)
+    n = len(S)
+    hors = S[~np.eye(n, dtype=bool)]
+    hors = hors[np.isfinite(hors)]
+    lo, hi = ((float(np.quantile(hors, 0.05)), float(np.quantile(hors, 0.99)))
+              if hors.size else (0.0, 1.0))
+    if hi - lo < 1e-6:
+        hi = lo + 1e-6
+    q = np.clip((np.nan_to_num(S, nan=lo) - lo) / (hi - lo), 0.0, 1.0)
+    return base64.b64encode((q * 255.0 + 0.5).astype(np.uint8).tobytes()).decode()
+
 
 def accords_par_mesure(chart: dict) -> list[str]:
     """Le nom de l'accord qui dure le plus longtemps dans chaque mesure."""
@@ -522,6 +547,19 @@ def bloc_morceau(fichier: str, titre: str) -> str:
 « ressemblance forte » <b>{seuil:.3f}</b> · sortie : {resume}
 · <span class="reste">{len(res["reste"])} mesures sans section</span></p>
 <audio controls preload="none"></audio>
+<div class="ssmbox">
+<figure><figcaption>la matrice — substrat {SUBSTRAT}</figcaption>
+<canvas data-m="{matrice_png(S)}" data-n="{n}"
+ data-front='{json.dumps([{"m": su["b0"], "l": s2["label"]}
+                          for s2 in res["sections"] for su in s2["suites"]])}'
+ data-louis='{json.dumps(sorted({b for b in range(n)
+                                 if louis[b] and (b == 0 or louis[b-1] != louis[b])}))}'
+ data-secs='{json.dumps([{"a": su["b0"], "b": su["b1"], "l": s2["label"],
+                          "c": coul_algo[s2["label"]]}
+                         for s2 in res["sections"] for su in s2["suites"]])}'></canvas>
+<figcaption class="leg">trait plein rouge = début d'un passage trouvé par
+l'algo · pointillé bleu = une de tes frontières · plus c'est foncé, plus ça se
+ressemble</figcaption></figure></div>
 {bandeau(algo, coul_algo, grid,
          f"L'algo — substrat {SUBSTRAT} — c'est LUI qui est expliqué ci-dessous",
          chords)}
@@ -642,6 +680,14 @@ table.cand em.vieux{background:#f2ddd6;color:#8c3a22}
 .rien{font-size:12.5px;color:var(--doux);margin:0}
 .pied{color:var(--doux);font-size:13px;max-width:78ch}
 .pied li{margin:0 0 6px}
+.ssmbox{margin:0 0 14px}
+.ssmbox figure{margin:0;max-width:340px}
+.ssmbox figcaption{font-size:11px;color:var(--doux);text-transform:uppercase;
+ letter-spacing:.04em;font-weight:600;margin:0 0 4px}
+.ssmbox figcaption.leg{text-transform:none;letter-spacing:0;font-weight:400;
+ margin:5px 0 0;line-height:1.4}
+.ssmbox canvas{width:100%;aspect-ratio:1;display:block;border:1px solid var(--trait);
+ border-radius:4px;background:#fbf7ec}
 .expli{background:#f7f4ea;border:1px solid #e7e0cf;border-radius:8px;
  padding:16px 18px;margin:0 0 40px}
 .expli h2{font-size:18px}
@@ -657,6 +703,51 @@ details.temoin .bande{margin-top:8px;opacity:.75}
 """
 
 JS = """
+var CMAP = __CMAP__;
+/* LA MATRICE. Un octet par case, décodé ici et peint à la main : une image PNG
+   qu'il faudrait ensuite recaler au pixel près sur les repères de mesures
+   donnerait deux systèmes de coordonnées pour une seule lecture. Par-dessus, on
+   trace les frontières (les siennes en pointillé bleu, celles de l'algo en
+   rouge plein) et les SECTIONS TROUVÉES en bandes de couleur le long des deux
+   bords — la matrice dit où ça se ressemble, la bande dit ce que l'algo en a
+   conclu, et les deux se lisent d'un coup. */
+document.querySelectorAll("canvas[data-m]").forEach(function(cv){
+  var bin = atob(cv.dataset.m), n = +cv.dataset.n;
+  var front = JSON.parse(cv.dataset.front), louis = JSON.parse(cv.dataset.louis);
+  var DPR = window.devicePixelRatio || 1, cote = cv.clientWidth || 300;
+  cv.width = cv.height = Math.round(cote * DPR);
+  var ctx = cv.getContext("2d"), u = cv.width / n;
+  for (var i = 0; i < n; i++) for (var j = 0; j < n; j++){
+    var v = bin.charCodeAt(i * n + j) / 255;
+    ctx.fillStyle = CMAP[Math.min(CMAP.length - 1, Math.floor(v * CMAP.length))];
+    ctx.fillRect(j * u, i * u, Math.ceil(u), Math.ceil(u));
+  }
+  ctx.lineWidth = Math.max(1, DPR);
+  ctx.setLineDash([3 * DPR, 3 * DPR]); ctx.strokeStyle = "#2f6f9e";
+  louis.forEach(function(m){
+    var p = Math.round(m * u) + 0.5;
+    ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, cv.height);
+    ctx.moveTo(0, p); ctx.lineTo(cv.width, p); ctx.stroke();
+  });
+  ctx.setLineDash([]); ctx.strokeStyle = "#b4472c";
+  front.forEach(function(f){
+    var p = Math.round(f.m * u) + 0.5;
+    ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, cv.height);
+    ctx.moveTo(0, p); ctx.lineTo(cv.width, p); ctx.stroke();
+  });
+  var ep = Math.max(4 * DPR, cv.width * 0.024);
+  JSON.parse(cv.dataset.secs).forEach(function(s){
+    var x = s.a * u, w = (s.b - s.a + 1) * u;
+    ctx.fillStyle = s.c;
+    ctx.fillRect(x, 0, w, ep);
+    ctx.fillRect(0, x, ep, w);
+    ctx.fillStyle = "#fff";
+    ctx.font = "600 " + Math.round(ep * 0.78) + "px -apple-system,sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    if (w > ep * 1.4) { ctx.fillText(s.l, x + w / 2, ep / 2);
+                        ctx.fillText(s.l, ep / 2, x + w / 2); }
+  });
+});
 /* Un clic sur une mesure place la tête de lecture. Le disque est rejoué depuis
    un blob : dans Safari iOS le lecteur média ne bufferise jamais un fichier
    servi en direct (206 en boucle), et chaque tap replace la tête
@@ -736,7 +827,7 @@ refuse ensuite. On force désormais le mot dans sa propre section, mais la
 tension entre les deux seuils reste — c'est elle qui décide où une section
 s'arrête.</li>
 </ul>
-<script>{JS}</script>
+<script>{JS.replace("__CMAP__", json.dumps(CMAP))}</script>
 </html>"""
     SORTIE.write_text(page, encoding="utf-8")
     print(f"écrit {SORTIE} ({len(page) / 1024:.0f} ko)")

@@ -33,17 +33,14 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from harmonia_min import retour as R          # noqa: E402
-from demo_retour import (MORCEAUX, accords_par_mesure,           # noqa: E402
-                         annotation, couleurs_louis, e)
+from demo_retour import (CMAP, MORCEAUX, accords_par_mesure,     # noqa: E402
+                         annotation, couleurs_louis, e, matrice_png)
 
 CHARTS = REPO / "harmonia_min" / "state" / "charts"
 SORTIE = REPO / "docs" / "plots" / "retour_basse_vs_accords.html"
 
 SUBSTRATS = ("accords", "basse", "accords*basse")
 
-#: La rampe de `ssm_page.CMAP`, pour que les matrices du projet se lisent avec
-#: le même œil.
-CMAP = ["#fbf7ec", "#cfe0ea", "#84b3cf", "#3d7fa6", "#1b4a6b", "#0d2437"]
 NOTES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
 
 #: Sur combien de mesures on compare deux sections. 4 = la carrure ; c'est
@@ -69,18 +66,6 @@ def basse_notes(chart: dict, audio_dir=None) -> list[str]:
         k = int(seg.mean(0).argmax())
         out.append("N" if k == 0 else NOTES[(k - 1) % 12])
     return out
-
-
-def matrice_png(S: np.ndarray) -> str:
-    """La matrice en base64, un octet par case — même transport que ssm_page."""
-    n = len(S)
-    hors = S[~np.eye(n, dtype=bool)]
-    lo, hi = ((float(np.quantile(hors, 0.05)), float(np.quantile(hors, 0.99)))
-              if hors.size else (0.0, 1.0))
-    if hi - lo < 1e-6:
-        lo, hi = float(S.min()), max(float(S.max()), float(S.min()) + 1e-6)
-    q = np.clip((S - lo) / (hi - lo), 0.0, 1.0)
-    return base64.b64encode((q * 255.0 + 0.5).astype(np.uint8).tobytes()).decode()
 
 
 def paires(S: np.ndarray, secs: list[dict], n: int) -> list[dict]:
