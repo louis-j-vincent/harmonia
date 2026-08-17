@@ -244,7 +244,16 @@ def soudure_valider(file):
     if manque:
         return jsonify({"error": f"{len(manque)} mesures ne sont dans aucune "
                                  f"section (la première est la {manque[0] + 1})"}), 400
-    neuves = sections_pour_chart(chart, secs)
+    # LES ACCORDS EMPILÉS SONT UNE CONSÉQUENCE DES SECTIONS, donc on les refait
+    # avec CELLES-CI (Louis, 2026-08-17 : « lorsqu'on renomme les sections, on
+    # retourne sur le brut et donc pas les accords renommés, qui eux sont la
+    # CONSÉQUENCE des sections »). On repart du chart brut — la vérité terrain,
+    # que le repli d'avant n'a pas touchée — et on ré-empile selon le nouveau
+    # découpage. Garder l'ancien empilement ferait dire à sa structure ce qu'a
+    # dit la précédente ; le jeter lui rendrait un chart moins bon qu'avant.
+    from harmonia_min.refold import refold
+    bars, rap = refold(chart, secs, AUDIO_DIR)
+    neuves = sections_pour_chart(chart, secs, bars=bars)
     if not neuves:
         return jsonify({"error": "aucune section utilisable"}), 400
     try:
@@ -254,15 +263,18 @@ def soudure_valider(file):
         chart["sections"] = neuves
         # Le repli d'origine décrivait les ANCIENNES sections : le garder
         # ferait lire au chart une carte qui ne correspond plus au terrain.
-        chart["fold"] = {}
+        # Celui de `refold` décrit CE découpage-ci, il a le droit d'y rester.
+        chart["fold"] = rap.get("rapport") or {}
         chart["form"] = None
         p.write_text(json.dumps(chart, ensure_ascii=False), encoding="utf-8")
     except OSError as exc:
         log.warning("soudure valider %s: %s", file, exc)
         return jsonify({"error": "écriture impossible"}), 500
     _SOUDURE_CACHE.clear()
-    log.info("soudure: %s réécrit avec %d sections (copie dans %s)",
-             p.name, len(neuves), bak)
+    log.info("soudure: %s réécrit avec %d sections, empilement %s (copie "
+             "dans %s)", p.name, len(neuves),
+             (f"{rap.get('n_reecrites')} mesures" if rap.get("ok")
+              else f"REFUSÉ ({rap.get('raison')})"), bak)
     return jsonify({"ok": True, "sections": len(neuves),
                     "url": "/?open=" + Path(file).stem})
 
@@ -304,6 +316,12 @@ def sections_inferer(file):
             j0 = jeton_de.get(int(h["mesure_debut"]) - 1)
             j1 = jeton_de.get(int(h["mesure_fin"]) - 1)
         except (TypeError, ValueError):
+                    # dit toujours ce que l'empilement a fait, y compris rien :
+                    # un repli muet ferait croire le chart amélioré quand il
+                    # n'est que brut.
+                    "empile": bool(rap.get("ok")),
+                    "mesures_empilees": rap.get("n_reecrites", 0),
+                    "empile_raison": rap.get("raison"),
             continue
         if j0 is None or j1 is None or j1 < j0:
             continue

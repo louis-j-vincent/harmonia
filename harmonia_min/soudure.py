@@ -717,11 +717,18 @@ def _bars_par_mesure(chart: dict) -> list:
     return accords_par_mesure(chart)
 
 
-def sections_pour_chart(chart: dict, secs: list[dict]) -> list[dict]:
+def sections_pour_chart(chart: dict, secs: list[dict],
+                        bars: list | None = None) -> list[dict]:
     """Les sections du chart, refaites à partir du découpage de la Soudure.
 
     `secs` : [{label, mesure_debut, mesure_fin}] en mesures 1-indexées, fin
     incluse — la forme que la page exporte.
+
+    `bars` : les mesures déjà construites, quand l'appelant les a re-dérivées
+    du nouveau découpage (`refold.refold`). Sans lui, on prend le chart brut
+    tel quel — correct, mais sans l'empilement des répétitions, qui est une
+    CONSÉQUENCE des sections et doit donc être refait avec celles-ci
+    (Louis, 2026-08-17 ; voir le module refold).
 
     On rend la MÊME forme que la pipeline (`pipeline.py`, montage des
     sections) : id, label, tag, reps, spans, barRanges, bars, barSpans. Les
@@ -732,7 +739,7 @@ def sections_pour_chart(chart: dict, secs: list[dict]) -> list[dict]:
     """
     grid = chart.get("barGrid") or []
     n = chart.get("nBars") or (len(grid) - 1)
-    bars = _bars_par_mesure(chart)
+    bars = accords_par_mesure(chart) if bars is None else bars
     groupes: dict = {}
     for s in secs:
         b0 = max(0, int(s["mesure_debut"]) - 1)
