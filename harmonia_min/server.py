@@ -322,7 +322,16 @@ def sections_inferer(file):
         depart.append((j, j + 1, mot[j]))
         j += 1
 
-    secs, info = phrases(mot, depart=depart)
+    # SES TRAITS SONT DES MURS. Sans le gel, `merges4` reprend l'agglomération
+    # à partir d'eux et continue de les souder ENTRE EUX : sur Let It Be, son
+    # couplet (4 mots) et son refrain (2 mots) tenaient ensemble sous cible=6,
+    # fusionnaient, et le bloc soudé — qui ne correspondait plus à aucune de
+    # ses sections — repartait sous une lettre de la machine. **15 sections
+    # envoyées, 1 seule rendue sous son nom** (2026-08-17). Prolonger une
+    # soudure est la règle de l'outil Soudure (/api/phrases4, inchangée) ;
+    # ici un trait est une section entière, elle se garde telle quelle.
+    secs, info = phrases(mot, depart=depart,
+                         geles={(j0, j1 + 1) for j0, j1, _lab in fixes})
     # le contenu de chacune de ses sections -> son nom
     par_contenu = {mot[j0:j1 + 1]: lab for j0, j1, lab in fixes}
     # Les plages qu'il a VRAIMENT tracées, pour les distinguer à l'écran de

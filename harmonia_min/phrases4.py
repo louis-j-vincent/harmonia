@@ -34,7 +34,7 @@ CIBLE = 4
 LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
-def merges4(word, cible=CIBLE, max_steps=24, depart=None):
+def merges4(word, cible=CIBLE, max_steps=24, depart=None, geles=None):
     """[{paire, compte, jetons}] — l'agglomération plafonnée à `cible` mots.
 
     Identique à `bpe_lab.merges` sauf deux choses, qui sont les règles de
@@ -46,12 +46,29 @@ def merges4(word, cible=CIBLE, max_steps=24, depart=None):
     Soudure envoie — l'algorithme reprend alors le travail là où Louis l'a
     laissé au lieu de repartir des lettres nues, et ses soudures à lui ne
     peuvent plus être défaites, seulement prolongées.
+
+    `geles` (2026-08-17) : parmi ces jetons de départ, ceux qui sont des
+    sections ENTIÈRES et non des morceaux à prolonger — un ensemble de
+    (j0, j1). Un jeton gelé ne fusionne avec personne, dans aucun sens.
+
+    Les deux outils ne veulent pas la même chose du même geste, et c'est
+    pourquoi le gel est un paramètre plutôt qu'une règle. SOUDURE recolle des
+    bi-mesures : sa soudure est un bout de section, la prolonger est le
+    travail. SECTIONS trace une section complète : la prolonger, c'est
+    l'effacer. Sur Let It Be, sans gel, le couplet de 4 mots et le refrain de
+    2 mots que Louis venait de tracer tenaient ensemble sous `cible=6` — ils
+    fusionnaient, sa frontière disparaissait, et le bloc soudé ne
+    correspondant plus à aucune de ses sections repartait sous une lettre de
+    la machine : 15 sections envoyées, 1 rendue sous son nom.
     """
     toks = list(depart) if depart else [(j, j + 1, word[j]) for j in range(len(word))]
+    fige = set(geles or ())
     steps = [{"paire": None, "compte": 0, "jetons": list(toks)}]
     for _ in range(max_steps):
         cnt: dict = {}
         for i in range(len(toks) - 1):
+            if (toks[i][0], toks[i][1]) in fige or (toks[i + 1][0], toks[i + 1][1]) in fige:
+                continue
             a, b = toks[i][2], toks[i + 1][2]
             if len(a) + len(b) > cible:
                 continue
@@ -63,7 +80,9 @@ def merges4(word, cible=CIBLE, max_steps=24, depart=None):
                           key=lambda kv: (kv[1], len(kv[0][0]) + len(kv[0][1])))
         out, i = [], 0
         while i < len(toks):
-            if i + 1 < len(toks) and toks[i][2] == pa and toks[i + 1][2] == pb:
+            if (i + 1 < len(toks) and toks[i][2] == pa and toks[i + 1][2] == pb
+                    and (toks[i][0], toks[i][1]) not in fige
+                    and (toks[i + 1][0], toks[i + 1][1]) not in fige):
                 out.append((toks[i][0], toks[i + 1][1], pa + pb))
                 i += 2
             else:
@@ -74,12 +93,18 @@ def merges4(word, cible=CIBLE, max_steps=24, depart=None):
     return steps
 
 
-def nommer(toks, cible=CIBLE):
+def nommer(toks, cible=CIBLE, geles=None):
     """[{j0, j1, type, label, prime}] — les lettres, avec la règle du prime.
 
     Deux sections de même longueur qui ne diffèrent QUE par leur dernier mot
     sont la même lettre, la seconde marquée d'un prime.
+
+    `geles` : un jeton tracé à la main n'est JAMAIS une queue, même court.
+    Sans ça, l'intro de 2 mots que Louis vient de tracer repartait dans
+    `grouper_restes`, collée à sa voisine — le gel de `merges4` l'aurait
+    sauvée de la soudure pour la perdre au regroupement suivant.
     """
+    fige = set(geles or ())
     base: list[tuple[str, str]] = []          # (type de référence, lettre)
     out = []
     for j0, j1, t in toks:
@@ -95,7 +120,8 @@ def nommer(toks, cible=CIBLE):
             lab = LETTERS[len({L for _u, L in base}) % len(LETTERS)]
             base.append((t, lab))
         out.append({"j0": j0, "j1": j1, "type": t, "label": lab,
-                    "prime": prime, "queue": (j1 - j0) < cible})
+                    "prime": prime,
+                    "queue": (j1 - j0) < cible and (j0, j1) not in fige})
     return out
 
 
@@ -181,7 +207,7 @@ def cout(nom, cible) -> float:
     return d + p + pr + r
 
 
-def phrases(word, depart=None, cibles=CIBLES):
+def phrases(word, depart=None, cibles=CIBLES, geles=None):
     """Le chemin complet : agglomérer, nommer, regrouper, puis ARBITRER.
 
     C'est ce que le bouton « Appliquer » de l'outil Soudure appelle, avec les
@@ -202,8 +228,8 @@ def phrases(word, depart=None, cibles=CIBLES):
     """
     essais = []
     for c in cibles:
-        steps = merges4(word, cible=c, depart=depart)
-        nom = grouper_restes(nommer(steps[-1]["jetons"], c), word, c)
+        steps = merges4(word, cible=c, depart=depart, geles=geles)
+        nom = grouper_restes(nommer(steps[-1]["jetons"], c, geles=geles), word, c)
         essais.append((cout(nom, c), c, nom))
     essais.sort(key=lambda e: (e[0], e[1]))
     return essais[0][2], {"cible": essais[0][1],
