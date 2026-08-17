@@ -483,6 +483,42 @@ def _pass(S, M, mute, n, start, block, thr, claimed, max_blocks=20):
     return runs
 
 
+def _lettres(out) -> None:
+    """Les lettres, dans l'ordre d'apparition. Sur place.
+
+    Les entrées portent encore le NUMÉRO du motif qui a réclamé la mesure, et
+    **-1 pour ce que personne n'a réclamé**.
+
+    LE PIÈGE, payé sur Easy On Me (Louis, 2026-08-17 : « le D est mal
+    utilisé »). Traduire l'entier tel quel donnait UNE seule lettre à tous les
+    orphelins du morceau, où qu'ils soient et quelle que soit leur longueur :
+
+        D  mes. 25-26 (2)   la liaison vers le couplet 2
+        D  mes. 43-50 (8)   un vrai pont
+        D  mes. 63    (1)   l'accord final
+
+    Trois musiques, une lettre — et une lettre dont les occurrences n'ont même
+    pas la même longueur, ce qui est exactement ce que « under-fold, never
+    over-fold » interdit. L'intention écrite ici était pourtant la bonne (« ce
+    qui n'est réclamé par personne garde une lettre à lui ») : c'est
+    l'implémentation qui les mettait en commun, -1 étant un seul entier.
+
+    Chaque passage orphelin reçoit donc sa propre lettre. S'ils sont vraiment
+    la même musique, `merge_letters` les recolle juste après — et son plancher
+    `MERGE_MIN` empêche de coller une liaison de 2 mesures sur un pont de 8.
+    Séparer d'abord, fusionner ensuite : l'inverse ne se rattrape pas.
+    """
+    ren, k = {}, 0
+    for i, s in enumerate(out):
+        if not isinstance(s["label"], (int, np.integer)):
+            continue                                   # intro / outro / nommé
+        # `i` rend la clé unique : deux orphelins ne se rencontrent jamais.
+        cle = ("orphelin", i) if int(s["label"]) < 0 else int(s["label"])
+        if cle not in ren:
+            ren[cle] = chr(ord("A") + k); k += 1
+        s["label"] = ren[cle]
+
+
 def detect_sections(grid, triad, bars=None, audio=None, form_start=None):
     """[{b0, b1, label}] sur les indices de mesure — contigu, couvrant.
 
@@ -545,14 +581,7 @@ def detect_sections(grid, triad, bars=None, audio=None, form_start=None):
         out.append({"b0": b, "b1": z, "label": owner[b]})
         b = z + 1
 
-    # les lettres dans l'ordre d'apparition ; ce qui n'est réclamé par personne
-    # garde une lettre à lui plutôt que de disparaître — un pont existe.
-    ren, k = {}, 0
-    for s in out:
-        if isinstance(s["label"], (int, np.integer)):
-            if s["label"] not in ren:
-                ren[s["label"]] = chr(ord("A") + k); k += 1
-            s["label"] = ren[s["label"]]
+    _lettres(out)
     # …puis on recolle les lettres qui désignent la même musique : nos lettres
     # disent qui a réclamé la mesure, pas ce qu'on y entend.
     merge_letters(S, out, V=V)

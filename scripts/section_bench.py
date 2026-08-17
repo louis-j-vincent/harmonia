@@ -145,13 +145,14 @@ def assemble(runs, n, start):
             z += 1
         out.append({"b0": b, "b1": z, "label": owner[b]})
         b = z + 1
-    ren, k = {}, 0
-    for s in out:
-        if isinstance(s["label"], (int, np.integer)):
-            if s["label"] not in ren:
-                ren[s["label"]] = chr(ord("A") + k)
-                k += 1
-            s["label"] = ren[s["label"]]
+    # Le lettrage est APPELÉ, plus recopié (2026-08-17). Ce fichier avait sa
+    # propre boucle de renommage : le jour où la livrée a changé — chaque
+    # passage orphelin sa lettre, au lieu d'une lettre pour tous — le banc a
+    # continué à mesurer l'ancienne, en silence, tout en promettant dans sa
+    # docstring d'en être le miroir. Un miroir se référence, il ne se recopie
+    # pas.
+    from harmonia_min import voice_sections as VS
+    VS._lettres(out)
     return out
 
 

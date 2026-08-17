@@ -41,6 +41,81 @@ replié, `sug` est calculé sur l'empan du passage ÉCRIT, pas sur les N passage
 poolés — même convention que la pipeline, mais ce n'est pas la même évidence
 que celle qui a choisi l'accord.
 
+## 2026-08-17 — RÉSOLU : TOUS LES ORPHELINS PORTAIENT LA MÊME LETTRE (0,775 → 0,787)
+
+Louis, sur Easy On Me : « les sections sont un peu mal branlées, le D est mal
+utilisé ». Le chart donnait :
+
+    D  mes. 25-26 (2)   la liaison vers le couplet 2
+    D  mes. 43-50 (8)   le pont
+    D  mes. 63    (1)   l'accord final
+
+Trois musiques, trois longueurs, une lettre — la violation exacte de
+« under-fold, never over-fold ».
+
+**Ce n'était PAS `merge_letters`** (vérifié en espionnant avant/après : elle ne
+touchait à rien sur ce morceau). C'était `voice_sections.detect_sections` :
+`owner` vaut **-1** pour toute mesure que personne ne réclame, partout dans le
+morceau, et le re-lettrage traduisait cet unique entier en UNE lettre. Le
+commentaire disait pourtant l'intention juste (« ce qui n'est réclamé par
+personne garde une lettre à lui ») — c'est l'implémentation qui les mettait en
+commun. Le lettrage est maintenant une fonction nommée, `_lettres`, et chaque
+passage orphelin y reçoit sa propre clé.
+
+**Mesuré sur les 18 annotés : 0,775 → 0,787.** 12 morceaux montent ou tiennent,
+3 reculent. Les deux reculs qui comptent sont le MÊME mécanisme vu des deux
+côtés : l'ancien code avait raison *par accident* quand les orphelins d'un
+morceau se trouvaient être la même section (Yesterday, 0,754 → 0,639 : deux
+orphelins de 6 et 8 mesures que Louis annote tous les deux B), et tort quand ils
+ne l'étaient pas. Chain of Fools (0,752 → 0,710) est l'inverse : deux orphelins
+de 2 mesures qui SONT le vamp, trop courts pour que `merge_letters` (plancher
+`MERGE_MIN = 4`) les recolle.
+
+**Piège de mesure, à connaître.** `scripts/section_bench.py` avait sa PROPRE
+copie de la boucle de lettrage, alors que sa docstring promet d'être « le
+miroir de la mise en forme livrée ». Le premier passage du banc mesurait donc
+l'ancien comportement en silence. Le banc APPELLE maintenant `VS._lettres`. Un
+miroir se référence, il ne se recopie pas — motif d'erreur #1 (la calibration
+silencieuse) appliqué à l'outil de mesure lui-même.
+
+### Deux résultats négatifs, caractérisés
+
+**Absorber les orphelins courts (« les queues ») ne gagne rien.** Recoller tout
+orphelin de moins de 4 (ou 3) mesures dans la section précédente donne
+**0,787**, exactement le même score : Chain of Fools remonte (0,710 → 0,733),
+Be My Baby / She Will Be Loved / Every Breath montent aussi, mais Let It Be
+(0,799 → 0,748) et Norah paient la note. L'idée déplace les erreurs, elle n'en
+retire pas. Elle n'est donc PAS branchée.
+
+**La factorisation `X ≈ UV` résout le nommage, pas le découpage.** Screen sur
+Easy On Me (NMF, blocs de 4 mesures × 48 dimensions chord-tone, k=6) : le
+refrain reçoit la même rangée de V aux mesures 13-20 et 51-58, le tag aux 21-24
+et 59-62, et la liaison de 2 mesures sort sa propre rangée à 0,98 — les
+« queues » de Louis tombent toutes seules. **Mais la couture de 2 mesures à la
+mesure 25 lui a été donnée à la main.** Factoriser mesure×12 au lieu de
+bloc×(L×12) ne donne qu'un vocabulaire d'ACCORDS, jamais des sections. Pureté
+moyenne de U : 0,716 — les blocs restent des mélanges, le « ≈ » travaille.
+
+**Le vrai levier restant**, et c'est l'intuition de Louis : `merge_letters`
+compare deux occurrences **en diagonale sur `min(L₁,L₂)`**, donc deux passages
+de la même section de longueurs différentes ne se reconnaissent pas (Yesterday,
+6 contre 8 mesures). Une factorisation les mettrait sur la même rangée de V sans
+se soucier de l'alignement.
+
+Autre chose que la page montre : sur ce morceau l'intro (mes. 1-4) et le début
+du couplet (mes. 5-8) sont **harmoniquement identiques** (0,98 à 1,00 mesure par
+mesure). Seul le silence vocal les sépare — la voix est bien l'indice que Louis
+supposait. Mais elle se tait aussi à la mesure 47, en plein pont : un silence
+vocal marque une couture, il ne la prouve pas.
+
+Page à écouter (quatre découpages superposés, chaque plaque cliquable) :
+`/plots/easy_on_me_sections.html`. Générateur : `scripts/easy_on_me_sections.py`.
+Test rouge d'abord : `tests/test_voice_sections_orphans.py`.
+
+**Non fait :** les charts déjà en bibliothèque gardent leurs anciennes lettres —
+le correctif ne s'applique qu'à une ré-analyse. Un rebake complet réécrit les
+46 charts, donc il attend la décision de Louis.
+
 ## 2026-08-15 — RÉSOLU : LA BANDE IGNORAIT « SET BAR 1 », DONC AUCUNE SECTION NE POUVAIT Y COMMENCER
 
 Louis : « lorsque je reset la mesure 1, le recalcul des sections est bloqué à
