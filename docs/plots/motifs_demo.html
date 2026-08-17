@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Où chaque motif est posé</title>
+<style>
+ :root{--papier:#f7f3e9;--encre:#1c1c1c;--pale:#6f6a60;--trait:#ddd5c4;
+       --carte:#fffdf7;--accent:#8a2b2b}
+ @media(prefers-color-scheme:dark){:root{--papier:#17171a;--encre:#ece8e0;
+  --pale:#918c83;--trait:#33323a;--carte:#1f1f24;--accent:#d4735e}}
+ *{box-sizing:border-box}
+ body{margin:0 auto;max-width:900px;padding:20px 16px 90px;background:var(--papier);
+      color:var(--encre);font:15px/1.6 -apple-system,BlinkMacSystemFont,sans-serif}
+ a{color:var(--accent)}
+ h1{font:italic 600 25px/1.2 Georgia,serif;margin:0 0 6px}
+ .lede{font:15px/1.6 -apple-system,sans-serif;margin:0 0 6px}
+ .lede b{color:var(--accent)}
+ .carte{background:var(--carte);border:1px solid var(--trait);border-radius:14px;
+        padding:14px;margin:14px 0}
+ .mtit{font:600 15px sans-serif;margin-bottom:2px}
+ .acc{font:600 13.5px Georgia,serif;color:var(--pale);margin-bottom:9px}
+ .piste{position:relative;height:34px;background:var(--papier);border-radius:6px;
+        border:1px solid var(--trait);margin-bottom:5px}
+ .pose{position:absolute;top:3px;bottom:3px;border-radius:5px;background:var(--accent);
+       color:#fff;font:700 11px sans-serif;display:flex;align-items:center;
+       justify-content:center;cursor:pointer;overflow:hidden}
+ .pose:hover{outline:2px solid var(--encre);outline-offset:-2px}
+ .regle{position:relative;height:15px;font:10px ui-monospace,Menlo,monospace;
+        color:var(--pale)}
+ .regle span{position:absolute;transform:translateX(-50%)}
+ .fr{position:absolute;top:0;bottom:0;width:2px;background:var(--accent);opacity:.28}
+ .liste{font:13px ui-monospace,Menlo,monospace;color:var(--pale);margin-top:4px;
+        line-height:1.8}
+ .liste b{color:var(--encre)}
+ .ok{color:var(--accent);font-weight:700}
+ #bar{position:fixed;bottom:0;left:0;right:0;background:var(--papier);
+      border-top:1px solid var(--trait);padding:10px 16px;display:flex;gap:12px;
+      align-items:center;z-index:6}
+ #bar button{background:var(--accent);color:#fff;border:none;border-radius:11px;
+   padding:11px 16px;font:600 14px sans-serif;cursor:pointer;min-width:104px;min-height:44px}
+ #ou{font:600 13px ui-monospace,Menlo,monospace;color:var(--pale)}
+</style></head><body>
+<script>window.D = {"titre":"Easy On Me","n":63,"grid":[0.54,3.9,7.26,10.66,14.04,17.42,20.78,24.18,27.56,30.94,34.32,37.7,41.08,44.48,47.86,51.24,54.62,57.98,61.36,64.76,68.12,71.52,74.9,78.26,81.64,85.02,88.42,91.78,95.16,98.56,101.92,105.3,108.68,112.06,115.46,118.82,122.22,125.6,128.98,132.36,135.74,139.12,142.5,145.88,149.24,152.64,156.02,159.4,162.78,166.16,169.54,172.92,176.3,179.68,183.06,186.44,189.82,193.2,196.58,199.96,203.34,206.68,210.06,213.54],"front":[4,12,20,24,26,34,42,50,58,62],"motifs":[{"L":4,"accords":["B♭","F","Dm","Am7"],"poses":[{"a":4,"b":7,"t":10.66,"pc":96,"vraie":true},{"a":8,"b":11,"t":24.18,"pc":98,"vraie":false},{"a":26,"b":29,"t":85.02,"pc":98,"vraie":true},{"a":30,"b":33,"t":98.56,"pc":98,"vraie":false},{"a":43,"b":46,"t":142.5,"pc":97,"vraie":true},{"a":47,"b":50,"t":156.02,"pc":98,"vraie":false},{"a":60,"b":63,"t":199.96,"pc":97,"vraie":true}],"moy":97},{"L":4,"accords":["B♭","F","C","Gm"],"poses":[{"a":35,"b":38,"t":115.46,"pc":100,"vraie":true},{"a":39,"b":42,"t":128.98,"pc":100,"vraie":false},{"a":52,"b":55,"t":172.92,"pc":100,"vraie":true},{"a":56,"b":59,"t":186.44,"pc":100,"vraie":false}],"moy":100},{"L":4,"accords":["C","Gm","B♭","F"],"poses":[{"a":16,"b":19,"t":51.24,"pc":100,"vraie":false},{"a":20,"b":23,"t":64.76,"pc":100,"vraie":true}],"moy":100},{"L":4,"accords":["C7","B♭","B♭","F"],"poses":[{"a":12,"b":15,"t":37.7,"pc":100,"vraie":true}],"moy":100}],"queues":[{"a":1,"b":1,"t":0.54},{"a":2,"b":2,"t":3.9},{"a":3,"b":3,"t":7.26},{"a":24,"b":24,"t":78.26},{"a":25,"b":25,"t":81.64},{"a":34,"b":34,"t":112.06},{"a":51,"b":51,"t":169.54}],"sections":[{"a":4,"b":11,"t":10.66,"j":2,"tuiles":2,"vraie":true},{"a":12,"b":15,"t":37.7,"j":0,"tuiles":1,"vraie":true},{"a":16,"b":23,"t":51.24,"j":5,"tuiles":2,"vraie":false},{"a":26,"b":33,"t":85.02,"j":2,"tuiles":2,"vraie":true},{"a":35,"b":42,"t":115.46,"j":3,"tuiles":2,"vraie":true},{"a":43,"b":50,"t":142.5,"j":2,"tuiles":2,"vraie":true},{"a":52,"b":59,"t":172.92,"j":3,"tuiles":2,"vraie":true},{"a":60,"b":63,"t":199.96,"j":2,"tuiles":1,"vraie":true}],"lettres":{"0":"A","2":"B","3":"C","5":"D"},"audio_url":"http://100.89.209.63:7772/audio/X-yIEMduRXk.m4a","retour":"http://100.89.209.63:7772/?open=min_X-yIEMduRXk"};</script>
+<h1 id="t"></h1>
+<p class="lede">L'algorithme invente <b>4 motifs</b> de 8 mesures, puis essaie
+de recouvrir tout le morceau en les reposant où il veut.</p>
+<p class="lede">Voici où il les pose. Le <b>%</b> dit à quel point les mesures
+recouvertes ressemblent vraiment au motif. <b>Tape une plaque pour l'écouter.</b></p>
+<p class="lede" style="color:var(--pale);font-style:italic;font-size:13.5px">
+Les traits verticaux pâles sont les vraies frontières de la forme. Un motif
+utile devrait démarrer dessus.</p>
+
+<div id="hote"></div>
+
+<div class="carte" id="reste"></div>
+
+<div id="bar"><button id="jouer">Écouter</button><span id="ou"></span></div>
+
+<script>
+(function(){
+ "use strict";
+ var D = window.D, n = D.n;
+ document.getElementById("t").textContent = D.titre + " — où chaque motif est posé";
+
+ var hote = document.getElementById("hote");
+ D.motifs.forEach(function(m, j){
+   var c = document.createElement("div"); c.className = "carte";
+   var t = document.createElement("div"); t.className = "mtit";
+   t.textContent = "Motif " + (j+1) + " — posé " + m.poses.length + " fois, " +
+     m.moy + " % de ressemblance en moyenne";
+   var a = document.createElement("div"); a.className = "acc";
+   a.textContent = "| " + m.accords.join(" | ") + " |";
+   var p = document.createElement("div"); p.className = "piste";
+   D.front.forEach(function(f){
+     var e = document.createElement("div"); e.className = "fr";
+     e.style.left = (f/n*100).toFixed(2) + "%"; p.appendChild(e);
+   });
+   m.poses.forEach(function(q){
+     var e = document.createElement("div"); e.className = "pose";
+     e.style.left = ((q.a-1)/n*100).toFixed(2) + "%";
+     e.style.width = ((q.b-q.a+1)/n*100).toFixed(2) + "%";
+     e.style.opacity = (0.35 + q.pc/100*0.65).toFixed(2);
+     e.textContent = q.pc + "%";
+     e.title = "mesures " + q.a + "–" + q.b + " · " + q.pc + " % de ressemblance";
+     e.onclick = function(){ vers(q.t); };
+     p.appendChild(e);
+   });
+   var r = document.createElement("div"); r.className = "regle";
+   for (var b = 0; b < n; b += 8){
+     var s = document.createElement("span");
+     s.style.left = (b/n*100).toFixed(2) + "%"; s.textContent = b+1; r.appendChild(s);
+   }
+   var l = document.createElement("div"); l.className = "liste";
+   l.innerHTML = m.poses.map(function(q){
+     return "<b>mes. " + q.a + "–" + q.b + "</b> " + q.pc + " %" +
+            (q.vraie ? " <span class=ok>← sur une vraie frontière</span>" : ""); })
+     .join("<br>");
+   c.appendChild(t); c.appendChild(a); c.appendChild(p); c.appendChild(r); c.appendChild(l);
+   hote.appendChild(c);
+ });
+
+ var bons = D.sections.filter(function(x){ return x.vraie; }).length;
+ var lignes = D.sections.map(function(x){
+   return "<b>mes. " + x.a + "–" + x.b + "</b> section " + D.lettres[String(x.j)] +
+     " (" + x.tuiles + " tuile" + (x.tuiles > 1 ? "s" : "") + " de 4)" +
+     (x.vraie ? " <span class=ok>← sur une vraie frontière</span>" : ""); });
+ document.getElementById("reste").innerHTML =
+   "<div class=mtit>Le morceau, une fois les tuiles voisines recollées</div>" +
+   "<div class=acc>Deux tuiles identiques collées = UNE section. C'est ce qui " +
+   "fait sortir les sections de 8 mesures sans qu'on ait à les prévoir.</div>" +
+   "<div class=liste>" + lignes.join("<br>") + "<br><br><b>" + bons + " sur " +
+   D.sections.length + "</b> démarrent sur une vraie frontière.<br>" +
+   "<b>Queues</b> (mesures que personne ne prend) : " +
+   (D.queues.length ? D.queues.map(function(q){ return "mes. " + q.a; }).join(", ")
+                    : "aucune") + " — dont ta liaison avant le couplet 2." +
+   "<br><br><span style='color:var(--pale)'>Réserve à connaître : ce réglage " +
+   "(6 motifs, coût de queue 0,03, graine 4) est le meilleur de 80 essais, " +
+   "choisi en REGARDANT la réponse. C'est une preuve que la forme de l'algo " +
+   "marche, pas une méthode mesurée — il reste à choisir le réglage sans " +
+   "tricher, et à vérifier sur les 18 morceaux annotés.</span></div>";
+
+ var el=null, lien=null, joue=false;
+ if (window.fetch) fetch(D.audio_url).then(function(r){return r.ok?r.blob():null;})
+  .then(function(b){ if(b){ lien=URL.createObjectURL(b); if(el&&!joue) el.src=lien; }})
+  ["catch"](function(){});
+ function media(){
+   if (el) return el;
+   el=new Audio(); el.preload="auto"; el.playsInline=true;
+   try{ el.setAttribute("playsinline",""); el.setAttribute("webkit-playsinline",""); }catch(e){}
+   el.src = lien || D.audio_url;
+   el.addEventListener("timeupdate", function(){ var t=el.currentTime;
+     document.getElementById("ou").textContent =
+       Math.floor(t/60)+":"+String(Math.floor(t%60)).padStart(2,"0"); });
+   document.body.appendChild(el); return el;
+ }
+ function vers(t){ var a=media(); try{ a.currentTime=t; }catch(e){}
+   if(!joue){ a.play(); joue=true; document.getElementById("jouer").textContent="Pause"; } }
+ document.getElementById("jouer").onclick=function(){
+   var a=media();
+   if(joue){ a.pause(); joue=false; this.textContent="Écouter"; }
+   else { a.play(); joue=true; this.textContent="Pause"; } };
+})();
+</script></body></html>
