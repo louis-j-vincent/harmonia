@@ -576,13 +576,129 @@ def grille_et_mot(grid, triad, depart: int = 0):
     return bornes, _mot_depuis(_matrice_bimesures(S, bornes)), info
 
 
-def _bars_par_mesure(chart: dict) -> list:
-    """Le contenu de CHAQUE mesure, reconstruit depuis les sections du chart.
+#: sous ce quotient de la mesure, un accord qui déborde n'est qu'un éclat de
+#: frontière et pas un accord de la mesure (même seuil que chart_retour).
+_ECLAT = 0.10
+
+
+def _meta_par_temps(chart: dict) -> list:
+    """[(t0, t1, accord)] — les accords ÉCRITS des sections, avec leur temps.
+
+    Ils portent ce que la liste à plat n'a pas : `sug` (les candidats du
+    modèle, ce que l'éditeur d'annotation montre), `n` (combien de fois le
+    morceau joue cet accord), `colour`, `confirmed`. On les retrouve par le
+    temps, jamais par l'index — c'est tout le sujet de accords_par_mesure.
+    """
+    out = []
+    for s in chart.get("sections") or []:
+        for bar in s.get("bars") or []:
+            for c in bar or []:
+                try:
+                    out.append((float(c["t0"]), float(c["t1"]), c))
+                except (KeyError, TypeError, ValueError):
+                    continue
+    return out
+
+
+def accords_par_mesure(chart: dict) -> list:
+    """Le contenu de CHAQUE mesure, pris dans la liste À PLAT et par le TEMPS.
+
+    Louis, 2026-08-17, sur Easy On Me : « les barres 25 et 26 sont détectées
+    comme A- et Bb, mais affichées dans le chart de la modification des
+    sections comme Bb et F, c'est quoi ce bug ????? ». Il avait raison :
+    A- et Bb sont bien ce que le modèle a décodé à 81,6 s et 85,0 s ; Bb et F
+    sont les accords des mesures **43 et 44**.
+
+    LA CAUSE. La version d'avant reconstruisait chaque mesure depuis le motif
+    ÉCRIT de sa section, en le pavant modulo sa longueur :
+
+        par_mesure[b] = bars[(b - b0) % len(bars)]
+
+    Un pavage n'est légitime que pour un repli INTERNE — une section de huit
+    mesures qui écrit quatre mesures jouées deux fois. Il ment dès qu'une
+    section replie des passages de LONGUEURS DIFFÉRENTES : sur Easy On Me la
+    section D couvrait [24,25] (deux mesures), [42,49] (huit) et [62,62] (une)
+    avec un seul motif de huit mesures écrit d'après le passage long. Les
+    mesures 24 et 25 recevaient donc les deux premières mesures de ce
+    motif — les accords des mesures 42 et 43 — et le vrai contenu du passage
+    court n'existait plus nulle part dans les sections.
+
+    C'est la règle « under-fold, never over-fold » prise en défaut en amont :
+    deux passages qui ne durent pas pareil ne sont pas le même passage. On ne
+    la répare pas ici — on cesse d'en dépendre. `prompter.chords` est la liste
+    à plat du décodage, un accord par empan de temps réel, et elle n'a jamais
+    été repliée : c'est la seule source qui sait encore ce que jouent les
+    mesures 25 et 26.
+
+    Les métadonnées (`sug`, `n`, `colour`, `confirmed`) sont recollées depuis
+    l'accord écrit qui occupe LE MÊME temps, quand il y en a un — sinon la
+    réécriture d'un chart faisait disparaître les candidats du modèle de son
+    éditeur d'annotation. Là où le repli avait tout perdu (le passage court),
+    on rend l'accord sans sa métadonnée plutôt qu'une métadonnée d'ailleurs.
+
+    Repli sur l'ancien pavage si le chart n'a pas de liste à plat.
+    """
+    grid = chart.get("barGrid") or []
+    n = chart.get("nBars") or (len(grid) - 1)
+    plat = (chart.get("prompter") or {}).get("chords") or []
+    if not plat or len(grid) < 2:
+        return _bars_par_mesure_pave(chart)
+    bpb = int(chart.get("bpb") or 4)
+    meta = _meta_par_temps(chart)
+    out = []
+    for b in range(n):
+        t0, t1 = float(grid[b]), float(grid[b + 1])
+        duree = max(t1 - t0, 1e-6)
+        cases = []
+        for c in plat:
+            try:
+                a, z = max(t0, float(c["t0"])), min(t1, float(c["t1"]))
+            except (KeyError, TypeError, ValueError):
+                continue
+            if (z - a) / duree < _ECLAT:
+                continue
+            neuf = {"root": int(c.get("root") or 0), "q": c.get("q") or "",
+                    "bass": int(c.get("bass", -1)), "nc": bool(c.get("nc")),
+                    # « carry » : l'accord a commencé AVANT cette mesure, la
+                    # vue ne le réécrit pas.
+                    "carry": float(c["t0"]) < t0 - 1e-3,
+                    "beat": max(0, min(bpb - 1,
+                                       int(round((a - t0) / duree * bpb)))),
+                    "bar": b, "c": float(c.get("c") or 0.0),
+                    "t0": a, "t1": z}
+            src = _meta_du_temps(meta, neuf)
+            for k in ("sug", "n", "colour", "confirmed", "flag", "inflect"):
+                if src is not None and k in src:
+                    neuf[k] = src[k]
+            cases.append(neuf)
+        out.append(cases)
+    return out
+
+
+def _meta_du_temps(meta: list, accord: dict):
+    """L'accord écrit qui occupe le même temps ET dit le même accord."""
+    best, best_ov = None, 0.0
+    for t0, t1, c in meta:
+        ov = min(t1, accord["t1"]) - max(t0, accord["t0"])
+        if ov <= 0:
+            continue
+        if (int(c.get("root") or 0) != accord["root"]
+                or (c.get("q") or "") != accord["q"]):
+            continue
+        if ov > best_ov:
+            best, best_ov = c, ov
+    # la moitié de l'accord, sinon c'est un voisin qui déborde
+    return best if best_ov >= 0.5 * max(accord["t1"] - accord["t0"], 1e-6) else None
+
+
+def _bars_par_mesure_pave(chart: dict) -> list:
+    """L'ancien pavage — gardé pour un chart sans liste à plat UNIQUEMENT.
 
     Attention au repli INTERNE : une section peut couvrir huit mesures et ne
     porter que quatre `bars`, son motif se répétant deux fois dans la plage.
     Ignorer ça laissait des mesures vides sur 26 charts sur 46 ; avec le
-    pavage, zéro.
+    pavage, zéro. Ce que le pavage ne sait PAS faire : un repli de passages
+    de longueurs différentes (voir accords_par_mesure).
     """
     n = chart.get("nBars") or (len(chart.get("barGrid") or []) - 1)
     par_mesure: dict = {}
@@ -594,6 +710,11 @@ def _bars_par_mesure(chart: dict) -> list:
             for b in range(b0, min(b1, n - 1) + 1):
                 par_mesure[b] = bars[(b - b0) % len(bars)]
     return [par_mesure.get(b, []) for b in range(n)]
+
+
+def _bars_par_mesure(chart: dict) -> list:
+    """Alias historique — voir accords_par_mesure."""
+    return accords_par_mesure(chart)
 
 
 def sections_pour_chart(chart: dict, secs: list[dict]) -> list[dict]:
