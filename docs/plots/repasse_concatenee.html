@@ -1,0 +1,108 @@
+<!doctype html><html lang="fr"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>La repasse sur les sections concaténées</title>
+<style>
+:root{--fg:#1b1b19;--fond:#fbf7ec;--trait:#ddd6c7;--doux:#6b6558;--rouge:#a4462b;
+ --vert:#3d6b47;--bleu:#3f6f8f}
+*{box-sizing:border-box}
+body{margin:0 auto;padding:24px 18px 80px;background:var(--fond);color:var(--fg);
+ font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,sans-serif;
+ max-width:900px}
+h1{font-size:24px;margin:0 0 4px}
+h3{font-size:17px;margin:0 0 6px}
+section{margin:0 0 38px;padding:0 0 16px;border-bottom:2px solid var(--trait)}
+.chapo{color:var(--doux);max-width:78ch;margin:0 0 10px}
+.verdict{background:#fff;border:1px solid var(--trait);border-left:4px solid var(--vert);
+ border-radius:8px;padding:12px 14px;margin:14px 0 24px;max-width:78ch}
+audio{width:100%;max-width:420px;height:34px;margin:4px 0 8px;display:block}
+table{border-collapse:collapse;font-size:13.5px;width:100%}
+th{text-align:left;font-size:11px;color:var(--doux);text-transform:uppercase;
+ letter-spacing:.03em;padding:0 8px 5px 0;font-weight:600}
+td{padding:4px 8px 4px 0;border-top:1px solid #efe9db;white-space:nowrap}
+td.ou{color:var(--doux);font-size:12.5px}
+td.ou b{color:var(--fg)}
+td.ou i{font-style:normal;font-size:11px}
+td.c{font-variant-numeric:tabular-nums}
+tr.agr td{background:#eef3ee;border-top:1px solid #dbe5dc}
+tr.agr td.ag{font-weight:700;color:var(--vert)}
+tr.cible td.cib{font-weight:700;color:var(--bleu)}
+tr.gate td{font-size:11.5px;color:var(--doux)}
+td.g i{display:block;font-style:normal;font-size:10.5px}
+td.g.bad{color:var(--rouge);font-weight:600}
+button{font:inherit;font-size:12px;padding:1px 7px;margin-right:6px;
+ border:1px solid var(--trait);background:#fff;border-radius:6px;cursor:pointer}
+button:hover{background:#f2ecdd}
+</style>
+<h1>La repasse sur les sections concaténées</h1>
+<p class="chapo">Chaque tour décodé tout seul, puis ce que musx dit quand on lui
+donne les occurrences <b>empilées</b>. Deux façons d'empiler, qui ne donnent pas
+la même chose.</p>
+
+<div class="verdict"><b>Sur Don't Know Why, l'agrégation te rend 7 de tes 8
+accords</b> — Eb^7, D+, G-7, C7, F7, Bb sortent tous, alors qu'aucun tour seul
+ne les a tous. Il ne manque que la moitié de mesure Bb^7 au tout début. Et la
+moyenne des postérieures fait mieux que l'empilement CQT, qui est pourtant le
+défaut de la prod : celui-ci écrit D7 au lieu de D+ et F7sus4 au lieu de F7.
+<br><br>
+<b>Mais la prod n'écrirait rien de tout ça.</b> Le veto CV refuse les deux
+premières positions — exactement celles qui portent tes Bb^7 et D+.</div>
+
+<section data-audio="/audio/norah_jones_don_t_know_why.m4a">
+  <h3>Norah Jones — Don&#x27;t Know Why — lettre A</h3>
+  <audio controls preload="none"></audio>
+  <table>
+    <tr><th>chaque tour, seul</th><th>mes. 1</th><th>mes. 2</th><th>mes. 3</th><th>mes. 4</th></tr>
+    <tr><td class="ou"><button data-t="10.98" data-fin="21.84">▶</button>mes. 5</td><td class="c">Bb7</td><td class="c">Eb^7 D+</td><td class="c">G-7 C7</td><td class="c">F7 Bb</td></tr><tr><td class="ou"><button data-t="21.84" data-fin="32.78">▶</button>mes. 9</td><td class="c">Bb7</td><td class="c">Eb^7 D</td><td class="c">G-7 C7</td><td class="c">F7 Bb</td></tr><tr><td class="ou"><button data-t="38.22" data-fin="49.12">▶</button>mes. 15</td><td class="c">Bb7</td><td class="c">Eb^7 D+</td><td class="c">G-7 C7</td><td class="c">F7 Bb</td></tr><tr><td class="ou"><button data-t="49.12" data-fin="59.92">▶</button>mes. 19</td><td class="c">Bb Bb7</td><td class="c">Eb^7 D+</td><td class="c">G-7 C7</td><td class="c">F7 Bb</td></tr><tr><td class="ou"><button data-t="81.80" data-fin="92.66">▶</button>mes. 31</td><td class="c">Bb7</td><td class="c">Eb^7 D</td><td class="c">G-7 C7</td><td class="c">F7 Bb</td></tr><tr><td class="ou"><button data-t="92.66" data-fin="103.48">▶</button>mes. 35</td><td class="c">Bb</td><td class="c">Eb D</td><td class="c">G-7 C7</td><td class="c">F7 Bb</td></tr><tr><td class="ou"><button data-t="125.28" data-fin="136.02">▶</button>mes. 47</td><td class="c">Bb</td><td class="c">Eb^7 D+</td><td class="c">G-7 C7</td><td class="c">F7sus4</td></tr><tr><td class="ou"><button data-t="136.02" data-fin="146.76">▶</button>mes. 51</td><td class="c">Bb Bb7</td><td class="c">Eb^7</td><td class="c">G-7 C7</td><td class="c">F7</td></tr><tr><td class="ou"><button data-t="146.76" data-fin="157.62">▶</button>mes. 55</td><td class="c">Bb7</td><td class="c">Eb D</td><td class="c">G-7 C7</td><td class="c">F7 Bb</td></tr><tr><td class="ou"><button data-t="157.62" data-fin="168.44">▶</button>mes. 59</td><td class="c">Bb Bb7</td><td class="c">Eb^7 D</td><td class="c">G-7 C7</td><td class="c">Bb Bb</td></tr>
+    <tr class="agr"><td class="ou"><b>agrégé</b> — moyenne des postérieures</td>
+      <td class="c ag">Bb7</td><td class="c ag">Eb^7 D+</td><td class="c ag">G-7 C7</td><td class="c ag">F7 Bb</td></tr>
+    <tr class="agr"><td class="ou"><b>agrégé</b> — empilement CQT <i>(défaut prod)</i></td>
+      <td class="c ag">Bb7</td><td class="c ag">Eb^7 D7</td><td class="c ag">G-7 C7</td><td class="c ag">F7sus4 Bb</td></tr>
+    <tr class="cible"><td class="ou">ta cible</td><td class="c cib">Bb^7 Bb7</td><td class="c cib">Eb^7 D+</td><td class="c cib">G-7 C7</td><td class="c cib">F7 Bb</td></tr>
+    <tr class="gate"><td class="ou">cohérence · CV <i>(la prod refuse au-dessus de 0.51)</i></td><td class="g bad">0.93<i>CV 0.57</i></td><td class="g bad">0.93<i>CV 0.56</i></td><td class="g ">0.96<i>CV 0.48</i></td><td class="g bad">0.90<i>CV 0.61</i></td></tr>
+  </table>
+</section>
+<section data-audio="/audio/X-yIEMduRXk.m4a">
+  <h3>Adele — Easy On Me — lettre A</h3>
+  <audio controls preload="none"></audio>
+  <table>
+    <tr><th>chaque tour, seul</th><th>mes. 1</th><th>mes. 2</th><th>mes. 3</th><th>mes. 4</th></tr>
+    <tr><td class="ou"><button data-t="0.54" data-fin="14.04">▶</button>mes. 1</td><td class="c">F</td><td class="c">D-7</td><td class="c">A-</td><td class="c">Bb</td></tr><tr><td class="ou"><button data-t="14.04" data-fin="27.56">▶</button>mes. 5</td><td class="c">F</td><td class="c">D-7</td><td class="c">A-</td><td class="c">Bb</td></tr><tr><td class="ou"><button data-t="27.56" data-fin="41.08">▶</button>mes. 9</td><td class="c">F</td><td class="c">D-7</td><td class="c">C</td><td class="c">C7 Bb</td></tr><tr><td class="ou"><button data-t="74.90" data-fin="88.42">▶</button>mes. 23</td><td class="c">F</td><td class="c">D-7</td><td class="c">A-</td><td class="c">Bb</td></tr><tr><td class="ou"><button data-t="88.42" data-fin="101.92">▶</button>mes. 27</td><td class="c">F</td><td class="c">D-7</td><td class="c">C</td><td class="c">Bb</td></tr><tr><td class="ou"><button data-t="101.92" data-fin="115.46">▶</button>mes. 31</td><td class="c">F</td><td class="c">D-7</td><td class="c">C</td><td class="c">Bb</td></tr>
+    <tr class="agr"><td class="ou"><b>agrégé</b> — moyenne des postérieures</td>
+      <td class="c ag">F</td><td class="c ag">D-7</td><td class="c ag">C</td><td class="c ag">Bb</td></tr>
+    <tr class="agr"><td class="ou"><b>agrégé</b> — empilement CQT <i>(défaut prod)</i></td>
+      <td class="c ag">F</td><td class="c ag">D-7</td><td class="c ag">A-</td><td class="c ag">Bb</td></tr>
+    
+    <tr class="gate"><td class="ou">cohérence · CV <i>(la prod refuse au-dessus de 0.51)</i></td><td class="g ">0.96<i>CV 0.38</i></td><td class="g ">0.97<i>CV 0.35</i></td><td class="g bad">0.52<i>CV 0.74</i></td><td class="g bad">0.90<i>CV 0.61</i></td></tr>
+  </table>
+</section>
+<section data-audio="/audio/maroon_5_this_love.m4a">
+  <h3>Maroon 5 — This Love — lettre B</h3>
+  <audio controls preload="none"></audio>
+  <table>
+    <tr><th>chaque tour, seul</th><th>mes. 1</th><th>mes. 2</th><th>mes. 3</th><th>mes. 4</th></tr>
+    <tr><td class="ou"><button data-t="41.48" data-fin="51.58">▶</button>mes. 17</td><td class="c">C- F-</td><td class="c">Bb Eb</td><td class="c">C- F-</td><td class="c">Bb Eb</td></tr><tr><td class="ou"><button data-t="51.58" data-fin="61.68">▶</button>mes. 21</td><td class="c">C- F-</td><td class="c">Bb Eb</td><td class="c">C- F7</td><td class="c">Ab G</td></tr><tr><td class="ou"><button data-t="91.98" data-fin="102.08">▶</button>mes. 37</td><td class="c">C- F-</td><td class="c">Bb Eb</td><td class="c">C- F-</td><td class="c">Bb Eb</td></tr><tr><td class="ou"><button data-t="102.08" data-fin="112.18">▶</button>mes. 41</td><td class="c">C- F-</td><td class="c">Bb Eb</td><td class="c">C- F</td><td class="c">Ab G</td></tr><tr><td class="ou"><button data-t="142.48" data-fin="152.58">▶</button>mes. 57</td><td class="c">C-7 F-7</td><td class="c">Bb Eb</td><td class="c">C- F-</td><td class="c">Bb Eb</td></tr><tr><td class="ou"><button data-t="152.58" data-fin="162.68">▶</button>mes. 61</td><td class="c">C- F-</td><td class="c">Bb Eb</td><td class="c">C- F7</td><td class="c">Ab</td></tr><tr><td class="ou"><button data-t="162.68" data-fin="172.78">▶</button>mes. 65</td><td class="c">C- F-7</td><td class="c">Bb Eb</td><td class="c">C- F-7</td><td class="c">Bb Eb</td></tr><tr><td class="ou"><button data-t="172.78" data-fin="182.86">▶</button>mes. 69</td><td class="c">C- F-7</td><td class="c">Bb Eb</td><td class="c">C-7 F</td><td class="c">Ab</td></tr><tr><td class="ou"><button data-t="182.86" data-fin="192.98">▶</button>mes. 73</td><td class="c">C- F-7</td><td class="c">Bb Eb</td><td class="c">C- F-7</td><td class="c">Bb Eb</td></tr><tr><td class="ou"><button data-t="192.98" data-fin="203.08">▶</button>mes. 77</td><td class="c">C- F-7</td><td class="c">Bb Eb</td><td class="c">C- F</td><td class="c">Ab N.C.</td></tr>
+    <tr class="agr"><td class="ou"><b>agrégé</b> — moyenne des postérieures</td>
+      <td class="c ag">C- F-</td><td class="c ag">Bb Eb</td><td class="c ag">C- F-</td><td class="c ag">Bb Eb</td></tr>
+    <tr class="agr"><td class="ou"><b>agrégé</b> — empilement CQT <i>(défaut prod)</i></td>
+      <td class="c ag">C- F-7</td><td class="c ag">Bb Eb</td><td class="c ag">C-7 F-7</td><td class="c ag">F-7 Eb</td></tr>
+    
+    <tr class="gate"><td class="ou">cohérence · CV <i>(la prod refuse au-dessus de 0.51)</i></td><td class="g ">0.95<i>CV 0.37</i></td><td class="g ">0.97<i>CV 0.30</i></td><td class="g ">0.93<i>CV 0.46</i></td><td class="g bad">0.65<i>CV 0.68</i></td></tr>
+  </table>
+</section>
+<script>
+document.querySelectorAll("section[data-audio]").forEach(function(sec){
+  var el = sec.querySelector("audio"), url = sec.dataset.audio, fin = null;
+  el.src = url;
+  if (window.fetch) fetch(url).then(function(r){ return r.ok ? r.blob() : null; })
+    .then(function(b){ if (b) el.src = URL.createObjectURL(b); }).catch(function(){});
+  sec.addEventListener("click", function(ev){
+    var c = ev.target.closest("[data-t]"); if (!c) return;
+    fin = c.dataset.fin ? parseFloat(c.dataset.fin) : null;
+    try { el.currentTime = parseFloat(c.dataset.t); el.play(); } catch(e){}
+  });
+  el.addEventListener("timeupdate", function(){
+    if (fin !== null && el.currentTime >= fin) { el.pause(); fin = null; }
+  });
+});
+</script>
+</html>
