@@ -121,3 +121,63 @@ couture par-dessus, chaque plaque cliquable.
 
 Scripts : `scripts/uvw_demo.py` (la page), `scripts/uvw_screen.py` (les trois
 étages, la liaison), `scripts/uvw_alphabet.py` (dur contre mou sur les 18).
+
+
+---
+
+# Suite (même jour) : le trou placé par le fit — ça, ça marche
+
+Louis : « on reste sur un X = UV, mais on lui donne l'opportunité de pouvoir
+faire des trous de 1 ou 2 mesures pour qu'il puisse fitter au mieux ? » puis
+« et oui il faut un petit k ».
+
+**Résultat positif.** C'est la réponse à la limite laissée ouverte plus haut —
+« la factorisation résout le nommage, pas le découpage ». Avec le droit de
+sauter 1 ou 2 mesures, elle résout aussi le découpage.
+
+## Pourquoi ça marche là où le UVW échouait
+
+Mon objection au UVW était : *la reconstruction ne mesure pas la répétition*.
+Elle tombe ici, et pour une raison précise — **le k serré**. Avec 5 composantes
+pour 15 blocs, la seule façon de tout reconstruire est que les blocs tombent
+vraiment dans 5 groupes qui se répètent. Une grille décalée fabrique 15 blocs
+tous différents, et rien de rang 5 ne peut les rendre. Le petit k transforme
+« ça fitte » en « ça se répète ».
+
+## Ce qui est mesuré
+
+Easy On Me, balayage de tous les trous de 1 ou 2 mesures, **à nombre de blocs
+égal** (sans cette contrainte, une grille qui perd un bloc gagne sans rien dire) :
+
+    k =  2  3  4  5  6  8
+    rang  3  5  7  1  6  1     (sur 73 grilles candidates)
+
+La vraie grille — sauter les mesures 25-26 — est **première à k=5 et k=8**, et
+dans les 10 % de tête partout. Sur ce morceau elle fait passer les frontières
+tombant sur un bord de bloc de **4/10 à 10/10**.
+
+Sur les 18 annotés (k=5, un seul trou) : **0,449 → 0,678** de frontières sur un
+bord de bloc, **7 morceaux montent, aucun ne recule**.
+
+## Le résultat inattendu
+
+Sur Stand By Me et Happy, le meilleur trou est à la **mesure 2**. Ce n'est pas
+une couture interne : c'est la **levée** du morceau. Le fit retrouve tout seul
+ce que « Set bar 1 » fait à la main — et sur ces deux morceaux il fait passer
+l'alignement de 0,00 à 1,00.
+
+## Ce que ça ne dit pas, et c'est important
+
+* **Le choix de k n'est pas résolu.** Le rang ne décroît pas avec k (3, 5, 7,
+  1, 6, 1) : « il faut un petit k » est vrai comme mécanisme, faux comme règle
+  monotone. C'est la première chose à régler avant de brancher.
+* **Un seul trou.** Plusieurs trous demandent une recherche conjointe — même
+  leçon que `soudure._meilleure_grille`, où la meilleure paire ne contient pas
+  le meilleur élément seul.
+* L'alignement des frontières est un **proxy** de la qualité des sections, pas
+  le score de sections lui-même. Le vrai test est de brancher cette grille dans
+  le détecteur et de repasser `section_bench`.
+
+**À écouter** : `/plots/trou_demo.html` — le paysage des trous (chaque barre
+s'écoute), la grille avant/après, et les 18 morceaux.
+Script : `scripts/trou_demo.py`.

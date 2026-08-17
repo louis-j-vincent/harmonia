@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Un trou de 1 ou 2 mesures, placé par le fit</title>
+<style>
+ :root{--papier:#f7f3e9;--encre:#1c1c1c;--pale:#6f6a60;--trait:#ddd5c4;
+       --carte:#fffdf7;--accent:#8a2b2b;--vert:#4a7a4a}
+ @media(prefers-color-scheme:dark){:root{--papier:#17171a;--encre:#ece8e0;
+  --pale:#918c83;--trait:#33323a;--carte:#1f1f24;--accent:#d4735e;--vert:#7aa87a}}
+ *{box-sizing:border-box}
+ body{margin:0 auto;max-width:920px;padding:20px 16px 90px;background:var(--papier);
+      color:var(--encre);font:15px/1.6 -apple-system,BlinkMacSystemFont,sans-serif}
+ a{color:var(--accent)}
+ h1{font:italic 600 25px/1.2 Georgia,serif;margin:0 0 4px}
+ h2{font:600 11px sans-serif;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--pale);margin:28px 0 6px}
+ .lede{font:italic 14.5px/1.65 Georgia,serif;color:var(--pale);margin:0 0 14px}
+ .carte{background:var(--carte);border:1px solid var(--trait);border-radius:14px;
+        padding:14px;margin:8px 0;overflow-x:auto}
+ .nom{font:600 13px sans-serif;margin-bottom:1px}
+ .note{font:italic 12.5px Georgia,serif;color:var(--pale);margin-bottom:6px}
+ #pays{display:flex;gap:2px;align-items:flex-end;height:150px;min-width:680px}
+ #pays div{flex:1 1 0;background:var(--trait);border-radius:2px 2px 0 0;cursor:pointer;
+           position:relative}
+ #pays div:hover{outline:1px solid var(--encre)}
+ .regle{display:flex;gap:2px;min-width:680px;font:10px ui-monospace,Menlo,monospace;
+        color:var(--pale);margin-top:3px}
+ .regle span{flex:1 1 0;text-align:center;overflow:hidden}
+ .bande{display:flex;gap:2px;min-width:680px;margin-bottom:3px}
+ .bl{height:26px;border-radius:4px;background:#2f6f8f;cursor:pointer;color:#fff;
+     display:flex;align-items:center;justify-content:center;font:700 10px sans-serif}
+ .tr{height:26px;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;
+     display:flex;align-items:center;justify-content:center;font:700 9px sans-serif}
+ .ks{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+ .ks button{font:600 13px sans-serif;border:1px solid var(--trait);background:var(--carte);
+            color:var(--encre);border-radius:9px;padding:7px 13px;cursor:pointer}
+ .ks button.on{background:var(--accent);color:#fff;border-color:transparent}
+ .verdict{border-left:3px solid var(--accent);padding-left:12px;margin:12px 0;font-size:14.5px}
+ table{border-collapse:collapse;width:100%;font-size:13px;min-width:420px}
+ th{text-align:left;font:600 10px sans-serif;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--pale);padding:0 8px 5px 0}
+ td{padding:4px 8px 4px 0;border-top:1px solid var(--trait)}
+ .mini{display:inline-block;height:8px;border-radius:2px;vertical-align:middle}
+ button.p{background:var(--accent);color:#fff;border:none;border-radius:11px;
+          padding:11px 16px;font:600 14px sans-serif;cursor:pointer;min-height:44px;min-width:104px}
+ #bar{display:flex;align-items:center;gap:12px;margin:14px 0;position:sticky;bottom:0;
+      background:var(--papier);padding:10px 0}
+ #ou{font:600 13px ui-monospace,Menlo,monospace;color:var(--pale)}
+</style></head><body>
+<script>window.D = {"titre":"Easy On Me","n":63,"L":4,"ks":[2,3,4,5,6,8],"kdef":5,"audio_url":"http://100.89.209.63:7772/audio/X-yIEMduRXk.m4a","retour":"http://100.89.209.63:7772/?open=min_X-yIEMduRXk","uv":"http://100.89.209.63:7772/plots/uv_explication.html","grid":[0.54,3.9,7.26,10.66,14.04,17.42,20.78,24.18,27.56,30.94,34.32,37.7,41.08,44.48,47.86,51.24,54.62,57.98,61.36,64.76,68.12,71.52,74.9,78.26,81.64,85.02,88.42,91.78,95.16,98.56,101.92,105.3,108.68,112.06,115.46,118.82,122.22,125.6,128.98,132.36,135.74,139.12,142.5,145.88,149.24,152.64,156.02,159.4,162.78,166.16,169.54,172.92,176.3,179.68,183.06,186.44,189.82,193.2,196.58,199.96,203.34,206.68,210.06,213.54],"frontieres":[5,13,21,25,27,35,43,51,59,63],"vrai":{"p":24,"w":2},"paysage":{"2":{"pts":[{"p":21,"w":1,"r":0.3823},{"p":20,"w":2,"r":0.3823},{"p":25,"w":1,"r":0.3965},{"p":24,"w":2,"r":0.3965},{"p":44,"w":1,"r":0.3972},{"p":40,"w":1,"r":0.4133},{"p":17,"w":1,"r":0.4148},{"p":16,"w":2,"r":0.4148},{"p":29,"w":1,"r":0.4227},{"p":28,"w":2,"r":0.4227},{"p":48,"w":1,"r":0.4233},{"p":36,"w":1,"r":0.4345},{"p":13,"w":1,"r":0.4393},{"p":12,"w":2,"r":0.4393},{"p":32,"w":1,"r":0.4459},{"p":33,"w":1,"r":0.4465},{"p":32,"w":2,"r":0.4465},{"p":45,"w":1,"r":0.4558},{"p":44,"w":2,"r":0.4558},{"p":28,"w":1,"r":0.4594},{"p":42,"w":1,"r":0.4609},{"p":41,"w":2,"r":0.4609},{"p":41,"w":1,"r":0.4612},{"p":40,"w":2,"r":0.4612},{"p":52,"w":1,"r":0.4619},{"p":46,"w":1,"r":0.4627},{"p":45,"w":2,"r":0.4627},{"p":14,"w":1,"r":0.463},{"p":13,"w":2,"r":0.463},{"p":37,"w":1,"r":0.4637},{"p":36,"w":2,"r":0.4637},{"p":24,"w":1,"r":0.4648},{"p":9,"w":1,"r":0.4654},{"p":8,"w":2,"r":0.4654},{"p":20,"w":1,"r":0.4658},{"p":49,"w":1,"r":0.4671},{"p":48,"w":2,"r":0.4671},{"p":34,"w":1,"r":0.4673},{"p":33,"w":2,"r":0.4673},{"p":10,"w":1,"r":0.4684},{"p":9,"w":2,"r":0.4684},{"p":30,"w":1,"r":0.4696},{"p":29,"w":2,"r":0.4696},{"p":38,"w":1,"r":0.4731},{"p":37,"w":2,"r":0.4731},{"p":18,"w":1,"r":0.4767},{"p":17,"w":2,"r":0.4767},{"p":12,"w":1,"r":0.478},{"p":16,"w":1,"r":0.4782},{"p":22,"w":1,"r":0.4783},{"p":21,"w":2,"r":0.4783},{"p":5,"w":1,"r":0.481},{"p":50,"w":1,"r":0.481},{"p":4,"w":2,"r":0.481},{"p":49,"w":2,"r":0.481},{"p":26,"w":1,"r":0.4824},{"p":25,"w":2,"r":0.4824},{"p":8,"w":1,"r":0.4879},{"p":4,"w":1,"r":0.4921},{"p":6,"w":1,"r":0.4925},{"p":5,"w":2,"r":0.4925},{"p":1,"w":1,"r":0.4929},{"p":53,"w":1,"r":0.4935},{"p":52,"w":2,"r":0.4935},{"p":57,"w":1,"r":0.4948},{"p":56,"w":2,"r":0.4948},{"p":2,"w":1,"r":0.4967},{"p":1,"w":2,"r":0.4967},{"p":56,"w":1,"r":0.4978},{"p":54,"w":1,"r":0.5078},{"p":53,"w":2,"r":0.5078},{"p":58,"w":1,"r":0.5169},{"p":57,"w":2,"r":0.5169}],"vrai":0.3965,"rang":3,"n":73,"sans":0.4908},"3":{"pts":[{"p":44,"w":1,"r":0.3032},{"p":21,"w":1,"r":0.3066},{"p":20,"w":2,"r":0.3066},{"p":40,"w":1,"r":0.3105},{"p":25,"w":1,"r":0.3137},{"p":24,"w":2,"r":0.3137},{"p":36,"w":1,"r":0.3174},{"p":32,"w":1,"r":0.3228},{"p":48,"w":1,"r":0.333},{"p":29,"w":1,"r":0.3335},{"p":28,"w":2,"r":0.3335},{"p":45,"w":1,"r":0.3368},{"p":44,"w":2,"r":0.3368},{"p":33,"w":1,"r":0.3376},{"p":32,"w":2,"r":0.3376},{"p":28,"w":1,"r":0.3426},{"p":17,"w":1,"r":0.3498},{"p":16,"w":2,"r":0.3498},{"p":49,"w":1,"r":0.3502},{"p":48,"w":2,"r":0.3502},{"p":24,"w":1,"r":0.3511},{"p":20,"w":1,"r":0.3523},{"p":37,"w":1,"r":0.3577},{"p":36,"w":2,"r":0.3577},{"p":41,"w":1,"r":0.3579},{"p":40,"w":2,"r":0.3579},{"p":13,"w":1,"r":0.3593},{"p":12,"w":2,"r":0.3593},{"p":22,"w":1,"r":0.3604},{"p":21,"w":2,"r":0.3604},{"p":16,"w":1,"r":0.365},{"p":26,"w":1,"r":0.3664},{"p":25,"w":2,"r":0.3664},{"p":12,"w":1,"r":0.3686},{"p":42,"w":1,"r":0.3686},{"p":41,"w":2,"r":0.3686},{"p":52,"w":1,"r":0.3716},{"p":46,"w":1,"r":0.3717},{"p":45,"w":2,"r":0.3717},{"p":10,"w":1,"r":0.3755},{"p":9,"w":2,"r":0.3755},{"p":9,"w":1,"r":0.3777},{"p":8,"w":2,"r":0.3777},{"p":30,"w":1,"r":0.3794},{"p":29,"w":2,"r":0.3794},{"p":14,"w":1,"r":0.3828},{"p":13,"w":2,"r":0.3828},{"p":8,"w":1,"r":0.383},{"p":53,"w":1,"r":0.3841},{"p":52,"w":2,"r":0.3841},{"p":18,"w":1,"r":0.3892},{"p":17,"w":2,"r":0.3892},{"p":34,"w":1,"r":0.3895},{"p":33,"w":2,"r":0.3895},{"p":56,"w":1,"r":0.3905},{"p":2,"w":1,"r":0.3916},{"p":1,"w":2,"r":0.3916},{"p":38,"w":1,"r":0.3919},{"p":37,"w":2,"r":0.3919},{"p":57,"w":1,"r":0.3969},{"p":56,"w":2,"r":0.3969},{"p":5,"w":1,"r":0.4008},{"p":4,"w":2,"r":0.4008},{"p":6,"w":1,"r":0.4012},{"p":5,"w":2,"r":0.4012},{"p":4,"w":1,"r":0.4031},{"p":50,"w":1,"r":0.4058},{"p":49,"w":2,"r":0.4058},{"p":1,"w":1,"r":0.4154},{"p":58,"w":1,"r":0.423},{"p":57,"w":2,"r":0.423},{"p":54,"w":1,"r":0.43},{"p":53,"w":2,"r":0.43}],"vrai":0.3137,"rang":5,"n":73,"sans":0.3945},"4":{"pts":[{"p":44,"w":1,"r":0.2203},{"p":36,"w":1,"r":0.2314},{"p":32,"w":1,"r":0.2315},{"p":40,"w":1,"r":0.2319},{"p":21,"w":1,"r":0.2384},{"p":20,"w":2,"r":0.2384},{"p":25,"w":1,"r":0.2462},{"p":45,"w":1,"r":0.2462},{"p":24,"w":2,"r":0.2462},{"p":44,"w":2,"r":0.2462},{"p":24,"w":1,"r":0.255},{"p":28,"w":1,"r":0.2559},{"p":29,"w":1,"r":0.2677},{"p":28,"w":2,"r":0.2677},{"p":20,"w":1,"r":0.2693},{"p":49,"w":1,"r":0.2729},{"p":48,"w":2,"r":0.2729},{"p":48,"w":1,"r":0.2772},{"p":33,"w":1,"r":0.2776},{"p":32,"w":2,"r":0.2776},{"p":41,"w":1,"r":0.2803},{"p":40,"w":2,"r":0.2803},{"p":10,"w":1,"r":0.2831},{"p":9,"w":2,"r":0.2831},{"p":2,"w":1,"r":0.2858},{"p":1,"w":2,"r":0.2858},{"p":13,"w":1,"r":0.2881},{"p":12,"w":2,"r":0.2881},{"p":22,"w":1,"r":0.2887},{"p":21,"w":2,"r":0.2887},{"p":26,"w":1,"r":0.2919},{"p":25,"w":2,"r":0.2919},{"p":17,"w":1,"r":0.2926},{"p":16,"w":2,"r":0.2926},{"p":14,"w":1,"r":0.2929},{"p":13,"w":2,"r":0.2929},{"p":6,"w":1,"r":0.2935},{"p":5,"w":2,"r":0.2935},{"p":52,"w":1,"r":0.2943},{"p":16,"w":1,"r":0.2968},{"p":30,"w":1,"r":0.2987},{"p":29,"w":2,"r":0.2987},{"p":37,"w":1,"r":0.3015},{"p":36,"w":2,"r":0.3015},{"p":46,"w":1,"r":0.3044},{"p":45,"w":2,"r":0.3044},{"p":42,"w":1,"r":0.3051},{"p":41,"w":2,"r":0.3051},{"p":12,"w":1,"r":0.3067},{"p":9,"w":1,"r":0.3074},{"p":8,"w":2,"r":0.3074},{"p":53,"w":1,"r":0.3075},{"p":52,"w":2,"r":0.3075},{"p":34,"w":1,"r":0.3083},{"p":33,"w":2,"r":0.3083},{"p":56,"w":1,"r":0.3116},{"p":1,"w":1,"r":0.3147},{"p":57,"w":1,"r":0.3178},{"p":56,"w":2,"r":0.3178},{"p":5,"w":1,"r":0.318},{"p":4,"w":2,"r":0.318},{"p":18,"w":1,"r":0.3204},{"p":17,"w":2,"r":0.3204},{"p":8,"w":1,"r":0.3234},{"p":4,"w":1,"r":0.3344},{"p":38,"w":1,"r":0.3346},{"p":37,"w":2,"r":0.3346},{"p":50,"w":1,"r":0.3351},{"p":49,"w":2,"r":0.3351},{"p":58,"w":1,"r":0.3364},{"p":57,"w":2,"r":0.3364},{"p":54,"w":1,"r":0.3508},{"p":53,"w":2,"r":0.3508}],"vrai":0.2462,"rang":7,"n":73,"sans":0.3153},"5":{"pts":[{"p":25,"w":1,"r":0.1773},{"p":24,"w":2,"r":0.1773},{"p":32,"w":1,"r":0.1816},{"p":21,"w":1,"r":0.1845},{"p":20,"w":2,"r":0.1845},{"p":40,"w":1,"r":0.1851},{"p":36,"w":1,"r":0.1854},{"p":44,"w":1,"r":0.1864},{"p":24,"w":1,"r":0.1997},{"p":29,"w":1,"r":0.2022},{"p":28,"w":2,"r":0.2022},{"p":28,"w":1,"r":0.207},{"p":48,"w":1,"r":0.2078},{"p":45,"w":1,"r":0.2101},{"p":44,"w":2,"r":0.2101},{"p":10,"w":1,"r":0.2107},{"p":9,"w":2,"r":0.2107},{"p":49,"w":1,"r":0.2108},{"p":48,"w":2,"r":0.2108},{"p":20,"w":1,"r":0.2113},{"p":33,"w":1,"r":0.2129},{"p":32,"w":2,"r":0.2129},{"p":41,"w":1,"r":0.2181},{"p":40,"w":2,"r":0.2181},{"p":13,"w":1,"r":0.2217},{"p":12,"w":2,"r":0.2217},{"p":14,"w":1,"r":0.2229},{"p":13,"w":2,"r":0.2229},{"p":52,"w":1,"r":0.2264},{"p":22,"w":1,"r":0.2284},{"p":21,"w":2,"r":0.2284},{"p":6,"w":1,"r":0.2303},{"p":5,"w":2,"r":0.2303},{"p":17,"w":1,"r":0.2328},{"p":16,"w":2,"r":0.2328},{"p":53,"w":1,"r":0.234},{"p":52,"w":2,"r":0.234},{"p":9,"w":1,"r":0.2352},{"p":8,"w":2,"r":0.2352},{"p":34,"w":1,"r":0.2398},{"p":33,"w":2,"r":0.2398},{"p":46,"w":1,"r":0.2459},{"p":45,"w":2,"r":0.2459},{"p":2,"w":1,"r":0.246},{"p":16,"w":1,"r":0.246},{"p":1,"w":2,"r":0.246},{"p":30,"w":1,"r":0.2464},{"p":29,"w":2,"r":0.2464},{"p":26,"w":1,"r":0.2471},{"p":25,"w":2,"r":0.2471},{"p":42,"w":1,"r":0.2475},{"p":41,"w":2,"r":0.2475},{"p":12,"w":1,"r":0.2487},{"p":56,"w":1,"r":0.2493},{"p":37,"w":1,"r":0.2524},{"p":36,"w":2,"r":0.2524},{"p":57,"w":1,"r":0.2542},{"p":56,"w":2,"r":0.2542},{"p":5,"w":1,"r":0.2566},{"p":4,"w":2,"r":0.2566},{"p":8,"w":1,"r":0.2622},{"p":1,"w":1,"r":0.2631},{"p":18,"w":1,"r":0.2637},{"p":17,"w":2,"r":0.2637},{"p":38,"w":1,"r":0.2725},{"p":37,"w":2,"r":0.2725},{"p":58,"w":1,"r":0.2792},{"p":57,"w":2,"r":0.2792},{"p":50,"w":1,"r":0.2826},{"p":49,"w":2,"r":0.2826},{"p":4,"w":1,"r":0.2864},{"p":54,"w":1,"r":0.2932},{"p":53,"w":2,"r":0.2932}],"vrai":0.1773,"rang":1,"n":73,"sans":0.2573},"6":{"pts":[{"p":21,"w":1,"r":0.1235},{"p":20,"w":2,"r":0.1235},{"p":32,"w":1,"r":0.1393},{"p":40,"w":1,"r":0.144},{"p":36,"w":1,"r":0.1446},{"p":25,"w":1,"r":0.153},{"p":24,"w":2,"r":0.153},{"p":44,"w":1,"r":0.1546},{"p":29,"w":1,"r":0.1567},{"p":28,"w":2,"r":0.1567},{"p":24,"w":1,"r":0.1617},{"p":28,"w":1,"r":0.1629},{"p":10,"w":1,"r":0.1642},{"p":9,"w":2,"r":0.1642},{"p":13,"w":1,"r":0.1664},{"p":12,"w":2,"r":0.1664},{"p":48,"w":1,"r":0.1705},{"p":20,"w":1,"r":0.1744},{"p":49,"w":1,"r":0.1747},{"p":48,"w":2,"r":0.1747},{"p":45,"w":1,"r":0.1758},{"p":44,"w":2,"r":0.1758},{"p":17,"w":1,"r":0.1762},{"p":16,"w":2,"r":0.1762},{"p":33,"w":1,"r":0.1776},{"p":32,"w":2,"r":0.1776},{"p":6,"w":1,"r":0.1788},{"p":5,"w":2,"r":0.1788},{"p":2,"w":1,"r":0.1795},{"p":1,"w":2,"r":0.1795},{"p":14,"w":1,"r":0.1804},{"p":13,"w":2,"r":0.1804},{"p":41,"w":1,"r":0.1832},{"p":40,"w":2,"r":0.1832},{"p":22,"w":1,"r":0.1851},{"p":21,"w":2,"r":0.1851},{"p":52,"w":1,"r":0.1949},{"p":9,"w":1,"r":0.195},{"p":8,"w":2,"r":0.195},{"p":34,"w":1,"r":0.1959},{"p":33,"w":2,"r":0.1959},{"p":46,"w":1,"r":0.1997},{"p":45,"w":2,"r":0.1997},{"p":12,"w":1,"r":0.2003},{"p":42,"w":1,"r":0.2014},{"p":41,"w":2,"r":0.2014},{"p":37,"w":1,"r":0.202},{"p":36,"w":2,"r":0.202},{"p":26,"w":1,"r":0.2022},{"p":25,"w":2,"r":0.2022},{"p":30,"w":1,"r":0.203},{"p":29,"w":2,"r":0.203},{"p":53,"w":1,"r":0.204},{"p":52,"w":2,"r":0.204},{"p":16,"w":1,"r":0.2083},{"p":18,"w":1,"r":0.2088},{"p":17,"w":2,"r":0.2088},{"p":56,"w":1,"r":0.2096},{"p":1,"w":1,"r":0.2132},{"p":5,"w":1,"r":0.2155},{"p":4,"w":2,"r":0.2155},{"p":57,"w":1,"r":0.2157},{"p":56,"w":2,"r":0.2157},{"p":8,"w":1,"r":0.2187},{"p":50,"w":1,"r":0.22},{"p":49,"w":2,"r":0.22},{"p":58,"w":1,"r":0.2328},{"p":57,"w":2,"r":0.2328},{"p":38,"w":1,"r":0.2349},{"p":37,"w":2,"r":0.2349},{"p":4,"w":1,"r":0.2355},{"p":54,"w":1,"r":0.2543},{"p":53,"w":2,"r":0.2543}],"vrai":0.153,"rang":6,"n":73,"sans":0.2117},"8":{"pts":[{"p":25,"w":1,"r":0.0673},{"p":24,"w":2,"r":0.0673},{"p":44,"w":1,"r":0.0721},{"p":40,"w":1,"r":0.0728},{"p":29,"w":1,"r":0.078},{"p":28,"w":2,"r":0.078},{"p":32,"w":1,"r":0.0795},{"p":21,"w":1,"r":0.0808},{"p":20,"w":2,"r":0.0808},{"p":36,"w":1,"r":0.0825},{"p":28,"w":1,"r":0.0858},{"p":17,"w":1,"r":0.0887},{"p":16,"w":2,"r":0.0887},{"p":24,"w":1,"r":0.0897},{"p":9,"w":1,"r":0.0941},{"p":8,"w":2,"r":0.0941},{"p":48,"w":1,"r":0.0945},{"p":13,"w":1,"r":0.1003},{"p":12,"w":2,"r":0.1003},{"p":45,"w":1,"r":0.1041},{"p":44,"w":2,"r":0.1041},{"p":49,"w":1,"r":0.1048},{"p":48,"w":2,"r":0.1048},{"p":33,"w":1,"r":0.106},{"p":32,"w":2,"r":0.106},{"p":20,"w":1,"r":0.1088},{"p":26,"w":1,"r":0.1142},{"p":25,"w":2,"r":0.1142},{"p":22,"w":1,"r":0.1147},{"p":21,"w":2,"r":0.1147},{"p":14,"w":1,"r":0.1148},{"p":13,"w":2,"r":0.1148},{"p":10,"w":1,"r":0.1155},{"p":9,"w":2,"r":0.1155},{"p":34,"w":1,"r":0.1172},{"p":33,"w":2,"r":0.1172},{"p":41,"w":1,"r":0.1195},{"p":40,"w":2,"r":0.1195},{"p":8,"w":1,"r":0.12},{"p":52,"w":1,"r":0.1208},{"p":30,"w":1,"r":0.1221},{"p":29,"w":2,"r":0.1221},{"p":53,"w":1,"r":0.1231},{"p":52,"w":2,"r":0.1231},{"p":37,"w":1,"r":0.1255},{"p":36,"w":2,"r":0.1255},{"p":42,"w":1,"r":0.1257},{"p":41,"w":2,"r":0.1257},{"p":18,"w":1,"r":0.1279},{"p":17,"w":2,"r":0.1279},{"p":6,"w":1,"r":0.1295},{"p":5,"w":2,"r":0.1295},{"p":16,"w":1,"r":0.1296},{"p":46,"w":1,"r":0.1296},{"p":45,"w":2,"r":0.1296},{"p":12,"w":1,"r":0.1321},{"p":5,"w":1,"r":0.1349},{"p":4,"w":2,"r":0.1349},{"p":2,"w":1,"r":0.1373},{"p":1,"w":2,"r":0.1373},{"p":57,"w":1,"r":0.1395},{"p":56,"w":2,"r":0.1395},{"p":56,"w":1,"r":0.1413},{"p":50,"w":1,"r":0.1503},{"p":49,"w":2,"r":0.1503},{"p":1,"w":1,"r":0.1541},{"p":38,"w":1,"r":0.1542},{"p":37,"w":2,"r":0.1542},{"p":4,"w":1,"r":0.1629},{"p":58,"w":1,"r":0.1693},{"p":57,"w":2,"r":0.1693},{"p":54,"w":1,"r":0.1758},{"p":53,"w":2,"r":0.1758}],"vrai":0.0673,"rang":1,"n":73,"sans":0.144}},"sans_trou":[0,4,8,12,16,20,24,28,32,36,40,44,48,52,56],"avec_trou":[0,4,8,12,16,20,26,30,34,38,42,46,50,54,58],"corpus":[{"stem":"aretha_franklin_chain_of_fools_official_lyric_video","avant":0.0,"apres":0.556,"trou":9,"w":1},{"stem":"bein_green","avant":1.0,"apres":1.0,"trou":null,"w":null},{"stem":"ben_e_king_stand_by_me_audio","avant":0.0,"apres":1.0,"trou":2,"w":1},{"stem":"bobby_hebb_sunny_official_audio","avant":0.0,"apres":0.0,"trou":null,"w":null},{"stem":"bruno_mars_grenade_official_music_video","avant":0.6,"apres":0.7,"trou":26,"w":1},{"stem":"bruno_mars_the_lazy_song_official_music_video","avant":0.0,"apres":0.545,"trou":5,"w":1},{"stem":"elton_john_goodbye_yellow_brick_road_lyrics","avant":0.0,"apres":0.0,"trou":34,"w":1},{"stem":"jorja_smith_blue_lights_a_colors_show","avant":1.0,"apres":1.0,"trou":null,"w":null},{"stem":"let_it_be_remastered_2009","avant":1.0,"apres":1.0,"trou":null,"w":null},{"stem":"maroon_5_she_will_be_loved_official_music_video","avant":0.235,"apres":0.647,"trou":35,"w":1},{"stem":"maroon_5_this_love","avant":1.0,"apres":1.0,"trou":null,"w":null},{"stem":"mayer_hawthorne_the_walk","avant":1.0,"apres":1.0,"trou":null,"w":null},{"stem":"norah_jones_don_t_know_why","avant":0.3,"apres":0.8,"trou":10,"w":1},{"stem":"pharrell_williams_happy_official_video","avant":0.0,"apres":1.0,"trou":2,"w":1},{"stem":"the_jackson_5_abc","avant":0.125,"apres":0.125,"trou":53,"w":1},{"stem":"the_police_every_breath_you_take_official_music_video","avant":0.692,"apres":0.692,"trou":42,"w":1},{"stem":"the_ronettes_be_my_baby_music_video","avant":0.8,"apres":0.8,"trou":69,"w":1},{"stem":"yesterday_remastered_2009","avant":0.333,"apres":0.333,"trou":null,"w":null}]};</script>
+<h1 id="t"></h1>
+<p class="lede">On garde <b>X ≈ U·V</b>, mais la grille a le droit de <b>sauter
+1 ou 2 mesures</b>. Chaque barre ci-dessous est un trou possible : sa hauteur
+est la qualité du fit qu'il produit. Tape une barre pour écouter l'endroit.</p>
+
+<h2>1. Le paysage — où mettre le trou ?</h2>
+<div class="ks" id="ks"></div>
+<div class="carte">
+  <div class="nom">plus la barre est HAUTE, mieux la grille fitte</div>
+  <div class="note">rouge = le vrai trou du morceau (la liaison, mes. 25-26) ·
+    vert = le meilleur candidat</div>
+  <div id="pays"></div>
+  <div class="regle" id="r1"></div>
+</div>
+<div class="verdict" id="v1"></div>
+
+<h2>2. La grille, avant et après</h2>
+<div class="carte">
+  <div class="nom">sans trou</div>
+  <div class="note">les traits sous la bande sont les vraies frontières de la forme</div>
+  <div class="bande" id="g0"></div>
+  <div class="regle" id="f0"></div>
+  <div class="nom" style="margin-top:12px">avec le trou trouvé</div>
+  <div class="bande" id="g1"></div>
+  <div class="regle" id="f1"></div>
+</div>
+<div class="verdict" id="v2"></div>
+
+<h2>3. Les 18 morceaux annotés</h2>
+<div class="carte"><table><thead><tr><th>morceau</th><th>frontières sur un bord de bloc</th>
+<th>trou</th></tr></thead><tbody id="corpus"></tbody></table></div>
+<div class="verdict" id="v3"></div>
+
+<div id="bar"><button class="p" id="jouer">Écouter</button><span id="ou"></span></div>
+<p id="liens"></p>
+
+<script>
+(function(){
+ "use strict";
+ var D = window.D, n = D.n, k = String(D.kdef);
+
+ document.getElementById("t").textContent = D.titre + " — le trou placé par le fit";
+
+ var kb = document.getElementById("ks");
+ D.ks.forEach(function(x){
+   var b = document.createElement("button");
+   b.textContent = "k = " + x;
+   b.onclick = function(){ k = String(x); dessine(); };
+   b.dataset.k = x; kb.appendChild(b);
+ });
+
+ function memeGrille(p, w){
+   /* deux ecritures du meme trou donnent la meme grille : on compare les
+      grilles, pas les (p,w) — sinon on declare rate un succes exact. */
+   return JSON.stringify(grilleDe(p, w)) === JSON.stringify(D.avec_trou);
+ }
+ function grilleDe(p, w){
+   var out = [], b = 0;
+   while (b + D.L <= p){ out.push(b); b += D.L; }
+   b = Math.max(b, p) + w;
+   while (b + D.L <= n){ out.push(b); b += D.L; }
+   return out;
+ }
+
+ function dessine(){
+   Array.prototype.forEach.call(kb.children, function(b){
+     b.className = (b.dataset.k === k) ? "on" : ""; });
+   var P = D.paysage[k], pts = P.pts.slice().sort(function(a,b){ return a.p - b.p || a.w - b.w; });
+   var rs = pts.map(function(x){ return x.r; });
+   var lo = Math.min.apply(null, rs), hi = Math.max.apply(null, rs);
+   var h = document.getElementById("pays"); h.innerHTML = "";
+   var r1 = document.getElementById("r1"); r1.innerHTML = "";
+   pts.forEach(function(x){
+     var e = document.createElement("div");
+     /* haut = bon fit : on inverse, le residu BAS est le meilleur */
+     e.style.height = (6 + (hi - x.r) / Math.max(hi - lo, 1e-9) * 138).toFixed(1) + "px";
+     if (memeGrille(x.p, x.w)) e.style.background = "var(--accent)";
+     else if (x.r === lo) e.style.background = "var(--vert)";
+     e.title = "trou mes. " + (x.p+1) + " largeur " + x.w + " · résidu " + x.r;
+     e.onclick = function(){ vers(D.grid[x.p]); };
+     h.appendChild(e);
+     var s = document.createElement("span");
+     s.textContent = (x.w === 1 && (x.p+1) % 8 === 1) ? (x.p+1) : "";
+     r1.appendChild(s);
+   });
+   var rangs = D.ks.map(function(x){ return D.paysage[String(x)].rang; });
+   var v1 = "<b>k = " + k + ".</b> La vraie grille du morceau arrive <b>" +
+     P.rang + "ᵉ sur " + P.n + "</b>";
+   v1 += (P.rang === 1) ? " — <b>le fit la trouve tout seul.</b>"
+                        : ", dans le haut du panier.";
+   v1 += "<br><br><b>Pourquoi ça marche.</b> Avec " + k + " composantes pour " +
+     D.avec_trou.length + " blocs, la seule façon de tout reconstruire est que " +
+     "les blocs tombent vraiment dans " + k + " groupes qui se répètent. Une " +
+     "grille décalée fabrique des blocs tous différents, et rien d'aussi petit " +
+     "ne peut les rendre : c'est le k serré qui transforme « ça fitte » en " +
+     "« ça se répète ». C'est exactement ce qui manquait au UVW, où l'objectif " +
+     "de reconstruction ne mesurait aucune répétition.";
+   v1 += "<br><br><b>Mais attention à ce que je n'ai PAS montré.</b> Le rang de " +
+     "la vraie grille selon k vaut " + D.ks.map(function(x, i){
+       return "k=" + x + " → " + rangs[i] + "ᵉ"; }).join(", ") +
+     ". Elle est dans les 10 % de tête partout, et première à deux valeurs — " +
+     "mais il n'y a <b>pas</b> de « plus k est petit, mieux c'est ». Le choix " +
+     "de k n'est pas résolu, et c'est la première chose à régler avant de " +
+     "brancher quoi que ce soit. Change le bouton pour le voir.";
+   document.getElementById("v1").innerHTML = v1;
+ }
+
+ function bande(id, reg, blocs){
+   var h = document.getElementById(id), r = document.getElementById(reg);
+   h.innerHTML = ""; r.innerHTML = "";
+   var dans = {};
+   blocs.forEach(function(b){ for (var i = 0; i < D.L; i++) dans[b+i] = b; });
+   for (var m = 0; m < n; m++){
+     var e = document.createElement("div");
+     e.style.flex = "1 1 0";
+     if (dans[m] !== undefined){
+       e.className = "bl";
+       e.style.opacity = ((dans[m] / D.L) % 2) ? ".72" : "1";
+       if (m === dans[m]) e.textContent = m + 1;
+     } else { e.className = "tr"; e.textContent = "•"; }
+     var mm = m;
+     e.onclick = function(){ vers(D.grid[mm]); };
+     h.appendChild(e);
+     var s = document.createElement("span");
+     s.textContent = (D.frontieres.indexOf(m+1) >= 0) ? "▲" : "";
+     s.style.color = "var(--accent)";
+     r.appendChild(s);
+   }
+ }
+ bande("g0", "f0", D.sans_trou);
+ bande("g1", "f1", D.avec_trou);
+
+ function surBord(blocs){
+   var bords = {}; blocs.forEach(function(b){ bords[b]=1; bords[b+D.L]=1; });
+   return D.frontieres.filter(function(f){ return bords[f-1]; }).length;
+ }
+ document.getElementById("v2").innerHTML =
+   "<b>Les triangles rouges sont les vraies frontières.</b> Sans trou, <b>" +
+   surBord(D.sans_trou) + " sur " + D.frontieres.length +
+   "</b> tombent sur un bord de bloc ; avec le trou, <b>" + surBord(D.avec_trou) +
+   " sur " + D.frontieres.length + "</b>. Deux mesures sautées une seule fois, " +
+   "et tout ce qui suit se recale.";
+
+ var cb = document.getElementById("corpus"), sa = 0, sp = 0;
+ D.corpus.forEach(function(c){
+   sa += c.avant; sp += c.apres;
+   var t = document.createElement("tr");
+   var w = function(v, col){ return "<span class='mini' style='width:" +
+     (v*70).toFixed(0) + "px;background:" + col + "'></span>"; };
+   t.innerHTML = "<td>" + c.stem.slice(0,34) + "</td><td>" +
+     w(c.avant, "var(--trait)") + " " + c.avant.toFixed(2) + " → " +
+     w(c.apres, "var(--vert)") + " <b>" + c.apres.toFixed(2) + "</b></td>" +
+     "<td class=note style='margin:0'>" + (c.trou ? "mes. " + c.trou + " w" + c.w : "—") + "</td>";
+   cb.appendChild(t);
+ });
+ var na = D.corpus.length;
+ document.getElementById("v3").innerHTML =
+   "<b>" + (sa/na).toFixed(2) + " → " + (sp/na).toFixed(2) +
+   "</b> de frontières tombant sur un bord de bloc, et <b>aucun morceau ne " +
+   "recule</b>. Détail qu'on n'attendait pas : sur Stand By Me et Happy, le " +
+   "meilleur trou est à la mesure 2 — ce n'est pas une couture interne, c'est " +
+   "la <b>levée</b> du morceau. Le fit retrouve tout seul ce que « Set bar 1 » " +
+   "fait à la main.";
+
+ document.getElementById("liens").innerHTML =
+   '<a href="' + D.uv + '">l\'algorithme X ≈ UV</a> · ' +
+   '<a href="' + D.retour + '">le chart dans l\'app</a>';
+
+ /* son : timeupdate, jamais rAF ; blob, jamais Range */
+ var el=null, lien=null, joue=false;
+ if (window.fetch) fetch(D.audio_url).then(function(r){return r.ok?r.blob():null;})
+  .then(function(b){ if(b){ lien=URL.createObjectURL(b); if(el&&!joue) el.src=lien; }})
+  ["catch"](function(){});
+ function media(){
+   if (el) return el;
+   el=new Audio(); el.preload="auto"; el.playsInline=true;
+   try{ el.setAttribute("playsinline",""); el.setAttribute("webkit-playsinline",""); }catch(e){}
+   el.src = lien || D.audio_url;
+   el.addEventListener("timeupdate", function(){
+     var t=el.currentTime;
+     document.getElementById("ou").textContent =
+       Math.floor(t/60)+":"+String(Math.floor(t%60)).padStart(2,"0"); });
+   document.body.appendChild(el); return el;
+ }
+ function vers(t){ var a=media(); try{ a.currentTime=t; }catch(e){}
+   if(!joue){ a.play(); joue=true; document.getElementById("jouer").textContent="Pause"; } }
+ document.getElementById("jouer").onclick=function(){
+   var a=media();
+   if(joue){ a.pause(); joue=false; this.textContent="Écouter"; }
+   else { a.play(); joue=true; this.textContent="Pause"; } };
+
+ dessine();
+})();
+</script></body></html>
