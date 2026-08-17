@@ -2666,6 +2666,7 @@ window.APP = (function(){
             // out loud — both must travel with the chord or the editor invents
             // its own (see playedLabel / candList, 2026-08-17).
             bar:c.bar, beat:c.beat, sug:c.sug||null, n:(c.n==null?0:c.n|0),
+            var:c.var||null,   // l'autre lecture de cette case, sur un chart replié
             sec:s.label, secId:s.id, secIdx:si, reps:s.reps,
             barFirst: ci===0, secFirst: !!meta.secFirst && ci===0,
             t0:c.t0, t1:c.t1, spans });
@@ -3611,6 +3612,17 @@ window.APP = (function(){
         const dq=dispQ(ch.q);
         const bassHidden=S.learn&&S.level<3&&ch.bass!=null&&ch.bass>=0&&mod(ch.bass,12)!==mod(ch.root,12);
         item.appendChild(glyph(ch.root,dq,size,chordDepth(ch),chordColor(ch),bassHidden?-1:ch.bass));
+        // LA VARIANTE, en petit au-dessus — comme iRealb (Louis, 2026-08-17 :
+        // « indiquer le moins commun comme une variation, en petit en haut de
+        // l'accord comme on fait sur irealb »). Elle n'apparaît que sur un
+        // chart replié qui la porte : c'est l'autre lecture que le morceau
+        // donne à cette case, quand les tours repliés ne s'accordent pas et
+        // qu'aucun pattern n'explique l'écart. Elle ne remplace jamais
+        // l'accord, elle le commente.
+        if(ch.var) item.appendChild(el("span",
+          `position:absolute;top:-6px;right:-4px;font:600 ${narrow?9:10}px ${SERIF};`+
+          `color:${T.accent};opacity:.85;white-space:nowrap;pointer-events:none;`,
+          ch.var));
         if(S.learn&&(dq!==ch.q||bassHidden)) item.appendChild(el("span",`font:600 8px ${UI};color:${T.amber};`,"simpler"));
         if(S.mode==="annotate"&&!ch.confirmed){
           // No percentage any more (2026-07-30). The old number was the model's

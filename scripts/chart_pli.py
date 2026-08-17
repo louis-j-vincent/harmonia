@@ -51,6 +51,7 @@ MIN_TOURS = 3
 
 MORCEAUX = ["min_maroon_5_this_love", "min_X-yIEMduRXk",
             "min_norah_jones_don_t_know_why"]
+BAK = REPO / "harmonia_min" / "state" / "charts.bak_pli"
 
 
 def nom(c: dict) -> str:
@@ -83,11 +84,19 @@ def construire(stem: str) -> dict | None:
     else:
         ancres = [tuple(r) for s in chart.get("sections") or []
                   for r in (s.get("barRanges") or [])]
-    departs, rang = [], {}
+    departs, rang, queues = [], {}, []
     for b0, b1 in ancres:
-        for t in range((b1 - b0 + 1) // P):
+        n_tours = (b1 - b0 + 1) // P
+        for t in range(n_tours):
             departs.append(b0 + t * P)
             rang[b0 + t * P] = t
+        # LA QUEUE (Louis, 2026-08-18 : « affiches moi quand même les queues
+        # des sections »). Ce qui reste après les tours entiers n'était écrit
+        # NULLE PART : Easy On Me sortait 56 mesures sur 63, Don't Know Why 60
+        # sur 66. Un chart à trous est pire qu'un chart trop long.
+        reste0 = b0 + n_tours * P
+        if reste0 <= b1:
+            queues.append((reste0, b1))
     departs = sorted(set(departs))
     if len(departs) < 2:
         return None
@@ -145,7 +154,13 @@ def construire(stem: str) -> dict | None:
 
         secs.append(_section(chart, bars, lab, g[0], P, g, modele_de=g))
 
+    for q0, q1 in queues:
+        lab = LETTRES[i_lettre % len(LETTRES)]
+        i_lettre += 1
+        secs.append(_section(chart, bars, lab, q0, q1 - q0 + 1, [q0]))
+
     secs.sort(key=lambda s: s["barRanges"][0][0])
+    secs = _souder_voisines(secs, chart)
     neuf = dict(chart)
     neuf["file"] = f"pli_{Path(chart['audio_url']).stem}"
     neuf["title"] = (chart.get("title") or "") + " — pli"
@@ -155,6 +170,38 @@ def construire(stem: str) -> dict | None:
     neuf["meta"] = {**(chart.get("meta") or {}), "source": "chart_pli",
                     "seuil": SEUIL, "min_tours": MIN_TOURS, "tour": P}
     return neuf
+
+
+def _souder_voisines(secs: list[dict], chart: dict) -> list[dict]:
+    """Deux sections d'un seul passage, adjacentes et de même longueur, n'en
+    font qu'une.
+
+    Louis, 2026-08-18 : « dans This Love tu as deux sections de 4 barres qui se
+    suivent -> ils deviennent une section de 8 barres ! ». Les deux moitiés du
+    pont sortaient en C et E parce qu'elles ne se ressemblent pas assez pour
+    être repliées ENSEMBLE — mais elles ne se répètent ni l'une ni l'autre, donc
+    les séparer n'apprend rien à personne : c'est un pont de huit mesures.
+
+    On ne soude QUE des sections jouées une seule fois : deux sections qui se
+    répètent chacune de leur côté sont deux vraies sections, même voisines.
+    """
+    grid = chart["barGrid"]
+    n = len(grid) - 1
+    out: list[dict] = []
+    for s in secs:
+        p = out[-1] if out else None
+        if (p is not None and p["reps"] == 1 and s["reps"] == 1
+                and p["barRanges"][0][1] + 1 == s["barRanges"][0][0]
+                and len(p["bars"]) == len(s["bars"])):
+            b0, b1 = p["barRanges"][0][0], s["barRanges"][0][1]
+            p["bars"] = p["bars"] + s["bars"]
+            p["barRanges"] = [[b0, b1]]
+            p["spans"] = [[float(grid[b0]), float(grid[min(b1 + 1, n)])]]
+            p["barSpans"] = [[[float(grid[b]), float(grid[min(b + 1, n)])]]
+                             for b in range(b0, b1 + 1)]
+            continue
+        out.append(s)
+    return out
 
 
 def _section(chart, bars, lab, modele, L, departs, *, modele_de=None,
@@ -210,7 +257,62 @@ def _section(chart, bars, lab, modele, L, departs, *, modele_de=None,
     }
 
 
+def _mesures_ecrites(neuf: dict) -> int:
+    vues = set()
+    for s in neuf["sections"]:
+        for b0, b1 in s["barRanges"]:
+            vues |= set(range(b0, b1 + 1))
+    return len(vues)
+
+
+def en_prod() -> None:
+    """Écrire la règle DANS les charts que l'app sert (`min_*`).
+
+    Louis, 2026-08-18 : « allez top tu me commit ça et tu le mets en prod ».
+    Chaque chart d'origine est copié dans `state/charts.bak_pli/` AVANT d'être
+    remplacé — la première copie seulement, pour qu'un second passage ne
+    détruise pas l'original (la leçon de charts.bak_soudure, qui écrase sa
+    sauvegarde à chaque appel).
+
+    Un chart qui perdrait des mesures n'est PAS écrit : le repli a le droit de
+    raccourcir la lecture, jamais d'effacer de la musique.
+    """
+    BAK.mkdir(parents=True, exist_ok=True)
+    ok = saute = 0
+    for f in sorted(CHARTS.glob("min_*.json")):
+        try:
+            neuf = construire(f.stem)
+        except Exception as exc:
+            print(f"  SAUTÉ {f.name} : {type(exc).__name__}: {exc}")
+            saute += 1
+            continue
+        if neuf is None:
+            print(f"  SAUTÉ {f.name} : pas d'audio ou trop court")
+            saute += 1
+            continue
+        n_bars = neuf.get("nBars") or 0
+        ecrites = _mesures_ecrites(neuf)
+        if ecrites < n_bars:
+            print(f"  SAUTÉ {f.name} : {n_bars - ecrites} mesure(s) perdue(s)")
+            saute += 1
+            continue
+        bak = BAK / f.name
+        if not bak.exists():
+            bak.write_text(f.read_text(encoding="utf-8"), encoding="utf-8")
+        # le chart garde SON nom et son titre : c'est le chart de l'app
+        neuf["file"] = f.stem
+        neuf["title"] = json.loads(f.read_text(encoding="utf-8")).get("title")
+        f.write_text(json.dumps(neuf), encoding="utf-8")
+        forme = " ".join(f"{x['label']}×{x['reps']}" if x["reps"] > 1
+                         else x["label"] for x in neuf["sections"])
+        print(f"  {f.name:<58} {len(neuf['sections'])} sections : {forme}")
+        ok += 1
+    print(f"\n{ok} charts repliés, {saute} sautés. Copies dans {BAK.name}/")
+
+
 def main() -> None:
+    if "--en-prod" in sys.argv[1:]:
+        return en_prod()
     for stem in MORCEAUX:
         neuf = construire(stem)
         if neuf is None:

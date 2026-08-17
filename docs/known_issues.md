@@ -1,5 +1,40 @@
 # Harmonia — Known Issues
 
+## 2026-08-18 — ★ LE PLI : JUSTE SUR 3 MORCEAUX, ALOURDIT 24 CHARTS SUR 31
+
+La règle dictée par Louis (tours de 4 mesures ancrés sur les sections, groupés
+par ressemblance harmonique ≥0,80 **sans regarder les lettres**, repli à partir
+de 3 tours, alternance → 1re/2e fin, variante écrite si elle revient √n fois)
+donne exactement ce qu'il voulait sur les trois morceaux où on l'a réglée :
+
+    This Love       A×8 (intro+A+C réunis, variante F-7) · B×5 en 8 mesures
+                    avec les deux fins · le pont en une section de 8
+    Easy On Me      tout le morceau en 2 lignes, variante C sur le A-
+    Don't Know Why  A×11 : Bb7 | Eb^7 D+ | G-7 C7 | F7 Bb
+
+**PASSÉ SUR LES 57 CHARTS, ELLE ÉCHOUE : 7 charts simplifiés, 24 alourdis**
+(sections 2→8 sur Fallin', 6→17 sur If I Ain't Got You, 8→15 sur Smooth
+Criminal, dont le bandeau de forme passe à 28 pastilles). La bibliothèque a été
+réécrite puis **intégralement restaurée** depuis `state/charts.bak_pli/` — 31
+charts vérifiés identiques à leur sauvegarde, banc inchangé (0,886).
+
+**LA CAUSE, mesurée** : sur les 246 sections que le pli écrit,
+**86 (35 %) sont des queues** — le reste d'une section après ses tours entiers,
+1 à 3 mesures, à qui on donne une lettre à elles. Une section de 6 mesures rend
+un tour + une queue de 2 ; un morceau dont les sections ne sont pas des
+multiples de 4 explose en lettres orphelines. 88 autres (36 %) sont des
+sections à passage unique. Seules 72 sont de vrais replis.
+
+**LA SUITE** : la queue ne doit pas devenir une lettre. Deux pistes, à
+mesurer avant de choisir — (1) la rattacher à sa voisine (le tour précédent
+devient 6 mesures) ; (2) autoriser des tours de 2, 6 et 8 mesures, et choisir
+par morceau celui qui laisse le moins de queue. La (2) est plus proche de
+l'algorithme des quatre mots, qui arbitre déjà 4 contre 6 par coût épistémique.
+
+En attendant, la règle vit sur les charts `pli_*`, à côté des originaux, et
+`scripts/chart_pli.py --en-prod` refuse d'écrire un chart qui perdrait des
+mesures mais **ne vérifie pas encore qu'il en simplifie la lecture**.
+
 ## 2026-08-17 — ★ REPLI : DEUX PASSAGES DE LONGUEURS DIFFÉRENTES NE SONT PAS LE MÊME PASSAGE
 
 Louis, sur Easy On Me : « les barres 25 et 26 sont détectées comme A- et Bb,
