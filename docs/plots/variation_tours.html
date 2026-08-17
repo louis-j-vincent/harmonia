@@ -1,0 +1,189 @@
+<!doctype html><html lang="fr"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Replier les tours proches, noter la variation</title>
+<style>
+:root{--fg:#1b1b19;--fond:#fbf7ec;--trait:#ddd6c7;--doux:#6b6558;--rouge:#a4462b;
+ --bleu:#3f6f8f}
+*{box-sizing:border-box}
+body{margin:0 auto;padding:24px 18px 80px;background:var(--fond);color:var(--fg);
+ font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,sans-serif;
+ max-width:900px}
+h1{font-size:24px;margin:0 0 4px}
+h3{font-size:18px;margin:0 0 6px}
+h4{font-size:13px;margin:22px 0 6px;color:var(--doux);text-transform:uppercase;
+ letter-spacing:.04em}
+section{margin:0 0 40px;padding:0 0 18px;border-bottom:2px solid var(--trait)}
+.chapo{color:var(--doux);max-width:78ch;margin:0 0 10px}
+.verdict{background:#fff;border:1px solid var(--trait);border-left:4px solid var(--bleu);
+ border-radius:8px;padding:12px 14px;margin:14px 0 22px;max-width:78ch}
+.cal{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 24px}
+.cal div{background:#fff;border:1px solid var(--trait);border-radius:8px;
+ padding:8px 12px;font-size:12.5px;min-width:150px}
+.cal b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.cal i{font-style:normal;color:var(--doux)}
+audio{width:100%;max-width:420px;height:34px;margin:4px 0 6px;display:block}
+table.tours{border-collapse:collapse;font-size:13.5px;margin:0 0 6px}
+table.tours td{padding:4px 10px 4px 0;border-top:1px solid #efe9db}
+td.ou b{margin-right:6px}
+td.ou i{font-style:normal;font-size:11px;color:var(--doux)}
+td.c{font-variant-numeric:tabular-nums;white-space:nowrap;
+ border-radius:4px;padding:4px 9px}
+td.c.div{background:#f7e8e1;color:var(--rouge);font-weight:600}
+.mesure{font-size:13px;color:var(--doux);margin:0 0 4px}
+.mesure b{color:var(--fg);font-variant-numeric:tabular-nums}
+.verdict2{font-size:13px;margin:0 0 10px;max-width:78ch}
+.propose{background:#fff;border:1px solid var(--trait);border-radius:8px;
+ padding:10px 12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.propose i{font-style:normal;font-size:11px;color:var(--doux);
+ text-transform:uppercase;letter-spacing:.04em}
+.ac{font:600 19px Georgia,serif;position:relative;padding-right:2px}
+.ac sup{font:600 11px Georgia,serif;color:var(--rouge);vertical-align:super;
+ margin-left:1px}
+.ac.flou{opacity:.55}
+.flouv{color:var(--rouge)}
+button{font:inherit;font-size:12px;padding:2px 8px;border:1px solid var(--trait);
+ background:#fff;border-radius:6px;cursor:pointer}
+button:hover{background:#f2ecdd}
+</style>
+<h1>Replier les tours proches, noter la variation</h1>
+<p class="chapo">Ton idée : deux tours de quatre mesures qui ne diffèrent que
+d'un accord sont <b>le même tour</b>, pas deux tours. On les replie, et on écrit
+le moins fréquent en petit au-dessus — comme iRealb.</p>
+
+<div class="verdict">La prémisse tient, mesurée sur cinq morceaux avant
+d'écrire quoi que ce soit. Le produit scalaire harmonique entre deux tours ne
+sait <b>pas</b> distinguer « texte identique » de « diverge d'une case » : les
+deux sont à 0,94. Il sépare en revanche très bien deux lettres différentes, à
+0,69. Autrement dit, la plupart des divergences d'un seul accord ne sont pas
+des différences de structure.</div>
+
+<div class="cal">
+  <div><b>0,94</b><i>tours au texte identique<br>[0,87–0,98] · n=93</i></div>
+  <div><b>0,94</b><i>tours divergeant d'une case<br>[0,61–0,99] · n=58</i></div>
+  <div><b>0,69</b><i>lettres différentes<br>[0,50–0,97] · n=125</i></div>
+</div>
+
+<section data-audio="/audio/X-yIEMduRXk.m4a">
+  <h3>Adele — Easy On Me</h3>
+  <audio controls preload="none"></audio>
+  
+  <h4>lettre A — 6 tours de 4 mesures</h4>
+  <table class="tours"><tr><td class="ou"><button data-t="0.54" data-fin="14.04">▶</button><b>mes. 1</b><i>occ. 2, tour 1</i></td><td class="c ">F</td><td class="c ">D-7</td><td class="c div">A-</td><td class="c div">Bb</td></tr><tr><td class="ou"><button data-t="14.04" data-fin="27.56">▶</button><b>mes. 5</b><i>occ. 2, tour 2</i></td><td class="c ">F</td><td class="c ">D-7</td><td class="c div">A-</td><td class="c div">Bb</td></tr><tr><td class="ou"><button data-t="27.56" data-fin="41.08">▶</button><b>mes. 9</b><i>occ. 2, tour 3</i></td><td class="c ">F</td><td class="c ">D-7</td><td class="c div">C</td><td class="c div">C7 Bb</td></tr><tr><td class="ou"><button data-t="74.90" data-fin="88.42">▶</button><b>mes. 23</b><i>occ. 3, tour 1</i></td><td class="c ">F</td><td class="c ">D-7</td><td class="c div">A-</td><td class="c div">Bb</td></tr><tr><td class="ou"><button data-t="88.42" data-fin="101.92">▶</button><b>mes. 27</b><i>occ. 3, tour 2</i></td><td class="c ">F</td><td class="c ">D-7</td><td class="c div">C</td><td class="c div">Bb</td></tr><tr><td class="ou"><button data-t="101.92" data-fin="115.46">▶</button><b>mes. 31</b><i>occ. 3, tour 3</i></td><td class="c ">F</td><td class="c ">D-7</td><td class="c div">C</td><td class="c div">Bb</td></tr></table>
+  <p class="mesure">
+    tours au texte identique : <b>0.96 [0.95–0.97]</b>
+    &nbsp;·&nbsp; tours qui divergent : <b>0.83 [0.80–0.95]</b>
+  </p>
+  <p class="verdict2"><b>pas de pattern</b> — la variante ne tombe pas au même tour d'une occurrence à l'autre, donc c'est l'interprétation : on replie et on note la variante.</p>
+  <div class="propose"><i>ce que la règle écrirait</i><span class="ac">F</span><span class="ac">D-7</span><span class="ac">C<sup>A-</sup></span><span class="ac">Bb<sup>C7 Bb</sup></span></div>
+
+  <h4>lettre B — 6 tours de 4 mesures</h4>
+  <table class="tours"><tr><td class="ou"><button data-t="47.86" data-fin="61.36">▶</button><b>mes. 15</b><i>occ. 2, tour 1</i></td><td class="c div">F D-</td><td class="c ">C F</td><td class="c div">G-7</td><td class="c ">Bb</td></tr><tr><td class="ou"><button data-t="61.36" data-fin="74.90">▶</button><b>mes. 19</b><i>occ. 2, tour 2</i></td><td class="c div">F D-7</td><td class="c ">C F</td><td class="c div">G-7</td><td class="c ">Bb</td></tr><tr><td class="ou"><button data-t="118.82" data-fin="132.36">▶</button><b>mes. 36</b><i>occ. 3, tour 1</i></td><td class="c div">F D-</td><td class="c ">C F</td><td class="c div">G-7 F</td><td class="c ">Bb</td></tr><tr><td class="ou"><button data-t="132.36" data-fin="145.88">▶</button><b>mes. 40</b><i>occ. 3, tour 2</i></td><td class="c div">F</td><td class="c ">C F</td><td class="c div">G-7 F</td><td class="c ">Bb</td></tr><tr><td class="ou"><button data-t="176.30" data-fin="189.82">▶</button><b>mes. 53</b><i>occ. 4, tour 1</i></td><td class="c div">F</td><td class="c ">C F</td><td class="c div">G-7</td><td class="c ">Bb</td></tr><tr><td class="ou"><button data-t="189.82" data-fin="203.34">▶</button><b>mes. 57</b><i>occ. 4, tour 2</i></td><td class="c div">F</td><td class="c ">C F</td><td class="c div">G-7 F</td><td class="c ">Bb</td></tr></table>
+  <p class="mesure">
+    tours au texte identique : <b>0.98 [0.98–0.98]</b>
+    &nbsp;·&nbsp; tours qui divergent : <b>0.97 [0.96–0.99]</b>
+  </p>
+  <p class="verdict2"><b>pas de pattern</b> — la variante ne tombe pas au même tour d'une occurrence à l'autre, donc c'est l'interprétation : on replie et on note la variante. <span class="flouv">1 position(s) ont plus de deux lectures — la règle ne les tranche pas.</span></p>
+  <div class="propose"><i>ce que la règle écrirait</i><span class="ac flou">F<sup>?</sup></span><span class="ac">C F</span><span class="ac">G-7 F<sup>G-7</sup></span><span class="ac">Bb</span></div>
+
+  <h4>lettre C — 2 tours de 4 mesures</h4>
+  <table class="tours"><tr><td class="ou"><button data-t="145.88" data-fin="159.40">▶</button><b>mes. 44</b><i>occ. 2, tour 1</i></td><td class="c ">F</td><td class="c ">D-7</td><td class="c div">A-</td><td class="c ">Bb</td></tr><tr><td class="ou"><button data-t="159.40" data-fin="172.92">▶</button><b>mes. 48</b><i>occ. 2, tour 2</i></td><td class="c ">F</td><td class="c ">D-7</td><td class="c div">C</td><td class="c ">Bb</td></tr></table>
+  <p class="mesure">
+    tours au texte identique : <b>—</b>
+    &nbsp;·&nbsp; tours qui divergent : <b>0.83 [0.83–0.83]</b>
+  </p>
+  <p class="verdict2"><b>une seule occurrence</b> — rien ne s'est répété, donc le test du pattern ne dit rien. La règle s'abstient.</p>
+  <div class="propose"><i>ce que la règle écrirait</i><span class="ac">F</span><span class="ac">D-7</span><span class="ac">C<sup>A-</sup></span><span class="ac">Bb</span></div>
+
+</section>
+<section data-audio="/audio/norah_jones_don_t_know_why.m4a">
+  <h3>Norah Jones — Don&#x27;t Know Why</h3>
+  <audio controls preload="none"></audio>
+  
+  <h4>lettre A — 10 tours de 4 mesures</h4>
+  <table class="tours"><tr><td class="ou"><button data-t="10.98" data-fin="21.84">▶</button><b>mes. 5</b><i>occ. 2, tour 1</i></td><td class="c div">Bb7</td><td class="c div">Eb^7 D+</td><td class="c ">G-7 C7</td><td class="c div">F7 Bb</td></tr><tr><td class="ou"><button data-t="21.84" data-fin="32.78">▶</button><b>mes. 9</b><i>occ. 2, tour 2</i></td><td class="c div">Bb7</td><td class="c div">Eb^7 D</td><td class="c ">G-7 C7</td><td class="c div">F7 Bb</td></tr><tr><td class="ou"><button data-t="38.22" data-fin="49.12">▶</button><b>mes. 15</b><i>occ. 3, tour 1</i></td><td class="c div">Bb7</td><td class="c div">Eb^7 D+</td><td class="c ">G-7 C7</td><td class="c div">F7 Bb</td></tr><tr><td class="ou"><button data-t="49.12" data-fin="59.92">▶</button><b>mes. 19</b><i>occ. 3, tour 2</i></td><td class="c div">Bb Bb7</td><td class="c div">Eb^7 D+</td><td class="c ">G-7 C7</td><td class="c div">F7 Bb</td></tr><tr><td class="ou"><button data-t="81.80" data-fin="92.66">▶</button><b>mes. 31</b><i>occ. 4, tour 1</i></td><td class="c div">Bb7</td><td class="c div">Eb^7 D</td><td class="c ">G-7 C7</td><td class="c div">F7 Bb</td></tr><tr><td class="ou"><button data-t="92.66" data-fin="103.48">▶</button><b>mes. 35</b><i>occ. 4, tour 2</i></td><td class="c div">Bb</td><td class="c div">Eb D</td><td class="c ">G-7 C7</td><td class="c div">F7 Bb</td></tr><tr><td class="ou"><button data-t="125.28" data-fin="136.02">▶</button><b>mes. 47</b><i>occ. 5, tour 1</i></td><td class="c div">Bb</td><td class="c div">Eb^7 D+</td><td class="c ">G-7 C7</td><td class="c div">F7sus4</td></tr><tr><td class="ou"><button data-t="136.02" data-fin="146.76">▶</button><b>mes. 51</b><i>occ. 5, tour 2</i></td><td class="c div">Bb Bb7</td><td class="c div">Eb^7</td><td class="c ">G-7 C7</td><td class="c div">F7</td></tr><tr><td class="ou"><button data-t="146.76" data-fin="157.62">▶</button><b>mes. 55</b><i>occ. 6, tour 1</i></td><td class="c div">Bb7</td><td class="c div">Eb D</td><td class="c ">G-7 C7</td><td class="c div">F7 Bb</td></tr><tr><td class="ou"><button data-t="157.62" data-fin="168.44">▶</button><b>mes. 59</b><i>occ. 6, tour 2</i></td><td class="c div">Bb Bb7</td><td class="c div">Eb^7 D</td><td class="c ">G-7 C7</td><td class="c div">Bb Bb</td></tr></table>
+  <p class="mesure">
+    tours au texte identique : <b>0.95 [0.95–0.95]</b>
+    &nbsp;·&nbsp; tours qui divergent : <b>0.93 [0.82–0.97]</b>
+  </p>
+  <p class="verdict2"><b>pas de pattern</b> — la variante ne tombe pas au même tour d'une occurrence à l'autre, donc c'est l'interprétation : on replie et on note la variante. <span class="flouv">3 position(s) ont plus de deux lectures — la règle ne les tranche pas.</span></p>
+  <div class="propose"><i>ce que la règle écrirait</i><span class="ac flou">Bb7<sup>?</sup></span><span class="ac flou">Eb^7 D+<sup>?</sup></span><span class="ac">G-7 C7</span><span class="ac flou">F7 Bb<sup>?</sup></span></div>
+
+  <h4>lettre C — 4 tours de 4 mesures</h4>
+  <table class="tours"><tr><td class="ou"><button data-t="59.92" data-fin="70.84">▶</button><b>mes. 23</b><i>occ. 2, tour 1</i></td><td class="c ">G-7</td><td class="c ">C7</td><td class="c ">F7</td><td class="c div">F7</td></tr><tr><td class="ou"><button data-t="70.84" data-fin="81.80">▶</button><b>mes. 27</b><i>occ. 2, tour 2</i></td><td class="c ">G-7</td><td class="c ">C7</td><td class="c ">F7</td><td class="c div">D-7</td></tr><tr><td class="ou"><button data-t="103.48" data-fin="114.40">▶</button><b>mes. 39</b><i>occ. 3, tour 1</i></td><td class="c ">G-7</td><td class="c ">C7</td><td class="c ">F7</td><td class="c div">F7</td></tr><tr><td class="ou"><button data-t="114.40" data-fin="125.28">▶</button><b>mes. 43</b><i>occ. 3, tour 2</i></td><td class="c ">G-7</td><td class="c ">C7</td><td class="c ">F7</td><td class="c div">F7</td></tr></table>
+  <p class="mesure">
+    tours au texte identique : <b>0.88 [0.87–0.96]</b>
+    &nbsp;·&nbsp; tours qui divergent : <b>0.81 [0.81–0.88]</b>
+  </p>
+  <p class="verdict2"><b>pas de pattern</b> — la variante ne tombe pas au même tour d'une occurrence à l'autre, donc c'est l'interprétation : on replie et on note la variante.</p>
+  <div class="propose"><i>ce que la règle écrirait</i><span class="ac">G-7</span><span class="ac">C7</span><span class="ac">F7</span><span class="ac">F7<sup>D-7</sup></span></div>
+
+</section>
+<section data-audio="/audio/maroon_5_this_love.m4a">
+  <h3>Maroon 5 — This Love</h3>
+  <audio controls preload="none"></audio>
+  
+  <h4>lettre intro — 2 tours de 4 mesures</h4>
+  <table class="tours"><tr><td class="ou"><button data-t="1.08" data-fin="11.18">▶</button><b>mes. 1</b><i>occ. 2, tour 1</i></td><td class="c ">G</td><td class="c ">C-</td><td class="c ">F-7</td><td class="c div">Do F-</td></tr><tr><td class="ou"><button data-t="11.18" data-fin="21.28">▶</button><b>mes. 5</b><i>occ. 2, tour 2</i></td><td class="c ">G</td><td class="c ">C-</td><td class="c ">F-7</td><td class="c div">Dh7</td></tr></table>
+  <p class="mesure">
+    tours au texte identique : <b>—</b>
+    &nbsp;·&nbsp; tours qui divergent : <b>0.95 [0.95–0.95]</b>
+  </p>
+  <p class="verdict2"><b>une seule occurrence</b> — rien ne s'est répété, donc le test du pattern ne dit rien. La règle s'abstient.</p>
+  <div class="propose"><i>ce que la règle écrirait</i><span class="ac">G</span><span class="ac">C-</span><span class="ac">F-7</span><span class="ac">Dh7<sup>Do F-</sup></span></div>
+
+  <h4>lettre A — 4 tours de 4 mesures</h4>
+  <table class="tours"><tr><td class="ou"><button data-t="21.28" data-fin="31.38">▶</button><b>mes. 9</b><i>occ. 2, tour 1</i></td><td class="c div">G</td><td class="c ">C-</td><td class="c div">F-</td><td class="c div">Dh7 Bb7</td></tr><tr><td class="ou"><button data-t="31.38" data-fin="41.48">▶</button><b>mes. 13</b><i>occ. 2, tour 2</i></td><td class="c div">G</td><td class="c ">C-</td><td class="c div">F-7</td><td class="c div">Dh7</td></tr><tr><td class="ou"><button data-t="71.78" data-fin="81.88">▶</button><b>mes. 29</b><i>occ. 3, tour 1</i></td><td class="c div">N.C.</td><td class="c ">C-</td><td class="c div">F-</td><td class="c div">Dh7 Ab-7</td></tr><tr><td class="ou"><button data-t="81.88" data-fin="91.98">▶</button><b>mes. 33</b><i>occ. 3, tour 2</i></td><td class="c div">Bo</td><td class="c ">C-</td><td class="c div">F-</td><td class="c div">Dh7</td></tr></table>
+  <p class="mesure">
+    tours au texte identique : <b>—</b>
+    &nbsp;·&nbsp; tours qui divergent : <b>0.93 [0.88–0.94]</b>
+  </p>
+  <p class="verdict2"><b>pas de pattern</b> — la variante ne tombe pas au même tour d'une occurrence à l'autre, donc c'est l'interprétation : on replie et on note la variante. <span class="flouv">2 position(s) ont plus de deux lectures — la règle ne les tranche pas.</span></p>
+  <div class="propose"><i>ce que la règle écrirait</i><span class="ac flou">G<sup>?</sup></span><span class="ac">C-</span><span class="ac">F-<sup>F-7</sup></span><span class="ac flou">Dh7<sup>?</sup></span></div>
+
+  <h4>lettre B — 10 tours de 4 mesures</h4>
+  <table class="tours"><tr><td class="ou"><button data-t="41.48" data-fin="51.58">▶</button><b>mes. 17</b><i>occ. 2, tour 1</i></td><td class="c div">C- F-</td><td class="c ">Bb Eb</td><td class="c div">C- F-</td><td class="c div">Bb Eb</td></tr><tr><td class="ou"><button data-t="51.58" data-fin="61.68">▶</button><b>mes. 21</b><i>occ. 2, tour 2</i></td><td class="c div">C- F-</td><td class="c ">Bb Eb</td><td class="c div">C- F7</td><td class="c div">Ab G</td></tr><tr><td class="ou"><button data-t="91.98" data-fin="102.08">▶</button><b>mes. 37</b><i>occ. 3, tour 1</i></td><td class="c div">C- F-</td><td class="c ">Bb Eb</td><td class="c div">C- F-</td><td class="c div">Bb Eb</td></tr><tr><td class="ou"><button data-t="102.08" data-fin="112.18">▶</button><b>mes. 41</b><i>occ. 3, tour 2</i></td><td class="c div">C- F-</td><td class="c ">Bb Eb</td><td class="c div">C- F</td><td class="c div">Ab G</td></tr><tr><td class="ou"><button data-t="142.48" data-fin="152.58">▶</button><b>mes. 57</b><i>occ. 4, tour 1</i></td><td class="c div">C-7 F-7</td><td class="c ">Bb Eb</td><td class="c div">C- F-</td><td class="c div">Bb Eb</td></tr><tr><td class="ou"><button data-t="152.58" data-fin="162.68">▶</button><b>mes. 61</b><i>occ. 4, tour 2</i></td><td class="c div">C- F-</td><td class="c ">Bb Eb</td><td class="c div">C- F7</td><td class="c div">Ab</td></tr><tr><td class="ou"><button data-t="162.68" data-fin="172.78">▶</button><b>mes. 65</b><i>occ. 5, tour 1</i></td><td class="c div">C- F-7</td><td class="c ">Bb Eb</td><td class="c div">C- F-7</td><td class="c div">Bb Eb</td></tr><tr><td class="ou"><button data-t="172.78" data-fin="182.86">▶</button><b>mes. 69</b><i>occ. 5, tour 2</i></td><td class="c div">C- F-7</td><td class="c ">Bb Eb</td><td class="c div">C-7 F</td><td class="c div">Ab</td></tr><tr><td class="ou"><button data-t="182.86" data-fin="192.98">▶</button><b>mes. 73</b><i>occ. 6, tour 1</i></td><td class="c div">C- F-7</td><td class="c ">Bb Eb</td><td class="c div">C- F-7</td><td class="c div">Bb Eb</td></tr><tr><td class="ou"><button data-t="192.98" data-fin="203.08">▶</button><b>mes. 77</b><i>occ. 6, tour 2</i></td><td class="c div">C- F-7</td><td class="c ">Bb Eb</td><td class="c div">C- F</td><td class="c div">Ab N.C.</td></tr></table>
+  <p class="mesure">
+    tours au texte identique : <b>0.98 [0.97–0.98]</b>
+    &nbsp;·&nbsp; tours qui divergent : <b>0.87 [0.84–0.98]</b>
+  </p>
+  <p class="verdict2"><b>pas de pattern</b> — la variante ne tombe pas au même tour d'une occurrence à l'autre, donc c'est l'interprétation : on replie et on note la variante. <span class="flouv">3 position(s) ont plus de deux lectures — la règle ne les tranche pas.</span></p>
+  <div class="propose"><i>ce que la règle écrirait</i><span class="ac flou">C- F-<sup>?</sup></span><span class="ac">Bb Eb</span><span class="ac flou">C- F-<sup>?</sup></span><span class="ac flou">Bb Eb<sup>?</sup></span></div>
+
+  <h4>lettre C — 2 tours de 4 mesures</h4>
+  <table class="tours"><tr><td class="ou"><button data-t="61.68" data-fin="71.78">▶</button><b>mes. 25</b><i>occ. 2, tour 1</i></td><td class="c ">G</td><td class="c ">C-</td><td class="c ">F-</td><td class="c div">Dh7 Ab</td></tr><tr><td class="ou"><button data-t="112.18" data-fin="122.28">▶</button><b>mes. 45</b><i>occ. 3, tour 1</i></td><td class="c ">G</td><td class="c ">C-</td><td class="c ">F-</td><td class="c div">Do</td></tr></table>
+  <p class="mesure">
+    tours au texte identique : <b>—</b>
+    &nbsp;·&nbsp; tours qui divergent : <b>0.93 [0.93–0.93]</b>
+  </p>
+  <p class="verdict2"><b>pas de pattern</b> — la variante ne tombe pas au même tour d'une occurrence à l'autre, donc c'est l'interprétation : on replie et on note la variante.</p>
+  <div class="propose"><i>ce que la règle écrirait</i><span class="ac">G</span><span class="ac">C-</span><span class="ac">F-</span><span class="ac">Do<sup>Dh7 Ab</sup></span></div>
+
+  <h4>lettre D — 2 tours de 4 mesures</h4>
+  <table class="tours"><tr><td class="ou"><button data-t="122.28" data-fin="132.38">▶</button><b>mes. 49</b><i>occ. 2, tour 1</i></td><td class="c ">F-7</td><td class="c div">Eb</td><td class="c div">Bo</td><td class="c div">C-7</td></tr><tr><td class="ou"><button data-t="132.38" data-fin="142.48">▶</button><b>mes. 53</b><i>occ. 2, tour 2</i></td><td class="c ">F-7</td><td class="c div">Eb^7</td><td class="c div">G7</td><td class="c div">G7</td></tr></table>
+  <p class="mesure">
+    tours au texte identique : <b>—</b>
+    &nbsp;·&nbsp; tours qui divergent : <b>0.74 [0.74–0.74]</b>
+  </p>
+  <p class="verdict2"><b>une seule occurrence</b> — rien ne s'est répété, donc le test du pattern ne dit rien. La règle s'abstient.</p>
+  <div class="propose"><i>ce que la règle écrirait</i><span class="ac">F-7</span><span class="ac">Eb^7<sup>Eb</sup></span><span class="ac">Bo<sup>G7</sup></span><span class="ac">G7<sup>C-7</sup></span></div>
+
+</section>
+<script>
+/* Blob + timeupdate, jamais de requestAnimationFrame (Safari iOS). */
+document.querySelectorAll("section[data-audio]").forEach(function(sec){
+  var el = sec.querySelector("audio"), url = sec.dataset.audio, fin = null;
+  el.src = url;
+  if (window.fetch) fetch(url).then(function(r){ return r.ok ? r.blob() : null; })
+    .then(function(b){ if (b) el.src = URL.createObjectURL(b); })
+    .catch(function(){});
+  sec.addEventListener("click", function(ev){
+    var c = ev.target.closest("[data-t]"); if (!c) return;
+    fin = c.dataset.fin ? parseFloat(c.dataset.fin) : null;
+    try { el.currentTime = parseFloat(c.dataset.t); el.play(); } catch(e){}
+  });
+  el.addEventListener("timeupdate", function(){
+    if (fin !== null && el.currentTime >= fin) { el.pause(); fin = null; }
+  });
+});
+</script>
+</html>
