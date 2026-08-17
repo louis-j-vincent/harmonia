@@ -1,0 +1,129 @@
+<!doctype html><html lang="fr"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Démo — replier les tours qui se ressemblent</title>
+<style>
+:root{--fg:#1b1b19;--fond:#fbf7ec;--trait:#ddd6c7;--doux:#6b6558;--rouge:#a4462b;
+ --vert:#3d6b47}
+*{box-sizing:border-box}
+body{margin:0 auto;padding:24px 18px 80px;background:var(--fond);color:var(--fg);
+ font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,sans-serif;
+ max-width:900px}
+h1{font-size:24px;margin:0 0 4px}
+h3{font-size:18px;margin:0 0 6px}
+h4{font-size:13px;margin:0 0 7px;display:flex;justify-content:space-between;
+ align-items:baseline;gap:10px}
+h4 span{font-weight:400;font-size:11px;color:var(--doux)}
+section{margin:0 0 40px;padding:0 0 16px;border-bottom:2px solid var(--trait)}
+.chapo{color:var(--doux);max-width:78ch;margin:0 0 10px}
+.regle{background:#fff;border:1px solid var(--trait);border-radius:8px;
+ padding:12px 16px;margin:14px 0 24px;max-width:78ch}
+.regle ol{margin:0;padding-left:20px} .regle li{margin:3px 0}
+audio{width:100%;max-width:420px;height:34px;margin:4px 0 12px;display:block}
+.grp{border:1px solid var(--trait);border-radius:9px;padding:11px 13px;
+ margin:0 0 12px;background:#fff}
+.grp.ok{border-left:4px solid var(--vert)}
+.grp.non{border-left:4px solid var(--trait);background:#faf7ef}
+table{border-collapse:collapse;font-size:13.5px;width:100%}
+td{padding:3px 8px 3px 0;border-top:1px solid #f2ecdf;white-space:nowrap}
+td.ou{color:var(--doux);font-size:12.5px}
+td.ou i{font-style:normal;font-size:10.5px;margin-left:5px;
+ background:#efe9db;border-radius:4px;padding:1px 5px}
+td.c{font-variant-numeric:tabular-nums}
+td.c.div{background:#f7e8e1;color:var(--rouge);font-weight:600;border-radius:4px}
+.note{font-size:12.5px;color:var(--doux);margin:8px 0 0}
+.note b{color:var(--fg)}
+.propose{margin:9px 0 0;padding:9px 12px;background:#eef3ee;border-radius:8px;
+ display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.ac{font:600 19px Georgia,serif}
+.ac sup{font:600 11px Georgia,serif;color:var(--rouge);vertical-align:super;
+ margin-left:1px}
+button{font:inherit;font-size:12px;padding:1px 7px;margin-right:6px;
+ border:1px solid var(--trait);background:#fff;border-radius:6px;cursor:pointer}
+button:hover{background:#f2ecdd}
+</style>
+<h1>Replier les tours qui se ressemblent</h1>
+<p class="chapo">On découpe le morceau en tours de 4 mesures, on les groupe par
+ressemblance harmonique <b>sans regarder les lettres</b>, et on ne parle de
+variation que dans les groupes assez fournis pour arbitrer.</p>
+
+<div class="regle"><ol>
+<li>les tours sont ancrés sur les sections, pas pavés depuis la mesure 1 ;</li>
+<li>on groupe au-dessus de <b>0.80</b> de distance harmonique — seuil pris
+sur tes deux arbitrages : A- contre C à 0,83 se replie, C-7 contre G7 à 0,74
+non ;</li>
+<li><b>3 tours minimum</b> pour replier. En dessous, deux lectures ne
+disent pas laquelle est la variante de l'autre : ce sont des mesures
+différentes ;</li>
+<li>une variante doit revenir <b>2 fois</b> pour être écrite — vue une
+seule fois sur huit tours, c'est du décodage, pas un choix.</li>
+</ol></div>
+
+<section data-audio="/audio/maroon_5_this_love.m4a">
+  <h3>Maroon 5 — This Love</h3>
+  <audio controls preload="none"></audio>
+  
+  <div class="grp ok">
+    <h4>8 tours
+      <span>lettres du chart : A, C, intro</span></h4>
+    <table><tr><td class="ou"><button data-t="1.08" data-fin="11.18">▶</button>mes. 1<i>intro</i></td><td class="c div">G</td><td class="c">C-</td><td class="c div">F-7</td><td class="c div">Do F-</td></tr><tr><td class="ou"><button data-t="11.18" data-fin="21.28">▶</button>mes. 5<i>intro</i></td><td class="c div">G</td><td class="c">C-</td><td class="c div">F-7</td><td class="c div">Dh7</td></tr><tr><td class="ou"><button data-t="21.28" data-fin="31.38">▶</button>mes. 9<i>A</i></td><td class="c div">G</td><td class="c">C-</td><td class="c div">F-</td><td class="c div">Dh7 Bb7</td></tr><tr><td class="ou"><button data-t="31.38" data-fin="41.48">▶</button>mes. 13<i>A</i></td><td class="c div">G</td><td class="c">C-</td><td class="c div">F-7</td><td class="c div">Dh7</td></tr><tr><td class="ou"><button data-t="61.68" data-fin="71.78">▶</button>mes. 25<i>C</i></td><td class="c div">G</td><td class="c">C-</td><td class="c div">F-</td><td class="c div">Dh7 Ab</td></tr><tr><td class="ou"><button data-t="71.78" data-fin="81.88">▶</button>mes. 29<i>A</i></td><td class="c div">N.C.</td><td class="c">C-</td><td class="c div">F-</td><td class="c div">Dh7 Ab-7</td></tr><tr><td class="ou"><button data-t="81.88" data-fin="91.98">▶</button>mes. 33<i>A</i></td><td class="c div">Bo</td><td class="c">C-</td><td class="c div">F-</td><td class="c div">Dh7</td></tr><tr><td class="ou"><button data-t="112.18" data-fin="122.28">▶</button>mes. 45<i>C</i></td><td class="c div">G</td><td class="c">C-</td><td class="c div">F-</td><td class="c div">Do</td></tr></table>
+    <p class="note">8 tours, distance médiane <b>0.91</b> — assez pour arbitrer : on replie et on note la variante.</p>
+    <div class="propose"><span class="ac">G</span><span class="ac">C-</span><span class="ac">F-<sup>F-7</sup></span><span class="ac">Dh7</span></div>
+  </div>
+  <div class="grp ok">
+    <h4>10 tours
+      <span>lettres du chart : B</span></h4>
+    <table><tr><td class="ou"><button data-t="41.48" data-fin="51.58">▶</button>mes. 17<i>B</i></td><td class="c div">C- F-</td><td class="c">Bb Eb</td><td class="c div">C- F-</td><td class="c div">Bb Eb</td></tr><tr><td class="ou"><button data-t="51.58" data-fin="61.68">▶</button>mes. 21<i>B</i></td><td class="c div">C- F-</td><td class="c">Bb Eb</td><td class="c div">C- F7</td><td class="c div">Ab G</td></tr><tr><td class="ou"><button data-t="91.98" data-fin="102.08">▶</button>mes. 37<i>B</i></td><td class="c div">C- F-</td><td class="c">Bb Eb</td><td class="c div">C- F-</td><td class="c div">Bb Eb</td></tr><tr><td class="ou"><button data-t="102.08" data-fin="112.18">▶</button>mes. 41<i>B</i></td><td class="c div">C- F-</td><td class="c">Bb Eb</td><td class="c div">C- F</td><td class="c div">Ab G</td></tr><tr><td class="ou"><button data-t="142.48" data-fin="152.58">▶</button>mes. 57<i>B</i></td><td class="c div">C-7 F-7</td><td class="c">Bb Eb</td><td class="c div">C- F-</td><td class="c div">Bb Eb</td></tr><tr><td class="ou"><button data-t="152.58" data-fin="162.68">▶</button>mes. 61<i>B</i></td><td class="c div">C- F-</td><td class="c">Bb Eb</td><td class="c div">C- F7</td><td class="c div">Ab</td></tr><tr><td class="ou"><button data-t="162.68" data-fin="172.78">▶</button>mes. 65<i>B</i></td><td class="c div">C- F-7</td><td class="c">Bb Eb</td><td class="c div">C- F-7</td><td class="c div">Bb Eb</td></tr><tr><td class="ou"><button data-t="172.78" data-fin="182.86">▶</button>mes. 69<i>B</i></td><td class="c div">C- F-7</td><td class="c">Bb Eb</td><td class="c div">C-7 F</td><td class="c div">Ab</td></tr><tr><td class="ou"><button data-t="182.86" data-fin="192.98">▶</button>mes. 73<i>B</i></td><td class="c div">C- F-7</td><td class="c">Bb Eb</td><td class="c div">C- F-7</td><td class="c div">Bb Eb</td></tr><tr><td class="ou"><button data-t="192.98" data-fin="203.08">▶</button>mes. 77<i>B</i></td><td class="c div">C- F-7</td><td class="c">Bb Eb</td><td class="c div">C- F</td><td class="c div">Ab N.C.</td></tr></table>
+    <p class="note">10 tours, distance médiane <b>0.87</b> — assez pour arbitrer : on replie et on note la variante.</p>
+    <div class="propose"><span class="ac">C- F-<sup>C- F-7</sup></span><span class="ac">Bb Eb</span><span class="ac">C- F-<sup>C- F</sup></span><span class="ac">Bb Eb<sup>Ab</sup></span></div>
+  </div>
+  <div class="grp non">
+    <h4>1 tour
+      <span>lettres du chart : D</span></h4>
+    <table><tr><td class="ou"><button data-t="122.28" data-fin="132.38">▶</button>mes. 49<i>D</i></td><td class="c">F-7</td><td class="c">Eb</td><td class="c">Bo</td><td class="c">C-7</td></tr></table>
+    <p class="note">1 tour — pas assez pour dire qu'un accord est la variante de l'autre. Ce sont des mesures différentes, chacune garde son texte.</p>
+    
+  </div>
+  <div class="grp non">
+    <h4>1 tour
+      <span>lettres du chart : D</span></h4>
+    <table><tr><td class="ou"><button data-t="132.38" data-fin="142.48">▶</button>mes. 53<i>D</i></td><td class="c">F-7</td><td class="c">Eb^7</td><td class="c">G7</td><td class="c">G7</td></tr></table>
+    <p class="note">1 tour — pas assez pour dire qu'un accord est la variante de l'autre. Ce sont des mesures différentes, chacune garde son texte.</p>
+    
+  </div>
+</section>
+<section data-audio="/audio/X-yIEMduRXk.m4a">
+  <h3>Adele — Easy On Me</h3>
+  <audio controls preload="none"></audio>
+  
+  <div class="grp ok">
+    <h4>8 tours
+      <span>lettres du chart : A, C</span></h4>
+    <table><tr><td class="ou"><button data-t="0.54" data-fin="14.04">▶</button>mes. 1<i>A</i></td><td class="c">F</td><td class="c">D-7</td><td class="c div">A-</td><td class="c div">Bb</td></tr><tr><td class="ou"><button data-t="14.04" data-fin="27.56">▶</button>mes. 5<i>A</i></td><td class="c">F</td><td class="c">D-7</td><td class="c div">A-</td><td class="c div">Bb</td></tr><tr><td class="ou"><button data-t="27.56" data-fin="41.08">▶</button>mes. 9<i>A</i></td><td class="c">F</td><td class="c">D-7</td><td class="c div">C</td><td class="c div">C7 Bb</td></tr><tr><td class="ou"><button data-t="74.90" data-fin="88.42">▶</button>mes. 23<i>A</i></td><td class="c">F</td><td class="c">D-7</td><td class="c div">A-</td><td class="c div">Bb</td></tr><tr><td class="ou"><button data-t="88.42" data-fin="101.92">▶</button>mes. 27<i>A</i></td><td class="c">F</td><td class="c">D-7</td><td class="c div">C</td><td class="c div">Bb</td></tr><tr><td class="ou"><button data-t="101.92" data-fin="115.46">▶</button>mes. 31<i>A</i></td><td class="c">F</td><td class="c">D-7</td><td class="c div">C</td><td class="c div">Bb</td></tr><tr><td class="ou"><button data-t="145.88" data-fin="159.40">▶</button>mes. 44<i>C</i></td><td class="c">F</td><td class="c">D-7</td><td class="c div">A-</td><td class="c div">Bb</td></tr><tr><td class="ou"><button data-t="159.40" data-fin="172.92">▶</button>mes. 48<i>C</i></td><td class="c">F</td><td class="c">D-7</td><td class="c div">C</td><td class="c div">Bb</td></tr></table>
+    <p class="note">8 tours, distance médiane <b>0.83</b> — assez pour arbitrer : on replie et on note la variante.</p>
+    <div class="propose"><span class="ac">F</span><span class="ac">D-7</span><span class="ac">A-<sup>C</sup></span><span class="ac">Bb</span></div>
+  </div>
+  <div class="grp ok">
+    <h4>6 tours
+      <span>lettres du chart : B</span></h4>
+    <table><tr><td class="ou"><button data-t="47.86" data-fin="61.36">▶</button>mes. 15<i>B</i></td><td class="c div">F D-</td><td class="c">C F</td><td class="c div">G-7</td><td class="c">Bb</td></tr><tr><td class="ou"><button data-t="61.36" data-fin="74.90">▶</button>mes. 19<i>B</i></td><td class="c div">F D-7</td><td class="c">C F</td><td class="c div">G-7</td><td class="c">Bb</td></tr><tr><td class="ou"><button data-t="118.82" data-fin="132.36">▶</button>mes. 36<i>B</i></td><td class="c div">F D-</td><td class="c">C F</td><td class="c div">G-7 F</td><td class="c">Bb</td></tr><tr><td class="ou"><button data-t="132.36" data-fin="145.88">▶</button>mes. 40<i>B</i></td><td class="c div">F</td><td class="c">C F</td><td class="c div">G-7 F</td><td class="c">Bb</td></tr><tr><td class="ou"><button data-t="176.30" data-fin="189.82">▶</button>mes. 53<i>B</i></td><td class="c div">F</td><td class="c">C F</td><td class="c div">G-7</td><td class="c">Bb</td></tr><tr><td class="ou"><button data-t="189.82" data-fin="203.34">▶</button>mes. 57<i>B</i></td><td class="c div">F</td><td class="c">C F</td><td class="c div">G-7 F</td><td class="c">Bb</td></tr></table>
+    <p class="note">6 tours, distance médiane <b>0.97</b> — assez pour arbitrer : on replie et on note la variante.</p>
+    <div class="propose"><span class="ac">F<sup>F D-</sup></span><span class="ac">C F</span><span class="ac">G-7<sup>G-7 F</sup></span><span class="ac">Bb</span></div>
+  </div>
+</section>
+<script>
+document.querySelectorAll("section[data-audio]").forEach(function(sec){
+  var el = sec.querySelector("audio"), url = sec.dataset.audio, fin = null;
+  el.src = url;
+  if (window.fetch) fetch(url).then(function(r){ return r.ok ? r.blob() : null; })
+    .then(function(b){ if (b) el.src = URL.createObjectURL(b); }).catch(function(){});
+  sec.addEventListener("click", function(ev){
+    var c = ev.target.closest("[data-t]"); if (!c) return;
+    fin = c.dataset.fin ? parseFloat(c.dataset.fin) : null;
+    try { el.currentTime = parseFloat(c.dataset.t); el.play(); } catch(e){}
+  });
+  el.addEventListener("timeupdate", function(){
+    if (fin !== null && el.currentTime >= fin) { el.pause(); fin = null; }
+  });
+});
+</script>
+</html>
