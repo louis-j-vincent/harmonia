@@ -1,0 +1,181 @@
+<!doctype html><html lang="fr"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Easy On Me — A- ou C ?</title>
+<style>
+:root{--fg:#1b1b19;--fond:#fbf7ec;--trait:#ddd6c7;--doux:#6b6558;
+ --am:#3f6f8f;--do:#a4462b}
+*{box-sizing:border-box}
+body{margin:0 auto;padding:24px 18px 80px;background:var(--fond);color:var(--fg);
+ font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,sans-serif;
+ max-width:1080px}
+h1{font-size:24px;margin:0 0 4px}
+h2{font-size:17px;margin:34px 0 8px;border-bottom:1px solid var(--trait);
+ padding-bottom:5px}
+.chapo{color:var(--doux);max-width:78ch;margin:0 0 8px}
+.verdict{background:#fff;border:1px solid var(--trait);border-left:4px solid var(--am);
+ border-radius:8px;padding:12px 14px;margin:14px 0 6px;max-width:78ch}
+.verdict b{color:var(--am)}
+audio{width:100%;max-width:420px;height:34px;margin:10px 0 4px;display:block}
+table{border-collapse:collapse;font-size:13px;width:100%;margin:6px 0 4px}
+th{text-align:left;font-weight:600;color:var(--doux);font-size:11px;
+ padding:2px 8px 6px 0;vertical-align:bottom;text-transform:uppercase;
+ letter-spacing:.03em}
+td{padding:5px 8px 5px 0;border-top:1px solid #efe9db;vertical-align:middle}
+td.mes b{display:block;white-space:nowrap}
+td.mes i{font-style:normal;font-size:11px;color:var(--doux)}
+td.pp{font-variant-numeric:tabular-nums;font-weight:600}
+td.t{width:44px;text-align:center;font-variant-numeric:tabular-nums;
+ border-radius:4px}
+td.t b{display:block;font-size:13px}
+td.t i{font-style:normal;font-size:10.5px;color:var(--doux)}
+td.t.a{background:#e6eff5;color:var(--am)}
+td.t.c{background:#f7e8e1;color:var(--do)}
+td.top{font-size:11.5px;color:var(--doux);white-space:nowrap}
+button{font:inherit;font-size:12px;padding:4px 9px;margin:0 4px 2px 0;
+ border:1px solid var(--trait);background:#fff;border-radius:6px;cursor:pointer}
+button:hover{background:#f2ecdd}
+td.tour i{display:block;font-style:normal;font-size:10.5px;color:var(--doux)}
+.coh{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.coh div{background:#fff;border:1px solid var(--trait);border-radius:7px;
+ padding:7px 11px;font-size:12.5px;text-align:center;min-width:96px}
+.coh div b{display:block;font-size:17px;font-variant-numeric:tabular-nums}
+.coh div.bas b{color:var(--do)}
+.coh div i{font-style:normal;color:var(--doux);font-size:11px}
+</style>
+<h1>Easy On Me — A- ou C ?</h1>
+<p class="chapo">La boucle de A fait quatre mesures : <b>F | D-7 | ? | Bb</b>.
+La troisième case est jouée six fois entre tes deux A. Trois fois elle sort
+<b>A-</b>, trois fois <b>C</b>. Ta question : deux accords différents, ou musx
+qui hésite ?</p>
+
+<div class="verdict"><b>Musx n'hésite pas.</b> Sur chacune des six mesures, et
+sur chacun des quatre temps, l'un des deux écrase l'autre d'un facteur 50 à 300.
+Il n'y a pas une seule mesure où les deux se disputent. Les replier ensemble
+effacerait une différence réelle — reste à écouter si elle est dans la musique
+ou si le modèle se trompe avec assurance quelque part.</div>
+
+<audio controls preload="none"></audio>
+
+<h2>Les six mesures, temps par temps</h2>
+<p class="chapo">Une case = un temps. Le chiffre est la probabilité de
+l'accord qui gagne ce temps-là, en pourcentage, et la lettre dessous dit lequel.
+Bleu = A-, rouge = C. Les deux colonnes P(A-) et P(C) donnent le détail sur la
+mesure entière.</p>
+<table>
+<tr><th>mesure</th><th>écrit</th><th>P(A-)</th><th>P(C)</th>
+<th>t1</th><th>t2</th><th>t3</th><th>t4</th><th>top-3 musx</th><th>écouter</th></tr>
+
+  <tr>
+    <td class="mes"><b>mes. 3</b><i>A mes. 1</i></td>
+    <td class="ec"><b>A-</b></td>
+    <td class="pp">0.593</td>
+    <td class="pp">0.012</td>
+    <td class="t a"><b>46</b><i>A-</i></td><td class="t a"><b>73</b><i>A-</i></td><td class="t a"><b>68</b><i>A-</i></td><td class="t a"><b>49</b><i>A-</i></td>
+    <td class="top">A- 0.59 · F 0.20 · D- 0.08</td>
+    <td class="ec">
+      <button data-t="7.26" data-fin="10.66">▶ la mesure</button>
+      <button data-t="0.54" data-fin="14.06">▶ le tour</button>
+    </td>
+  </tr>
+  <tr>
+    <td class="mes"><b>mes. 7</b><i>A mes. 1</i></td>
+    <td class="ec"><b>A-</b></td>
+    <td class="pp">0.558</td>
+    <td class="pp">0.012</td>
+    <td class="t a"><b>34</b><i>A-</i></td><td class="t a"><b>71</b><i>A-</i></td><td class="t a"><b>69</b><i>A-</i></td><td class="t a"><b>49</b><i>A-</i></td>
+    <td class="top">A- 0.56 · D- 0.17 · F 0.17</td>
+    <td class="ec">
+      <button data-t="20.78" data-fin="24.18">▶ la mesure</button>
+      <button data-t="14.04" data-fin="27.58">▶ le tour</button>
+    </td>
+  </tr>
+  <tr>
+    <td class="mes"><b>mes. 11</b><i>A mes. 1</i></td>
+    <td class="ec"><b>C</b></td>
+    <td class="pp">0.003</td>
+    <td class="pp">0.901</td>
+    <td class="t c"><b>82</b><i>C</i></td><td class="t c"><b>92</b><i>C</i></td><td class="t c"><b>94</b><i>C</i></td><td class="t c"><b>93</b><i>C</i></td>
+    <td class="top">C 0.90 · C7 0.07 · D- 0.01</td>
+    <td class="ec">
+      <button data-t="34.32" data-fin="37.70">▶ la mesure</button>
+      <button data-t="27.56" data-fin="41.08">▶ le tour</button>
+    </td>
+  </tr>
+  <tr>
+    <td class="mes"><b>mes. 25</b><i>A mes. 23</i></td>
+    <td class="ec"><b>A-</b></td>
+    <td class="pp">0.560</td>
+    <td class="pp">0.005</td>
+    <td class="t a"><b>35</b><i>A-</i></td><td class="t a"><b>65</b><i>A-</i></td><td class="t a"><b>74</b><i>A-</i></td><td class="t a"><b>50</b><i>A-</i></td>
+    <td class="top">A- 0.56 · D- 0.23 · F 0.15</td>
+    <td class="ec">
+      <button data-t="81.64" data-fin="85.02">▶ la mesure</button>
+      <button data-t="74.90" data-fin="88.40">▶ le tour</button>
+    </td>
+  </tr>
+  <tr>
+    <td class="mes"><b>mes. 29</b><i>A mes. 23</i></td>
+    <td class="ec"><b>C</b></td>
+    <td class="pp">0.001</td>
+    <td class="pp">0.926</td>
+    <td class="t c"><b>89</b><i>C</i></td><td class="t c"><b>95</b><i>C</i></td><td class="t c"><b>95</b><i>C</i></td><td class="t c"><b>91</b><i>C</i></td>
+    <td class="top">C 0.93 · C7 0.04 · Bb 0.01</td>
+    <td class="ec">
+      <button data-t="95.16" data-fin="98.56">▶ la mesure</button>
+      <button data-t="88.42" data-fin="101.96">▶ le tour</button>
+    </td>
+  </tr>
+  <tr>
+    <td class="mes"><b>mes. 33</b><i>A mes. 23</i></td>
+    <td class="ec"><b>C</b></td>
+    <td class="pp">0.002</td>
+    <td class="pp">0.941</td>
+    <td class="t c"><b>91</b><i>C</i></td><td class="t c"><b>95</b><i>C</i></td><td class="t c"><b>96</b><i>C</i></td><td class="t c"><b>94</b><i>C</i></td>
+    <td class="top">C 0.94 · C7 0.04 · F 0.01</td>
+    <td class="ec">
+      <button data-t="108.68" data-fin="112.06">▶ la mesure</button>
+      <button data-t="101.92" data-fin="115.44">▶ le tour</button>
+    </td>
+  </tr>
+</table>
+
+<h2>Le même endroit, tour par tour</h2>
+<p class="chapo">C'est ici que ça se joue : le <b>2ᵉ tour</b> de ton premier A
+dit A-, celui de ton second A dit C. Si les deux A sont la même musique, l'un
+des deux se trompe. Écoute-les l'un après l'autre.</p>
+<table><tr><td><b>A mes. 1–12</b></td><td class="tour"><i>tour 1</i><button data-t="7.26" data-fin="10.66">A-</button></td><td class="tour"><i>tour 2</i><button data-t="20.78" data-fin="24.18">A-</button></td><td class="tour"><i>tour 3</i><button data-t="34.32" data-fin="37.70">C</button></td></tr><tr><td><b>A mes. 23–35</b></td><td class="tour"><i>tour 1</i><button data-t="81.64" data-fin="85.02">A-</button></td><td class="tour"><i>tour 2</i><button data-t="95.16" data-fin="98.56">C</button></td><td class="tour"><i>tour 3</i><button data-t="108.68" data-fin="112.06">C</button></td></tr></table>
+
+<h2>Ce que le repli en dit déjà</h2>
+<p class="chapo">Cohérence de l'empilement, position par position dans la
+boucle — c'est la ressemblance médiane entre les occurrences d'une même
+position. Au-dessus de 0,85 le repli empile ; en dessous il refuse.</p>
+<div class="coh">
+<div class=""><b>0.96</b><i>position 0 — F</i></div><div class=""><b>0.97</b><i>position 1 — D-7</i></div><div class="bas"><b>0.52</b><i>position 2 — A- ou C</i></div><div class=""><b>0.95</b><i>position 3 — Bb</i></div>
+</div>
+<p class="chapo">Trois positions sur quatre sont aussi solides que la lettre B
+(la tienne, qui empile à 0.96–0.98 et réécrit 13 mesures).
+La position contestée s'effondre toute seule. <b>Le repli avait donc déjà
+raison de refuser</b> — mais aujourd'hui il refuse la lettre ENTIÈRE à cause
+d'elle, donc F, D-7 et Bb perdent l'empilement qu'ils méritaient.</p>
+
+<script>
+/* Blob + timeupdate, jamais de requestAnimationFrame : sur Safari iOS un rAF
+   empêche le moteur audio de démarrer, et le lecteur ne bufferise pas un
+   fichier servi en direct (206 en boucle). Voir docs/plots/retour_10morceaux. */
+(function(){
+  var el = document.querySelector("audio"), url = "/audio/X-yIEMduRXk.m4a", fin = null;
+  el.src = url;
+  if (window.fetch) fetch(url).then(function(r){ return r.ok ? r.blob() : null; })
+    .then(function(b){ if (!b) return; el.src = URL.createObjectURL(b); })
+    .catch(function(){});
+  document.addEventListener("click", function(ev){
+    var c = ev.target.closest("[data-t]"); if (!c) return;
+    fin = c.dataset.fin ? parseFloat(c.dataset.fin) : null;
+    try { el.currentTime = parseFloat(c.dataset.t); el.play(); } catch(e){}
+  });
+  el.addEventListener("timeupdate", function(){
+    if (fin !== null && el.currentTime >= fin) { el.pause(); fin = null; }
+  });
+})();
+</script>
+</html>
