@@ -42,6 +42,8 @@ import json
 import sys
 from pathlib import Path
 
+import math
+
 import numpy as np
 
 REPO = Path(__file__).resolve().parents[1]
@@ -60,7 +62,17 @@ SORTIE = REPO / "docs" / "plots" / "demo_repliement.html"
 P = 4          # le tour, en mesures
 SEUIL = 0.80   # ses deux arbitrages : 0,83 se replie, 0,74 non
 MIN_TOURS = 3  # « 2 répétitions, ce n'est pas assez pour dire qu'il y a une variation »
-MIN_VAR = 2    # une variante doit revenir, sinon c'est du bruit de décodage
+
+
+def min_var(n: int) -> int:
+    """Combien de fois une lecture minoritaire doit revenir pour être écrite —
+    EN RACINE DE N (Louis, 2026-08-18 : « tu peux peut-être faire une règle en
+    racine de n où n est le nombre d'observations qu'on a ; plus on a
+    d'observations, plus on peut être sûr qu'on a en effet différentes
+    variations, modulo le fait qu'il y ait un pattern »). 2 sur 4 tours, 4 sur
+    10 : plus on observe, plus une lecture doit s'imposer pour ne pas être du
+    bruit de décodage."""
+    return max(2, math.ceil(math.sqrt(n)))
 
 MORCEAUX = [("min_maroon_5_this_love", "Maroon 5 — This Love"),
             ("min_X-yIEMduRXk", "Adele — Easy On Me")]
@@ -97,8 +109,12 @@ def morceau(stem: str, titre: str) -> str:
     else:
         ancres = [tuple(r) for s in chart.get("sections") or []
                   for r in (s.get("barRanges") or [])]
-    departs = sorted({b0 + t * P for b0, b1 in ancres
-                      for t in range((b1 - b0 + 1) // P)})
+    departs, rang = [], {}
+    for b0, b1 in ancres:
+        for t in range((b1 - b0 + 1) // P):
+            departs.append(b0 + t * P)
+            rang[b0 + t * P] = t      # le rang du tour DANS sa section
+    departs = sorted(set(departs))
     if len(departs) < 2:
         return ""
 
@@ -123,6 +139,30 @@ def morceau(stem: str, titre: str) -> str:
         replie = len(g) >= MIN_TOURS
         divergentes = [k for k in range(P)
                        if len({txts[a][k] for a in g}) > 1]
+        # L'ALTERNANCE (Louis, 2026-08-18, sur le refrain de This Love : « il y
+        # a un pattern sur l'alternance de la dernière mesure, un coup c'est Ab
+        # un coup c'est Bb »). Si la lecture d'une case est une FONCTION du rang
+        # du tour dans sa section, ce n'est pas une variante : la boucle est
+        # deux fois plus longue, et ces deux lectures en sont la 1re et la 2e
+        # fin. Testé AVANT de parler de variation — sinon une alternance
+        # parfaitement régulière sort en « variante », ce qui est faux.
+        #
+        # Le test porte sur l'accord de TÊTE de la mesure (« un coup c'est Ab un
+        # coup c'est Bb » parle du premier accord). Sur le texte entier il
+        # échouait : la classe impaire du refrain de This Love dit `Ab G`,
+        # `Ab` et `Ab N.C.` — trois chaînes différentes pour un seul et même
+        # Ab, la queue de mesure étant du bruit de décodage.
+        def tete(txt):
+            return txt.split(" ")[0]
+
+        alterne = None
+        for k in divergentes:
+            par = {}
+            for a in g:
+                par.setdefault(rang.get(a, 0) % 2, set()).add(tete(txts[a][k]))
+            if (len(par) == 2 and all(len(v) == 1 for v in par.values())
+                    and par[0] != par[1] and alterne is None):
+                alterne = k
 
         lignes = "".join(
             f'<tr><td class="ou"><button data-t="{grid[a]:.2f}" '
@@ -132,23 +172,41 @@ def morceau(stem: str, titre: str) -> str:
                       f'{html.escape(txts[a][k])}</td>' for k in range(P))
             + "</tr>" for a in g)
 
-        ecrit = []
-        for k in range(P):
-            vals = [txts[a][k] for a in g]
-            uniq = sorted(set(vals), key=lambda x: (-vals.count(x), x))
-            maj = uniq[0]
-            var = [u for u in uniq[1:] if vals.count(u) >= MIN_VAR]
-            if replie and var:
-                ecrit.append(f'<span class="ac">{html.escape(maj)}'
-                             f'<sup>{html.escape(var[0])}</sup></span>')
-            elif replie:
-                ecrit.append(f'<span class="ac">{html.escape(maj)}</span>')
+        seuil_var = min_var(len(g))
+
+        def _ecrire(sous):
+            out = []
+            for k in range(P):
+                vals = [txts[a][k] for a in sous]
+                uniq = sorted(set(vals), key=lambda x: (-vals.count(x), x))
+                maj = uniq[0]
+                var = [u for u in uniq[1:]
+                       if vals.count(u) >= min_var(len(sous))]
+                sup = f'<sup>{html.escape(var[0])}</sup>' if var else ""
+                out.append(f'<span class="ac">{html.escape(maj)}{sup}</span>')
+            return "".join(out)
 
         if replie:
             dd = [sim(a, b) for i, a in enumerate(g) for b in g[i + 1:]]
-            note = (f'{len(g)} tours, distance médiane <b>{np.median(dd):.2f}</b>'
-                    f' — assez pour arbitrer : on replie et on note la variante.')
-            corps = f'<div class="propose">{"".join(ecrit)}</div>'
+            if alterne is not None:
+                pairs = [a for a in g if rang.get(a, 0) % 2 == 0]
+                impairs = [a for a in g if rang.get(a, 0) % 2 == 1]
+                note = (f'{len(g)} tours, distance médiane '
+                        f'<b>{np.median(dd):.2f}</b> — mais la mesure '
+                        f'{alterne + 1} <b>alterne avec le rang du tour</b> : '
+                        f'{len(pairs)} fois une lecture, {len(impairs)} fois '
+                        f"l'autre, jamais mélangées. Ce n'est pas une variante — "
+                        f'la boucle fait {2 * P} mesures, et ces deux lectures '
+                        f'en sont la 1re et la 2e fin.')
+                corps = (f'<div class="propose fin"><i>1.</i>{_ecrire(pairs)}</div>'
+                         f'<div class="propose fin"><i>2.</i>{_ecrire(impairs)}</div>')
+            else:
+                note = (f'{len(g)} tours, distance médiane '
+                        f'<b>{np.median(dd):.2f}</b> — pas d\'alternance, et '
+                        f'assez d\'observations pour arbitrer : on replie, et '
+                        f'une variante doit revenir <b>{seuil_var} fois</b> '
+                        f'(√{len(g)}) pour être écrite.')
+                corps = f'<div class="propose">{_ecrire(g)}</div>'
         else:
             note = (f'{len(g)} tour{"s" if len(g) > 1 else ""} — pas assez pour '
                     f'dire qu\'un accord est la variante de l\'autre. '
@@ -212,6 +270,10 @@ td.c.div{{background:#f7e8e1;color:var(--rouge);font-weight:600;border-radius:4p
 .ac{{font:600 19px Georgia,serif}}
 .ac sup{{font:600 11px Georgia,serif;color:var(--rouge);vertical-align:super;
  margin-left:1px}}
+.propose.fin{{margin-top:6px;align-items:baseline}}
+.propose.fin i{{font:700 13px Georgia,serif;font-style:normal;color:var(--doux);
+ border:1px solid var(--trait);border-bottom:none;border-radius:4px 4px 0 0;
+ padding:0 7px}}
 button{{font:inherit;font-size:12px;padding:1px 7px;margin-right:6px;
  border:1px solid var(--trait);background:#fff;border-radius:6px;cursor:pointer}}
 button:hover{{background:#f2ecdd}}
@@ -229,8 +291,10 @@ non ;</li>
 <li><b>{MIN_TOURS} tours minimum</b> pour replier. En dessous, deux lectures ne
 disent pas laquelle est la variante de l'autre : ce sont des mesures
 différentes ;</li>
-<li>une variante doit revenir <b>{MIN_VAR} fois</b> pour être écrite — vue une
-seule fois sur huit tours, c'est du décodage, pas un choix.</li>
+<li>si une case <b>alterne avec le rang du tour</b>, ce n'est pas une variante :
+la boucle est deux fois plus longue, on écrit une 1re et une 2e fin ;</li>
+<li>sinon une variante doit revenir <b>√n fois</b> — 2 sur 4 tours, 4 sur 10 :
+plus on observe, plus une lecture doit s'imposer pour ne pas être du bruit.</li>
 </ol></div>
 {corps}
 <script>
