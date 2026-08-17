@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>X ≈ U·V — l'algorithme, et une démo</title>
+<style>
+ :root{--papier:#f7f3e9;--encre:#1c1c1c;--pale:#6f6a60;--trait:#ddd5c4;
+       --carte:#fffdf7;--accent:#8a2b2b;--bleu:#2f6f8f}
+ @media(prefers-color-scheme:dark){:root{--papier:#17171a;--encre:#ece8e0;
+  --pale:#918c83;--trait:#33323a;--carte:#1f1f24;--accent:#d4735e;--bleu:#6fa8c7}}
+ *{box-sizing:border-box}
+ body{margin:0 auto;max-width:880px;padding:20px 16px 40px;background:var(--papier);
+      color:var(--encre);font:15px/1.6 -asystem,-apple-system,BlinkMacSystemFont,sans-serif}
+ a{color:var(--accent)} code{font:13px ui-monospace,Menlo,monospace;
+   background:var(--carte);padding:1px 5px;border-radius:4px;border:1px solid var(--trait)}
+ h1{font:italic 600 26px/1.2 Georgia,serif;margin:0 0 6px}
+ h2{font:600 11px sans-serif;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--pale);margin:30px 0 8px;border-top:1px solid var(--trait);padding-top:14px}
+ h3{font:600 15px sans-serif;margin:18px 0 4px}
+ .lede{font:italic 15px/1.65 Georgia,serif;color:var(--pale);margin:0 0 6px}
+ .carte{background:var(--carte);border:1px solid var(--trait);border-radius:14px;
+        padding:14px;margin:10px 0;overflow-x:auto}
+ table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:460px}
+ th{text-align:left;font:600 10.5px sans-serif;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--pale);padding:0 8px 6px 0;white-space:nowrap}
+ td{padding:5px 8px 5px 0;border-top:1px solid var(--trait);vertical-align:middle}
+ .acc{font:600 13.5px Georgia,serif}
+ .let{display:inline-block;min-width:24px;text-align:center;color:#fff;
+      border-radius:5px;padding:2px 6px;font:700 12px sans-serif}
+ .bar{display:inline-block;height:9px;border-radius:3px;background:var(--bleu);
+      vertical-align:middle}
+ .mono{font:12.5px ui-monospace,Menlo,monospace;color:var(--pale)}
+ .eq{font:600 17px ui-monospace,Menlo,monospace;text-align:center;margin:14px 0;
+     color:var(--encre)}
+ .note{font:italic 13.5px/1.6 Georgia,serif;color:var(--pale);margin:6px 0 0}
+ .cle{border-left:3px solid var(--accent);padding-left:12px;margin:14px 0}
+ button{font:600 13px sans-serif;border:1px solid var(--trait);background:var(--carte);
+        color:var(--encre);border-radius:9px;padding:7px 11px;cursor:pointer}
+ ol{padding-left:22px} li{margin:8px 0}
+</style></head><body>
+<script>window.D = {"titre":"Easy On Me","n":63,"k":6,"L":4,"audio_url":"http://100.89.209.63:7772/audio/X-yIEMduRXk.m4a","retour":"http://100.89.209.63:7772/?open=min_X-yIEMduRXk","sections_page":"http://100.89.209.63:7772/plots/easy_on_me_sections.html","mauvais":[{"nom":"B♭","poids":6.8},{"nom":"C","poids":3.74},{"nom":"Gm","poids":2.81},{"nom":"F","poids":2.62}],"res_mauvais":0.199,"pur_mauvais":0.794,"rangees":[{"nom":"V","accords":["B♭","B♭","Dm7","C"],"poids":13.04},{"nom":"W","accords":["F","Dm","C","B♭"],"poids":11.35},{"nom":"X","accords":["Gm","B♭","F","Dm"],"poids":10.62},{"nom":"Y","accords":["Fmaj7","Fmaj7","Dm","Am"],"poids":6.25},{"nom":"Z","accords":["B♭","F","C","Gm"],"poids":5.3},{"nom":"T","accords":["Fmaj7","B♭","B♭","B♭"],"poids":5.97}],"blocs":[{"a":1,"b":4,"t":0.54,"u":[0.0,0.56,0.116,0.159,0.0,0.165],"j":1,"lettre":"W","purete":0.56,"residu":0.288},{"a":5,"b":8,"t":14.04,"u":[0.0,0.526,0.137,0.171,0.0,0.166],"j":1,"lettre":"W","purete":0.526,"residu":0.289},{"a":9,"b":12,"t":27.56,"u":[0.183,0.806,0.0,0.0,0.011,0.0],"j":1,"lettre":"W","purete":0.806,"residu":0.259},{"a":13,"b":16,"t":41.08,"u":[0.695,0.074,0.231,0.0,0.0,0.0],"j":0,"lettre":"V","purete":0.695,"residu":0.162},{"a":17,"b":20,"t":54.62,"u":[0.524,0.0,0.476,0.0,0.0,0.0],"j":0,"lettre":"V","purete":0.524,"residu":0.201},{"a":21,"b":24,"t":68.12,"u":[0.0,0.0,0.724,0.0,0.116,0.16],"j":2,"lettre":"X","purete":0.724,"residu":0.104},{"a":25,"b":26,"t":81.64,"u":[0.018,0.0,0.0,0.0,0.0,0.982],"j":5,"lettre":"T","purete":0.982,"residu":0.056},{"a":27,"b":30,"t":88.42,"u":[0.0,0.804,0.0,0.0,0.105,0.09],"j":1,"lettre":"W","purete":0.804,"residu":0.14},{"a":31,"b":34,"t":101.92,"u":[0.066,0.812,0.0,0.0,0.122,0.0],"j":1,"lettre":"W","purete":0.812,"residu":0.152},{"a":35,"b":38,"t":115.46,"u":[0.0,0.04,0.026,0.0,0.934,0.0],"j":4,"lettre":"Z","purete":0.934,"residu":0.061},{"a":39,"b":42,"t":128.98,"u":[0.002,0.043,0.027,0.0,0.928,0.0],"j":4,"lettre":"Z","purete":0.928,"residu":0.05},{"a":43,"b":46,"t":142.5,"u":[0.099,0.0,0.036,0.692,0.173,0.0],"j":3,"lettre":"Y","purete":0.692,"residu":0.327},{"a":47,"b":50,"t":156.02,"u":[0.297,0.0,0.0,0.452,0.251,0.0],"j":3,"lettre":"Y","purete":0.452,"residu":0.29},{"a":51,"b":54,"t":169.54,"u":[0.688,0.07,0.243,0.0,0.0,0.0],"j":0,"lettre":"V","purete":0.688,"residu":0.158},{"a":55,"b":58,"t":183.06,"u":[0.536,0.0,0.464,0.0,0.0,0.0],"j":0,"lettre":"V","purete":0.536,"residu":0.208},{"a":59,"b":62,"t":196.58,"u":[0.026,0.0,0.717,0.003,0.11,0.143],"j":2,"lettre":"X","purete":0.717,"residu":0.096},{"a":63,"b":63,"t":210.06,"u":[0.0,0.21,0.0,0.79,0.0,0.0],"j":3,"lettre":"Y","purete":0.79,"residu":0.404}],"residu":0.216,"purete":0.716,"courbe":[{"k":2,"residu":0.445,"purete":0.841},{"k":3,"residu":0.375,"purete":0.713},{"k":4,"residu":0.327,"purete":0.65},{"k":5,"residu":0.268,"purete":0.704},{"k":6,"residu":0.216,"purete":0.716},{"k":7,"residu":0.164,"purete":0.703},{"k":8,"residu":0.115,"purete":0.759}],"sans_couture":[{"a":1,"b":4,"lettre":"Z","purete":0.849},{"a":5,"b":8,"lettre":"Z","purete":0.842},{"a":9,"b":12,"lettre":"Z","purete":0.885},{"a":13,"b":16,"lettre":"Y","purete":0.823},{"a":17,"b":20,"lettre":"Y","purete":0.888},{"a":21,"b":24,"lettre":"V","purete":0.512},{"a":25,"b":28,"lettre":"V","purete":0.562},{"a":29,"b":32,"lettre":"V","purete":0.7},{"a":33,"b":36,"lettre":"X","purete":0.782},{"a":37,"b":40,"lettre":"X","purete":0.851},{"a":41,"b":44,"lettre":"X","purete":0.859},{"a":45,"b":48,"lettre":"T","purete":0.898},{"a":49,"b":52,"lettre":"W","purete":0.581},{"a":53,"b":56,"lettre":"W","purete":0.789},{"a":57,"b":63,"lettre":"W","purete":0.777}],"pur_sans":0.773,"dims":{"X":[17,48],"U":[17,6],"V":[6,48]}};</script>
+<h1>X ≈ U·V — l'algorithme, et une démo</h1>
+<p class="lede" id="lede"></p>
+
+<h2>1. L'idée, en une ligne</h2>
+<div class="eq">X &nbsp;≈&nbsp; U &nbsp;·&nbsp; V</div>
+<p><b>V</b> porte les sections : une rangée = une section, écrite une fois.
+<b>U</b> dit où chacune se joue. Le <b>≈</b> est le résidu — ce qu'on ne veut
+pas compter : intros, outros, queues. Réduire un morceau à ses sections
+distinctes, c'est exactement chercher le plus petit V qui, replacé par U,
+redonne le morceau.</p>
+
+<h2>2. Le seul choix qui décide de tout : sur quoi on factorise</h2>
+<p>C'est ici que ça se joue, et c'est contre-intuitif. Si les <b>lignes de X
+sont des mesures</b>, les rangées de V sont des <b>accords</b> — pas des
+sections. Il faut que les lignes de X soient des <b>blocs de plusieurs
+mesures</b> pour que V apprenne des motifs.</p>
+
+<h3>(a) X = mesures × 12 hauteurs — ce qu'on obtient</h3>
+<div class="carte"><table><thead><tr><th>rangée de V</th><th>ce que c'est</th></tr></thead>
+<tbody id="mauvais"></tbody></table></div>
+<p class="note" id="note-mauvais"></p>
+
+<h3>(b) X = blocs de 4 mesures × 48 — ce qu'on veut</h3>
+<p>Chaque ligne de X est un bloc de 4 mesures <b>mis bout à bout</b> :
+4 × 12 = 48 colonnes. Une rangée de V est donc une <b>suite de 4 accords</b>,
+c'est-à-dire une section.</p>
+<div class="carte"><table><thead><tr><th>rangée de V</th><th>les 4 mesures qu'elle porte</th>
+<th>poids</th></tr></thead><tbody id="rangees"></tbody></table></div>
+<p class="note">Ces noms d'accords ne sont pas dans les données : chaque tranche
+de 12 nombres est comparée aux gabarits d'accords et on écrit le plus proche.
+C'est ce qui rend V lisible — sinon une rangée est une colonne de 48 nombres.</p>
+
+<h2>3. L'algorithme, étape par étape</h2>
+<ol>
+<li><b>Construire X.</b> Pour chaque bloc, empiler les vecteurs chord-tone des
+L mesures. <code>X : {n_blocs} × {L×12}</code>, tout ≥ 0.</li>
+<li><b>Factoriser en non-négatif</b> (NMF, <code>init="nndsvda"</code>) :
+on cherche U ≥ 0 et V ≥ 0 qui minimisent ‖X − UV‖.
+<b>La non-négativité est le point.</b> Avec une SVD on obtiendrait des
+composantes signées, où une section peut en « annuler » une autre : illisible
+musicalement. En non-négatif, un bloc est une <b>somme</b> de sections — jamais
+une soustraction.</li>
+<li><b>Lire la forme.</b> On normalise chaque ligne de U pour qu'elle somme à 1,
+puis <code>argmax</code> donne la lettre du bloc, et le max donne la
+<b>pureté</b> — à quel point ce bloc est UNE section plutôt qu'un mélange.</li>
+<li><b>Lire le résidu.</b> ‖X − UV‖ par bloc : les blocs mal expliqués sont les
+candidats « queue / intro / outro ».</li>
+<li><b>Choisir k</b> en regardant où la pureté cesse de progresser (tableau
+plus bas), pas seulement où le résidu baisse — le résidu baisse toujours.</li>
+</ol>
+
+<h2>4. La démo : U, bloc par bloc</h2>
+<p>Chaque ligne est un bloc du morceau. La barre montre la répartition de U —
+tape une ligne pour l'écouter.</p>
+<div class="carte"><table><thead><tr><th>mesures</th><th>lettre</th>
+<th>répartition de U</th><th>pureté</th><th>résidu</th></tr></thead>
+<tbody id="blocs"></tbody></table></div>
+<div id="bar" style="margin:10px 0"><button id="jouer">Écouter</button>
+ <span class="mono" id="ou"></span></div>
+<div class="cle" id="verdict"></div>
+
+<h2>5. Le choix de k</h2>
+<div class="carte"><table><thead><tr><th>k</th><th>résidu</th><th>pureté de U</th>
+</tr></thead><tbody id="courbe"></tbody></table></div>
+<p class="note">Le résidu baisse toujours quand k monte — ce n'est donc pas un
+critère. La pureté, elle, plafonne : c'est elle qui dit quand on a assez de
+sections.</p>
+
+<h2>6. La limite, et c'est la vraie</h2>
+<p><b>La grille de blocs lui est donnée.</b> Sur ce morceau elle fait 4 mesures
+partout <i>sauf</i> une liaison de 2 mesures à la mesure 25. Cette couture, je
+l'ai lue à la main. Voici la même factorisation avec une grille rigide de 4
+mesures :</p>
+<div class="carte"><table><thead><tr><th>mesures</th><th>lettre</th><th>pureté</th>
+</tr></thead><tbody id="sans"></tbody></table></div>
+<p class="note" id="note-sans"></p>
+<div class="cle"><b>Conclusion.</b> La factorisation résout le <b>nommage</b> —
+quelles occurrences sont la même section, sans se soucier de leur alignement,
+ce qui est exactement là où <code>merge_letters</code> échoue aujourd'hui. Elle
+ne résout <b>pas le découpage</b> : il lui faut les frontières en entrée. Les
+deux problèmes sont séparés, et c'est une bonne nouvelle — on peut brancher la
+factorisation sur le découpage actuel sans rien casser.</p>
+
+<p style="margin-top:24px" id="liens"></p>
+
+<script>
+(function(){
+ "use strict";
+ var D = window.D;
+ var COUL = ["#8a2b2b","#2f6f8f","#7a6320","#4a7a4a","#6b4a7a","#a85a2a"];
+ document.getElementById("lede").textContent =
+   D.titre + " — X est " + D.dims.X[0] + "×" + D.dims.X[1] + ", U est " +
+   D.dims.U[0] + "×" + D.dims.U[1] + ", V est " + D.dims.V[0] + "×" + D.dims.V[1] +
+   ". Résidu " + D.residu + ", pureté " + D.purete + ".";
+
+ var mb = document.getElementById("mauvais");
+ D.mauvais.forEach(function(r){
+   var t = document.createElement("tr");
+   t.innerHTML = "<td class=acc>" + r.nom + "</td><td class=mono>un accord, pas une section</td>";
+   mb.appendChild(t);
+ });
+ document.getElementById("note-mauvais").textContent =
+   "Quatre rangées, quatre accords. Le morceau entier est décrit par son " +
+   "vocabulaire harmonique — et on n'a rien appris sur sa forme. Pureté " +
+   D.pur_mauvais + ", résidu " + D.res_mauvais + " : de bons chiffres pour une réponse inutile.";
+
+ var rg = document.getElementById("rangees");
+ D.rangees.forEach(function(r, j){
+   var t = document.createElement("tr");
+   t.innerHTML = "<td><span class=let style='background:" + COUL[j % COUL.length] +
+     "'>" + r.nom + "</span></td><td class=acc>| " + r.accords.join(" | ") +
+     " |</td><td class=mono>" + r.poids + "</td>";
+   rg.appendChild(t);
+ });
+
+ var bl = document.getElementById("blocs");
+ D.blocs.forEach(function(b){
+   var t = document.createElement("tr");
+   t.style.cursor = "pointer";
+   var barres = b.u.map(function(x, j){
+     return x < 0.02 ? "" : "<span class=bar style='width:" + (x*120).toFixed(1) +
+       "px;background:" + COUL[j % COUL.length] + "'></span>";
+   }).join("");
+   t.innerHTML = "<td class=mono>" + b.a + "–" + b.b + "</td>" +
+     "<td><span class=let style='background:" + COUL[b.j % COUL.length] + "'>" +
+     b.lettre + "</span></td><td>" + barres + "</td>" +
+     "<td class=mono>" + b.purete.toFixed(2) + "</td>" +
+     "<td class=mono>" + b.residu.toFixed(2) + "</td>";
+   t.onclick = function(){ vers(b.t); };
+   bl.appendChild(t);
+ });
+
+ var meilleur = D.blocs.reduce(function(a, b){ return b.purete > a.purete ? b : a; });
+ document.getElementById("verdict").innerHTML =
+   "<b>Ce qu'on lit dans U.</b> Les deux refrains reçoivent la même rangée, les " +
+   "deux tags aussi — sans qu'on ait dit nulle part qu'ils étaient les mêmes. Et le " +
+   "bloc le plus <i>pur</i> du morceau est <b>mes. " + meilleur.a + "–" + meilleur.b +
+   " à " + meilleur.purete.toFixed(2) + "</b> : la liaison de 2 mesures, qui obtient " +
+   "sa rangée à elle. Tes « queues » ne sont pas un cas particulier à traiter — " +
+   "elles sortent toutes seules comme les composantes que rien d'autre n'utilise.";
+
+ var cb = document.getElementById("courbe");
+ D.courbe.forEach(function(c){
+   var t = document.createElement("tr");
+   t.innerHTML = "<td class=mono>" + c.k + (c.k === D.k ? " ←" : "") + "</td><td class=mono>" +
+     c.residu.toFixed(3) + "</td><td class=mono>" + c.purete.toFixed(3) + "</td>";
+   if (c.k === D.k) t.style.fontWeight = "700";
+   cb.appendChild(t);
+ });
+
+ var sn = document.getElementById("sans");
+ D.sans_couture.forEach(function(b){
+   var t = document.createElement("tr");
+   t.innerHTML = "<td class=mono>" + b.a + "–" + b.b + "</td><td class=mono>" +
+     b.lettre + "</td><td class=mono>" + b.purete.toFixed(2) + "</td>";
+   sn.appendChild(t);
+ });
+ document.getElementById("note-sans").textContent =
+   "Pureté moyenne " + D.pur_sans + " contre " + D.purete + " avec la couture. " +
+   "Après la mesure 25 la grille est décalée d'une demi-cellule : les blocs " +
+   "enjambent les frontières, et deux occurrences de la même section ne tombent " +
+   "plus sur la même rangée de V. Deux mesures d'écart suffisent à casser le reste.";
+
+ document.getElementById("liens").innerHTML =
+   '<a href="' + D.sections_page + '">les quatre lectures de la forme</a> · ' +
+   '<a href="' + D.retour + '">le chart dans l\'app</a>';
+
+ /* le son : timeupdate, jamais rAF ; blob, jamais Range (pièges iPhone) */
+ var el = null, lien = null, joue = false;
+ if (window.fetch) fetch(D.audio_url).then(function(r){return r.ok?r.blob():null;})
+   .then(function(b){ if(b){ lien = URL.createObjectURL(b);
+     if (el && !joue) el.src = lien; } })["catch"](function(){});
+ function media(){
+   if (el) return el;
+   el = new Audio(); el.preload="auto"; el.playsInline=true;
+   try{ el.setAttribute("playsinline",""); el.setAttribute("webkit-playsinline",""); }catch(e){}
+   el.src = lien || D.audio_url;
+   el.addEventListener("timeupdate", function(){
+     var t = el.currentTime;
+     document.getElementById("ou").textContent =
+       Math.floor(t/60) + ":" + String(Math.floor(t%60)).padStart(2,"0");
+   });
+   document.body.appendChild(el);
+   return el;
+ }
+ function vers(t){
+   var a = media();
+   try{ a.currentTime = t; }catch(e){}
+   if (!joue){ a.play(); joue = true;
+     document.getElementById("jouer").textContent = "Pause"; }
+ }
+ document.getElementById("jouer").onclick = function(){
+   var a = media();
+   if (joue){ a.pause(); joue = false; this.textContent = "Écouter"; }
+   else { a.play(); joue = true; this.textContent = "Pause"; }
+ };
+})();
+</script></body></html>
