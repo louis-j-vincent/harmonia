@@ -1,5 +1,37 @@
 # Harmonia — Known Issues
 
+## 2026-08-17 — ★ REPLI : DEUX PASSAGES DE LONGUEURS DIFFÉRENTES NE SONT PAS LE MÊME PASSAGE
+
+Louis, sur Easy On Me : « les barres 25 et 26 sont détectées comme A- et Bb,
+mais affichées dans le chart de la modification des sections comme Bb et F,
+c'est quoi ce bug ????? ». A- et Bb sont bien ce que musx décode à 81,6 s et
+85,0 s ; **Bb et F sont les accords des mesures 43 et 44.**
+
+**Le symptôme est en aval, la faute est en amont.** La section D du chart
+couvrait `[24,25]` (2 mesures), `[42,49]` (8) et `[62,62]` (1) — trois passages
+de longueurs différentes sous UN motif de 8 mesures, écrit d'après le passage
+long. Le contenu réel des mesures 24-25 n'existait alors plus nulle part dans
+`sections`. Deux reconstructions le pavaient modulo la longueur du motif
+(`bars[(b-b0) % len(bars)]`, et son équivalent par `barSpans` côté écran), ce
+qui donnait aux mesures courtes le DÉBUT du motif.
+
+RÉSOLU EN AVAL (`soudure.accords_par_mesure`, `app_shell.unfoldedModel`) : les
+deux lisent maintenant `prompter.chords` — le décodage à plat, un accord par
+empan de temps, jamais replié — et recollent `sug`/`n`/`colour` depuis l'accord
+écrit qui occupe le MÊME temps. Vérifié sur le rendu : mesures 25/26 = A-, Bb.
+
+**PAS RÉSOLU, ET C'EST LA VRAIE ENTRÉE :** le repli lui-même produit encore des
+sections dont les occurrences n'ont pas la même longueur, ce qui viole la règle
+« under-fold, never over-fold » que Louis a posée le 2026-07-30. Tant que ça
+dure, un chart replié AFFICHE juste (les vues lisent la liste à plat) mais son
+`sections[].bars` reste une carte fausse pour qui la lit au pavage. Le repli
+doit refuser de grouper deux passages de longueurs différentes.
+
+**Effet de bord à connaître** : là où le repli avait détruit le contenu (le
+passage court), la mesure ressort avec son accord mais SANS ses candidats
+`sug` — l'éditeur d'annotation y dira « No candidates on this chart » au lieu
+d'inventer. `scripts/backfill_musx_sug.py` les recalcule si on le décide.
+
 ## 2026-08-17 — RÉSOLU : LE MODE ANNOTATE PROPOSAIT DES ACCORDS INVENTÉS
 
 Louis : « l'option annotate semble utiliser les mauvais accords ».
