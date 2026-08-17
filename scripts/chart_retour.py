@@ -23,9 +23,13 @@ demande de Louis, et c'est aussi la façon la plus rapide de voir ce que l'algo
 n'a pas su rattacher.
 
 CE QUI DOIT VOYAGER AVEC L'ACCORD (2026-08-17). On reconstruit chaque case à
-partir de `prompter.chords`, qui est la liste d'AFFICHAGE : elle ne porte ni les
-candidats du modèle (`sug`) ni le compte de répétitions (`n`). Sans eux, le mode
-Annotate du chart n'avait plus rien à montrer — et il s'inventait des accords.
+partir de `prompter.chords` — le chart BRUT, le décodage à plat capturé avant
+que les sections et le repli ne touchent à quoi que ce soit
+(`pipeline.prompter_chords`). C'est la bonne source pour les accords, et c'est
+la règle de Louis : la vérité est le chart brut, les sections sont un affichage
+par-dessus. Mais elle ne porte QUE les accords : ni les candidats du modèle
+(`sug`) ni le compte de répétitions (`n`). Sans eux, le mode Annotate du chart
+n'avait plus rien à montrer — et il s'inventait des accords.
 Les deux sont donc recalculés ici : `sug` par musx sur l'empan réel de chaque
 case (`span_rescore.musx_suggestions`, la même source que la pipeline), `n` par
 `chord_confidence.repetition_counts` sur tout le morceau.
