@@ -110,8 +110,16 @@ window.APP = (function(){
   // How the chord's confidence reads in words. `n` = how many times the whole
   // song plays this chord (root + family); it is what the colour is derived
   // from, so the label and the tint can never disagree.
+  // `n` = how many times the whole SONG plays this chord (chart_model builds
+  // it as the observable the confidence percentage stands for). Until
+  // 2026-08-17 the chord objects the shell builds never copied it, so `ch.n`
+  // was undefined everywhere and the editor announced "played once in this
+  // song" over every chord of every chart — including a C the song plays
+  // twenty-four times. No count on the chart (the `retour_*` ones carry none)
+  // = say nothing about the count.
   function playedLabel(ch){
     const n=ch.n|0;
+    if(!n) return "";
     if(n<=1) return "played once in this song";
     if(n<=3) return "played "+n+" times in this song";
     if(n<=7) return "played "+n+" times";
@@ -2653,7 +2661,11 @@ window.APP = (function(){
           const idx=chords.length;
           chords.push({ root:c.root, q:c.q, c:c.c, bass:(c.bass==null?-1:c.bass),
             confirmed:!!c.confirmed, nc:!!c.nc,
-            bar:c.bar, beat:c.beat, sug:c.sug||null,
+            // `n` (how many times the song plays this chord) and `sug` (the
+            // model's ranked alternates) are what the annotation editor states
+            // out loud — both must travel with the chord or the editor invents
+            // its own (see playedLabel / candList, 2026-08-17).
+            bar:c.bar, beat:c.beat, sug:c.sug||null, n:(c.n==null?0:c.n|0),
             sec:s.label, secId:s.id, secIdx:si, reps:s.reps,
             barFirst: ci===0, secFirst: !!meta.secFirst && ci===0,
             t0:c.t0, t1:c.t1, spans });
@@ -5716,7 +5728,9 @@ window.APP = (function(){
     // previous chord — editTab is otherwise sticky across opens (only its
     // module-level initializer sets "compass", so after a user picks Guide or
     // By hand once, every subsequent chord silently reopened on that tab).
-    editTab="compass";
+    // Except with no model ranking to show (see candList): Compass and Guide
+    // are both empty then, so the editor opens straight on the tab that works.
+    editTab=candList(idx).length?"compass":"hand";
     const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
     const ch=S.chords[idx];
     const hd=el("div","flex:0 0 auto;display:flex;align-items:center;gap:12px;margin-bottom:12px;");
@@ -5725,9 +5739,13 @@ window.APP = (function(){
     // Say the OBSERVABLE, not a percentage: "played once in this song" is both
     // the reason the chord is doubtful and something the reader can check by
     // eye. The percentage it replaces was uninformative (see buildIReal).
-    meta.appendChild(el("div",`font:600 12px ${UI};color:${ch.confirmed?T.green:confColor(ch.c)};`,
-      ch.confirmed?"locked by you":playedLabel(ch)));
-    meta.appendChild(el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:2px;`, ch.c<.42?"a chord the song never plays again is usually wrong":"choose a reading, or fix it by hand"));
+    const played=ch.confirmed?"locked by you":playedLabel(ch);
+    if(played) meta.appendChild(el("div",`font:600 12px ${UI};color:${ch.confirmed?T.green:confColor(ch.c)};`, played));
+    // The "never plays again" line is a claim about the COUNT, so it needs the
+    // count: it used to fire on low confidence alone, which on a chart with no
+    // `n` meant it fired on chords the song plays throughout.
+    meta.appendChild(el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:2px;`,
+      (ch.c<.42 && (ch.n|0)===1)?"a chord the song never plays again is usually wrong":"choose a reading, or fix it by hand"));
     hd.appendChild(meta); sheet.appendChild(hd);
     const tabs=el("div",`flex:0 0 auto;display:inline-flex;background:${T.line};border-radius:10px;padding:3px;gap:2px;margin-bottom:12px;align-self:flex-start;`);
     [["compass","Compass"],["guide","Guide"],["hand","By hand"]].forEach(([k,lbl])=>{
@@ -5785,14 +5803,33 @@ window.APP = (function(){
     back.appendChild(sheet); root.appendChild(back);
     S._closeEditor=()=>closeOverlay(back);
   }
-  // Real model alternates when inference emitted them (P.chords[i].sug); the
-  // derived fallback is only for charts rendered before suggestions existed.
+  // The model's own alternates (P.chords[i].sug, musx's top-3 pooled over the
+  // chord's span — span_rescore.musx_suggestions). NOTHING when the chart
+  // doesn't carry them.
+  //
+  // 2026-08-17 (Louis: « l'option annotate semble utiliser les mauvais
+  // accords »). This used to INVENT a list when `sug` was missing — the chord
+  // itself, its fifth as a dom7, its major second as a m7, at hardcoded 30% /
+  // 22% — and the editor captioned it "candidates the model considered". On a
+  // chart written without `sug` (the ten `retour_*` ones: 0 chords out of 244
+  // carried any) EVERY chord opened on two chords the model never scored,
+  // labelled as its ranking: on This Love's Cm it offered G7 and Dm7 while
+  // musx's real top-3 there is Cm .73 / G .05 / Fm .03. A silent fallback gets
+  // deleted, not repaired — the editor now says it has nothing and sends you
+  // to By hand.
   function candList(idx){
     const ch=S.chords[idx];
-    if(ch.sug && ch.sug.length) return ch.sug.slice(0,3);
-    return [ {root:ch.root,q:ch.q,c:Math.max(.5,ch.c)},
-             {root:mod(ch.root+7,12),q:"7",c:.3},
-             {root:mod(ch.root+2,12),q:"-7",c:.22} ];
+    return (ch.sug && ch.sug.length) ? ch.sug.slice(0,3) : [];
+  }
+  // Shown by Compass and Guide when the chart carries no model ranking. It
+  // names the reason (this chart, not this chord) so it doesn't read as "the
+  // model was unsure here", and points at the tab that still works.
+  function noCandBox(){
+    const box=el("div","padding:26px 8px;text-align:center;");
+    box.appendChild(el("div",`font:600 13px ${UI};color:${T.ink};margin-bottom:7px;`,"No candidates on this chart"));
+    box.appendChild(el("div",`font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.55;`,
+      "It was written without the model's ranking, so there is nothing honest to show here. By hand sets any chord you want."));
+    return box;
   }
   function buildCompass(idx,onPick){
     // The current chord lives in the hub — re-drawing it as an orb on the rim
@@ -5800,6 +5837,7 @@ window.APP = (function(){
     // orb; Louis, 2026-08-08). Only true ALTERNATIVES orbit.
     const chord=S.chords[idx];
     const sug=candList(idx).filter(s=>!(s.root===chord.root&&s.q===chord.q));
+    if(!sug.length) return noCandBox();
     const Sz=Math.min(286, (root.clientWidth||360)-92), cx=Sz/2, cy=Sz/2, R=Sz*0.4;
     const svg=sv("svg",{width:Sz,height:Sz,viewBox:`0 0 ${Sz} ${Sz}`,style:"display:block;overflow:visible"});
     svg.appendChild(sv("circle",{cx,cy,r:R,fill:"none",stroke:T.line,"stroke-width":1.5}));
@@ -5888,6 +5926,7 @@ window.APP = (function(){
   }
   function buildGuide(idx,onPick){
     const sug=candList(idx);
+    if(!sug.length) return noCandBox();
     const next=S.chords[idx+1]?{root:S.chords[idx+1].root,q:S.chords[idx+1].q}:null;
     const top=sug.reduce((a,b)=>b.c>a.c?b:a,sug[0]);
     const list=el("div","display:flex;flex-direction:column;gap:8px;");

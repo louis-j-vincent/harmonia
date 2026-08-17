@@ -1,5 +1,46 @@
 # Harmonia — Known Issues
 
+## 2026-08-17 — RÉSOLU : LE MODE ANNOTATE PROPOSAIT DES ACCORDS INVENTÉS
+
+Louis : « l'option annotate semble utiliser les mauvais accords ».
+
+**Il ne les proposait pas mal, il les fabriquait.** `app_shell.candList()` avait
+un repli silencieux : quand l'accord ne portait pas `sug` (les candidats du
+modèle), l'éditeur affichait l'accord lui-même, **sa quinte en 7e de dominante,
+et sa seconde majeure en mineur 7**, à 30 % et 22 % en dur — sous le titre
+« CANDIDATES THE MODEL CONSIDERED ». Sur le Cm de This Love il offrait donc
+**G7 et Dm7**, alors que le vrai top-3 de musx y est Cm .73 / G .05 / Fm .03.
+Ni G7 ni Dm7 n'ont jamais été notés par quoi que ce soit.
+
+**Ce qui a déclenché ça maintenant** : les 10 charts `retour_*` (écrits le
+2026-08-16) ne portaient **aucun** candidat — 0 case sur 244. `chart_retour.py`
+reconstruit chaque case depuis `prompter.chords`, la liste d'AFFICHAGE, qui ne
+porte ni `sug` ni `n`. Les 47 autres charts en avaient 100 %, d'où l'invisibilité
+jusqu'à ce que Louis ouvre un `retour_`.
+
+**Deuxième mensonge, sur TOUS les charts** : l'éditeur annonçait « played once
+in this song » sur chaque accord, y compris un C joué 45 fois. `playedLabel`
+lit `ch.n`, que la construction de `S.chords` ne recopiait jamais depuis le
+modèle — `ch.n|0` valait 0 partout. Et la ligne « a chord the song never plays
+again is usually wrong » se déclenchait sur la seule confiance, donc sur des
+accords joués tout le morceau.
+
+Correctifs — (1) `app_shell.html` : `candList` ne fabrique plus rien, Compass et
+Guide disent « No candidates on this chart » et l'éditeur s'ouvre directement
+sur « By hand » ; `n` voyage avec l'accord ; la phrase sur la répétition exige
+le compte. (2) `scripts/chart_retour.py` : `sug` recalculé par musx sur l'empan
+réel de chaque case (`span_rescore.musx_suggestions`, la source de la pipeline)
+et `n` par `chord_confidence.repetition_counts`. Les 10 charts réécrits :
+**309/309 cases servies**, 57/57 charts de la bibliothèque à 100 %.
+
+**Ce que ça ne résout pas.** (1) Un chart sans cache musx sortira toujours sans
+candidats — c'est voulu (rien plutôt qu'inventé), le script le dit en clair.
+(2) Les candidats restent QUAL5 : un alternant ne distingue pas `-7` de `-9`
+(limite documentée dans `span_rescore.musx_suggestions`). (3) Sur un chart
+replié, `sug` est calculé sur l'empan du passage ÉCRIT, pas sur les N passages
+poolés — même convention que la pipeline, mais ce n'est pas la même évidence
+que celle qui a choisi l'accord.
+
 ## 2026-08-15 — RÉSOLU : LA BANDE IGNORAIT « SET BAR 1 », DONC AUCUNE SECTION NE POUVAIT Y COMMENCER
 
 Louis : « lorsque je reset la mesure 1, le recalcul des sections est bloqué à
