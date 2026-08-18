@@ -1,0 +1,256 @@
+<!doctype html><html lang="fr"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Beat This! — les temps jumeaux</title>
+<style>
+:root{--fg:#1b1b19;--fond:#fbf7ec;--trait:#ddd6c7;--doux:#6b6558;--rouge:#a4462b;
+ --vert:#3d6b47}
+*{box-sizing:border-box}
+body{margin:0 auto;padding:20px 16px 70px;background:var(--fond);color:var(--fg);
+ font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,sans-serif;
+ max-width:760px}
+h1{font-size:22px;margin:0 0 6px}
+h2{font-size:16px;margin:30px 0 8px;border-bottom:1px solid var(--trait);
+ padding-bottom:5px}
+h3{font-size:14px;margin:0 0 8px;display:flex;justify-content:space-between;
+ align-items:baseline;gap:8px;word-break:break-all}
+h3 span{font-weight:400;font-size:11px;color:var(--doux);white-space:nowrap}
+.chapo{color:var(--doux);margin:0 0 10px}
+.regle{background:#fff;border:1px solid var(--trait);border-left:4px solid var(--vert);
+ border-radius:8px;padding:11px 13px;margin:12px 0 18px}
+.hist{display:flex;align-items:flex-end;gap:3px;height:150px;margin:14px 0 6px;
+ padding-bottom:26px;position:relative}
+.b{flex:1;border-radius:3px 3px 0 0;position:relative;min-width:0}
+.b.dedans{background:var(--rouge)} .b.dehors{background:#d8d2c6}
+.b i{position:absolute;top:-15px;left:50%;transform:translateX(-50%);
+ font-style:normal;font-size:9.5px;color:var(--doux)}
+.b u{position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);
+ text-decoration:none;font-size:9.5px;color:var(--doux)}
+.leg{font-size:12px;color:var(--doux);margin:4px 0 0}
+.leg b.r{color:var(--rouge)}
+.song{background:#fff;border:1px solid var(--trait);border-radius:9px;
+ padding:11px 13px;margin:0 0 10px}
+.chiffres{display:flex;gap:8px;margin:0 0 8px}
+.chiffres div{flex:1;background:#faf7ef;border-radius:7px;padding:6px 8px;
+ text-align:center}
+.chiffres b{display:block;font-size:17px;font-variant-numeric:tabular-nums}
+.chiffres i{font-style:normal;font-size:10.5px;color:var(--doux)}
+.chiffres .mieux b{color:var(--vert)}
+audio{width:100%;height:32px;margin:2px 0 6px;display:block}
+.ecoute{display:flex;flex-wrap:wrap;gap:5px}
+button{font:inherit;font-size:12px;padding:5px 9px;border:1px solid var(--trait);
+ background:#faf7ef;border-radius:7px;cursor:pointer;min-height:34px}
+button i{font-style:normal;color:var(--doux);font-size:10.5px}
+button:active{background:#efe9db}
+.pas{font-size:12px;color:var(--doux);margin:0}
+</style>
+<h1>Beat This! — les temps jumeaux</h1>
+<p class="chapo">Par endroits le traqueur pose <b>deux marques pour un seul
+temps</b>, à moins d'un quart de temps l'une de l'autre. Les mesures deviennent
+alors trop courtes, et la grille glisse sous la musique.</p>
+
+<div class="regle"><b>La règle actuelle : on retire le jumeau sous 0.25×
+le temps médian.</b> Des deux, on garde celui qui tombe le plus près de
+l'attendu. On ne supprime jamais qu'un temps — on n'en invente aucun.</div>
+
+<h2>Où tombent les intervalles courts</h2>
+<p class="chapo">Les 798 intervalles sous 0,70× le temps médian, sur
+les 145 morceaux du disque. En rouge, ce que la règle retire.</p>
+<div class="hist"><div class="b dedans" style="height:16%" title="0.10× : 42"><i>42</i><u>0.10</u></div><div class="b dedans" style="height:4%" title="0.15× : 12"><i>12</i><u>0.15</u></div><div class="b dedans" style="height:20%" title="0.20× : 54"><i>54</i><u>0.20</u></div><div class="b dehors" style="height:7%" title="0.25× : 19"><i>19</i><u>0.25</u></div><div class="b dehors" style="height:10%" title="0.30× : 26"><i>26</i><u>0.30</u></div><div class="b dehors" style="height:75%" title="0.35× : 202"><i>202</i><u>0.35</u></div><div class="b dehors" style="height:6%" title="0.40× : 16"><i>16</i><u>0.40</u></div><div class="b dehors" style="height:10%" title="0.45× : 26"><i>26</i><u>0.45</u></div><div class="b dehors" style="height:100%" title="0.50× : 270"><i>270</i><u>0.50</u></div><div class="b dehors" style="height:12%" title="0.55× : 32"><i>32</i><u>0.55</u></div><div class="b dehors" style="height:4%" title="0.60× : 10"><i>10</i><u>0.60</u></div><div class="b dehors" style="height:21%" title="0.65× : 57"><i>57</i><u>0.65</u></div></div>
+<p class="leg">Trois paquets : <b class="r">0,10–0,20</b> les jumeaux ·
+<b>0,35</b> un tiers de temps (autre phénomène, laissé intact) ·
+<b>0,50</b> l'erreur d'octave, déjà traitée ailleurs. Le seuil se pose entre le
+premier et le deuxième.</p>
+
+<h2>Les 19 morceaux touchés</h2>
+<p class="chapo">L'irrégularité est l'écart moyen d'une mesure au temps médian.
+Écoute une paire : deux secondes avant, deux après — s'il n'y a qu'un temps, le
+jumeau est bien parasite.</p>
+
+  <div class="song">
+    <h3>abba_chiquitita_official_lyric_video<span>85.7 BPM · 492 temps</span></h3>
+    <div class="chiffres">
+      <div><b>−40</b><i>temps jumeaux</i></div>
+      <div><b>12.4%</b><i>irrégularité avant</i></div>
+      <div class="mieux"><b>4.8%</b><i>après</i></div>
+    </div>
+    <p class="pas">audio pas sur ce disque — chiffres seulement</p>
+  </div>
+  <div class="song">
+    <h3>alessi_brothers_oh_lori_toppop<span>136.4 BPM · 436 temps</span></h3>
+    <div class="chiffres">
+      <div><b>−30</b><i>temps jumeaux</i></div>
+      <div><b>16.0%</b><i>irrégularité avant</i></div>
+      <div class="mieux"><b>10.0%</b><i>après</i></div>
+    </div>
+    <p class="pas">audio pas sur ce disque — chiffres seulement</p>
+  </div>
+  <div class="song" data-audio="/audio/dOQXg6rK86I.m4a">
+    <h3>dOQXg6rK86I<span>136.4 BPM · 420 temps</span></h3>
+    <div class="chiffres">
+      <div><b>−15</b><i>temps jumeaux</i></div>
+      <div><b>4.6%</b><i>irrégularité avant</i></div>
+      <div class="mieux"><b>1.2%</b><i>après</i></div>
+    </div>
+    <audio controls preload="none"></audio><div class="ecoute"><button data-t="147.48" data-fin="151.56">▶ 149.5 s <i>0.18×</i></button><button data-t="148.36" data-fin="152.44">▶ 150.4 s <i>0.18×</i></button><button data-t="150.56" data-fin="154.64">▶ 152.6 s <i>0.18×</i></button><button data-t="151.00" data-fin="155.08">▶ 153.0 s <i>0.18×</i></button><button data-t="151.88" data-fin="155.96">▶ 153.9 s <i>0.18×</i></button><button data-t="155.86" data-fin="159.94">▶ 157.9 s <i>0.18×</i></button><button data-t="157.18" data-fin="161.26">▶ 159.2 s <i>0.18×</i></button><button data-t="160.74" data-fin="164.82">▶ 162.7 s <i>0.18×</i></button><button data-t="170.50" data-fin="174.58">▶ 172.5 s <i>0.18×</i></button><button data-t="171.38" data-fin="175.46">▶ 173.4 s <i>0.18×</i></button><button data-t="172.28" data-fin="176.36">▶ 174.3 s <i>0.18×</i></button><button data-t="172.72" data-fin="176.80">▶ 174.7 s <i>0.18×</i></button></div>
+  </div>
+  <div class="song">
+    <h3>At Last (Remastered)<span>176.5 BPM · 449 temps</span></h3>
+    <div class="chiffres">
+      <div><b>−6</b><i>temps jumeaux</i></div>
+      <div><b>15.7%</b><i>irrégularité avant</i></div>
+      <div class="mieux"><b>14.6%</b><i>après</i></div>
+    </div>
+    <p class="pas">audio pas sur ce disque — chiffres seulement</p>
+  </div>
+  <div class="song">
+    <h3>sade_like_a_tattoo_audio<span>68.2 BPM · 258 temps</span></h3>
+    <div class="chiffres">
+      <div><b>−6</b><i>temps jumeaux</i></div>
+      <div><b>9.0%</b><i>irrégularité avant</i></div>
+      <div class="mieux"><b>7.0%</b><i>après</i></div>
+    </div>
+    <p class="pas">audio pas sur ce disque — chiffres seulement</p>
+  </div>
+  <div class="song" data-audio="/audio/fd02pGJx0s0.m4a">
+    <h3>fd02pGJx0s0<span>157.9 BPM · 434 temps</span></h3>
+    <div class="chiffres">
+      <div><b>−5</b><i>temps jumeaux</i></div>
+      <div><b>24.8%</b><i>irrégularité avant</i></div>
+      <div class="mieux"><b>23.9%</b><i>après</i></div>
+    </div>
+    <audio controls preload="none"></audio><div class="ecoute"><button data-t="179.66" data-fin="183.74">▶ 181.7 s <i>0.21×</i></button><button data-t="189.98" data-fin="194.06">▶ 192.0 s <i>0.21×</i></button><button data-t="190.74" data-fin="194.82">▶ 192.7 s <i>0.21×</i></button><button data-t="196.42" data-fin="200.50">▶ 198.4 s <i>0.21×</i></button><button data-t="197.18" data-fin="201.26">▶ 199.2 s <i>0.21×</i></button></div>
+  </div>
+  <div class="song" data-audio="/audio/ray_charles_georgia_on_my_mind_official_video.m4a">
+    <h3>ray_charles_georgia_on_my_mind_official_vide<span>65.2 BPM · 272 temps</span></h3>
+    <div class="chiffres">
+      <div><b>−4</b><i>temps jumeaux</i></div>
+      <div><b>19.8%</b><i>irrégularité avant</i></div>
+      <div class="mieux"><b>18.6%</b><i>après</i></div>
+    </div>
+    <audio controls preload="none"></audio><div class="ecoute"><button data-t="53.40" data-fin="57.52">▶ 55.4 s <i>0.13×</i></button><button data-t="176.56" data-fin="180.76">▶ 178.6 s <i>0.22×</i></button><button data-t="176.76" data-fin="180.84">▶ 178.8 s <i>0.09×</i></button><button data-t="194.94" data-fin="199.04">▶ 196.9 s <i>0.11×</i></button></div>
+  </div>
+  <div class="song" data-audio="/audio/4JkIs37a2JE.m4a">
+    <h3>4JkIs37a2JE<span>90.9 BPM · 346 temps</span></h3>
+    <div class="chiffres">
+      <div><b>−3</b><i>temps jumeaux</i></div>
+      <div><b>5.5%</b><i>irrégularité avant</i></div>
+      <div class="mieux"><b>4.7%</b><i>après</i></div>
+    </div>
+    <audio controls preload="none"></audio><div class="ecoute"><button data-t="156.12" data-fin="160.20">▶ 158.1 s <i>0.12×</i></button><button data-t="207.60" data-fin="211.68">▶ 209.6 s <i>0.12×</i></button><button data-t="210.22" data-fin="214.30">▶ 212.2 s <i>0.12×</i></button></div>
+  </div>
+  <div class="song">
+    <h3>blue_bossa<span>166.7 BPM · 1169 temps</span></h3>
+    <div class="chiffres">
+      <div><b>−3</b><i>temps jumeaux</i></div>
+      <div><b>28.7%</b><i>irrégularité avant</i></div>
+      <div class=""><b>28.5%</b><i>après</i></div>
+    </div>
+    <p class="pas">audio pas sur ce disque — chiffres seulement</p>
+  </div>
+  <div class="song">
+    <h3>autumn_leaves<span>187.5 BPM · 1136 temps</span></h3>
+    <div class="chiffres">
+      <div><b>−2</b><i>temps jumeaux</i></div>
+      <div><b>19.0%</b><i>irrégularité avant</i></div>
+      <div class=""><b>19.0%</b><i>après</i></div>
+    </div>
+    <p class="pas">audio pas sur ce disque — chiffres seulement</p>
+  </div>
+  <div class="song">
+    <h3>03_Jazz2-187-F#_comp_mic<span>93.8 BPM · 36 temps</span></h3>
+    <div class="chiffres">
+      <div><b>−1</b><i>temps jumeaux</i></div>
+      <div><b>12.9%</b><i>irrégularité avant</i></div>
+      <div class="mieux"><b>11.2%</b><i>après</i></div>
+    </div>
+    <p class="pas">audio pas sur ce disque — chiffres seulement</p>
+  </div>
+  <div class="song">
+    <h3>A-DuOmA75lI<span>65.2 BPM · 258 temps</span></h3>
+    <div class="chiffres">
+      <div><b>−1</b><i>temps jumeaux</i></div>
+      <div><b>40.2%</b><i>irrégularité avant</i></div>
+      <div class=""><b>39.9%</b><i>après</i></div>
+    </div>
+    <p class="pas">audio pas sur ce disque — chiffres seulement</p>
+  </div>
+  <div class="song">
+    <h3>FTQbiNvZqaY<span>93.7 BPM · 417 temps</span></h3>
+    <div class="chiffres">
+      <div><b>−1</b><i>temps jumeaux</i></div>
+      <div><b>1.3%</b><i>irrégularité avant</i></div>
+      <div class=""><b>1.0%</b><i>après</i></div>
+    </div>
+    <p class="pas">audio pas sur ce disque — chiffres seulement</p>
+  </div>
+  <div class="song" data-audio="/audio/XpqqjU7u5Yc.m4a">
+    <h3>XpqqjU7u5Yc<span>103.4 BPM · 419 temps</span></h3>
+    <div class="chiffres">
+      <div><b>−1</b><i>temps jumeaux</i></div>
+      <div><b>1.6%</b><i>irrégularité avant</i></div>
+      <div class=""><b>1.4%</b><i>après</i></div>
+    </div>
+    <audio controls preload="none"></audio><div class="ecoute"><button data-t="232.98" data-fin="237.06">▶ 235.0 s <i>0.14×</i></button></div>
+  </div>
+  <div class="song">
+    <h3>blue_bossa_150bpm_backing_track<span>150.0 BPM · 786 temps</span></h3>
+    <div class="chiffres">
+      <div><b>−1</b><i>temps jumeaux</i></div>
+      <div><b>2.2%</b><i>irrégularité avant</i></div>
+      <div class=""><b>2.1%</b><i>après</i></div>
+    </div>
+    <p class="pas">audio pas sur ce disque — chiffres seulement</p>
+  </div>
+  <div class="song">
+    <h3>bruno_mars_just_the_way_you_are_official_mus<span>107.1 BPM · 402 temps</span></h3>
+    <div class="chiffres">
+      <div><b>−1</b><i>temps jumeaux</i></div>
+      <div><b>5.6%</b><i>irrégularité avant</i></div>
+      <div class=""><b>5.4%</b><i>après</i></div>
+    </div>
+    <p class="pas">audio pas sur ce disque — chiffres seulement</p>
+  </div>
+  <div class="song">
+    <h3>mayer_hawthorne_maybe_so_maybe_no_official_v<span>100.0 BPM · 271 temps</span></h3>
+    <div class="chiffres">
+      <div><b>−1</b><i>temps jumeaux</i></div>
+      <div><b>11.7%</b><i>irrégularité avant</i></div>
+      <div class=""><b>11.5%</b><i>après</i></div>
+    </div>
+    <p class="pas">audio pas sur ce disque — chiffres seulement</p>
+  </div>
+  <div class="song">
+    <h3>muppets_kermit_its_not_easy_being_green_orig<span>66.7 BPM · 135 temps</span></h3>
+    <div class="chiffres">
+      <div><b>−1</b><i>temps jumeaux</i></div>
+      <div><b>12.6%</b><i>irrégularité avant</i></div>
+      <div class="mieux"><b>12.0%</b><i>après</i></div>
+    </div>
+    <p class="pas">audio pas sur ce disque — chiffres seulement</p>
+  </div>
+  <div class="song">
+    <h3>yam_b_cane_a_colors_show<span>61.2 BPM · 214 temps</span></h3>
+    <div class="chiffres">
+      <div><b>−1</b><i>temps jumeaux</i></div>
+      <div><b>19.1%</b><i>irrégularité avant</i></div>
+      <div class=""><b>18.8%</b><i>après</i></div>
+    </div>
+    <p class="pas">audio pas sur ce disque — chiffres seulement</p>
+  </div>
+<script>
+document.querySelectorAll(".song[data-audio]").forEach(function(sec){
+  var el = sec.querySelector("audio"), url = sec.dataset.audio, fin = null;
+  el.src = url;
+  if (window.fetch) fetch(url).then(function(r){ return r.ok ? r.blob() : null; })
+    .then(function(b){ if (b) el.src = URL.createObjectURL(b); }).catch(function(){});
+  sec.addEventListener("click", function(ev){
+    var c = ev.target.closest("[data-t]"); if (!c) return;
+    fin = c.dataset.fin ? parseFloat(c.dataset.fin) : null;
+    try { el.currentTime = parseFloat(c.dataset.t); el.play(); } catch(e){}
+  });
+  el.addEventListener("timeupdate", function(){
+    if (fin !== null && el.currentTime >= fin) { el.pause(); fin = null; }
+  });
+});
+</script>
+</html>
