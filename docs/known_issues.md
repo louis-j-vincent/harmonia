@@ -1,5 +1,38 @@
 # Harmonia — Known Issues
 
+## 2026-08-18 — ★ ANOTHER DAY : LA GRILLE PERD LA MESURE DANS L'OUTRO, LE PLI EN HÉRITE
+
+Louis : « sur another day les dernières sections D F G H I devraient toutes être
+un A et ils décalent, comment ça se fait ? ». Il a raison sur les deux points, et
+la cause n'est pas dans le repli.
+
+**Les six tours du dernier A SONT des A** — mais tournés. Comparés au motif
+`Eb | Ab | F-7 | Bb7sus4` position par position ils tombent à 0,58-0,73 et sont
+refusés ; comparés **à rotation près** ils remontent tous au-dessus du seuil :
+
+    mes  81   Eb^7 | Ab | F-7 | Bb7          rot 0 → 0,88
+    mes  85   Eb | Eb Ab | Ab | F-7          rot 3 → 0,80
+    mes  89   F-7 Bb | Bb Eb^7 | …           rot 3 → 0,81
+    mes  93   F-7 Bb7 | Bb7 | Eb^7 | Ab^7    rot 2 → 0,86
+    mes  97   F-7 | Bb7 | Eb | Ab            rot 2 → 0,87
+    mes 101   Ab F-7 | F-7 | F-7 Bb | Bb     rot 1 → 0,81
+
+Le déplacement est monotone (0, −1, −1, −2, −2, −3) : la boucle glisse d'une
+mesure toutes les huit.
+
+**LA CAUSE EST LA GRILLE.** Sur tout le morceau la mesure fait 1,760 s. Dans le
+dernier A, **onze mesures sur vingt-cinq font 20 à 50 % de moins** — 0,880 s et
+0,960 s pour les mesures 85, 87, 100 et 102, soit une DEMI-mesure. La grille
+insère des demi-mesures dans l'outro ; les accords, eux, sont justes. C'est
+pourquoi la section fait 25 mesures là où ses sœurs en font 16.
+
+**CE QU'IL FAUT FAIRE, dans l'ordre.** (1) En amont : la grille de mesures
+décroche dans l'outro — c'est le vrai défaut, et il abîme aussi la tête de
+lecture et le Practise, pas seulement le pli. (2) Dans le pli, en attendant :
+comparer les tours **à rotation près** (4 comparaisons au lieu d'1) et garder la
+meilleure. Les six tours rejoignent alors A au lieu d'inventer D, F, G, H, I. La
+notion existe déjà côté outil sections (`rot` sur une occurrence, badge « ↗ »).
+
 ## 2026-08-18 — ★ LE PLI : JUSTE SUR 3 MORCEAUX, ALOURDIT 24 CHARTS SUR 31
 
 La règle dictée par Louis (tours de 4 mesures ancrés sur les sections, groupés
