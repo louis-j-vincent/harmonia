@@ -210,6 +210,64 @@ def _tile(idx: list[int], metre: int, max_bridge: int = MAX_BRIDGE):
     return cov, sorted(set(starts)), best[-1]
 
 
+DUP_TOL = 0.25     # en deca, deux temps ne peuvent pas etre deux temps
+
+
+def drop_duplicate_beats(beats, downbeats, tol=DUP_TOL):
+    """Retire les temps JUMEAUX — deux marques pour un seul temps.
+
+    Louis, 2026-08-18, sur Another Day de Jamie Lidell : « les dernieres
+    sections devraient toutes etre un A et ils decalent, comment ca se fait ? ».
+    Mesure : le morceau tient 136,4 BPM du debut a la fin, mais Beat This! pose
+    **15 temps de trop apres 149,5 s**, chacun a exactement 0,080 s du
+    precedent — 0,18 fois le temps median. Onze mesures sur les vingt-cinq de
+    la derniere section font alors 20 a 50 % de moins que les autres, dont
+    quatre font une DEMI-mesure, et la boucle de quatre accords glisse d'une
+    mesure toutes les huit. Les accords etaient justes ; c'est la grille qui
+    avait bouge.
+
+    Ce n'est PAS le doublement de tempo que traite `drop_inserted_beats` : un
+    temps insere tombe a la MOITIE du temps (0,5), un jumeau tombe a 0,18. Sur
+    les 145 morceaux du disque, les intervalles sous 0,62 fois la mediane se
+    groupent en trois paquets — 0,10 a 0,20 (les jumeaux), un pic a 0,35 (un
+    tiers de temps, un autre phenomene qu'on ne touche pas) et 0,50 (l'octave,
+    deja traitee). Le seuil se pose donc a 0,25, entre le premier paquet et le
+    deuxieme.
+
+    ON GARDE CELUI QUI TOMBE LE MIEUX : des deux jumeaux, on conserve celui le
+    plus proche de la position attendue (le temps precedent conserve + la
+    periode mediane), pas systematiquement le premier ni le second. C'est ce
+    qui evite d'introduire un decalage la ou on venait d'en retirer un.
+
+    **On ne fait que supprimer, jamais inserer** — meme doctrine que
+    `repair_grid` et `drop_inserted_beats`, donc aucune phase n'est inventee.
+    """
+    import numpy as np
+    if len(beats) < 8:
+        return beats, downbeats
+    b = [float(t) for t in beats]
+    med = float(np.median(np.diff(b)))
+    if med <= 0:
+        return beats, downbeats
+    out = [b[0]]
+    i = 1
+    while i < len(b):
+        if b[i] - out[-1] >= tol * med:
+            out.append(b[i])
+            i += 1
+            continue
+        # jumeaux : on garde celui qui tombe le plus pres de l'attendu
+        attendu = out[-1] + med
+        jumeaux = [out[-1], b[i]]
+        garde = min(jumeaux, key=lambda t: abs(t - attendu))
+        out[-1] = garde
+        i += 1
+    if len(out) == len(b):
+        return beats, downbeats
+    keep = set(out)
+    return out, [t for t in downbeats if float(t) in keep]
+
+
 HALF_TOL = 0.18    # « la moitie d'un temps », a 18 % pres
 
 
@@ -421,8 +479,13 @@ def _clean(d: dict) -> dict:
     et le cache reste comparable à ce que Beat This! a réellement produit.
     """
     import numpy as np
-    b, db = drop_inserted_beats(d.get("beats", []), d.get("downbeats", []))
-    if len(b) == len(d.get("beats", [])):
+    brut = d.get("beats", [])
+    # LES JUMEAUX D'ABORD. Une paire de temps a 0,08 s l'un de l'autre fausse la
+    # mediane que `drop_inserted_beats` utilise pour reconnaitre un demi-temps ;
+    # on nettoie donc les doublons avant de chercher l'octave.
+    b, db = drop_duplicate_beats(brut, d.get("downbeats", []))
+    b, db = drop_inserted_beats(b, db)
+    if len(b) == len(brut):
         return d
     return {**d, "beats": b, "downbeats": db,
             "bpm": round(60.0 / float(np.median(np.diff(b))), 2)}
