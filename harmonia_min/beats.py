@@ -685,10 +685,52 @@ def _clean(d: dict) -> dict:
     # on nettoie donc les doublons avant de chercher l'octave.
     b, db = drop_duplicate_beats(brut, d.get("downbeats", []))
     b, db = drop_inserted_beats(b, db)
-    if len(b) == len(brut):
+    # PUIS LA GRILLE RIGIDE (Louis, 2026-08-18 : « donne-le en entree de la
+    # grille en prod »). Quand `bpm_rigide` trouve un tempo qui explique le
+    # morceau, on pose SA grille : un temps toutes les P secondes, du debut a la
+    # fin. Les trous que le traqueur laisse dans une intro ou un pont sont alors
+    # combles, et les temps qu'il pose de travers sont remis en place — c'est ce
+    # que Louis demande depuis qu'il a vu la grille glisser sous Another Day.
+    rig = _poser_grille_rigide(b, db)
+    if rig is not None:
+        b, db = rig
+    elif len(b) == len(brut):
         return d
     return {**d, "beats": b, "downbeats": db,
             "bpm": round(60.0 / float(np.median(np.diff(b))), 2)}
+
+
+#: Sous ce taux de battues qui tombent juste, on garde la grille du traqueur :
+#: le morceau n'a pas UN tempo, et le rigidifier deplacerait la musique.
+GRILLE_MIN_INLIERS = 0.85
+
+
+def _poser_grille_rigide(beats, downbeats):
+    """(beats, downbeats) reposes sur le tempo rigide, ou None.
+
+    On ne rigidifie que si `bpm_rigide` trouve un tempo ET qu'au moins
+    GRILLE_MIN_INLIERS des battues y tombent deja : au-dessous, la grille
+    deplacerait trop de temps pour qu'on puisse dire qu'elle les DECRIT.
+    Les downbeats sont recales sur la case la plus proche, pour que les mesures
+    ne changent pas de place.
+    """
+    import numpy as np
+    r = bpm_rigide(beats)
+    if r is None or r["inliers"] < GRILLE_MIN_INLIERS:
+        return None
+    b = np.asarray([float(t) for t in beats], float)
+    P, phi = r["periode"], r["phase"]
+    k0 = int(np.floor((b[0] - phi) / P + 0.5))
+    k1 = int(np.floor((b[-1] - phi) / P + 0.5))
+    if k1 - k0 + 1 < 8:
+        return None
+    g = np.array([phi + k * P for k in range(k0, k1 + 1)])
+    dbs, vus = [], set()
+    for t in downbeats or []:
+        c = round(float(g[int(np.argmin(np.abs(g - float(t))))]), 4)
+        if c not in vus:
+            vus.add(c); dbs.append(c)
+    return [round(float(x), 4) for x in g], dbs
 
 
 def track(audio_path: str | Path, *, use_cache: bool = True) -> dict:
