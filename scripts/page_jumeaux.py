@@ -50,6 +50,12 @@ def regle(z: dict, med: float) -> str:
     traits.append(f'<text x="{mid:.1f}" y="70" text-anchor="middle" '
                   f'font-size="10.5" fill="#a4462b" font-weight="600">'
                   f'{(b-a)*1000:.0f} ms</text>')
+    # LA GRILLE RIGIDE par-dessus, quand le morceau y a droit : un trait vert
+    # fin par case. On voit alors que les vraies battues tombent dessus et que
+    # le doublon, lui, n'a pas de case.
+    for t in z.get("rigide") or []:
+        traits.append(f'<line x1="{x(t):.1f}" y1="58" x2="{x(t):.1f}" y2="66" '
+                      f'stroke="#3d6b47" stroke-width="1.6"/>')
     return (f'<svg viewBox="0 0 {W} {H}" width="100%" height="{H}" '
             f'preserveAspectRatio="none">{"".join(traits)}</svg>')
 
@@ -58,6 +64,12 @@ def main() -> None:
     d = json.loads(Path("/tmp/jum2.json").read_text())
     blocs = []
     for s in d["songs"]:
+        r = s.get("rigide")
+        rig = ("" if not r else
+               f'<p class="rig">Les trois zones s\'accordent à '
+               f'<b>{r["zones"]:.2%}</b> près → grille rigide continue à '
+               f'<b>{r["bpm"]} BPM</b>, et 95 % des battues tombent à moins de '
+               f'{r["colle"]:.0%} d\'une case. Les traits verts, en bas.')
         zones = "".join(f'''
       <div class="z">
         <div class="zt">à {z["t0"]+3:.1f} s
@@ -70,6 +82,7 @@ def main() -> None:
     <h2>{html.escape(s["titre"][:46])}
       <span>{s["bpm"]} BPM · un temps toutes les {s["med"]*1000:.0f} ms ·
       <b>{s["n_jum"]} doublon{"s" if s["n_jum"]>1 else ""}</b></span></h2>
+    {rig}
     <audio controls preload="none"></audio>
     {zones}
   </section>''')

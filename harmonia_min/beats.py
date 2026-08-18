@@ -212,6 +212,105 @@ def _tile(idx: list[int], metre: int, max_bridge: int = MAX_BRIDGE):
 
 DUP_TOL = 0.25     # en deca, deux temps ne peuvent pas etre deux temps
 
+RIGIDE_ECART = 0.01   # trois zones d'accord a 1 % : le morceau ne derive pas
+RIGIDE_ZONE = 24      # battues par zone (debut, milieu, fin)
+RIGIDE_COLLE = 0.25   # 95 % des battues a moins d un quart de temps d une case :
+                      # les morceaux acceptes sont a 13 % au pire, les refuses
+                      # a 44 % au mieux — le seuil se pose dans ce fosse
+
+
+def _periode_locale(t):
+    """La periode d'un paquet de battues consecutives : la pente de t vs rang."""
+    import numpy as np
+    i = np.arange(len(t))
+    A = np.vstack([i, np.ones_like(i, dtype=float)]).T
+    P, phi = np.linalg.lstsq(A, np.asarray(t, float), rcond=None)[0]
+    return float(P), float(phi)
+
+
+def grille_rigide(beats, downbeats, ecart_max=RIGIDE_ECART, zone=RIGIDE_ZONE):
+    """Une seule grille continue quand le morceau ne derive PAS.
+
+    Louis, 2026-08-18, apres avoir vu les doublons de Beat This! sur la regle de
+    temps : « la grille reste rigide en dehors, donc tu mesures ce doublon-la
+    qui ne sert a rien. Soit il y a un drift, on le prend en compte ; soit il
+    n'y a pas de drift, et a ce moment-la c'est des doublons mal detectes par
+    BTS. Regarde la grille rigide des premieres mesures, du milieu et des
+    dernieres : si elles ont toutes le meme BPM, tu relies tout ensemble et tu
+    fais une longue grille continue. »
+
+    C'est exactement ce que fait cette fonction. On mesure la periode sur trois
+    paquets de `zone` battues — au debut, au milieu, a la fin. Si les trois
+    tombent d'accord a `ecart_max` pres, le morceau est metronomique : on rend
+    une grille `phi + k*P` continue du debut a la fin, et les doublons
+    disparaissent par CONSTRUCTION, sans avoir a les chasser un par un.
+
+    Sinon on rend `None` : le morceau derive pour de vrai (une ballade rubato
+    ne se rigidifie pas), et l'appelant garde la grille du traqueur.
+
+    MESURE sur les 84 morceaux du disque qui ont assez de battues : 25 (30 %)
+    passent le test. Parmi les 18 qui portent des doublons, 4 passent — dont
+    Another Day (0,60 % d'ecart entre zones, 15 doublons), le morceau qui a
+    motive la regle. Les 14 autres derivent franchement : Chiquitita 15 %,
+    At Last 65 %, Georgia On My Mind 86 %.
+
+    La phase vient de TOUTES les battues (moyenne circulaire a la periode
+    trouvee), pas du premier paquet : une phase prise au debut se paie sur trois
+    minutes. Les downbeats sont recales sur la case la plus proche, pour que les
+    mesures ne bougent pas.
+
+    Ce que ca ne resout pas : un morceau qui derive garde ses doublons, traites
+    localement par `drop_duplicate_beats`. Et le test ne voit pas un changement
+    de tempo qui reviendrait a son point de depart.
+    """
+    import numpy as np
+    # LES DOUBLONS D'ABORD. Ils se concentrent la ou le traqueur peine — donc
+    # souvent dans une seule zone — et ils y ecrasent la periode locale : sur
+    # Another Day la zone de fin mesurait 0,2933 s au lieu de 0,4442, soit 38 %
+    # d'ecart entre zones, et le test refusait un morceau parfaitement
+    # metronomique. Nettoyes, les trois zones tombent a 0,60 %.
+    propres, _ = drop_duplicate_beats(beats, downbeats or [])
+    b = np.asarray([float(t) for t in propres], float)
+    if len(b) < 3 * zone:
+        return None
+    n = len(b)
+    paquets = (b[:zone], b[n // 2 - zone // 2:n // 2 + zone // 2], b[-zone:])
+    Ps = [_periode_locale(z)[0] for z in paquets]
+    if min(Ps) <= 0:
+        return None
+    if (max(Ps) - min(Ps)) / float(np.mean(Ps)) > ecart_max:
+        return None                      # le morceau derive : on ne rigidifie pas
+    P = float(np.mean(Ps))
+    ang = 2 * np.pi * (b % P) / P
+    phi = float(np.angle(np.exp(1j * ang).mean()) % (2 * np.pi)) / (2 * np.pi) * P
+    k0 = int(np.floor((b[0] - phi) / P + 0.5))
+    k1 = int(np.floor((b[-1] - phi) / P + 0.5))
+    grille = [round(phi + k * P, 4) for k in range(k0, k1 + 1)]
+    if not grille:
+        return None
+    g = np.asarray(grille)
+    # ELLE DOIT COLLER A CE QU'ELLE REMPLACE. Trois zones d'accord sur le BPM ne
+    # suffisent pas : un morceau peut battre au meme tempo au debut, au milieu
+    # et a la fin en ayant glisse de phase entre les deux. On verifie donc que
+    # les battues du traqueur tombent VRAIMENT sur les cases — sans cette garde,
+    # blue_bossa_150bpm et XpqqjU7u5Yc passaient avec 5 % de leurs battues a
+    # pres d'un demi-temps de la case la plus proche, c'est-a-dire une grille
+    # rigide qui deplace la musique au lieu de la decrire.
+    ecarts = np.array([np.min(np.abs(g - t)) for t in b]) / P
+    if float(np.percentile(ecarts, 95)) > RIGIDE_COLLE:
+        return None
+    dbs = [round(float(g[int(np.argmin(np.abs(g - float(t))))]), 4)
+           for t in downbeats or []]
+    # une case ne porte qu'un downbeat, et l'ordre est garde
+    vus, dbs_p = set(), []
+    for t in dbs:
+        if t not in vus:
+            vus.add(t); dbs_p.append(t)
+    return {"beats": grille, "downbeats": dbs_p, "periode": round(P, 5),
+            "ecart_zones": round((max(Ps) - min(Ps)) / float(np.mean(Ps)), 5),
+            "colle_p95": round(float(np.percentile(ecarts, 95)), 4)}
+
+
 
 def drop_duplicate_beats(beats, downbeats, tol=DUP_TOL):
     """Retire les temps JUMEAUX — deux marques pour un seul temps.
