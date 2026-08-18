@@ -118,3 +118,51 @@ def test_une_grille_qui_ne_colle_pas_est_refusee():
     b += [round(160*PER + PER/2 + i*PER, 3) for i in range(80)]
     r = grille_rigide(b, [])
     assert r is None or r["colle_p95"] <= 0.20
+
+
+# ── le tempo rigide (Louis, 2026-08-18) ──────────────────────────────────────
+#   « souvent des intros sans tempo, donc il faut ajuster le tempo par rapport
+#     au milieu du morceau... dans tous les cas trouve-moi un algo rigide pour
+#     inférer le bpm »
+
+from harmonia_min.beats import bpm_rigide                # noqa: E402
+
+
+def test_le_tempo_dun_morceau_regulier():
+    r = bpm_rigide(_grille(200))
+    assert r is not None
+    assert abs(r["bpm"] - 60 / PER) < 0.5
+    assert r["inliers"] > 0.99
+
+
+def test_une_intro_sans_tempo_ne_vote_pas():
+    """Vingt battues n'importe où au début, puis le morceau. Le tempo doit
+    sortir du corps du morceau, pas de l'intro."""
+    intro = [round(0.31 * i + (0.07 if i % 3 else 0), 3) for i in range(20)]
+    corps = [round(intro[-1] + 1.0 + i * PER, 3) for i in range(200)]
+    r = bpm_rigide(intro + corps)
+    assert r is not None
+    assert abs(r["bpm"] - 60 / PER) < 1.0, f"l'intro a tire le tempo : {r['bpm']}"
+
+
+def test_un_trou_au_milieu_ne_casse_pas_le_tempo():
+    b = _grille(120) + [round(120 * PER + 8.0 + i * PER, 3) for i in range(120)]
+    r = bpm_rigide(b)
+    assert r is not None
+    assert abs(r["bpm"] - 60 / PER) < 0.5
+
+
+def test_la_phase_ne_derive_pas_sur_la_longueur():
+    """Une erreur de 1 % sur la période fait quatre temps d'écart au bout de
+    quatre cents battues : c'est ce que le verrouillage de phase corrige."""
+    r = bpm_rigide(_grille(400))
+    assert r is not None
+    assert abs(r["periode"] - PER) < 1e-3, f"période {r['periode']}"
+    assert r["ecart_median"] < 0.02
+
+
+def test_deux_tempos_franchement_differents_sont_refuses():
+    a = _grille(120)
+    b = a + [round(a[-1] + (i + 1) * PER * 1.5, 3) for i in range(120)]
+    r = bpm_rigide(b)
+    assert r is None or r["inliers"] < 0.9

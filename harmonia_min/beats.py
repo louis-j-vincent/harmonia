@@ -228,6 +228,107 @@ def _periode_locale(t):
     return float(P), float(phi)
 
 
+BPM_FEN = 16          # battues par fenetre glissante
+BPM_TOL = 0.15        # une battue "tombe juste" a 15 % du temps pres
+BPM_MIN_INLIERS = 0.6 # sous ce taux, on n'a pas trouve de tempo stable
+
+
+def bpm_rigide(beats, fen=BPM_FEN, tol=BPM_TOL, iters=6):
+    """Le tempo du morceau, pris dans son COEUR et non sur ses bords.
+
+    Louis, 2026-08-18, apres avoir regarde les six morceaux refuses : « il n'y a
+    pas de drift notable, par contre souvent des intros sans tempo, donc il faut
+    ajuster le tempo par rapport au milieu du morceau peut-etre. Dans tous les
+    cas trouve-moi un algo rigide pour inferer le bpm. »
+
+    Il a raison sur le diagnostic : ces morceaux ne ralentissent pas, ils
+    DECROCHENT par endroits. Stand By Me lit 92,7 / 119,6 / 120,0 BPM sur ses
+    trois zones — deux d'accord, et c'est l'intro qui manque des temps. Smooth
+    Criminal lit 19,9 sur sa premiere zone parce qu'elle tombe dans un trou.
+    Tester trois points fixes etait donc trop fragile : une seule mauvaise zone
+    suffisait a refuser un morceau metronomique.
+
+    L'ALGORITHME, en trois temps, aucun seuil devine :
+
+      1. **fenetres glissantes** — la periode locale de chaque fenetre de `fen`
+         battues consecutives (pente de t vs rang). Une fenetre posee dans une
+         intro sans tempo ou dans un trou donne une valeur aberrante ; il y en a
+         des dizaines d'autres.
+      2. **la mediane des fenetres** — elle ignore les aberrantes par
+         construction, sans avoir a les reconnaitre. C'est le « milieu du
+         morceau » qu'il demande, au sens statistique plutot que temporel : le
+         tempo majoritaire, d'ou qu'il vienne.
+      3. **raffinement sur les seules battues qui tombent juste** — on cale une
+         grille a cette periode, on garde les battues a moins de `tol` d'une
+         case (les inliers), on refait la regression sur elles, on recommence.
+         Les battues de l'intro sans tempo ne votent pas.
+
+    Rend {periode, bpm, phase, inliers, ecart_median} ou None si moins de
+    `BPM_MIN_INLIERS` des battues tombent juste — auquel cas le morceau n'a
+    vraiment pas UN tempo, et il faut le laisser tranquille.
+
+    Ce que ca ne resout pas : un morceau qui change VRAIMENT de tempo en cours
+    de route (deux tempos legitimes) rend ici le majoritaire, et les inliers
+    chutent — c'est ce que `inliers` sert a dire.
+    """
+    import numpy as np
+    b = np.asarray([float(t) for t in beats], float)
+    if len(b) < 3 * fen:
+        return None
+    # 1. les periodes locales, fenetre par fenetre
+    locales = []
+    for i in range(0, len(b) - fen + 1, max(1, fen // 2)):
+        P, _phi = _periode_locale(b[i:i + fen])
+        if P > 0:
+            locales.append(P)
+    if not locales:
+        return None
+    # 2. la mediane : les fenetres aberrantes ne pesent pas
+    P0 = float(np.median(locales))
+    # 2 bis. VERROUILLAGE DE PHASE. La mediane des fenetres donne le bon tempo a
+    # 1 % pres — et 1 % d'erreur sur la periode fait QUATRE temps d'ecart au
+    # bout de quatre cents battues. On affine donc en balayant finement autour
+    # d'elle et en gardant la periode qui aligne le mieux TOUTES les battues :
+    # R(P) = |moyenne des exp(2i.pi.t/P)| vaut 1 quand chaque battue tombe sur
+    # une case, 0 quand elles sont dispersees. C'est ce que la regression sur
+    # les inliers ne pouvait pas trouver seule : partie d'une periode a 1 %
+    # pres, elle ne voyait d'inliers que dans la region ou la grille tombait
+    # juste par hasard, et s'y enfermait (Goodbye Yellow Brick Road : 24 %
+    # d'inliers, ecart median 31 %, alors que ses fenetres locales s'accordent
+    # a 0,5 %).
+    grille_P = P0 * (1.0 + np.linspace(-0.03, 0.03, 4001))
+    R = np.abs(np.exp(2j * np.pi * b[:, None] / grille_P[None, :]).mean(axis=0))
+    P = float(grille_P[int(np.argmax(R))])
+    # LA PHASE VIENT DU MILIEU, pas du premier temps (Louis : « souvent des
+    # intros sans tempo, donc il faut ajuster le tempo par rapport au milieu du
+    # morceau »). Ancree sur b[0], une intro decalee entrainait tout le
+    # raffinement avec elle : Goodbye Yellow Brick Road, Georgia, Sunrise et
+    # If I Ain't Got You etaient refuses pour cette seule raison.
+    ang = 2 * np.pi * (b % P) / P
+    phi = float(np.angle(np.exp(1j * ang).mean()) % (2 * np.pi)) / (2 * np.pi) * P
+    # 3. raffinement sur les inliers
+    for _ in range(iters):
+        k = np.round((b - phi) / P)
+        ecart = np.abs(b - (phi + k * P)) / P
+        dedans = ecart <= tol
+        if dedans.sum() < 2 * fen:
+            break
+        A = np.vstack([k[dedans], np.ones(int(dedans.sum()))]).T
+        Pn, phin = np.linalg.lstsq(A, b[dedans], rcond=None)[0]
+        if Pn <= 0 or abs(Pn - P) / P > 0.25:
+            break                       # garde-fou : pas de saut d'octave
+        P, phi = float(Pn), float(phin)
+    k = np.round((b - phi) / P)
+    ecart = np.abs(b - (phi + k * P)) / P
+    dedans = ecart <= tol
+    part = float(dedans.mean())
+    if part < BPM_MIN_INLIERS:
+        return None
+    return {"periode": round(P, 5), "bpm": round(60.0 / P, 2),
+            "phase": round(phi % P, 5), "inliers": round(part, 3),
+            "ecart_median": round(float(np.median(ecart)), 4)}
+
+
 def grille_rigide(beats, downbeats, ecart_max=RIGIDE_ECART, zone=RIGIDE_ZONE):
     """Une seule grille continue quand le morceau ne derive PAS.
 
