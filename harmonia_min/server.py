@@ -316,12 +316,6 @@ def sections_inferer(file):
             j0 = jeton_de.get(int(h["mesure_debut"]) - 1)
             j1 = jeton_de.get(int(h["mesure_fin"]) - 1)
         except (TypeError, ValueError):
-                    # dit toujours ce que l'empilement a fait, y compris rien :
-                    # un repli muet ferait croire le chart amélioré quand il
-                    # n'est que brut.
-                    "empile": bool(rap.get("ok")),
-                    "mesures_empilees": rap.get("n_reecrites", 0),
-                    "empile_raison": rap.get("raison"),
             continue
         if j0 is None or j1 is None or j1 < j0:
             continue
@@ -1100,6 +1094,21 @@ def _ytdlp_bin():
     return str(cand) if cand.exists() else shutil.which("yt-dlp")
 
 
+#: Ce que yt-dlp doit imprimer pour qu'on ait artiste et titre.
+_META_PRINT = "%(title)s\t%(artist)s\t%(track)s\t%(uploader)s"
+
+
+def _meta_from_print(stdout: str) -> tuple[str, str]:
+    """La ligne `_META_PRINT` → (artiste, titre). Une seule fabrique : elle est
+    lue à deux endroits (pendant le téléchargement, et sur un fichier déjà là)
+    et deux analyseurs divergeraient."""
+    line = next((x for x in stdout.splitlines() if "\t" in x), "")
+    if not line:
+        return "", ""
+    f = (line.split("\t") + [""] * 4)[:4]
+    return _titles.split(f[0], artist=f[1], track=f[2], uploader=f[3])
+
+
 def _video_meta(ytdlp: str, url: str) -> tuple[str, str]:
     """(artiste, titre) d'une vidéo YouTube → ("", "") si on n'a rien pu lire.
 
@@ -1116,13 +1125,9 @@ def _video_meta(ytdlp: str, url: str) -> tuple[str, str]:
     try:
         r = subprocess.run(
             [ytdlp, "--skip-download", "--no-warnings", "--no-playlist",
-             "--print", "%(title)s\t%(artist)s\t%(track)s\t%(uploader)s", url],
+             "--print", _META_PRINT, url],
             capture_output=True, text=True, timeout=90)
-        line = next((x for x in r.stdout.splitlines() if x.strip()), "")
-        if not line:
-            return "", ""
-        f = (line.split("\t") + [""] * 4)[:4]
-        return _titles.split(f[0], artist=f[1], track=f[2], uploader=f[3])
+        return _meta_from_print(r.stdout)
     except (OSError, subprocess.SubprocessError) as exc:
         log.warning("metadata lookup failed for %s: %s", url, exc)
         return "", ""
@@ -1137,8 +1142,15 @@ def _video_meta(ytdlp: str, url: str) -> tuple[str, str]:
 YTDLP_CLIENTS = (None, "web_safari", "android", "ios", "tv")
 
 
-def _download_audio(ytdlp: str, url: str, out: Path) -> None:
-    """Télécharge l'audio, en réessayant avec un autre client YouTube.
+def _download_audio(ytdlp: str, url: str, out: Path) -> tuple[str, str]:
+    """Télécharge l'audio → (artiste, titre), en réessayant avec un autre client.
+
+    LES MÉTADONNÉES VIENNENT D'ICI (2026-08-18). `_video_meta` était un SECOND
+    aller-retour réseau, mesuré 2,5–3,1 s, posé sur le chemin critique juste
+    avant les battues, pour un champ dont aucun accord ne dépend. `--print`
+    avec `--no-simulate` imprime la même ligne pendant le téléchargement :
+    même information, un appel au lieu de deux (4,9 s au total contre ~7,5 s
+    mesurées le 2026-08-18 sur h_D3VFfhvs4).
 
     Lève une RuntimeError au message LISIBLE : l'échec précédent remontait
     jusqu'à l'écran de Louis sous la forme d'un `CalledProcessError` avec la
@@ -1152,6 +1164,9 @@ def _download_audio(ytdlp: str, url: str, out: Path) -> None:
         cmd = [ytdlp, "-f", "bestaudio[ext=m4a]/bestaudio",
                "--extract-audio", "--audio-format", "m4a",
                "--retries", "5", "--fragment-retries", "5",
+               # `--print` seul implique `--simulate` : sans `--no-simulate`
+               # la commande n'écrirait plus aucun fichier.
+               "--no-simulate", "--print", _META_PRINT,
                "-o", str(out)]
         if client:
             cmd += ["--extractor-args", f"youtube:player_client={client}"]
@@ -1160,7 +1175,7 @@ def _download_audio(ytdlp: str, url: str, out: Path) -> None:
         if r.returncode == 0 and out.exists():
             if client:
                 log.info("yt-dlp: réussi avec le client %s", client)
-            return
+            return _meta_from_print(r.stdout)
         tail = (r.stderr or r.stdout or "").strip().splitlines()
         msg = tail[-1] if tail else f"code {r.returncode}"
         errors.append(f"{client or 'défaut'}: {msg}")
@@ -1212,8 +1227,12 @@ def _resolve_audio(url: str) -> tuple[Path, str, str]:
         if not out.exists():
             # `ytdlp`, pas "yt-dlp" : le chemin résolu juste au-dessus n'était
             # pas utilisé ici, ce qui annulait la raison d'être de _ytdlp_bin.
-            _download_audio(ytdlp, url, out)
-        artist, title = _video_meta(ytdlp, url)
+            artist, title = _download_audio(ytdlp, url, out)
+        else:
+            # Fichier déjà sur le disque : personne n'a imprimé la ligne, il
+            # faut donc bien l'aller-retour — mais on ne le paie plus sur le
+            # cas qui compte, celui du morceau neuf.
+            artist, title = _video_meta(ytdlp, url)
         return out, (title or _titles.pretty_from_slug(out.stem)), artist
     raise FileNotFoundError(f"could not resolve {url!r} to audio")
 

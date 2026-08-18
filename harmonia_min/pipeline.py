@@ -240,6 +240,52 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
     return model
 
 
+def _run_beats(audio_path, report):
+    """Battues + garde-fou de grille → dict, avec `grid` en plus.
+
+    Extrait d'`analyze_steps` le 2026-08-18 pour pouvoir tourner pendant que
+    les postérieures musx se calculent dans un autre thread. Le corps est
+    inchangé ; seuls les deux `report()` restent à leur place d'origine, donc
+    l'écran de chargement voit exactement la même séquence qu'avant.
+    """
+    # 1 ── beats (hard error if Beat This! fails; librosa is banned)
+    report(1, phase="listening")
+    bd = _beats.track(audio_path)
+    beat_times, downbeats = bd["beats"], bd["downbeats"]
+    # Refuse LOUDLY on a grid that cannot carry a 4-beat bar (Louis,
+    # 2026-08-05). Everything below indexes bars as `off + b*bpb` over beat
+    # indices, so a tracker reporting 2 beats per bar, or only half its bars
+    # holding 4, silently yields a chart whose "bars" are not bars — Georgia On
+    # My Mind (metre 2, consistency 45%) is the case that exposed it. Raising
+    # here reaches the analysing screen through _run_job's error path.
+    grid = _beats.check_grid(beat_times, downbeats, Path(audio_path).name)
+    # USE THE REPAIRED DOWNBEATS (2026-08-07). Beat This! also marks beat 3 as
+    # a bar start on a third of the library; every line below reads the
+    # downbeat list — `bpb` is the MEDIAN downbeat gap and `off` the MODAL
+    # residue, so a bimodal {4,2} gap histogram makes both wrong (Georgia read
+    # bpb=2, Sade/Chiquitita/Jorja/Nina too, and Yam-B read bpb=3 for a 4/4
+    # song). check_grid returns the mid-bar marks removed; keeping the raw list
+    # here would leave the guard measuring one grid and the chart built on
+    # another. Verified: on the 44 songs the old guard accepted this changes
+    # (bpb, off) for exactly 0 of them.
+    if grid.get("downbeats"):
+        downbeats = grid["downbeats"]
+    logger.info("beats: grid metre %s, coverage %.0f%% over %d bars "
+                "(raw metre %s, raw consistency %.0f%%, kept %.0f%% of the "
+                "tracker's downbeats)",
+                grid.get("metre"), 100 * grid.get("coverage", 0),
+                grid.get("n_bars", 0), grid.get("raw_metre"),
+                100 * grid.get("raw_consistency", 0), 100 * grid.get("kept", 0))
+    report(2, tempo_bpm=bd["bpm"], phase="decoding",
+           # 6 temps par mesure, c'est un 6/8 : à ces tempos (188 temps/min sur
+           # l'Alicia Keys) le temps EST la croche. Un 6/4 en pop n'existe
+           # pratiquement pas, et écrire « 6/4 » induirait en erreur.
+           time_signature=("6/8" if grid.get("metre") == 6
+                           else f"{grid.get('metre') or 4}/4"))
+
+    return {**bd, "grid": grid}
+
+
 def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
                   audio_url: str = "", progress=None, bar1_time=None):
     """Générateur : `("raw", modèle)` puis `("final", modèle)`.
@@ -281,45 +327,33 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
         if progress:
             progress(stage, **kw)
 
-    # 1 ── beats (hard error if Beat This! fails; librosa is banned)
-    report(1, phase="listening")
-    bd = _beats.track(audio_path)
-    beat_times, downbeats = bd["beats"], bd["downbeats"]
-    # Refuse LOUDLY on a grid that cannot carry a 4-beat bar (Louis,
-    # 2026-08-05). Everything below indexes bars as `off + b*bpb` over beat
-    # indices, so a tracker reporting 2 beats per bar, or only half its bars
-    # holding 4, silently yields a chart whose "bars" are not bars — Georgia On
-    # My Mind (metre 2, consistency 45%) is the case that exposed it. Raising
-    # here reaches the analysing screen through _run_job's error path.
-    grid = _beats.check_grid(beat_times, downbeats, Path(audio_path).name)
-    # USE THE REPAIRED DOWNBEATS (2026-08-07). Beat This! also marks beat 3 as
-    # a bar start on a third of the library; every line below reads the
-    # downbeat list — `bpb` is the MEDIAN downbeat gap and `off` the MODAL
-    # residue, so a bimodal {4,2} gap histogram makes both wrong (Georgia read
-    # bpb=2, Sade/Chiquitita/Jorja/Nina too, and Yam-B read bpb=3 for a 4/4
-    # song). check_grid returns the mid-bar marks removed; keeping the raw list
-    # here would leave the guard measuring one grid and the chart built on
-    # another. Verified: on the 44 songs the old guard accepted this changes
-    # (bpb, off) for exactly 0 of them.
-    if grid.get("downbeats"):
-        downbeats = grid["downbeats"]
-    logger.info("beats: grid metre %s, coverage %.0f%% over %d bars "
-                "(raw metre %s, raw consistency %.0f%%, kept %.0f%% of the "
-                "tracker's downbeats)",
-                grid.get("metre"), 100 * grid.get("coverage", 0),
-                grid.get("n_bars", 0), grid.get("raw_metre"),
-                100 * grid.get("raw_consistency", 0), 100 * grid.get("kept", 0))
-    report(2, tempo_bpm=bd["bpm"], phase="decoding",
-           # 6 temps par mesure, c'est un 6/8 : à ces tempos (188 temps/min sur
-           # l'Alicia Keys) le temps EST la croche. Un 6/4 en pop n'existe
-           # pratiquement pas, et écrire « 6/4 » induirait en erreur.
-           time_signature=("6/8" if grid.get("metre") == 6
-                           else f"{grid.get('metre') or 4}/4"))
-
-    # 2 ── musx frame posteriors (cache-hit for library songs; ~minutes fresh)
-    probs = _musx.frame_posteriors(audio_path)
+    # LES DEUX ÉTAPES LOURDES EN MÊME TEMPS (2026-08-18). Sur un morceau neuf
+    # de 9 min : battues 11,8 s (Beat This!, CPU — mesuré 9x PLUS LENT sur MPS,
+    # il y reste), puis CQT + 5 réseaux 8,9 s (les réseaux sur MPS depuis le
+    # même jour). Elles ne dépendent pas l'une de l'autre : seul le re-décodage
+    # a besoin des deux. Enchaînées, c'est la somme ; lancées ensemble, c'est
+    # le max, et les deux occupent des unités différentes.
+    #
+    # `wait=True` n'est pas décoratif : `musx._InMusxDir` fait un `os.chdir`
+    # visible par TOUT le processus. Un thread orphelin qui survit à une erreur
+    # de battues laisserait le serveur Flask avec le répertoire courant du
+    # clone musx. Pour la même raison le chemin est résolu ici une fois pour
+    # toutes — plus rien en dessous ne dépend du répertoire courant.
+    from concurrent.futures import ThreadPoolExecutor
+    audio_path = Path(audio_path).resolve()
+    _pool = ThreadPoolExecutor(max_workers=1)
+    _probs_fut = _pool.submit(_musx.frame_posteriors, audio_path)
+    try:
+        bd = _run_beats(audio_path, report)
+        probs = _probs_fut.result()
+    finally:
+        _pool.shutdown(wait=True)
     triad = probs[0]
     report(3, n_frames=int(triad.shape[0]))
+    beat_times, downbeats = bd["beats"], bd["downbeats"]
+    grid = bd["grid"]
+    if grid.get("downbeats"):
+        downbeats = grid["downbeats"]
 
     # 3 ── beat-grid re-decode: boundaries land exactly on our beats.
     # downbeat_times wired IN (2026-07-31, Louis's This Love report): at
