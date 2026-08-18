@@ -149,6 +149,85 @@ def _musx_dir() -> Path:
                        f"(tried {[str(c) for c in candidates]})")
 
 
+# ── le GPU d'Apple, mesuré bit-à-bit identique ──────────────────────────────
+# 2026-08-18. L'inférence des 5 réseaux est l'étape la plus chère du chemin
+# froid (14,4 s sur les 9 min de h_D3VFfhvs4, contre 3,9 s de CQT et 11,8 s de
+# battues). Elle tourne sur MPS sans rien changer à la sortie :
+#
+#   morceau            durée   CPU      MPS            accords redécodés
+#   0DdCoNbbRvQ         252 s   6,20 s   1,75 s (x3,5)  100/100 IDENTIQUES
+#   autumn_leaves       422 s  10,96 s   2,52 s (x4,3)  160/160 IDENTIQUES
+#   4JkIs37a2JE         235 s   5,96 s   1,68 s (x3,6)  163/163 IDENTIQUES
+#   DksSPZTZES0         290 s   8,06 s   2,00 s (x4,0)  118/118 IDENTIQUES
+#
+# « identiques » au sens fort : argmax des postérieures 100 % égal, |Δ| max
+# 0,0000, et les segments du re-décodage égaux label ET frontière.
+#
+# NE PAS étendre à Beat This! : mesuré le même jour sur le même morceau,
+# 7,3 s en CPU contre 67,5 s en MPS (x9 PLUS LENT, battues identiques à 0 ms).
+# Le tracker reste sur CPU — ce qui tombe bien, les deux étapes peuvent alors
+# tourner en parallèle sur deux unités différentes.
+#
+# Un seul obstacle technique : `ChordNet.init_hidden` fabrique h0/c0 sur CPU en
+# dur (`torch.zeros(...)`, cuda ou rien), donc le LSTM reçoit un état caché
+# CPU pour une entrée MPS — « Placeholder storage has not been allocated on MPS
+# device ». On le corrige ici, dans NOTRE module, sans éditer le clone.
+_DEVICE: str | None = None
+
+
+def _device() -> str:
+    """'mps' si disponible, sinon 'cpu'. Coupe-circuit HARMONIA_MUSX_DEVICE."""
+    global _DEVICE
+    if _DEVICE is None:
+        want = os.environ.get("HARMONIA_MUSX_DEVICE", "auto").strip().lower()
+        if want in ("cpu", "mps"):
+            _DEVICE = want
+        else:
+            import torch
+            _DEVICE = "mps" if torch.backends.mps.is_available() else "cpu"
+        logger.info("musx: inférence sur %s", _DEVICE)
+    return _DEVICE
+
+
+def _patch_init_hidden(chordnet_module) -> None:
+    """h0/c0 sur le device des poids, au lieu de CPU en dur."""
+    import torch
+
+    def init_hidden(self, batch_size, hidden_dim):
+        dev = next(self.parameters()).device
+        z = torch.zeros(2, batch_size, hidden_dim // 2, device=dev)
+        return (z, z.clone())
+
+    chordnet_module.ChordNet.init_hidden = init_hidden
+
+
+def _run_nets(cqt: np.ndarray) -> list[np.ndarray]:
+    """Les 6 flux de postérieures, moyennés sur les 5 folds. UN SEUL chemin.
+
+    `frame_posteriors` et `posteriors_from_cqt` passaient tous deux par
+    `NetworkInterface.inference`, qui appelle `init_settings(False)` — lequel
+    fait `self.cpu()` et ramènerait donc les poids sur CPU à chaque appel. On
+    place les modules nous-mêmes et on appelle `ChordNet.inference` directement.
+    """
+    import torch
+    dev = _device()
+    with _InMusxDir():
+        from mir.nn.train import NetworkInterface
+        from chordnet_ismir_naive import ChordNet
+        import chordnet_ismir_naive as _cn
+        _patch_init_hidden(_cn)
+        x = torch.tensor(np.asarray(cqt), dtype=torch.float32)
+        acc = None
+        for name in MODEL_NAMES:
+            net = NetworkInterface(ChordNet(None), name, load_checkpoint=False)
+            m = net.net.eval().to(dev)
+            with torch.no_grad():
+                out = m.inference(x.to(dev))
+            acc = list(out) if acc is None else [a + b for a, b in zip(acc, out)]
+            del net, m
+    return [(a / len(MODEL_NAMES)).astype(np.float32) for a in acc]
+
+
 class _InMusxDir:
     """cwd + sys.path into the clone; the clone resolves 'cache_data' relatively."""
 
@@ -187,22 +266,14 @@ def frame_posteriors(audio_path: Path | str, *, use_cache: bool = True,
 
     with _InMusxDir():
         from mir import io, DataEntry
-        from mir.nn.train import NetworkInterface
         from extractors.cqt import CQTV2
-        from chordnet_ismir_naive import ChordNet
         entry = DataEntry()
         entry.prop.set('sr', MUSX_SR)
         entry.prop.set('hop_length', MUSX_HOP)
         entry.append_file(str(audio_path), io.MusicIO, 'music')
         entry.append_extractor(CQTV2, 'cqt')
-        cqt = entry.cqt
-        acc = None
-        for name in MODEL_NAMES:
-            net = NetworkInterface(ChordNet(None), name, load_checkpoint=False)
-            out = net.inference(cqt)
-            acc = list(out) if acc is None else [a + b for a, b in zip(acc, out)]
-            del net
-    probs = [(a / len(MODEL_NAMES)).astype(np.float32) for a in acc]
+        cqt = np.asarray(entry.cqt)
+    probs = _run_nets(cqt)
     if use_cache:
         cdir.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(cache, **dict(zip(names, probs)))
@@ -248,16 +319,7 @@ def song_cqt(audio_path: Path | str, *, use_cache: bool = True) -> np.ndarray:
 def posteriors_from_cqt(cqt: np.ndarray) -> list[np.ndarray]:
     """Les 6 flux de postérieures pour un CQT quelconque — y compris un CQT
     MOYENNÉ sur plusieurs répétitions, ce qui est tout l'intérêt."""
-    with _InMusxDir():
-        from mir.nn.train import NetworkInterface
-        from chordnet_ismir_naive import ChordNet
-        acc = None
-        for name in MODEL_NAMES:
-            net = NetworkInterface(ChordNet(None), name, load_checkpoint=False)
-            out = net.inference(np.asarray(cqt))
-            acc = list(out) if acc is None else [a + b for a, b in zip(acc, out)]
-            del net
-    return [(a / len(MODEL_NAMES)).astype(np.float32) for a in acc]
+    return _run_nets(np.asarray(cqt))
 
 
 # ── label confidence ────────────────────────────────────────────────────────
