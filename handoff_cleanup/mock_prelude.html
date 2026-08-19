@@ -38,6 +38,7 @@
         s.spans.push([j*8,j*8+8]); s.barRanges.push([j*4,j*4+3]); s.reps++;
       });
       M.sections=order; M.n_bars=seq.length*4;
+      M.barGrid=[]; for(let i=0;i<=seq.length*4;i++) M.barGrid.push(i*2);
       return new Response(JSON.stringify(M),{status:200,headers:{'Content-Type':'application/json'}});
     });
   };

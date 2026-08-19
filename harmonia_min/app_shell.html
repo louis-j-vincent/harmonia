@@ -1427,8 +1427,13 @@ window.APP = (function(){
     // straight into this SPA's own chart view instead of stopping on the
     // plain server-rendered library list. Falls back to the library on any
     // failure (openChart's own catch already does this).
-    const openFile = new URLSearchParams(location.search).get("open");
-    if(openFile){ openChart(openFile); } else { go("library"); }
+    const qs = new URLSearchParams(location.search);
+    const openFile = qs.get("open");
+    // `&edit=sections` ouvre l'éditeur de T3 : il n'a AUCUN bouton dans l'app
+    // (voir renderSectionEditor) — c'est la porte de service qui laisse Louis
+    // le voir avant de décider s'il remplace l'outil au doigt du chart.
+    if(openFile){ openChart(openFile).then(()=>{ if(qs.get("edit")==="sections") go("sections"); }); }
+    else { go("library"); }
     loadLibrary();
   };
 
@@ -1497,6 +1502,7 @@ window.APP = (function(){
     else if(screen==="record") elS=renderRecord();
     else if(screen==="jam") elS=renderJam();
     else if(screen==="prompter") elS=renderPrompter();
+    else if(screen==="sections") elS=renderSectionEditor();
     else elS=renderChart();
     S._screenEl=elS; root.appendChild(elS);
     if(keepTop!=null) restoreChartScroll(keepTop);   // après l'insertion
@@ -4708,6 +4714,270 @@ window.APP = (function(){
     }
   }
 
+
+  /* ── T3 — l'éditeur de sections, PLEIN ÉCRAN (2026-08-19) ─────────────────
+     « Modifier les sections au doigt » posé sur le chart est un objet
+     étranger : c'est une tâche à part entière — on la fait, on valide, on
+     revient. Ici la forme est un objet qu'on manipule, pas une décoration.
+
+     AUCUN état de cet écran ne vit dans S : `groups` est une copie locale, et
+     « Annuler » n'a donc rien à défaire — le chart retrouve exactement la
+     forme qu'il avait, parce qu'il ne l'a jamais quittée.
+
+     PAS D'ENTRÉE dans la feuille Outils (décision de Louis, 2026-08-19) :
+     l'outil au doigt sur le chart occupe encore cette porte, et deux éditeurs
+     pour une même question, c'est précisément ce que ce nettoyage combat. On
+     y arrive par ?open=<file>&edit=sections, le temps qu'il arbitre. */
+  function renderSectionEditor(){
+    const w=screenWrap();
+    const m=S.model;
+    if(!m){ setTimeout(()=>go("library",{push:false}),0); return w; }
+    const grid=(m.barGrid||[]).slice();
+    const nBars=Math.max(1, grid.length-1);
+    const tOf=b=>grid.length ? grid[Math.max(0,Math.min(grid.length-1,b))] : 0;
+    const GAP=13, BAND_H=74;
+
+    // La forme, en mesures de CHANSON et d'un seul tenant : `formGroups()` peut
+    // laisser des trous (un import sans empans, une occurrence rognée), et la
+    // route serveur refuse — à juste titre — un découpage qui ne couvre pas le
+    // morceau. On recolle donc chaque groupe sur le début du suivant.
+    let groups=formGroups().map(g=>({label:g.label, b0:g.b0, b1:g.b1, n:g.n}));
+    groups.sort((a,b)=>a.b0-b.b0);
+    // Un groupe qui commence APRÈS la dernière mesure de la grille n'a pas de
+    // place sur la bande : il sortirait à largeur nulle et mentirait sur la
+    // forme. Cela arrive quand les sections et la grille de mesures ne
+    // décrivent pas le même morceau (un chart réimporté, une grille tronquée).
+    groups=groups.filter(g=>g.b0<nBars);
+    if(!groups.length) groups=[{label:"A", b0:0, b1:nBars-1, n:1}];
+    groups[0].b0=0;
+    groups.forEach((g,i)=>{ g.b1 = (i+1<groups.length) ? groups[i+1].b0-1 : nBars-1; });
+
+    let sel=groups.length>1?1:0;      // la frontière sous le doigt (index de groupe)
+    let dirty=false;
+
+    w.appendChild(appBar("Les sections", "glisse une frontière — elle colle à la mesure", "chart"));
+    const body=el("div","flex:1;min-height:0;display:flex;flex-direction:column;padding:16px 14px 0;overflow:hidden;");
+    w.appendChild(body);
+
+    // ── la bande, à 74px ────────────────────────────────────────────────────
+    const rail=el("div",`flex:0 0 auto;display:flex;height:${BAND_H}px;`);
+    rail.setAttribute("data-form-band","1");
+    body.appendChild(rail);
+    // Le nom entier vit SOUS la bande, jamais dans le segment : « bridge » ne
+    // rentre pas dans 34px, et une troncature à points se lit comme du bruit.
+    const legend=el("div",`flex:0 0 auto;font:italic 12.5px ${SERIF};color:${T.faint};`+
+      `margin-top:8px;min-height:18px;`);
+    body.appendChild(legend);
+
+    // ── la carte « sous le doigt » ─────────────────────────────────────────
+    const card=el("div",`flex:0 0 auto;margin-top:14px;padding:12px 14px;background:${T.card};`+
+      `border:1px solid ${T.line};border-radius:${SZ.radiusLg}px;`);
+    const cardTop=el("div",`font:600 15px ${UI};color:${T.ink};`,"");
+    const cardTime=el("div",`font:500 12px ${UI};color:${T.faint};margin-top:2px;font-variant-numeric:tabular-nums;`,"");
+    card.appendChild(cardTop); card.appendChild(cardTime);
+    const row=el("div","display:flex;align-items:center;gap:8px;margin-top:12px;");
+    const hear=kitButton("écouter la jointure", ()=>playSeam(), {small:true});
+    const minus=kitIcon("−", ()=>nudge(-1), "Une mesure plus tôt");
+    const plus=kitIcon("+", ()=>nudge(1), "Une mesure plus tard");
+    row.appendChild(hear); row.appendChild(el("div","flex:1;"));
+    row.appendChild(minus); row.appendChild(plus);
+    card.appendChild(row);
+    body.appendChild(card);
+    body.appendChild(el("div","flex:1;min-height:0;"));
+
+    // ── sortir ─────────────────────────────────────────────────────────────
+    const foot=el("div","flex:0 0 auto;padding:0 14px calc(14px + env(safe-area-inset-bottom));");
+    const keep=kitButton("Garder cette forme", ()=>save(), {height:52, state:"on"});
+    keep.style.cssText+="width:100%;";
+    foot.appendChild(keep);
+    const cancel=el("button",`width:100%;margin-top:6px;background:transparent;border:none;`+
+      `color:${T.faint};font:600 13px ${UI};padding:8px;min-height:${SZ.control}px;cursor:pointer;`,"Annuler");
+    cancel.onclick=()=>go("chart");
+    foot.appendChild(cancel);
+    w.appendChild(foot);
+
+    // ── dessin ─────────────────────────────────────────────────────────────
+    const isLetter=lb=>/^[A-H]$/.test(String(lb||"").trim());
+    const segs=[];
+    function paint(){
+      clear(rail); segs.length=0;
+      groups.forEach((g,i)=>{
+        if(i){
+          // La poignée vit DANS le gap : 13px de large, 44 de haut sous le
+          // doigt, un trait de 3×40 dessiné au milieu. Aucune poignée après le
+          // dernier groupe — rien ne dépasse du bord droit de la bande.
+          const h=el("div",`flex:0 0 ${GAP}px;position:relative;cursor:ew-resize;touch-action:none;`);
+          h.appendChild(el("div",
+            `position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);`+
+            `width:3px;height:40px;border-radius:2px;background:${T.accent};`));
+          const grab=el("div",
+            `position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);`+
+            `width:${GAP}px;height:44px;`);
+          h.appendChild(grab);
+          h.setAttribute("aria-label","Frontière avant "+g.label);
+          attachHandle(h, i);
+          rail.appendChild(h);
+        }
+        const bars=Math.max(0, g.b1-g.b0+1);
+        const named=!isLetter(g.label);
+        // Le plancher passe par le flex-BASIS, pas par min-width : avec une
+        // base à 0, un min-width que la répartition viole fait DÉBORDER la
+        // rangée (mesuré : le dernier groupe sortait de l'écran à 9 groupes).
+        // En basis, les planchers sont payés d'abord et le reste se répartit
+        // au prorata des mesures — plus rien ne dépasse.
+        const seg=el("div",
+          `flex:${Math.max(bars,0.001)} 1 ${named?34:20}px;min-width:0;height:${BAND_H}px;`+
+          `position:relative;border-radius:6px;background:${T.card};`+
+          `border:1px solid ${i===sel||i===sel-1?T.accent:T.line};`+
+          `display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;`+
+          `cursor:pointer;-webkit-tap-highlight-color:transparent;`);
+        const tag=named
+          ? el("div",`font:italic 700 13px ${SERIF};color:${T.accent};`,(String(g.label)[0]||"?").toLowerCase())
+          : el("div",`font:700 13px ${UI};color:${T.ink};`,g.label);
+        seg.appendChild(tag);
+        if(g.n>1) seg.appendChild(el("div",`font:500 9.5px ${UI};color:${T.faint};`,"×"+g.n));
+        seg.title=g.label+" — mesures "+(g.b0+1)+"–"+(g.b1+1);
+        seg.onclick=()=>{ haptic(); openRename(i); };
+        rail.appendChild(seg); segs.push(seg);
+      });
+      paintLegend(); paintCard();
+    }
+    function paintLegend(){
+      const named=groups.filter(g=>!isLetter(g.label));
+      clear(legend);
+      if(!named.length){ legend.textContent="touche une lettre pour la renommer"; return; }
+      named.slice(0,3).forEach((g,k)=>{
+        if(k) legend.appendChild(el("span","",", "));
+        legend.appendChild(el("span",`font:italic 700 12.5px ${SERIF};color:${T.accent};`,
+          (String(g.label)[0]||"?").toLowerCase()));
+        legend.appendChild(el("span",""," = "+g.label));
+      });
+      legend.appendChild(el("span",""," — touche la lettre pour renommer"));
+    }
+    function paintCard(){
+      if(sel<1 || sel>=groups.length){
+        cardTop.textContent="une seule section"; cardTime.textContent="";
+        hear.style.opacity=".4"; minus.style.opacity=".4"; plus.style.opacity=".4";
+        return;
+      }
+      hear.style.opacity="1"; minus.style.opacity="1"; plus.style.opacity="1";
+      const g=groups[sel];
+      cardTop.textContent=g.label+" commence mesure "+(g.b0+1);
+      cardTime.textContent=fmt(tOf(g.b0))+" · "+(g.b1-g.b0+1)+" mesure"+((g.b1-g.b0+1)>1?"s":"");
+    }
+    // Aperçu SANS reconstruction : on n'écrit que le `flex-grow` des deux
+    // voisins, donc le navigateur ne remet en page qu'une ligne — c'est ce qui
+    // fait que la frontière suit le doigt au lieu de sauter.
+    function preview(){
+      groups.forEach((g,i)=>{ if(segs[i])
+        segs[i].style.flexGrow=String(Math.max(g.b1-g.b0+1,0.001)); });
+      paintCard();
+    }
+    function setBoundary(i, bar){
+      const prev=groups[i-1], cur=groups[i];
+      bar=Math.max(prev.b0, Math.min(cur.b1+1, Math.round(bar)));
+      if(bar===cur.b0) return false;
+      cur.b0=bar; prev.b1=bar-1; dirty=true; return true;
+    }
+    // Deux frontières au contact = une section écrasée à zéro mesure : elle
+    // disparaît, ses voisines se rejoignent. C'est le geste de fusion.
+    function collapse(){
+      const before=groups.length;
+      groups=groups.filter(g=>g.b1>=g.b0);
+      if(groups.length!==before){
+        groups[0].b0=0;
+        groups.forEach((g,i)=>{ g.b1=(i+1<groups.length)?groups[i+1].b0-1:nBars-1; });
+        sel=Math.max(0,Math.min(sel,groups.length-1));
+        paint();
+        toast("deux sections fusionnées");
+      }
+    }
+    function attachHandle(h, i){
+      let startX=null, startBar=0, pxBar=1;
+      h.addEventListener("pointerdown",e=>{
+        haptic(); sel=i; startX=e.clientX; startBar=groups[i].b0;
+        const r=rail.getBoundingClientRect();
+        pxBar=Math.max(1,(r.width-GAP*(groups.length-1))/nBars);
+        try{ h.setPointerCapture(e.pointerId); }catch(err){}
+        paint();
+        e.preventDefault();
+      });
+      h.addEventListener("pointermove",e=>{
+        if(startX==null) return;
+        // le round() EST le calage : une frontière ne peut pas s'arrêter entre
+        // deux mesures, il n'y a pas de position intermédiaire à représenter
+        if(setBoundary(i, startBar+(e.clientX-startX)/pxBar)) preview();
+      });
+      const end=()=>{ if(startX==null) return; startX=null; collapse(); };
+      h.addEventListener("pointerup",end);
+      h.addEventListener("pointercancel",end);
+    }
+    function nudge(d){
+      if(sel<1||sel>=groups.length) return;
+      haptic();
+      if(setBoundary(sel, groups[sel].b0+d)){ preview(); collapse(); }
+    }
+    // La jointure : une mesure avant, une mesure après, et ça s'arrête tout
+    // seul. Le chart reprend sa lecture au retour parce qu'on ne touche qu'au
+    // temps courant — jamais à l'élément audio ni au moteur de boucle.
+    let seamTimer=null;
+    function playSeam(){
+      if(sel<1||sel>=groups.length||!S.audio) return;
+      const b=groups[sel].b0;
+      const a=tOf(Math.max(0,b-1)), z=tOf(Math.min(nBars,b+1));
+      if(seamTimer){ clearTimeout(seamTimer); seamTimer=null; }
+      const d=totalDur()||1;
+      seekFrac(a/d);
+      if(S.audio.paused){ S.audio.play().catch(()=>{}); S.playing=true; }
+      seamTimer=setTimeout(()=>{ try{ S.audio.pause(); }catch(e){} S.playing=false; seamTimer=null; },
+                           Math.max(300,(z-a)*1000/(S.playRate||1)));
+    }
+    async function save(){
+      if(!m.file) return;
+      const secs=groups.filter(g=>g.b1>=g.b0)
+        .map(g=>({label:g.label, mesure_debut:g.b0+1, mesure_fin:g.b1+1}));
+      keep.disabled=true; keep.style.opacity=".6";
+      try{
+        const r=await api.post("/api/soudure/valider/"+m.file, {sections:secs});
+        if(r && r.error){ toast(r.error); keep.disabled=false; keep.style.opacity="1"; return; }
+        const frais=await api.get("/api/chart-model/"+m.file);
+        loadModel(frais);
+        go("chart");
+      }catch(e){
+        // JAMAIS en silence : croire la forme enregistrée alors qu'elle ne
+        // l'est pas est le pire des deux mondes.
+        toast("forme non enregistrée : "+String(e));
+        keep.disabled=false; keep.style.opacity="1";
+      }
+    }
+    function openRename(i){
+      const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
+      sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,
+        "Mesures "+(groups[i].b0+1)+"–"+(groups[i].b1+1)));
+      sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};margin-bottom:12px;`,
+        "c'est quoi, ce passage ?"));
+      const wrapc=el("div","flex:1 1 auto;overflow-y:auto;display:flex;flex-wrap:wrap;gap:8px;");
+      wrapc.className="ap-scroll";
+      SECT_LABELS.forEach(([lb,col])=>{
+        const on=groups[i].label===lb;
+        const b=el("button",`flex:0 0 auto;height:${SZ.control}px;padding:0 16px;border-radius:${SZ.radius}px;`+
+          `cursor:pointer;font:700 14px ${UI};`+
+          (on?`border:1.5px solid ${col};background:${col}22;color:${T.ink};`
+             :`border:1px solid ${T.line};background:${T.card};color:${T.faint};`), lb);
+        b.onclick=()=>{ haptic(); groups[i].label=lb; dirty=true; closeOverlay(back); paint(); };
+        wrapc.appendChild(b);
+      });
+      sheet.appendChild(wrapc);
+      const cl=el("button",`flex:0 0 auto;width:100%;margin-top:12px;background:transparent;border:none;`+
+        `color:${T.faint};font:600 13px ${UI};padding:8px;min-height:${SZ.control}px;cursor:pointer;`,"Fermer");
+      cl.onclick=()=>closeOverlay(back);
+      sheet.appendChild(cl);
+      back.appendChild(sheet); root.appendChild(back);
+    }
+
+    paint();
+    return w;
+  }
   // (barsOf/sectionSpan died with the ribbon's section chips — pooling is
   // always the swipe now, and the equal-length rule is enforced by openMerge.)
   // buildRibbon() lui-même est mort le 2026-08-19 (T2) : légende dégradée +
