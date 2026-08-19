@@ -791,10 +791,25 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
         # le plus fréquent du corpus, et celui que Louis décrivait au départ.
         # HARMONIA_FOLD_LOOP=internal revient au comportement d'avant.
         _loop = os.environ.get("HARMONIA_FOLD_LOOP", "occurrence").strip().lower()
+        # HARMONIA_FOLD_GATE=bar (Louis, 2026-08-19 : « souvent les 2 dernières
+        # barres sont différentes, auquel cas on n'empile que le début »).
+        # La concordance se décide alors MESURE PAR MESURE : la cadence qui
+        # change à chaque tour est exclue de la pile, le reste de la section
+        # garde la sienne. Défaut inchangé (`letter`, le veto par lettre) —
+        # une loi de merge réécrit TOUS les charts, elle passe en prod sur sa
+        # décision, pas sur la nôtre.
+        _gate = os.environ.get("HARMONIA_FOLD_GATE", "letter").strip().lower()
+        # HARMONIA_FOLD_TRANSPOSE=1 (Louis, 2026-08-19, sur Bora Bora : « il y a
+        # une montée d'un demi-ton… lors des repliements il faut transposer,
+        # sinon ça bousille l'input de musx »). Un passage rejoué plus haut est
+        # ramené dans le ton du premier avant d'entrer dans la pile, et le
+        # gabarit décodé lui est réécrit transposé en retour.
+        _tr = os.environ.get("HARMONIA_FOLD_TRANSPOSE", "").strip().lower() \
+            in ("1", "on", "true")
         fold_report = fold_letter_groups(
             sections, bars, grid, probs, bpb, arr=_arr, times=_times,
             combine=("cqt" if _merge == "cqt" else "mean"),
-            cqt=_cqt, loop=_loop,
+            cqt=_cqt, loop=_loop, gate=_gate, transpose=_tr,
             check_thr=(float(_mchk) if _mchk and _merge == "cqt" else None))
         # repetition counts recomputed on the folded chords
         from collections import Counter as _C2

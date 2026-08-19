@@ -82,6 +82,81 @@ def _bar_vecs(F: np.ndarray, n_bars: int) -> np.ndarray:
     return V / np.maximum(np.linalg.norm(V, axis=1, keepdims=True), 1e-9)
 
 
+# ── TRANSPOSITION : reconnaitre le meme passage joue plus haut ───────────────
+# Louis, 2026-08-19, sur Bora Bora : « il y a une montee d'un demi ton, donc le
+# 3eme A et le B qui suivent sont un demi ton plus haut... lors des repliements
+# il faut transposer, sinon ca bousille l'input de musx ».
+#
+# Sans ca, une modulation FAIT PERDRE des observations : les passages d'apres
+# la montee ne ressemblent plus a ceux d'avant, le garde-fou refuse la pile, et
+# chaque passage reste seul avec son premier decodage. Avec, elle en FAIT
+# GAGNER : le passage monte est ramene dans le ton du premier avant d'entrer
+# dans la pile, et le gabarit decode lui est reecrit transpose en retour.
+
+CQT_BINS_PAR_DEMITON = 3          # extractors/cqt.py : bins_per_octave=36
+
+
+def _rot12(v: np.ndarray, r: int) -> np.ndarray:
+    """Monter un vecteur de chroma de `r` demi-tons, bloc de 12 par bloc de 12.
+
+    Les vecteurs de mesure font 48 = 2 demi-mesures x (12 basse + 12 aigu) ;
+    chaque bloc de 12 est un cycle de hauteurs, donc transposer = rouler.
+    """
+    if not r:
+        return v
+    w = v.reshape(-1, 12)
+    return np.roll(w, r % 12, axis=1).reshape(v.shape)
+
+
+def decalage_semitons(Vb: np.ndarray, ref0: int, occ0: int,
+                      P: int) -> tuple[int, float]:
+    """(demi-tons, score) qui alignent le mieux l'occurrence sur la reference.
+
+    On essaie les douze transpositions et on garde celle qui ressemble le plus,
+    position par position. Rendre 0 quand rien ne ressort n'est pas un echec :
+    c'est le cas normal, celui d'un morceau qui ne module pas.
+    """
+    best, meilleur = 0, -2.0
+    for r in range(12):
+        sc = float(np.mean([_rot12(Vb[occ0 + k], -r) @ Vb[ref0 + k]
+                            for k in range(P)]))
+        if sc > meilleur:
+            best, meilleur = r, sc
+    return best, meilleur
+
+
+def _cqt_transpose(X: np.ndarray, demitons: int) -> np.ndarray:
+    """Monter un morceau de CQT de `demitons` (negatif = descendre).
+
+    Un decalage de bins, pas un roll : rouler ferait rentrer l'octave du haut
+    par le bas et inventerait des harmoniques qui n'ont jamais sonne.
+    """
+    if not demitons:
+        return X
+    d = demitons * CQT_BINS_PAR_DEMITON
+    Y = np.zeros_like(X)
+    if d > 0:
+        Y[:, d:] = X[:, :-d]
+    else:
+        Y[:, :d] = X[:, -d:]
+    return Y
+
+
+def _transpose_accords(chords_k, r: int):
+    """Le meme enchainement, monte de `r` demi-tons."""
+    if not r:
+        return chords_k
+    out = []
+    for e in chords_k:
+        f = dict(e)
+        if not e.get("nc"):
+            f["root"] = (e["root"] + r) % 12
+            if e.get("bass", -1) >= 0:
+                f["bass"] = (e["bass"] + r) % 12
+        out.append(f)
+    return out
+
+
 def section_period(Vb: np.ndarray, b0: int, b1: int) -> tuple[int | None, float]:
     """Smallest confident repeating period of a section, or (None, best)."""
     L = b1 - b0 + 1
@@ -121,7 +196,8 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
                        weight: str | None = None,
                        bass_mode: str = "avg", cqt=None,
                        check_thr: float | None = None,
-                       loop: str = "internal") -> dict:
+                       loop: str = "internal",
+                       transpose: bool = False) -> dict:
     """Stack + re-decode + redistribute, per letter group. Mutates `bars`
     IN PLACE (each bar list object is shared with the section slices).
 
@@ -134,7 +210,12 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
     reproduisent la prod à l'identique :
 
       gate      "letter" (prod) : min(coh) < STACK_COHERENCE refuse TOUTE la
-                lettre. "bibar" : le veto se décide par BI-MESURE (la
+                lettre. "bar" : le veto se décide MESURE PAR MESURE — une
+                position discordante est seulement exclue de l'écriture, les
+                autres gardent leur pile (Louis, 2026-08-19 : les deux
+                dernières mesures d'une section changent souvent, il ne faut
+                empiler que le début). "bibar" : le veto se décide par
+                BI-MESURE (la
                 granularité des blocs détectés en phase 1, directive Louis
                 2026-08-08) — une bi-mesure incohérente est seulement exclue
                 de l'écriture (pos_skip), les autres gardent leur merge.
@@ -229,15 +310,45 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
             for b in range(b0, b1 + 1):
                 pos_members[(b - b0) % P].append(b)
 
+        # ── transposition (Louis, 2026-08-19) ────────────────────────────────
+        # Un morceau qui module rejoue la MÊME section un demi-ton plus haut.
+        # On mesure ce décalage contre le premier passage, on ramène les autres
+        # dans SON ton avant de les empiler, et on réécrit le gabarit décodé
+        # transposé en retour sur chacun. Sans ça la montée fait perdre une
+        # observation ; avec, elle en fait gagner une.
+        # `demiton[b]` = de combien la mesure b est au-dessus de la référence.
+        demiton: dict[int, int] = {}
+        if transpose and len(secs) > 1:
+            ref0 = secs[0]["barRanges"][0][0]
+            for s in secs[1:]:
+                b0, b1 = s["barRanges"][0]
+                if b1 - b0 + 1 < P or ref0 + P > len(Vb) or b0 + P > len(Vb):
+                    continue
+                r, sc = decalage_semitons(Vb, ref0, b0, P)
+                if r:
+                    for b in range(b0, b1 + 1):
+                        demiton[b] = r
+                    logger.info("fold %s: passage mes. %d joué %d demi-ton(s) "
+                                "plus haut — ramené dans le ton du premier "
+                                "avant d'empiler", letter, b0 + 1, r)
+        # Les vecteurs de mesure servent au veto de cohérence et au tri des
+        # variantes : sans les aligner d'abord, le passage monté serait déclaré
+        # « pas la même musique » avant qu'on ait pu l'empiler.
+        # NOM SÉPARÉ, jamais `Vb` : on est dans la boucle des lettres, et
+        # réécrire `Vb` ferait entrer la lettre suivante avec les vecteurs
+        # transposés de celle d'avant.
+        Vb_al = Vb if not demiton else np.array(
+            [_rot12(v, -demiton.get(i, 0)) for i, v in enumerate(Vb)])
+
         variants, gated = [], [[] for _ in range(P)]
         for k in range(P):
             mem = pos_members[k]
             if len(mem) < 3:
                 gated[k] = mem
                 continue
-            cen = np.mean([Vb[b] for b in mem], axis=0)
+            cen = np.mean([Vb_al[b] for b in mem], axis=0)
             cen /= max(np.linalg.norm(cen), 1e-9)
-            d = {b: 1.0 - float(Vb[b] @ cen) for b in mem}
+            d = {b: 1.0 - float(Vb_al[b] @ cen) for b in mem}
             med = float(np.median(list(d.values())))
             mad = float(np.median(np.abs(np.array(list(d.values())) - med))) + 1e-6
             for b in mem:
@@ -255,12 +366,45 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
             g = gated[k]
             if len(g) < 2:
                 continue
-            pw = [float(Vb[a] @ Vb[b]) for i, a in enumerate(g) for b in g[i + 1:]]
+            pw = [float(Vb_al[a] @ Vb_al[b])
+                  for i, a in enumerate(g) for b in g[i + 1:]]
             coh_by_pos[k] = float(np.median(pw))
         coh = [c for c in coh_by_pos if c is not None]
         pos_skip: set[int] = set()
         if gate == "letter":
             if not coh or min(coh) < STACK_COHERENCE:
+                report[letter] = {"period": P,
+                                  "reason": f"stack incoherent (min median pairwise "
+                                            f"{min(coh):.2f})" if coh else "stacks too thin"}
+                continue
+        elif gate == "bar":
+            # gate="bar" — LA CONCORDANCE SE DÉCIDE MESURE PAR MESURE.
+            #
+            # Louis, 2026-08-19 : « quand on empile, souvent les 2 dernières
+            # barres sont différentes, auquel cas on n'empile que le début, à
+            # prendre en compte tout le temps car c'est un classique ».
+            #
+            # Il décrit la turnaround : un A joué quatre fois est le même A
+            # quatre fois SAUF sa cadence, qui prépare la suite et change à
+            # chaque tour. Le veto par lettre (`gate="letter"`, la prod) fait
+            # exactement le mauvais choix devant ça — UNE position discordante
+            # et la lettre ENTIÈRE est refusée, y compris les six mesures qui
+            # concordaient. On perd l'empilement là où il était le plus sûr,
+            # pour protéger deux mesures qu'il suffisait d'exclure.
+            #
+            # Ici, une position mesurée sous le seuil est seulement exclue de
+            # l'écriture : ses occurrences gardent chacune leur propre
+            # décodage, les autres positions gardent leur pile. Une position
+            # trop maigre pour être mesurée (< 2 membres) passe, comme dans le
+            # veto par lettre qui ne la comptait pas non plus dans son min.
+            # La lettre n'est refusée en bloc que si TOUTES ses positions le
+            # sont — c'est-à-dire quand ce n'est vraiment pas la même musique
+            # (Bora Bora, dont le 3e passage est monté d'un demi-ton).
+            for k in range(P):
+                c = coh_by_pos[k]
+                if c is not None and c < STACK_COHERENCE:
+                    pos_skip.add(k)
+            if len(pos_skip) == P:
                 report[letter] = {"period": P,
                                   "reason": f"stack incoherent (min median pairwise "
                                             f"{min(coh):.2f})" if coh else "stacks too thin"}
@@ -293,7 +437,12 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
             if len(g) < 2:
                 continue
             for half in (0, 1):
-                X = np.array([_raw_half(b, half) for b in g])
+                # ALIGNÉ AUSSI : `_raw_half` lit le chroma BRUT. Sans le
+                # transposer, le vérificateur CV voit le passage monté comme
+                # une variation énorme et écarte presque toutes les positions
+                # — la transposition détectait la montée puis n'écrivait rien.
+                X = np.array([_rot12(_raw_half(b, half), -demiton.get(b, 0))
+                              for b in g])
                 c_v = float(np.sqrt(X.var(0).mean())
                             / max(X.mean(0).mean(), 1e-9))
                 if c_v > CV_MAX:
@@ -311,7 +460,9 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
             [g or [pos_members[k][0]] for k, g in enumerate(gated)],
             bar_probs, len(probs), Lf, bpb, P,
             combine=combine, weight=weight, bass_mode=bass_mode,
-            bar_cqt=(bar_cqt if cqt is not None else None),
+            bar_cqt=((lambda b: _cqt_transpose(bar_cqt(b), -demiton.get(b, 0)))
+                     if (cqt is not None and demiton) else
+                     (bar_cqt if cqt is not None else None)),
             check_thr=check_thr)
         if pos_chords is None:
             report[letter] = {"period": P, "reason": "template decoded empty"}
@@ -323,11 +474,16 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
             if not pos_chords[k] or k in cv_skip or k in pos_skip:
                 continue                          # empty, CV- or bibar-refused
             for b in gated[k]:
-                if _write_position(bars, grid, b, pos_chords[k], bpb, n_obs[k]):
+                # le gabarit est dans le ton de la RÉFÉRENCE : on le remonte
+                # dans celui de cette mesure-ci avant de l'écrire.
+                ck = _transpose_accords(pos_chords[k], demiton.get(b, 0))
+                if _write_position(bars, grid, b, ck, bpb, n_obs[k]):
                     changed.append(b)
         # cv_skip/pos_skip DANS le report (handoff §2.3 : l'affichage repliait
         # ×N ce que le code avait refusé d'écraser, faute de cette clé).
         report[letter] = {"period": P, "n_obs": n_obs,
+                          "demiton": {int(b): int(r)
+                                      for b, r in sorted(demiton.items())},
                           "variants": sorted(set(variants)),
                           "changed": sorted(set(changed)),
                           "cv_skip": sorted(cv_skip),

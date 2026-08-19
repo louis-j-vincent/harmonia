@@ -141,3 +141,77 @@ def test_minimal_fold_separe_les_longueurs_dune_meme_lettre():
     assert [s["label"] for s in out] == ["B", "B"]
     assert [len(s["bars"]) for s in out] == [8, 4]
     assert len({s["id"] for s in out}) == 2      # deux id distincts
+
+
+# ── empiler : la concordance par mesure, et la transposition ────────────────
+
+def test_rot12_transpose_bloc_par_bloc():
+    """Un vecteur de mesure fait 4 blocs de 12 hauteurs ; transposer = rouler
+    CHAQUE bloc, jamais le vecteur entier (sinon la basse déborde dans l'aigu)."""
+    import numpy as np
+
+    from harmonia_min.folding import _rot12
+    v = np.zeros(48)
+    v[0] = 1.0        # do, 1re demi-mesure, basse
+    v[12] = 1.0       # do, 1re demi-mesure, aigu
+    w = _rot12(v, 1)  # monté d'un demi-ton
+    assert w[1] == 1.0 and w[13] == 1.0
+    assert w[0] == 0.0 and w[12] == 0.0
+
+
+def test_rot12_est_cyclique_sur_douze():
+    import numpy as np
+
+    from harmonia_min.folding import _rot12
+    v = np.arange(48, dtype=float)
+    assert np.allclose(_rot12(v, 12), v)
+
+
+def test_decalage_semitons_trouve_la_montee():
+    """Le même passage joué un demi-ton plus haut doit ressortir à 1."""
+    import numpy as np
+
+    from harmonia_min.folding import _rot12, decalage_semitons
+    rng = np.random.default_rng(0)
+    ref = rng.random((4, 48))
+    ref /= np.linalg.norm(ref, axis=1, keepdims=True)
+    haut = np.array([_rot12(v, 1) for v in ref])
+    Vb = np.vstack([ref, haut])
+    r, _sc = decalage_semitons(Vb, 0, 4, 4)
+    assert r == 1
+
+
+def test_decalage_semitons_rend_zero_sans_modulation():
+    import numpy as np
+
+    from harmonia_min.folding import decalage_semitons
+    rng = np.random.default_rng(1)
+    ref = rng.random((4, 48))
+    ref /= np.linalg.norm(ref, axis=1, keepdims=True)
+    Vb = np.vstack([ref, ref])
+    r, _ = decalage_semitons(Vb, 0, 4, 4)
+    assert r == 0
+
+
+def test_cqt_transpose_decale_les_bins_sans_boucler():
+    """Trois bins par demi-ton, et le haut ne revient PAS par le bas — rouler
+    inventerait des harmoniques qui n'ont jamais sonné."""
+    import numpy as np
+
+    from harmonia_min.folding import _cqt_transpose
+    X = np.zeros((2, 12))
+    X[:, 0] = 1.0
+    X[:, 11] = 5.0
+    Y = _cqt_transpose(X, 1)
+    assert Y[0, 3] == 1.0 and Y[0, 0] == 0.0
+    assert Y[0, 11] == 0.0        # ce qui sort par le haut est perdu, pas roulé
+
+
+def test_transpose_accords_monte_fondamentale_et_basse():
+    from harmonia_min.folding import _transpose_accords
+    src = [{"root": 2, "q": "-7", "bass": 9, "nc": False},
+           {"root": 0, "q": "", "bass": -1, "nc": True}]
+    out = _transpose_accords(src, 1)
+    assert out[0]["root"] == 3 and out[0]["bass"] == 10
+    assert out[1]["nc"] and out[1]["root"] == 0      # un N.C. ne se transpose pas
+    assert src[0]["root"] == 2                        # l'entrée n'est pas mutée
