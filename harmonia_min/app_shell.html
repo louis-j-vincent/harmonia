@@ -1400,9 +1400,26 @@ window.APP = (function(){
         // "follow". "follow" EST l'ancien Voicing coach (harmCoach) — un seul
         // réglage, pas deux commandes qui disent la même chose; migration:
         // harmCoach==="1" devient "follow", sinon "tap" (le défaut).
-        piano:(()=>{ try{ const v=localStorage.getItem("harmPiano");
-          if(v==="never"||v==="tap"||v==="follow") return v;
-          return localStorage.getItem("harmCoach")==="1" ? "follow" : "tap"; }catch(e){ return "tap"; } })(),
+        // Le piano ne monte plus de lui-même (Louis, 2026-08-19 : « enlève les
+        // accords en piano par défaut »). Rien n'est retiré — la carte de
+        // Practise, la feuille d'accord, le clavier immersif sont intacts — il
+        // faut juste le demander : Aa → Piano chords, ou la feuille « ··· » de
+        // Practise. C'est le « si besoin » de sa demande du clavier le même
+        // jour : l'écran s'ouvre sur la musique, pas sur un clavier.
+        // La bascule passe UNE fois sur les appareils qui portaient déjà un
+        // choix : sans ça le nouveau défaut ne changerait rien là où ça compte,
+        // son téléphone gardant « tap » en localStorage depuis des semaines.
+        // (Elle remplace la migration harmCoach → follow, désormais sans objet.)
+        piano:(()=>{ try{
+          if(localStorage.getItem("harmPianoOffByDefault")!=="1"){
+            localStorage.setItem("harmPianoOffByDefault","1");
+            localStorage.setItem("harmPiano","never");
+            localStorage.setItem("harmCoach","0");
+            return "never";
+          }
+          const v=localStorage.getItem("harmPiano");
+          return (v==="never"||v==="tap"||v==="follow") ? v : "never";
+        }catch(e){ return "never"; } })(),
         // Louis, 2026-08-09 : « quand je clique sur une barre, le curseur va
         // jouer depuis cette barre (option modifiable dans les paramètres) ».
         // Défaut ON — c'est ce qu'il a demandé ; OFF rend le tap à la feuille
