@@ -1,0 +1,107 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Empiler la sous-phrase</title><style>
+:root{--pap:#f7f3ea;--ink:#1c1c1c;--f:#8a7f6d;--l:#ded5c4;--acc:#8a2b2b;--d:#f2dcc4}
+body{margin:0 auto;padding:18px 14px 60px;background:var(--pap);color:var(--ink);
+ font:15px/1.55 -apple-system,system-ui,sans-serif;max-width:900px}
+h1{font:700 22px/1.3 Georgia,serif;margin:0 0 4px}
+h2{font:700 17px/1.35 Georgia,serif;margin:34px 0 8px;border-top:1px solid var(--l);padding-top:18px}
+h2 .sec{font:600 12px -apple-system,sans-serif;color:var(--f);display:block;margin-top:3px}
+h3{font:600 13px/1.4 -apple-system,sans-serif;margin:16px 0 6px;text-transform:uppercase;
+ letter-spacing:.06em;color:var(--f)}
+h3 small{text-transform:none;letter-spacing:0;font-weight:500;display:block;margin-top:2px}
+h3 small b{color:var(--acc)}
+p.lead{color:var(--f);font-size:13.5px;margin:6px 0 10px}
+audio{width:100%;margin:2px 0 6px}
+button{background:#fff;border:1px solid var(--l);border-radius:6px;padding:3px 9px;
+ font:600 12px -apple-system,sans-serif;color:var(--ink);margin:0 3px 3px 0}
+.g{display:grid;grid-template-columns:repeat(4,1fr);gap:3px}
+.m{position:relative;background:#fff;border:1px solid var(--l);border-radius:6px;
+ padding:12px 4px 7px;text-align:center;font:600 15px Georgia,serif;cursor:pointer;min-height:20px}
+.m .n{position:absolute;top:2px;left:4px;font:500 8px -apple-system,sans-serif;color:#c3b8a4}
+.m.d{background:var(--d);border-color:#e0bf95}
+.intro{background:#fff;border:1px solid var(--l);border-radius:10px;padding:14px 16px;margin:14px 0}
+.intro b{color:var(--acc)}
+@media(min-width:620px){.g{grid-template-columns:repeat(8,1fr)}}
+</style></head><body>
+<h1>Empiler la sous-phrase</h1>
+<div class="intro">
+<p>Une section revient 5 fois, et à l'intérieur elle répète une pompe de
+2 mesures : ça ne fait pas 5 observations par position, ça en fait
+<b>20</b>. C'est déjà ce que le repli essaie en premier — mesuré sur la
+bibliothèque, <b>90 sections sur 193</b> trouvent une sous-phrase.</p>
+<p>Ce que les chiffres ne disent pas : si ces observations en plus sont les
+BONNES. Empiler à P=2, c'est affirmer que les mesures 1, 3, 5 et 7 portent le
+même accord — vrai sur une pompe, faux dès qu'une cadence change au dernier
+tour. Les deux empilements sont ci-dessous ; les mesures colorées sont celles
+où ils ne disent pas la même chose.</p>
+</div>
+
+<section>
+  <h2>Maroon 5 — This Love <span class="sec">section B
+      · 8 mesures × 5 passages</span></h2>
+  <audio controls preload="none" src="/audio/maroon_5_this_love.m4a"></audio>
+  <p class="lead"><button data-t="41.48">passage 1</button> <button data-t="91.98">passage 2</button> <button data-t="142.47">passage 3</button> <button data-t="162.67">passage 4</button> <button data-t="182.87">passage 5</button><br>3 mesure(s) sur 8 diffèrent.</p>
+  <h3>par sous-phrase <small>boucle de 2 mesures → <b>20 observations</b>
+      par position</small></h3>
+  <div class="g"><div class="m d" data-t="41.48"><span class="n">1</span>C- F-</div><div class="m" data-t="44.00"><span class="n">2</span>B♭ E♭</div><div class="m" data-t="46.53"><span class="n">3</span>C- F-</div><div class="m" data-t="49.05"><span class="n">4</span>B♭ E♭</div><div class="m" data-t="51.58"><span class="n">5</span>C- F-</div><div class="m" data-t="54.10"><span class="n">6</span>B♭ E♭</div><div class="m d" data-t="56.63"><span class="n">7</span>C- F-</div><div class="m d" data-t="59.15"><span class="n">8</span>B♭ E♭</div></div>
+  <h3>par section entière <small>8 mesures → 5 observations
+      par position</small></h3>
+  <div class="g"><div class="m d" data-t="41.48"><span class="n">1</span>C- F-7</div><div class="m" data-t="44.00"><span class="n">2</span>B♭ E♭</div><div class="m" data-t="46.53"><span class="n">3</span>C- F-</div><div class="m" data-t="49.05"><span class="n">4</span>B♭ E♭</div><div class="m" data-t="51.58"><span class="n">5</span>C- F-</div><div class="m" data-t="54.10"><span class="n">6</span>B♭ E♭</div><div class="m d" data-t="56.63"><span class="n">7</span>C- F</div><div class="m d" data-t="59.15"><span class="n">8</span>A♭ G</div></div>
+</section>
+<section>
+  <h2>Mayer Hawthorne — The Walk <span class="sec">section A
+      · 4 mesures × 10 passages</span></h2>
+  <audio controls preload="none" src="/audio/mayer_hawthorne_the_walk.m4a"></audio>
+  <p class="lead"><button data-t="27.03">passage 1</button> <button data-t="44.49">passage 2</button> <button data-t="79.40">passage 3</button> <button data-t="88.13">passage 4</button> <button data-t="105.58">passage 5</button> <button data-t="123.04">passage 6</button> <button data-t="140.49">passage 7</button> <button data-t="175.40">passage 8</button> <button data-t="201.58">passage 9</button> <button data-t="219.04">passage 10</button><br>1 mesure(s) sur 4 diffèrent.</p>
+  <h3>par sous-phrase <small>boucle de 2 mesures → <b>36 observations</b>
+      par position</small></h3>
+  <div class="g"><div class="m" data-t="27.03"><span class="n">1</span>A7</div><div class="m" data-t="29.22"><span class="n">2</span>B-7</div><div class="m d" data-t="31.40"><span class="n">3</span>A7</div><div class="m" data-t="33.58"><span class="n">4</span>B-7</div></div>
+  <h3>par section entière <small>4 mesures → 18 observations
+      par position</small></h3>
+  <div class="g"><div class="m" data-t="27.03"><span class="n">1</span>A7</div><div class="m" data-t="29.22"><span class="n">2</span>B-7</div><div class="m d" data-t="31.40"><span class="n">3</span>A^7</div><div class="m" data-t="33.58"><span class="n">4</span>B-7</div></div>
+</section>
+<section>
+  <h2>Maroon 5 — She Will Be Loved <span class="sec">section A
+      · 4 mesures × 4 passages</span></h2>
+  <audio controls preload="none" src="/audio/maroon_5_she_will_be_loved_official_music_video.m4a"></audio>
+  <p class="lead"><button data-t="21.35">passage 1</button> <button data-t="40.18">passage 2</button> <button data-t="89.60">passage 3</button> <button data-t="108.42">passage 4</button><br>2 mesure(s) sur 4 diffèrent.</p>
+  <h3>par sous-phrase <small>boucle de 2 mesures → <b>16 observations</b>
+      par position</small></h3>
+  <div class="g"><div class="m d" data-t="21.35"><span class="n">1</span>C-</div><div class="m" data-t="23.70"><span class="n">2</span>B♭7</div><div class="m" data-t="26.06"><span class="n">3</span>C-</div><div class="m d" data-t="28.41"><span class="n">4</span>B♭7</div></div>
+  <h3>par section entière <small>4 mesures → 8 observations
+      par position</small></h3>
+  <div class="g"><div class="m d" data-t="21.35"><span class="n">1</span>C-7</div><div class="m" data-t="23.70"><span class="n">2</span>B♭7</div><div class="m" data-t="26.06"><span class="n">3</span>C-</div><div class="m d" data-t="28.41"><span class="n">4</span>B♭ B♭7</div></div>
+</section>
+<section>
+  <h2>Katy Perry — Hot N Cold <span class="sec">section A
+      · 4 mesures × 12 passages</span></h2>
+  <audio controls preload="none" src="/audio/katy_perry_hot_n_cold_official_music_video.m4a"></audio>
+  <p class="lead"><button data-t="37.92">passage 1</button> <button data-t="52.47">passage 2</button> <button data-t="67.02">passage 3</button> <button data-t="81.56">passage 4</button> <button data-t="96.11">passage 5</button> <button data-t="110.65">passage 6</button> <button data-t="125.20">passage 7</button> <button data-t="132.47">passage 8</button> <button data-t="147.02">passage 9</button> <button data-t="201.57">passage 10</button> <button data-t="216.11">passage 11</button> <button data-t="230.66">passage 12</button><br>0 mesure(s) sur 4 diffèrent.</p>
+  <h3>par sous-phrase <small>boucle de 4 mesures → <b>23 observations</b>
+      par position</small></h3>
+  <div class="g"><div class="m" data-t="37.92"><span class="n">1</span>D</div><div class="m" data-t="39.74"><span class="n">2</span>A-</div><div class="m" data-t="41.56"><span class="n">3</span>C</div><div class="m" data-t="43.38"><span class="n">4</span>G</div></div>
+  <h3>par section entière <small>4 mesures → 23 observations
+      par position</small></h3>
+  <div class="g"><div class="m" data-t="37.92"><span class="n">1</span>D</div><div class="m" data-t="39.74"><span class="n">2</span>A-</div><div class="m" data-t="41.56"><span class="n">3</span>C</div><div class="m" data-t="43.38"><span class="n">4</span>G</div></div>
+</section>
+<section>
+  <h2>Sam Smith — I&#x27;m Not The Only One <span class="sec">section A
+      · 7 mesures × 8 passages</span></h2>
+  <audio controls preload="none" src="/audio/sam_smith_i_m_not_the_only_one_official_music_video.m4a"></audio>
+  <p class="lead"><button data-t="68.49">passage 1</button> <button data-t="91.90">passage 2</button> <button data-t="115.31">passage 3</button> <button data-t="138.73">passage 4</button> <button data-t="162.14">passage 5</button> <button data-t="208.97">passage 6</button> <button data-t="232.39">passage 7</button> <button data-t="249.95">passage 8</button><br>4 mesure(s) sur 7 diffèrent.</p>
+  <h3>par sous-phrase <small>boucle de 2 mesures → <b>28 observations</b>
+      par position</small></h3>
+  <div class="g"><div class="m" data-t="68.49"><span class="n">1</span>B♭</div><div class="m" data-t="71.41"><span class="n">2</span>F A D-</div><div class="m d" data-t="74.34"><span class="n">3</span>B♭</div><div class="m" data-t="77.27"><span class="n">4</span>F A D-</div><div class="m d" data-t="80.19"><span class="n">5</span>B♭</div><div class="m d" data-t="83.12"><span class="n">6</span>F A D-</div><div class="m d" data-t="86.05"><span class="n">7</span>B♭</div></div>
+  <h3>par section entière <small>7 mesures → 14 observations
+      par position</small></h3>
+  <div class="g"><div class="m" data-t="68.49"><span class="n">1</span>B♭</div><div class="m" data-t="71.41"><span class="n">2</span>F A D-</div><div class="m d" data-t="74.34"><span class="n">3</span>% B♭</div><div class="m" data-t="77.27"><span class="n">4</span>F A D-</div><div class="m d" data-t="80.19"><span class="n">5</span>% B♭</div><div class="m d" data-t="83.12"><span class="n">6</span>F C F</div><div class="m d" data-t="86.05"><span class="n">7</span>%</div></div>
+</section>
+<script>
+document.querySelectorAll('section').forEach(sec=>{
+  const a=sec.querySelector('audio');
+  const go=t=>{a.currentTime=parseFloat(t)||0;a.play();};
+  sec.querySelectorAll('.m').forEach(m=>m.addEventListener('click',()=>go(m.dataset.t)));
+  sec.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.t)));
+});
+</script></body></html>

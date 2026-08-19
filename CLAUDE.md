@@ -289,11 +289,14 @@ Estimating 12-minute Opus session. Awaiting confirmation before proceeding."
   arbitré à l'oreille sur `/plots/songformer.html` : « je suis d'accord avec
   lui partout, on le prend en prod ». Les anciens restent joignables :
   voice/harmonic/chroma), `HARMONIA_RAW_CHART`,
-  `HARMONIA_QUARTER_BAR`, et depuis 2026-08-11 `HARMONIA_MERGE=cqt`
-  (+ `HARMONIA_MERGE_CHECK=<seuil>`) : le repli empile alors les répétitions
-  sur le **CQT** avant le modèle au lieu de moyenner ses postérieures —
-  l'agrégation que Louis a choisie à l'oreille. Défaut inchangé : une loi de
-  merge réécrit TOUS les charts, elle passe en prod sur sa décision.
+  `HARMONIA_QUARTER_BAR`, et `HARMONIA_MERGE` : où on additionne les
+  répétitions d'une section. **Défaut `mean` depuis 2026-08-19** — les
+  postérieures, c'est-à-dire APRÈS le modèle (Louis, sur
+  /plots/cqt_vs_post.html : « je préfère les postérieures empilées c'est +
+  propre »). `HARMONIA_MERGE=cqt` (+ `HARMONIA_MERGE_CHECK=<seuil>`) restaure
+  l'empilement sur le **CQT**, avant le modèle, qui était le défaut du
+  2026-08-11 au 2026-08-19. Une loi de merge réécrit TOUS les charts : elle ne
+  change que sur sa décision explicite, jamais par confort.
 - `ChordInferrer(emission_scoring=...)` — **NOT in the live path.** `infer_chords_v1`
   never builds a `ChordInferrer`; it calls `chord_hmm.viterbi` directly. The old
   note here said to gate an `emission_scoring` flip behind

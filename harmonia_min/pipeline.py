@@ -765,17 +765,27 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
         # excluded — they keep the first-pass decode). Display folding comes
         # later.
         from harmonia_min.folding import fold_letter_groups
-        # HARMONIA_MERGE=cqt (Louis, 2026-08-08 : « les CQT moyennés ça marche
-        # très bien ») : les répétitions sont empilées AVANT le modèle, dans
-        # le domaine du spectre, et musx re-tourne sur ce spectre moyen — au
-        # lieu de moyenner ses probabilités de sortie. Coûte le CQT du morceau
-        # (~3 s, mis en cache) plus une inférence par lettre (~2 s).
-        # HARMONIA_MERGE_CHECK=<seuil> arme en plus le contrôle d'adhésion.
-        # DÉFAUT DEPUIS LE 2026-08-12 : Louis a écouté les deux pages
-        # (/reports/merge_cqt.html et /reports/merge_occurrences.html) et a
-        # tranché — « validé partout c'est top avec la règle CQT moyenné ».
-        # HARMONIA_MERGE=mean|off revient à la moyenne de postérieures.
-        _merge = os.environ.get("HARMONIA_MERGE", "cqt").strip().lower()
+        # OÙ ON ADDITIONNE LES RÉPÉTITIONS : après le modèle (défaut) ou avant.
+        #
+        # `mean` — les postérieures. musx écoute CHAQUE passage séparément et
+        # on moyenne ce qu'il a compris.
+        # `cqt`  — les spectres. On moyenne les CQT des passages et musx
+        # écoute la moyenne. Coûte le CQT du morceau (~3 s, en cache) plus une
+        # inférence par lettre (~2 s). `HARMONIA_MERGE_CHECK=<seuil>` arme le
+        # contrôle d'adhésion, qui n'existe que sur cette loi-là.
+        #
+        # DÉFAUT `mean` DEPUIS LE 2026-08-19 — Louis, après avoir écouté
+        # /plots/cqt_vs_post.html (les 56 sections de la bibliothèque où les
+        # deux lois divergent, huit morceaux qu'il connaît, mesure par mesure) :
+        # « je préfère les postérieures empilées c'est + propre ». Ça renverse
+        # son arbitrage du 2026-08-12 (« validé partout c'est top avec la règle
+        # CQT moyenné »), qui avait été rendu sur une comparaison plus étroite.
+        # Le sens de l'écart est connu et mesuré : la moyenne de marginales
+        # lisse les extensions (This Love `C-7 F-7` devient `C- F-`), la
+        # moyenne de spectres les garde — sauf sur Be My Baby où c'est
+        # l'inverse. Il a tranché pour le plus propre.
+        # `HARMONIA_MERGE=cqt` restaure l'ancienne loi.
+        _merge = os.environ.get("HARMONIA_MERGE", "mean").strip().lower()
         _mchk = os.environ.get("HARMONIA_MERGE_CHECK", "").strip()
         _cqt = None
         if _merge == "cqt":

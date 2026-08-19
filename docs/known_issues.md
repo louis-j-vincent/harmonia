@@ -1,5 +1,46 @@
 # Harmonia — Known Issues
 
+## 2026-08-19 — EN PROD : le repli empile les POSTÉRIEURES, plus les CQT
+
+Louis, après avoir écouté `/plots/cqt_vs_post.html` (les 56 sections de la
+bibliothèque où les deux lois divergent, huit morceaux qu'il connaît, mesure
+par mesure) : « je préfère les postérieures empilées c'est + propre ».
+
+`HARMONIA_MERGE` passe donc de `cqt` à **`mean`**. Ça renverse son arbitrage du
+2026-08-12 (« validé partout c'est top avec la règle CQT moyenné »), rendu sur
+une comparaison plus étroite. `HARMONIA_MERGE=cqt` restaure l'ancienne loi.
+
+Ce que ça change, mesuré et vérifié sur This Love : la section B écrit
+maintenant `C- F- | B♭ E♭ …` là où elle écrivait `C- F-7 | B♭ E♭ …`. Le sens de
+l'écart est le même partout — moyenner des marginales lisse les extensions, la
+septième tombe — sauf sur Be My Baby où c'est l'inverse (les postérieures
+entendent `A♭7 G♭7 B7` là où le spectre moyenné écrasait en triades).
+
+**TOUS LES CHARTS DE LA BIBLIOTHÈQUE SONT À REFAIRE** : ils ont été écrits sous
+l'ancienne loi. `scripts/rebake_library.py`.
+
+## 2026-08-19 — DÉJÀ FAIT : empiler la sous-phrase interne, pas seulement la section
+
+Louis : « quand la section elle-même est faite de plusieurs répétitions d'une
+sous-phrase, tu peux les empiler ceux-là aussi pour avoir encore + d'observations ».
+
+C'est ce que `folding` essaie EN PREMIER depuis le début : `section_period`
+cherche une boucle interne (2, 4, 8 mesures) et, quand elle existe, la position
+d'empilement est `(b - b0) % P` — donc les sous-phrases de TOUS les passages
+tombent dans la même pile. `loop="occurrence"` n'est que le repli quand aucune
+boucle n'est trouvée.
+
+Mesuré sur la bibliothèque : **90 sections sur 193** trouvent une sous-phrase,
+et le gain en observations est réel — This Love B passe de 5 à **20**
+observations par position, Billie Jean A de 11 à 40, The Walk A de 18 à 36.
+
+Ce qui reste ouvert, et que la page `/plots/sous_phrase.html` montre : empiler
+à P=2 affirme que les mesures 1, 3, 5, 7 portent le même accord. Vrai sur une
+pompe, faux dès qu'une cadence change au dernier tour — 3 mesures sur 8
+diffèrent sur This Love B, 4 sur 7 sur Sam Smith. C'est exactement ce que le
+garde-fou par mesure (`gate=bar`) doit trancher.
+
+
 ## 2026-08-19 — TRANCHÉ À L'OREILLE : une pile qui MODULE ne passe plus par le CQT
 
 Louis, sur Bora Bora A (3 passages, le 3ᵉ un demi-ton plus haut, confiances
