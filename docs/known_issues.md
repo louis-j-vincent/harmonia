@@ -1,5 +1,41 @@
 # Harmonia — Known Issues
 
+## 2026-08-19 — RÉSOLU : le `.venv` a disparu, reconstruit et GELÉ
+
+En pleine session, `~/harmonia/.venv` s'est volatilisé (le `data/` voisin, lui,
+est intact). Symptôme côté app : « yt-dlp not installed » sur un lien YouTube —
+le binaire vivait dans ce venv. Le serveur en cours a survécu parce qu'il était
+déjà chargé en mémoire ; aucun nouveau processus python ne démarrait.
+
+Reconstruit sur python 3.12.10. **`requirements-lock.txt` (129 lignes) est le
+gel de cet environnement-là** : la prochaine fois, `pip install -r` au lieu
+d'une heure d'enquête.
+
+Ce que l'enquête a appris, et qui n'est écrit nulle part ailleurs :
+
+* **pip explose** (`resolution-too-deep`) si on lui donne tout d'un coup.
+  Il faut installer par étages : numpy/torch/librosa d'abord, le reste ensuite.
+* **`librosa` doit rester en 0.x** (0.11.0 ici). La 1.0 a retiré le repli
+  `audioread`, qui est ce qui lit les `.m4a` de `docs/audio/`.
+* **`basic-pitch` s'installe avec `--no-deps`** (ses dépendances sont
+  inconciliables), puis `resampy` à la main — c'est la version ONNX qui sert,
+  pas TensorFlow, exactement comme le dit le CLAUDE.md.
+* **`pyRealParser` n'est pas sur PyPI en wheel** : `pip install pyRealParser`
+  sans `--only-binary`.
+* **yt-dlp doit être la NIGHTLY.** La version stable (2026.07.04, celle de
+  Homebrew) se fait refuser par YouTube : 403 sur le client par défaut, puis
+  « Requested format is not available » sur les quatre clients de repli. Le
+  binaire autonome mis à jour avec `--update-to nightly` télécharge en 10 s.
+  Il vit dans `~/.local/bin/yt-dlp`, avec un lien depuis `.venv/bin/` parce que
+  c'est là que `server._ytdlp_bin` regarde en premier.
+
+Vérifié après reconstruction : 1604 tests passent, l'app rend un chart complet
+(tête 0,44 s, brut 1,36 s, sections comprises). Reste rouge, sans rapport avec
+le chemin en prod : `test_chroma_checksum` (somme de contrôle numérique figée
+sur l'ancienne librosa) et deux tests « pas de site inline » qui inspectent
+`.claude/worktrees/` — le worktree d'un agent, pas du code de prod.
+
+
 ## 2026-08-19 — OUVERT : songformer TUE LE SERVEUR sur les morceaux longs
 
 Mesuré en isolant l'étape (aucun autre modèle en mémoire, processus neuf) :
