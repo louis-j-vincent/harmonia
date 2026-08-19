@@ -157,6 +157,62 @@ def _transpose_accords(chords_k, r: int):
     return out
 
 
+def _signature(bar) -> tuple:
+    """Ce qui fait qu'une mesure est « la même mesure » qu'une autre."""
+    return tuple((c["root"], c.get("q") or "", bool(c.get("nc")),
+                  round(float(c.get("beat", 0)), 3)) for c in bar)
+
+
+def vote_des_passages(bars, pos_members, demiton, P):
+    """Le gabarit par VOTE : la mesure que les passages ont jouée le plus souvent.
+
+    Louis, 2026-08-19, devant le `Db/F` que la pile a ecrit sur Bora Bora :
+    « musx se trompe sur ceux la, comment est-ce qu'on pourrait faire pour
+    avoir des accords + carres ? »
+
+    LE DEFAUT DE LA MOYENNE, exactement : elle peut ECRIRE UN ACCORD QU'AUCUN
+    PASSAGE N'A JOUE. On moyenne trois spectres, on redonne la moyenne a musx,
+    et il repond une chose nouvelle — sur Bora Bora un `Db/F` la ou les trois
+    passages disaient `D/Gb`, `D/Gb` et (transpose) `G-`. La moyenne est le bon
+    outil quand les passages disent la MEME chose bruitee ; elle invente des
+    qu'ils disent des choses differentes.
+
+    Le vote ne peut pas inventer. Chaque position rend la mesure qui revient le
+    plus souvent parmi ses membres — a egalite, la plus confiante. Ce qui est
+    ecrit a donc toujours ete entendu quelque part, tel quel. C'est plus carre,
+    et c'est plus pauvre : le vote ne corrige jamais une mesure que TOUS les
+    passages entendent mal, la ou la moyenne le peut parfois.
+
+    MESURE, ET CE N'EST PAS SUFFISANT (Bora Bora, 2026-08-19). Quand les trois
+    passages disent trois choses DIFFERENTES, il n'y a pas de majorite : le
+    vote tombe sur le depart de confiance, et il a choisi `Gb- F+` — la version
+    transposee du passage que musx entend le plus mal. Plus carre que `Db/F`,
+    pas plus juste. Le vote empeche d'INVENTER ; il ne dit pas QUI a raison.
+    Pour ca il faut une preference musicale — voir `scripts/page_hors_gamme.py`
+    et les accords etrangers a la tonalite.
+
+    Les membres sont compares dans le ton de la REFERENCE (`demiton`), sinon un
+    passage module ne voterait jamais avec les autres.
+    """
+    from collections import Counter
+    out = []
+    for k in range(P):
+        mem = pos_members[k]
+        if not mem:
+            out.append([])
+            continue
+        cand = {}
+        for b in mem:
+            ref = _transpose_accords(bars[b], -demiton.get(b, 0))
+            cand.setdefault(_signature(ref), []).append(ref)
+        sig = max(cand, key=lambda s: (
+            len(cand[s]),
+            float(np.mean([c.get("c", 0.5) for ch in cand[s] for c in ch]
+                          or [0.0]))))
+        out.append([dict(c) for c in cand[sig][0]])
+    return out
+
+
 def section_period(Vb: np.ndarray, b0: int, b1: int) -> tuple[int | None, float]:
     """Smallest confident repeating period of a section, or (None, best)."""
     L = b1 - b0 + 1
@@ -197,7 +253,8 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
                        bass_mode: str = "avg", cqt=None,
                        check_thr: float | None = None,
                        loop: str = "internal",
-                       transpose: bool = False) -> dict:
+                       transpose: bool = False,
+                       ecriture: str = "gabarit") -> dict:
     """Stack + re-decode + redistribute, per letter group. Mutates `bars`
     IN PLACE (each bar list object is shared with the section slices).
 
@@ -456,14 +513,22 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
         # below iterates gated[k], so such a position is never rewritten.
         # Accepted risk: the variant's posteriors mildly colour the
         # neighbouring positions' transitions in the template decode.
-        pos_chords = _template_chords(
-            [g or [pos_members[k][0]] for k, g in enumerate(gated)],
-            bar_probs, len(probs), Lf, bpb, P,
-            combine=combine, weight=weight, bass_mode=bass_mode,
-            bar_cqt=((lambda b: _cqt_transpose(bar_cqt(b), -demiton.get(b, 0)))
-                     if (cqt is not None and demiton) else
-                     (bar_cqt if cqt is not None else None)),
-            check_thr=check_thr)
+        if ecriture == "vote":
+            # LE VOTE N'INVENTE PAS : il rend une mesure deja jouee, telle
+            # quelle. Pas de moyenne de spectres, pas de re-inference.
+            pos_chords = vote_des_passages(
+                bars, [g or [pos_members[k][0]] for k, g in enumerate(gated)],
+                demiton, P)
+        else:
+            pos_chords = _template_chords(
+                [g or [pos_members[k][0]] for k, g in enumerate(gated)],
+                bar_probs, len(probs), Lf, bpb, P,
+                combine=combine, weight=weight, bass_mode=bass_mode,
+                bar_cqt=((lambda b: _cqt_transpose(bar_cqt(b),
+                                                   -demiton.get(b, 0)))
+                         if (cqt is not None and demiton) else
+                         (bar_cqt if cqt is not None else None)),
+                check_thr=check_thr)
         if pos_chords is None:
             report[letter] = {"period": P, "reason": "template decoded empty"}
             continue
