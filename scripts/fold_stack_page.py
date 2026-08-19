@@ -93,11 +93,35 @@ LOIS = [
     ("N5", "moyenne des N×5", "la pile complète, moyennée"),
     ("N5log", "produit des N×5", "la pile complète en log-probs — le veto du confiant"),
     ("N1", "moyenne des N, UN SEUL fold", "la répétition sans l'ensemble — 5× moins cher"),
+    ("N5nt", "moyenne des N×5, SANS transposer", "la même pile en ignorant la montée d'un demi-ton"),
 ]
 
-CIBLES = [("min_maroon_5_this_love", "maroon_5_this_love", "Maroon 5 — This Love", "B"),
+CIBLES = [("min_T64BgKEL-Sw", "T64BgKEL-Sw", "Bora Bora", "A"),
+          ("min_T64BgKEL-Sw", "T64BgKEL-Sw", "Bora Bora", "B"),
+          ("min_maroon_5_this_love", "maroon_5_this_love", "Maroon 5 — This Love", "B"),
           ("min_ben_e_king_stand_by_me_audio", "ben_e_king_stand_by_me_audio",
            "Ben E. King — Stand By Me", "A")]
+
+
+def rot_probs(streams, r):
+    """Monter les postérieures de `r` demi-tons.
+
+    Le plan triade fait 73 = 1 (N) + 6 familles × 12 fondamentales, le plan
+    basse 13 = 1 (pas de basse) + 12 hauteurs : on roule chaque bloc de 12 et
+    on ne touche jamais la colonne 0. Les extensions (7e, 9e, 11e, 13e) sont
+    relatives à la fondamentale — rien à tourner.
+    """
+    if not r:
+        return streams
+    out = list(streams)
+    tri = np.array(streams[0], copy=True)
+    tri[:, 1:] = np.roll(tri[:, 1:].reshape(tri.shape[0], -1, 12), r % 12,
+                         axis=2).reshape(tri.shape[0], -1)
+    out[0] = tri
+    bas = np.array(streams[1], copy=True)
+    bas[:, 1:] = np.roll(bas[:, 1:], r % 12, axis=1)
+    out[1] = bas
+    return out
 
 songs = []
 for chart_key, stem, titre, lettre in CIBLES:
@@ -112,17 +136,35 @@ for chart_key, stem, titre, lettre in CIBLES:
     moy = [np.mean([pf[f][j] for f in range(5)], axis=0) for j in range(6)]
     Lf = max(bpb, int(round(float(np.median(np.diff(grid))) / M.FRAME_DT)))
 
-    def bloc(b, p):
+    def bloc(b, p, transposer=True):
         a = max(0, int(round(grid[b] / M.FRAME_DT)))
         z = min(p[0].shape[0], int(round(grid[b + 1] / M.FRAME_DT)))
-        return [x[a:z] for x in p]
+        out = [x[a:z] for x in p]
+        return rot_probs(out, -par_barre.get(b, 0)) if transposer else out
 
     def bar_cqt(b):
         a = max(0, int(round(grid[b] / M.FRAME_DT)))
         z = min(cqt.shape[0], int(round(grid[b + 1] / M.FRAME_DT)))
-        return cqt[a:z]
+        return F._cqt_transpose(cqt[a:z], -par_barre.get(b, 0))
 
     pos_members = [[o[0] + k for o in occ if o[0] + k <= o[1]] for k in range(P)]
+
+    # ── LA MONTÉE D'UN DEMI-TON (Louis, 2026-08-19) ─────────────────────────
+    # Sans ça, un passage transposé ne ressemble plus au premier : le gabarit
+    # empile deux tonalités et musx entend une bouillie. On mesure le décalage
+    # de chaque occurrence contre la première, exactement comme `folding` le
+    # fait, et on ramène tout dans le ton de la référence AVANT d'empiler.
+    from harmonia_min.nnls_features import extract_bothchroma
+    from harmonia_min.sections import halfbar_features
+    _arr, _times = extract_bothchroma(audio)
+    Vb = F._bar_vecs(halfbar_features(grid, _arr, _times), len(grid) - 1)
+    demi = {}
+    for o in occ:
+        r, sc = F.decalage_semitons(Vb, occ[0][0], o[0], P)
+        demi[o[0]] = int(r)
+    par_barre = {o[0] + k: demi[o[0]] for o in occ for k in range(P)}
+    print(f"   décalages détectés par occurrence : {[demi[o[0]] for o in occ]} demi-ton(s)")
+
     res = {}
     for cle, _lbl, _s in LOIS:
         t = time.time()
@@ -135,6 +177,10 @@ for chart_key, stem, titre, lettre in CIBLES:
         elif cle == "N1":
             cat = gabarit([[bloc(b, pf[0]) for b in pos_members[k]] for k in range(P)],
                           Lf, "mean")
+        elif cle == "N5nt":
+            mem = [[bloc(b, pf[f], transposer=False)
+                    for b in pos_members[k] for f in range(5)] for k in range(P)]
+            cat = gabarit(mem, Lf, "mean")
         else:
             mem = [[bloc(b, pf[f]) for b in pos_members[k] for f in range(5)]
                    for k in range(P)]
@@ -146,11 +192,12 @@ for chart_key, stem, titre, lettre in CIBLES:
     for cle in res:
         res[cle]["same"] = round(100 * sum(1 for k in range(P)
                                            if res[cle]["bars"][k] == res["cqt"]["bars"][k]) / P)
-    songs.append({"stem": stem, "titre": titre, "lettre": lettre, "P": P,
+    songs.append({"demi": [demi[o[0]] for o in occ],
+                  "stem": stem, "titre": titre, "lettre": lettre, "P": P,
                   "occ": occ, "res": res,
                   "temps": [float(grid[occ[0][0] + k]) for k in range(P)],
                   "autres": [[float(grid[o[0] + k]) for k in range(P)] for o in occ]})
-    print(f"{stem} — section {lettre} : {P} mesures × {len(occ)} occurrences | " +
+    print(f"{stem} — {lettre} : {P} mes. × {len(occ)} occ. | " +
           " · ".join(f"{lbl} {res[c]['same']}%" for c, lbl, _ in LOIS))
 
 
@@ -179,7 +226,9 @@ for s in songs:
 <section>
   <h2>{html.escape(s['titre'])} <span class="sec">section {s['lettre']}</span></h2>
   <audio controls preload="none" src="/audio/{s['stem']}.m4a"></audio>
-  <p class="lead">{s['P']} mesures, jouées {len(s['occ'])} fois. Aller à : {liens}<br>
+  <p class="lead">{s['P']} mesures, jouées {len(s['occ'])} fois
+     (décalage détecté : {", ".join(f"+{d}" if d else "0" for d in s['demi'])} demi-ton).
+     Aller à : {liens}<br>
      Clique une mesure pour l'entendre (1ʳᵉ occurrence). Les mesures
      <b class="dd">colorées</b> diffèrent de ce que la prod écrit aujourd'hui.</p>
   {"".join(lignes)}

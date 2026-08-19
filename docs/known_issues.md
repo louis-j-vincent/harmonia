@@ -1,6 +1,40 @@
 # Harmonia — Known Issues
 
-## 2026-08-19 — MESURÉ : dans un repli, l'ensemble des 5 folds ne sert à RIEN
+## 2026-08-19 — MESURÉ : la loi d'empilement ne compte QUE quand les répétitions sont rares
+
+Suite du test ci-dessous, étendu à Bora Bora (Louis : « tente sur d'autres
+parties où il y a des incertitudes… attention au shift avec la montée en demi
+ton »). Le décalage est détecté correctement — `[0, 0, +1]` sur A, `[0, +1]`
+sur B — et ramené dans le ton de la référence avant la pile.
+
+| section | occ. | moy. N | moy. N×5 | produit N×5 | 1 fold × N | **sans transposer** |
+|---|---|---|---|---|---|---|
+| Bora Bora A | 3 | 3/8 | 3/8 | **4/8** | 3/8 | **1/8** |
+| Bora Bora B | 2 | 7/8 | 7/8 | 7/8 | **6/8** | 5/8 |
+| This Love B | 5 | 5/8 | 5/8 | 5/8 | 5/8 | 5/8 |
+| Stand By Me A | 10 | 8/8 | 8/8 | 8/8 | 8/8 | 8/8 |
+
+(mesures identiques à la loi CQT, celle qui tourne en prod)
+
+Trois choses, dans l'ordre d'importance :
+
+1. **Oublier la transposition détruit la pile** : 1 mesure sur 8 sur Bora Bora A,
+   là où la pile transposée en garde 3 ou 4. La mise en garde de Louis est donc
+   quantifiée — et la transposition de `folding` la traite correctement.
+2. **Le produit (logpool) se sépare enfin de la moyenne** — mais seulement là :
+   4/8 contre 3/8 sur A, la section à 3 occurrences dont les confiances
+   descendent à 0,12. Avec 5 ou 10 occurrences, produit et moyenne sont
+   indiscernables.
+3. **L'ensemble des 5 folds ne sert que quand la répétition manque** : à 2
+   occurrences (B), tomber à 1 fold coûte une mesure ; à 5 ou 10, rien du tout.
+
+La règle qui s'en dégage, à valider à l'oreille sur `/plots/fold_stack.html` :
+la redondance des modèles et la loi d'empilement ne comptent que là où la
+redondance musicale manque. Beaucoup de répétitions → tout se vaut, on peut
+prendre le moins cher. Peu de répétitions → c'est exactement là qu'il faut le
+produit et les 5 folds, et c'est aussi là que le chart est le plus incertain.
+
+## 2026-08-19 — MESURÉ : dans un repli à beaucoup d'occurrences, l'ensemble des 5 folds ne sert à RIEN
 
 Louis : « si on détecte 4 occurrences d'un accord, alors on replie 4 fois, donc
 si on fait déjà un 5-fold, ça nous ferait 4 × 5 = 20 probas à rentrer dans le
