@@ -197,15 +197,25 @@ def tiling_runs(Vb: np.ndarray, n_bars: int) -> list[dict]:
     return runs
 
 
-SECTION_MODE_ENV = "HARMONIA_SECTIONS"   # "voice" (default) | "harmonic" | "chroma"
+SECTION_MODE_ENV = "HARMONIA_SECTIONS"   # "songformer" (défaut) | voice | harmonic | chroma
 
 
 def detect_sections(grid: list[float], arr, times, bars=None,
                     triad=None, audio=None, form_start=None) -> list[dict]:
     """[{b0, b1, label}] over BAR indices — contiguous, covering, unfolded.
 
-    Three implementations live behind this one name:
+    Four implementations live behind this one name:
 
+    * **songformer** (le défaut depuis 2026-08-18) — `songformer.py`. Un modèle
+      pré-entraîné qui écoute le SON, pas les accords, et RECONNAÎT le rôle de
+      chaque passage (intro, couplet, refrain, pont, outro) au lieu de chercher
+      une répétition. Louis a écouté les dix-neuf morceaux de
+      `/plots/songformer.html` — sa propre annotation, ce modèle, notre
+      détecteur, côte à côte — et a tranché : « je suis d'accord avec lui
+      partout, on le prend en prod ». Il n'a besoin que de `audio`. C'est le
+      premier détecteur de ce projet à ne pas dépendre de la justesse de notre
+      grille de mesures pour trouver ses frontières (il les trouve dans le
+      temps, on les tire ensuite sur la barre la plus proche).
     * **voice** (default since 2026-08-08, Louis: « mets-moi cette technique en
       prod ») — `voice_sections.py`. The voice does the searching: the intro
       ends where the singing starts, an 8-bar block finds its own repeats, then
@@ -238,13 +248,38 @@ def detect_sections(grid: list[float], arr, times, bars=None,
     The older paths are kept reachable rather than deleted: `harmonic` is the
     only one measured on the songs Louis has not annotated, and `chroma` is the
     only one that does not depend on the bar grid being metrically right.
+
+    CE QUE `songformer` NE RÈGLE PAS, et qu'il ne faut pas lui attribuer : il
+    donne des FRONTIÈRES et des RÔLES, rien d'autre. Le repli des occurrences,
+    la longueur à laquelle une lettre s'écrit, les queues, la variation en
+    exposant — tout ça reste notre travail en aval, et le défaut connu
+    « under-fold, never over-fold » reste ouvert (voir `songformer._lettres`,
+    qui sépare au moins les occurrences de longueurs différentes).
     """
     # `form_start` (Set bar 1, 2026-08-09): bar index where the FORM starts —
     # the caller's mark, not something to re-derive. Only `voice` consumes it
     # (it is the only detector that derives its own start and emits an intro);
     # harmonic/chroma already anchor at grid[0].
     import os
-    mode = os.environ.get(SECTION_MODE_ENV, "voice").lower()
+    mode = os.environ.get(SECTION_MODE_ENV, "songformer").lower()
+    if mode == "songformer":
+        if audio is not None:
+            from harmonia_min import songformer as _sf
+            try:
+                return _sf.detect_sections(grid, audio, form_start=form_start)
+            except Exception:
+                # PAS DE REPLI SILENCIEUX (règle Louis, 2026-07-30) : si le
+                # détecteur de prod tombe, ça s'écrit en ERROR avec la trace,
+                # et le chart qui sort n'est PAS celui qu'il a validé.
+                logger.exception(
+                    "sections: mode=songformer (le défaut) a échoué — on "
+                    "retombe sur `voice`. Le chart qui sort n'est pas celui "
+                    "que Louis a validé à l'oreille le 2026-08-18.")
+        else:
+            logger.error("sections: mode=songformer (le défaut) demande "
+                         "audio=, et l'appelant ne l'a pas passé — on retombe "
+                         "sur le détecteur `voice`.")
+        mode = "voice"
     if mode == "voice":
         if triad is not None and audio is not None:
             from harmonia_min import voice_sections as _vs
@@ -271,8 +306,8 @@ def detect_sections(grid: list[float], arr, times, bars=None,
                        "not what ships; pass triad= or set %s=chroma.",
                        SECTION_MODE_ENV)
     elif mode != "chroma":
-        raise ValueError(f"{SECTION_MODE_ENV}={mode!r} — expected 'harmonic', "
-                         "'chroma' or 'voice'")
+        raise ValueError(f"{SECTION_MODE_ENV}={mode!r} — expected "
+                         "'songformer', 'voice', 'harmonic' or 'chroma'")
     return _detect_sections_chroma(grid, arr, times, bars)
 
 

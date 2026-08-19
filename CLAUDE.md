@@ -284,7 +284,11 @@ Estimating 12-minute Opus session. Awaiting confirmation before proceeding."
   `HARMONIA_SECTION_MODE` / `HARMONIA_VOCAB_FOLD` precedent).
 - **L'app `harmonia_min` a sa propre pipeline** (`harmonia_min/pipeline.py`,
   `analyze_steps`) — c'est elle qui sert :7772, et ses drapeaux à elle :
-  `HARMONIA_SECTIONS` (voice/harmonic/chroma), `HARMONIA_RAW_CHART`,
+  `HARMONIA_SECTIONS` (**songformer** par défaut depuis 2026-08-18 — un modèle
+  pré-entraîné qui écoute le son et nomme intro/couplet/refrain/pont ; Louis a
+  arbitré à l'oreille sur `/plots/songformer.html` : « je suis d'accord avec
+  lui partout, on le prend en prod ». Les anciens restent joignables :
+  voice/harmonic/chroma), `HARMONIA_RAW_CHART`,
   `HARMONIA_QUARTER_BAR`, et depuis 2026-08-11 `HARMONIA_MERGE=cqt`
   (+ `HARMONIA_MERGE_CHECK=<seuil>`) : le repli empile alors les répétitions
   sur le **CQT** avant le modèle au lieu de moyenner ses postérieures —

@@ -751,15 +751,29 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
         hi = grid[min(len(grid) - 1, b0 + i + 1)]
         return round(lo + f * (hi - lo), 4)
 
-    by_letter: dict[str, list] = {}
-    order: list[str] = []
+    # GROUPÉ PAR (LETTRE, LONGUEUR), pas par lettre seule — « under-fold,
+    # never over-fold » (Louis, 2026-07-30 : « écris chaque section à la
+    # longueur qu'elle joue vraiment »). Regrouper toutes les occurrences
+    # d'une lettre quelles que soient leurs longueurs, c'est écrire UN bloc
+    # pour des passages qui n'ont pas la même musique : sur Another Day, un D
+    # dont la 1re occurrence fait 8 mesures était rendu en 4, et la lecture
+    # se décalait d'une barre à chaque reprise (Louis, 2026-08-18 : « la
+    # dernière section c'est la section A mais décalée d'une barre »).
+    # `soudure.sections_pour_chart` groupait déjà comme ça depuis le chemin
+    # Soudure ; les deux chemins rendaient donc DEUX charts différents pour le
+    # même découpage. Les blocs gardent le même nom : deux longueurs d'un même
+    # refrain restent deux B, chacun écrit à sa longueur.
+    by_letter: dict[tuple, list] = {}
+    order: list[tuple] = []
     for s in sections:
-        L = s["label"]
-        if L not in by_letter:
-            order.append(L)
-        by_letter.setdefault(L, []).extend(
-            [tuple(r) for r in s["barRanges"]])
+        for r in s["barRanges"]:
+            k = (s["label"], int(r[1]) - int(r[0]))
+            if k not in by_letter:
+                order.append(k)
+            by_letter.setdefault(k, []).append(tuple(r))
     out = []
+    _vus: dict[str, int] = {}
+
     def _evidence(rng):
         """How many REAL chord onsets a pass carries (carries and N.C. don't
         count) — what makes a pass worth showing as the letter's block."""
@@ -767,8 +781,9 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
         return sum(1 for b in range(c0, c1 + 1) for c in (bars[b] if 0 <= b < len(bars) else [])
                    if not c["nc"] and not c.get("carry"))
 
-    for L in order:
-        ranges = sorted(by_letter[L])
+    for _k in order:
+        L = _k[0]
+        ranges = sorted(by_letter[_k])
         # The block shown for a letter used to be `ranges[0]` — the
         # chronologically first pass, whatever it contained. On a song that
         # fades in, that is the WORST pass: Stand By Me's first A holds 2
@@ -848,8 +863,10 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
                 else:
                     r = min(Lb - 1, int((b - c0) * Lb / Lk))
                 rows[r].append([grid[b], grid[min(len(grid) - 1, b + 1)]])
+        _vus[L] = _vus.get(L, 0) + 1
         out.append({
-            "id": f"L{L}", "label": L, "tag": "", "reps": len(ranges),
+            "id": f"L{L}" + ("" if _vus[L] == 1 else str(_vus[L])),
+            "label": L, "tag": "", "reps": len(ranges),
             "spans": [[grid[c0], grid[min(len(grid) - 1, c1 + 1)]]
                       for c0, c1 in ranges],
             "barRanges": [[c0, c1] for c0, c1 in ranges],
