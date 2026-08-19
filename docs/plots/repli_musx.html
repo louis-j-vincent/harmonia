@@ -1,0 +1,78 @@
+<!doctype html><html lang="fr"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ce que musx entend sur la pile</title>
+<style>
+:root{--fg:#1b1b19;--fond:#fbf7ec;--trait:#ddd6c7;--doux:#6b6558}
+*{box-sizing:border-box}
+body{margin:0 auto;padding:18px 14px 60px;background:var(--fond);color:var(--fg);
+ font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,sans-serif;
+ max-width:900px}
+h1{font-size:20px;margin:0 0 6px}
+h2{font-size:13px;margin:0 0 10px;font-weight:600;color:var(--doux);text-transform:uppercase;letter-spacing:.05em}
+h3{font-size:14px;margin:0 0 9px;font-weight:600}
+.bloc{margin:0 0 18px}
+.bloc:last-child{margin-bottom:0}
+h3 b{color:#fff;border-radius:4px;padding:1px 7px;margin-right:6px}
+.chapo{color:var(--doux);margin:0 0 14px;font-size:13.5px}
+section{background:#fff;border:1px solid var(--trait);border-radius:9px;
+ padding:11px 13px;margin:0 0 12px}
+audio{width:100%;height:34px;margin:0 0 12px;display:block}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;font-size:12.5px;min-width:100%}
+th,td{border:1px solid #ece5d6;padding:5px 7px;text-align:left;
+ white-space:nowrap}
+th{color:var(--doux);font-weight:600;font-size:11px;text-align:right;
+ background:#faf6ec}
+th span{display:block;font-weight:400;opacity:.65;font-size:10px}
+th.pos{text-align:center;width:1%}
+td{cursor:pointer;font-variant-numeric:tabular-nums}
+td:active{background:#f3ead8}
+td.vide{background:#faf7f0;cursor:default}
+td.chg{background:#fdf0e6;font-weight:600}
+td.var{color:var(--doux)}
+td i{font-style:normal;opacity:.5;margin-left:3px;font-size:10px}
+tr.basse th{background:#f1ece0;color:var(--fg)}
+td.pile{background:#eef3ee;font-weight:600}
+tr.refusee th{background:#f7efe6}
+tr.refusee td.pile{background:#faf2e8;font-weight:400;font-style:italic}
+.refus,.note{margin:0 0 4px;font-size:12.5px;color:var(--doux)}
+.transp{background:#f3f6f1;border-left:3px solid #3d6b47;padding:7px 9px;border-radius:0 5px 5px 0;color:var(--fg)}
+.lex{font-size:12.5px;color:var(--doux);margin:0 0 14px}
+.lex b{color:var(--fg)}
+.regle{position:relative;height:4px;margin:9px 0 0;background:#efe9db;
+ border-radius:2px}
+.regle i{position:absolute;top:-2px;width:2px;height:8px;background:#a4462b;
+ border-radius:1px;left:0;opacity:0}
+</style>
+<h1>Bora Bora — ce que musx entend sur la pile</h1>
+
+<p class="chapo">Chaque lettre est jouée plusieurs fois. On empile ses passages
+(leurs CQT moyennés) et on redonne la pile à musx : une seule écoute, faite de
+toutes les autres. Tape n'importe quelle case pour l'entendre.</p>
+<p class="lex"><b>Une ligne = un passage</b>, tel que musx l'a entendu seul.
+<b>La ligne du bas</b> = ce qu'il entend sur les passages empilés.
+<b>Fond orange</b> = l'empilement a changé cette mesure.
+<b>Ligne du bas en italique</b> = le garde-fou a refusé cette pile ; c'est ce
+qu'elle aurait écrit, et rien n'a été écrit dans le chart.</p>
+<section id="lect">
+  <audio controls preload="none" src="/audio/T64BgKEL-Sw.m4a"></audio>
+  <div class="regle"><i></i></div>
+</section>
+<section><h2>SongFormer (le détecteur en prod)</h2><div class="bloc"><h3><b style="background:#3d6b47">intro</b> — 1 passage</h3><p class="refus">Rien à empiler : un seul passage. Les mesures gardent ce que musx a entendu la première fois.</p></div><div class="bloc"><h3><b style="background:#3f6f8f">A</b> — 3 passages</h3><p class="refus">Rien à empiler : les passages n’ont pas la même longueur. Les mesures gardent ce que musx a entendu la première fois.</p></div><div class="bloc"><h3><b style="background:#a4462b">B</b> — 3 passages</h3><div class="tw"><table><tr><th></th><th class="pos">1</th><th class="pos">2</th><th class="pos">3</th><th class="pos">4</th><th class="pos">5</th><th class="pos">6</th><th class="pos">7</th><th class="pos">8</th></tr><tr><th>passage 1<span>mes. 32</span></th><td class="" data-t="76.11">Eb</td><td class="" data-t="78.51">Eb</td><td class="" data-t="80.92">G- Gb+</td><td class="" data-t="83.32">F-</td><td class="" data-t="85.72">F-</td><td class="" data-t="88.12">Bb7</td><td class="" data-t="90.52">Bb7</td><td class="" data-t="92.92">C-7 Ab</td></tr><tr><th>passage 2<span>mes. 48</span></th><td class="" data-t="114.53">N.C.</td><td class="" data-t="116.93">Eb</td><td class="" data-t="119.33">Eb/G</td><td class="" data-t="121.73">F-</td><td class="" data-t="124.13">F-7</td><td class="" data-t="126.54">F-7</td><td class="" data-t="128.94">F-7</td><td class="" data-t="131.34">C7</td></tr><tr class="basse refusee"><th>ce que la pile aurait dit<span>garde-fou débranché</span></th><td class="pile" data-t="76.11">Eb</td><td class="pile" data-t="78.51">Eb</td><td class="pile" data-t="80.92">G-</td><td class="pile" data-t="83.32">F-</td><td class="pile" data-t="85.72">F-7</td><td class="pile" data-t="88.12">Bb7</td><td class="pile" data-t="90.52">Bb7</td><td class="pile" data-t="92.92">C-7 Ab</td></tr></table></div><p class="refus"><b>Le garde-fou a refusé cette pile</b> : les passages ne se ressemblent pas assez pour être moyennés. Chacun garde donc ce que musx a entendu sur lui seul. La ligne du bas est ce que la pile aurait écrit — à toi de dire qui avait raison.</p></div><div class="bloc"><h3><b style="background:#8a6d1f">outro</b> — 1 passage</h3><p class="refus">Rien à empiler : un seul passage. Les mesures gardent ce que musx a entendu la première fois.</p></div></section><section><h2>le découpage déjà écrit dans le chart</h2><div class="bloc"><h3><b style="background:#b07a3a">intro</b> — 1 passage</h3><p class="refus">Rien à empiler : un seul passage. Les mesures gardent ce que musx a entendu la première fois.</p></div><div class="bloc"><h3><b style="background:#3f6f8f">A</b> — 3 passages</h3><div class="tw"><table><tr><th></th><th class="pos">1</th><th class="pos">2</th><th class="pos">3</th><th class="pos">4</th><th class="pos">5</th><th class="pos">6</th><th class="pos">7</th><th class="pos">8</th></tr><tr><th>passage 1<span>mes. 5</span></th><td class="" data-t="11.29">D/A</td><td class="" data-t="13.69">D/Gb F</td><td class="" data-t="16.09">E-</td><td class="" data-t="18.49">E-7</td><td class="" data-t="20.89">A7</td><td class="" data-t="23.29">A7</td><td class="" data-t="25.69">D7</td><td class="" data-t="28.09">D</td></tr><tr><th>passage 2<span>mes. 21</span></th><td class="" data-t="49.70">D^7</td><td class="" data-t="52.10">D/Gb Fh7</td><td class="" data-t="54.50">E-7</td><td class="" data-t="56.91">E-7</td><td class="" data-t="59.31">E-7</td><td class="" data-t="61.71">E-7</td><td class="" data-t="64.11">B7</td><td class="" data-t="66.51">B7</td></tr><tr><th>passage 3<span>mes. 33</span></th><td class="var" data-t="78.51">Eb<i title="passage écarté de la pile">△</i></td><td class="var" data-t="80.92">G- Gb+<i title="passage écarté de la pile">△</i></td><td class="var" data-t="83.32">F-<i title="passage écarté de la pile">△</i></td><td class="var" data-t="85.72">F-<i title="passage écarté de la pile">△</i></td><td class="var" data-t="88.12">Bb7<i title="passage écarté de la pile">△</i></td><td class="var" data-t="90.52">Bb7<i title="passage écarté de la pile">△</i></td><td class="" data-t="92.92">C-7 Ab</td><td class="" data-t="95.32">Eb7</td></tr><tr class="basse refusee"><th>ce que la pile aurait dit<span>garde-fou débranché</span></th><td class="pile" data-t="11.29">D^7</td><td class="pile" data-t="13.69">D^7 Db/F</td><td class="pile" data-t="16.09">E-</td><td class="pile" data-t="18.49">E-7</td><td class="pile" data-t="20.89">A7</td><td class="pile" data-t="23.29">A7</td><td class="pile" data-t="25.69">D7</td><td class="pile" data-t="28.09">D</td></tr></table></div><p class="note transp">♫ le passage 3 est le même, monté d’un demi-ton. Le garde-fou a donc raison de refuser la pile : moyenner deux hauteurs différentes écrirait la mauvaise musique. Ce qu'il faudrait, c'est <b>recaler la hauteur avant d'empiler</b> — on y gagnerait une observation au lieu d'en perdre une.</p><p class="refus"><b>Le garde-fou a refusé cette pile</b> : les passages ne se ressemblent pas assez pour être moyennés. Chacun garde donc ce que musx a entendu sur lui seul. La ligne du bas est ce que la pile aurait écrit — à toi de dire qui avait raison.</p></div><div class="bloc"><h3><b style="background:#3d6b47">B</b> — 2 passages</h3><div class="tw"><table><tr><th></th><th class="pos">1</th><th class="pos">2</th><th class="pos">3</th><th class="pos">4</th><th class="pos">5</th><th class="pos">6</th><th class="pos">7</th><th class="pos">8</th></tr><tr><th>passage 1<span>mes. 13</span></th><td class="" data-t="30.49">Gb-7</td><td class="" data-t="32.89">F E7</td><td class="" data-t="35.30">E7 A7</td><td class="" data-t="37.70">A7</td><td class="" data-t="40.10">E-7</td><td class="" data-t="42.50">E7</td><td class="" data-t="44.90">E-7</td><td class="" data-t="47.30">A7</td></tr><tr><th>passage 2<span>mes. 41</span></th><td class="" data-t="97.72">G-7</td><td class="" data-t="100.12">G-7 F7</td><td class="" data-t="102.52">F-7</td><td class="" data-t="104.93">Bb7</td><td class="" data-t="107.33">C-7 F7</td><td class="" data-t="109.73">F7</td><td class="" data-t="112.13">F-7</td><td class="" data-t="114.53">N.C.</td></tr><tr class="basse refusee"><th>ce que la pile aurait dit<span>garde-fou débranché</span></th><td class="pile" data-t="30.49">Gb-7</td><td class="pile" data-t="32.89">F E7</td><td class="pile" data-t="35.30">E7 A7</td><td class="pile" data-t="37.70">A7</td><td class="pile" data-t="40.10">E-7</td><td class="pile" data-t="42.50">E7</td><td class="pile" data-t="44.90">E-7</td><td class="pile" data-t="47.30">A7</td></tr></table></div><p class="note transp">♫ le passage 2 est le même, monté d’un demi-ton. Le garde-fou a donc raison de refuser la pile : moyenner deux hauteurs différentes écrirait la mauvaise musique. Ce qu'il faudrait, c'est <b>recaler la hauteur avant d'empiler</b> — on y gagnerait une observation au lieu d'en perdre une.</p><p class="refus"><b>Le garde-fou a refusé cette pile</b> : les passages ne se ressemblent pas assez pour être moyennés. Chacun garde donc ce que musx a entendu sur lui seul. La ligne du bas est ce que la pile aurait écrit — à toi de dire qui avait raison.</p></div><div class="bloc"><h3><b style="background:#8a6d1f">C</b> — 1 passage</h3><p class="refus">Rien à empiler : un seul passage. Les mesures gardent ce que musx a entendu la première fois.</p></div><div class="bloc"><h3><b style="background:#a4462b">A′</b> — 1 passage</h3><p class="refus">Rien à empiler : un seul passage. Les mesures gardent ce que musx a entendu la première fois.</p></div><div class="bloc"><h3><b style="background:#6b5b8a">D</b> — 1 passage</h3><p class="refus">Rien à empiler : un seul passage. Les mesures gardent ce que musx a entendu la première fois.</p></div></section>
+<script>
+var el = document.querySelector("audio"), tete = document.querySelector(".regle i");
+var dur = 150.55;
+if (window.fetch) fetch(el.getAttribute("src"))
+  .then(function(r){ return r.ok ? r.blob() : null; })
+  .then(function(b){ if (b) el.src = URL.createObjectURL(b); })
+  .catch(function(){});
+document.addEventListener("click", function(ev){
+  var c = ev.target.closest("[data-t]"); if (!c) return;
+  try { el.currentTime = parseFloat(c.dataset.t); el.play(); } catch(e){}
+});
+/* timeupdate, jamais requestAnimationFrame (Safari iOS). */
+el.addEventListener("timeupdate", function(){
+  tete.style.left = (el.currentTime/dur*100) + "%"; tete.style.opacity = 1;
+});
+</script>
+</html>
