@@ -667,41 +667,122 @@ window.APP = (function(){
      `rng` {lo, oct} is the FIXED per-song window (Louis, 2026-08-05: the view
      must never re-frame between chords) — the handoff draft zoomed each chord
      on its own octave, which is exactly the reframe that rule bans; when rng
-     is absent (one-off renders) the old per-chord zoom applies. */
-  function renderHand(host, midis, h, role, rng){
+     is absent (one-off renders) the old per-chord zoom applies.
+
+     `opts` (T5, 2026-08-19):
+       band  — Practise's look. A lit WHITE key keeps its top white, where the
+               black keys crowd, and takes a full bottom band plus a light wash
+               over the whole key; a lit BLACK key takes the hand's colour
+               whole. Black keys narrow to 0.55× a white one: at 0.62 they
+               touch, and the lit white keys then read as smudges.
+       roles — Map(midi → "bass" | "chord"): both hands on ONE keyboard, each
+               key in its own hand's colour. Practise has 74px, not room for
+               two.
+     Returns `light(midis)`, which only WRITES COLOURS: with a fixed window the
+     keys themselves never change, so a chord change costs no DOM rebuild. */
+  function renderHand(host, midis, h, role, rng, opts){
+    opts=opts||{};
     clear(host);
     host.style.cssText=`position:relative;height:${h}px;`;
-    if(!midis || !midis.length) return;
+    if(!midis || !midis.length) return function(){};
     const lo = rng ? rng.lo : 12*Math.floor(Math.min(...midis)/12);
     const octaves = rng ? rng.oct
       : Math.max(1, Math.ceil((Math.max(...midis)-lo+1)/12));
-    const on = new Set(midis);
     const whitePc=[0,2,4,5,7,9,11], wOrder={0:0,2:1,4:2,5:3,7:4,9:5,11:6}, bLeft={1:0,3:1,6:3,8:4,10:5};
     const nW = octaves*7, wW = 100/nW;
-    const fillFor = () => role==="bass" ? T.accent : role==="opt" ? "rgba(138,43,43,.3)" : "#2a6fb0";
+    const HUE={bass:T.accent, chord:"#2a6fb0", opt:"rgba(138,43,43,.3)"};
+    const hueOf = midi => HUE[(opts.roles&&opts.roles.get(midi))||role] || HUE.chord;
     const inkFor  = () => role==="opt" ? T.accent : "#fff";
+    const bw = opts.band ? 0.55 : 0.64;
+    const keys=[];
 
     for(let o=0;o<octaves;o++) for(const pc of whitePc){
-      const midi=lo+o*12+pc, slot=o*7+wOrder[pc], lit=on.has(midi);
+      const midi=lo+o*12+pc, slot=o*7+wOrder[pc];
       const k=el("div",
         `position:absolute;top:0;bottom:0;left:${slot*wW}%;width:${wW}%;`+
-        `border:1px solid ${T.rule};border-radius:0 0 5px 5px;`+
-        `background:${lit?fillFor():T.card};`);
-      if(lit) k.appendChild(el("span",
-        `position:absolute;bottom:6px;left:0;right:0;text-align:center;`+
-        `font:700 12px ${UI};color:${inkFor()};`, note(midi%12)));
-      host.appendChild(k);
+        `border:1px solid ${T.rule};border-radius:0 0 5px 5px;background:${T.card};`+
+        (opts.band?"overflow:hidden;":""));
+      const rec={midi, el:k, black:false};
+      if(opts.band){
+        rec.wash=el("div","position:absolute;inset:0;display:none;opacity:.16;");
+        rec.band=el("div","position:absolute;left:0;right:0;bottom:0;height:34%;display:none;");
+        k.appendChild(rec.wash); k.appendChild(rec.band);
+      } else {
+        rec.lbl=el("span",
+          `position:absolute;bottom:6px;left:0;right:0;text-align:center;display:none;`+
+          `font:700 12px ${UI};color:${inkFor()};`, note(midi%12));
+        k.appendChild(rec.lbl);
+      }
+      host.appendChild(k); keys.push(rec);
     }
     for(let o=0;o<octaves;o++) for(const pc of [1,3,6,8,10]){
-      const midi=lo+o*12+pc, slot=o*7+bLeft[pc], lit=on.has(midi);
+      const midi=lo+o*12+pc, slot=o*7+bLeft[pc];
       const k=el("div",
-        `position:absolute;top:0;height:62%;left:${(slot+1)*wW - wW*0.32}%;width:${wW*0.64}%;`+
-        `border-radius:0 0 4px 4px;background:${lit?fillFor():"#2b2f36"};z-index:2;`);
-      if(lit) k.appendChild(el("span",
-        `position:absolute;bottom:4px;left:0;right:0;text-align:center;`+
-        `font:700 11px ${UI};color:${inkFor()};`, note(midi%12)));
-      host.appendChild(k);
+        `position:absolute;top:0;height:62%;left:${(slot+1)*wW - wW*bw/2}%;width:${wW*bw}%;`+
+        `border-radius:0 0 4px 4px;background:#2b2f36;z-index:2;`);
+      const rec={midi, el:k, black:true};
+      if(!opts.band){
+        rec.lbl=el("span",
+          `position:absolute;bottom:4px;left:0;right:0;text-align:center;display:none;`+
+          `font:700 11px ${UI};color:${inkFor()};`, note(midi%12));
+        k.appendChild(rec.lbl);
+      }
+      host.appendChild(k); keys.push(rec);
     }
+
+    function light(list){
+      const on=new Set(list||[]);
+      keys.forEach(k=>{
+        const lit=on.has(k.midi), hue=hueOf(k.midi);
+        if(k.black) k.el.style.background = lit?hue:"#2b2f36";
+        else if(opts.band){
+          k.wash.style.background=hue; k.wash.style.display=lit?"block":"none";
+          k.band.style.background=hue; k.band.style.display=lit?"block":"none";
+        }
+        else k.el.style.background = lit?hue:T.card;
+        if(k.lbl) k.lbl.style.display = lit?"block":"none";
+      });
+    }
+    light(midis);
+    return light;
+  }
+
+  /* LE CLAVIER de Practise (T5 — Louis, 2026-08-19 : « il faut aussi afficher
+     les accords au piano joliment si besoin »). Une carte de 74 px et rien
+     d'autre : pas de titre de carte, pas de sélecteur de voicing, pas de
+     légende — ces réglages vivent dans la feuille « ··· ». La fenêtre est
+     celle de TOUT le morceau (l'union des deux mains, déjà calculée par
+     handRanges.all) : elle ne se recadre jamais entre deux accords, et changer
+     d'accord n'écrit que des couleurs.
+     `card._show(midis)` est ce qu'appelle le changement d'accord. */
+  function practiseKeyboard(rng){
+    const KB_H=46;   // 74 − 12 de padding − 13 de ligne de noms − 3 de gap
+    const card=el("div",`flex:0 0 auto;height:74px;margin:0 18px 10px;padding:6px;`+
+      `background:${T.card};border:1px solid ${T.line};border-radius:12px;`+
+      `display:flex;flex-direction:column;gap:3px;`);
+    const head=el("div","flex:0 0 auto;display:flex;align-items:baseline;gap:8px;height:13px;");
+    head.appendChild(el("div",
+      `flex:0 0 auto;font:600 10px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};`,
+      "au piano"));
+    const names=el("div",`flex:1;min-width:0;text-align:right;font:600 11px ${UI};`+
+      `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`);
+    head.appendChild(names); card.appendChild(head);
+    const kb=el("div",`flex:0 0 auto;height:${KB_H}px;`); card.appendChild(kb);
+    const roles=new Map();
+    let light=null;
+    card._show=midis=>{
+      if(!midis || !midis.length){ clear(names); if(light) light([]); return; }
+      const {left,right}=splitHands(midis);
+      roles.clear();
+      left.forEach(x=>roles.set(x,"bass")); right.forEach(x=>roles.set(x,"chord"));
+      clear(names);
+      names.appendChild(el("span",`color:${T.accent};`, left.map(x=>note(mod(x,12))).join(" ")));
+      names.appendChild(el("span",`color:${T.faint};`," · "));
+      names.appendChild(el("span","color:#2a6fb0;", right.map(x=>note(mod(x,12))).join(" ")));
+      if(!light) light=renderHand(kb, midis, KB_H, "chord", rng, {band:true, roles});
+      else light(midis);
+    };
+    return card;
   }
 
   /* The card. TWO independent choices (Louis, 2026-08-08 — the first cut
@@ -1426,7 +1507,10 @@ window.APP = (function(){
     }
   }
 
-  function appBar(title, sub, backTo){
+  // `right` : un bouton en bout de barre (T5 — le « ··· » de Practise). Le
+  // sous-titre est exposé en `bar._sub` : Practise y écrit « mesure N · 1× »
+  // à chaque mesure, sans reconstruire la barre.
+  function appBar(title, sub, backTo, right){
     const bar=el("div",`flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:calc(14px + env(safe-area-inset-top)) 18px 14px;border-bottom:1px solid ${T.line};background:${T.paper};`);
     if(backTo){
       // 44px, the kit floor (UI refresh 2026-08-08) — was a 34px circle
@@ -1437,8 +1521,10 @@ window.APP = (function(){
     const wm=el("div",`font:italic 600 17px ${SERIF};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`);
     if(title) wm.textContent=title; else wm.innerHTML='harmon<span style="color:'+T.accent+'">ia</span>';
     tw.appendChild(wm);
-    if(sub) tw.appendChild(el("div",`font:500 12px ${UI};color:${T.faint};margin-top:1px;`,sub));
+    if(sub){ const sb=el("div",`font:500 12px ${UI};color:${T.faint};margin-top:1px;`,sub);
+             tw.appendChild(sb); bar._sub=sb; }
     bar.appendChild(tw);
+    if(right) bar.appendChild(right);
     return bar;
   }
 
@@ -3353,6 +3439,7 @@ window.APP = (function(){
   // prompter reuse this same builder at their own heights.
   function buildFormRail(opts){
     const H=(opts&&opts.h)||FORM_BAND_H;
+    const PAD=Math.max(0,Math.round((SZ.control-H)/2));   // 22 → 11, 16 → 14
     const groups=formGroups();
     if(groups.length<2) return null;
 
@@ -3398,7 +3485,7 @@ window.APP = (function(){
         const t0=(g.t0!=null && g.t1!=null) ? g.t0+(g.t1-g.t0)*i/g.n : g.t0;
         const b=el("button",
           `position:absolute;top:0;bottom:0;left:${i*100/g.n}%;width:${100/g.n}%;`+
-          `padding:11px 0;margin:-11px 0;border:0;background:transparent;z-index:2;`+
+          `padding:${PAD}px 0;margin:-${PAD}px 0;border:0;background:transparent;z-index:2;`+
           `cursor:pointer;-webkit-tap-highlight-color:transparent;`);
         b.setAttribute("aria-label", name+(g.n>1?(" — pass "+(i+1)):""));
         b.onclick=()=>{
@@ -4773,7 +4860,17 @@ window.APP = (function(){
     const w=screenWrap();
     const m=S.model;
     if(!m){ setTimeout(()=>go("library",{push:false}),0); return w; }
-    w.appendChild(appBar(m.title, "Prompter — now + the next four bars", "chart"));
+    // T5 (2026-08-19) : la vitesse se LIT dans le sous-titre et se règle dans
+    // la feuille — la rangée « SPEED » qui la portait a quitté l'écran.
+    const RATES=[[0.5,"0.5×"],[0.75,"0.75×"],[1,"1×"]];
+    const rateLbl=()=>{ const r=S.playRate||1; let best="1×", bd=9;
+      RATES.forEach(([v,l])=>{ const d=Math.abs(v-r); if(d<bd){ bd=d; best=l; } }); return best; };
+    const dots=kitIcon("···", ()=>openPractiseTools(), "Outils",
+      {style:`border:1px solid ${T.accent};color:${T.accent};`});
+    const topBar=appBar(m.title, "mesure 1 · "+rateLbl(), "chart", dots);
+    const paintSub=()=>{ if(topBar._sub)
+      topBar._sub.textContent="mesure "+Math.max(1,curBar>0?curBar:1)+" · "+rateLbl(); };
+    w.appendChild(topBar);
     const chords=prompterData().slice().sort((a,b)=>a.t0-b.t0);
     const grid=(m.barGrid||[]).slice();
     ensureLoopEls();   // warm the loop pair so the first LOOP tap costs nothing
@@ -4787,40 +4884,30 @@ window.APP = (function(){
     // overflowed UNDER the reel block, whose transparent box then ate the
     // taps). auto-margins on first/last child: centred when there is room,
     // scrolls from the top when there is not.
-    const stage=el("div","flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-height:0;padding:0 18px;overflow-y:auto;");
-    stage.className="ap-nobar";
-    const big=el("div","min-height:86px;display:flex;align-items:center;justify-content:center;margin-top:auto;");
+    // T5 : plus AUCUN défilement vertical dans Practise. Ce qui rentrait par
+    // le défilement rentre maintenant parce que la vitesse, le calage de seam,
+    // le métronome et les réglages de piano sont partis dans la feuille.
+    const stage=el("div","flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 18px;overflow:hidden;");
+    const big=el("div","flex:0 0 auto;min-height:82px;display:flex;align-items:center;justify-content:center;");
     const sub=el("div",`font:italic 13px ${SERIF};color:${T.faint};margin-top:8px;min-height:17px;text-align:center;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,"");
-    const nextRow=el("div","display:flex;align-items:baseline;gap:16px;margin-top:6px;min-height:24px;opacity:.5;");
+    const nextRow=el("div","display:flex;align-items:baseline;gap:16px;margin-top:6px;min-height:26px;opacity:.42;");
     stage.appendChild(big); stage.appendChild(sub); stage.appendChild(nextRow);
     // A loop engaged on the CHART (A–B) is the same engine — adopt it, so the
     // loop button reads on and the seam adjuster is there (Louis's report:
     // "l'outil de calage n'est plus présent" after arming from the chart).
     let curMids=null, curOne=null,
         loop=S._loopEngine?{a:S._loopEngine.a, b:S._loopEngine.b}:null;
+    // Deux mains ou une : le seul choix de voicing qui change ce que le clavier
+    // de Practise DESSINE. (S.coachStyle, « le style de voicing » de la spec,
+    // ne touche pas cet écran : le prompter voice avec sa propre cascade à
+    // mouvement minimal, pas avec voicingByStyle. Un réglage inerte dans une
+    // feuille vaut une ligne morte — il reste dans Aa, où il agit.)
+    let hands2=(()=>{ try{ return localStorage.getItem("harmPrompterHands")==="1"?1:2; }catch(e){ return 2; } })();
+    const kbMidis=()=>hands2===2?curMids:curOne;
     w.appendChild(stage);
     // no transport bar on this screen — the reel goes to the bottom edge
-    const reelWrap=el("div",`flex:0 0 auto;padding:0 18px calc(20px + env(safe-area-inset-bottom));`);
+    const reelWrap=el("div","flex:0 0 auto;padding:0 18px 8px;");
     const reelInner=el("div","max-width:720px;margin:0 auto;");
-    // speed presets (§4): the slider became three kitSegmented stops — slow
-    // the audio, pitch preserved, to play along
-    const spdRow=el("div","display:flex;align-items:center;gap:10px;margin-bottom:10px;");
-    spdRow.appendChild(el("span",`font:600 10px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};flex:0 0 auto;`,"speed"));
-    const RATES=[[0.5,"0.5×"],[0.75,"0.75×"],[1,"1×"]];
-    const spdHost=el("div","flex:0 0 auto;");
-    const paintSpd=()=>{
-      clear(spdHost);
-      spdHost.appendChild(kitSegmented(RATES,
-        ()=>{ const r=S.playRate||1; let best=1,bd=9;
-              RATES.forEach(([v])=>{ const d=Math.abs(v-r); if(d<bd){bd=d;best=v;} }); return best; },
-        v=>{ S.playRate=v; applyPlayRate(); paintSpd(); },
-        {inline:true, height:SZ.control, font:13}));
-    };
-    paintSpd();
-    spdRow.appendChild(spdHost);
-    reelInner.appendChild(spdRow);
-    const reelLbl=el("div",`font:600 10px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:6px;`,"next four bars");
-    reelInner.appendChild(reelLbl);
     const reel=el("div",`position:relative;height:96px;background:${T.card};border:1px solid ${T.line};border-radius:14px;overflow:hidden;`);
     const strip=el("div","position:absolute;top:0;bottom:0;left:0;width:0;will-change:transform;");
     reel.appendChild(strip);
@@ -4829,15 +4916,16 @@ window.APP = (function(){
     const markerLbl=el("div",`position:absolute;bottom:3px;color:${T.accent};font:600 8.5px ${UI};letter-spacing:.05em;opacity:.75;z-index:5;`,"now");
     reel.appendChild(marker); reel.appendChild(markerCap); reel.appendChild(markerLbl);
     reelInner.appendChild(reel);
-    // full-song strip: every chord as a thin colour block, playhead line,
-    // tap/drag anywhere = jump there (the /compare demo's #tl, app colours)
-    const tl=el("div",`position:relative;height:26px;margin-top:8px;background:${T.card};border:1px solid ${T.line};border-radius:8px;overflow:hidden;cursor:pointer;touch-action:none;`);
-    const tlBlocks=el("div","position:absolute;inset:0;");
-    const tlLoopBand=el("div",`position:absolute;top:0;bottom:0;display:none;background:${T.accent}2e;border-left:1px solid ${T.accent};border-right:1px solid ${T.accent};z-index:2;`);
-    const tlPh=el("div",`position:absolute;top:0;bottom:0;width:2px;background:${T.accent};z-index:3;`);
-    tl.appendChild(tlBlocks); tl.appendChild(tlLoopBand); tl.appendChild(tlPh);
-    reelInner.appendChild(tl);
     reelWrap.appendChild(reelInner); w.appendChild(reelWrap);
+    // La bande de forme de T1, à 16px, tout en bas : elle dit où on est dans le
+    // MORCEAU quand le reel ne montre que les quatre mesures qui viennent.
+    // Même composant, même geste (tap = seek).
+    // 14px sous la bande, pas 10 : c'est exactement la moitié tactile qui
+    // dépasse SOUS une bande de 16 (44 − 16)/2. Sans ça la zone de tap sort de
+    // l'écran par le bas, et un conteneur qui ne défile pas se met à défiler.
+    const bandWrap=el("div","flex:0 0 auto;padding:0 0 calc(14px + env(safe-area-inset-bottom));");
+    const band=buildFormRail({h:16});
+    if(band){ band.style.paddingBottom="0"; bandWrap.appendChild(band); w.appendChild(bandWrap); }
 
     const MARKER_FRAC=0.18;
     // window ahead of the marker = exactly FOUR bars of this song
@@ -4847,7 +4935,7 @@ window.APP = (function(){
     const aheadS=Math.max(3, 4*medBar);
     let W=0, markerX=0, pxs=0, blocks=[];
     const songDur=Math.max(grid.length?grid[grid.length-1]:0, chords.length?chords[chords.length-1].t1:1);
-    const bigSize=78;   // design 2a: the current chord is 78px
+    const bigSize=74;   // T5: 74px, and the two next chords at 26px / .42
     function barAt(t){
       let lo=0, hi=grid.length-2, bi=0;
       while(lo<=hi){ const mid=(lo+hi)>>1; if(grid[mid]<=t){ bi=mid; lo=mid+1; } else hi=mid-1; }
@@ -4873,11 +4961,9 @@ window.APP = (function(){
       loopBtn.style.background=on?T.accent:T.card; loopBtn.style.color=on?"#fff":T.ink;
       loopBtn.style.borderColor=on?T.accent:T.line;
       if(on) loopBars.textContent="bars "+(barAt(loop.a+0.01)+1)+"–"+(barAt(loop.b-0.01)+1);
-      seam.style.display=on?"flex":"none";
-      if(on) paintSeam();
-      tlLoopBand.style.display=on?"block":"none";
-      if(on){ tlLoopBand.style.left=(loop.a/songDur*100)+"%";
-              tlLoopBand.style.width=((loop.b-loop.a)/songDur*100)+"%"; }
+      // le calage de seam vit dans la feuille « ··· » (T5) : si elle est
+      // ouverte pendant qu'on arme la boucle, elle se repeint ; sinon rien.
+      if(S._practiseSeamPaint) S._practiseSeamPaint();
     }
     // Two-hand voicings (Louis, 2026-08-05): left hand = the sounding bass
     // (F2–E3 window), right hand = the §9 minimal-movement cascade run over
@@ -4964,23 +5050,23 @@ window.APP = (function(){
         oneFor(c,i).forEach(x=>O.push(x)); });
       return {lh:span(L), rh:span(R), all:span(A), oh:span(O)};
     })();
-    // the hands card (§4) — repainted on chord change only, via sync()'s
-    // curIdx guard; tap = hear the current voicing. margin-bottom:auto closes
-    // the centring pair opened on `big`.
-    const handsCard=buildHandsCard(()=>curMids, ()=>curOne, playMidis, handRanges);
-    handsCard.style.marginBottom="auto";
-    stage.appendChild(handsCard);
+    // LE CLAVIER (T5). Il quitte le stage — c'est une zone à lui, sous le
+    // stage, jamais dedans : la carte à deux claviers empilés faisait ~150px
+    // et poussait le transport hors de l'écran. `S.piano==="never"` : la carte
+    // n'est pas rendue du tout et ses 74px reviennent au stage.
+    const kbCard = S.piano==="never" ? null : practiseKeyboard(handRanges.all);
+    if(kbCard) w.insertBefore(kbCard, reelWrap);   // sous le stage, sur le reel
     // Big transport (design 2a): play 80 front and centre, four-bar jumps 60,
     // and a loop button that NAMES the bars it will cycle. It lives in the
     // FIXED bottom block, not the scrollable stage (Louis, 2026-08-08,
     // iPhone: "je ne vois même pas le bouton play une fois que c'est lancé")
     // — what you touch while playing never scrolls away.
     const ctrl=el("div","flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:10px;");
-    const jumpStyle=`flex:0 0 auto;width:60px;height:60px;border-radius:50%;border:1px solid ${T.line};background:${T.card};color:${T.ink};font:600 15px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;`;
+    const jumpStyle=`flex:0 0 auto;width:52px;height:52px;border-radius:50%;border:1px solid ${T.line};background:${T.card};color:${T.ink};font:600 15px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;`;
     const back4=el("button",jumpStyle,"‹‹4"); back4.title="Back four bars (left arrow)";
     back4.onclick=()=>jumpBars(-4);
-    const bigPlay=el("button",`flex:0 0 auto;width:80px;height:80px;border-radius:50%;border:none;background:${T.accent};color:#fff;font:600 26px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 12px 28px -10px ${T.accent}aa;`);
-    playGlyph(bigPlay, S.playing, 26);
+    const bigPlay=el("button",`flex:0 0 auto;width:64px;height:64px;border-radius:50%;border:none;background:${T.accent};color:#fff;font:600 26px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 12px 28px -10px ${T.accent}aa;`);
+    playGlyph(bigPlay, S.playing, 22);
     bigPlay.title="Play / pause (space)";
     bigPlay.onclick=()=>{ if(S._loopEngine) loopEngineToggle(); else togglePlay(); };
     const fwd4=el("button",jumpStyle,"4››"); fwd4.title="Forward four bars (right arrow)";
@@ -5003,24 +5089,81 @@ window.APP = (function(){
       paintLoop();
     };
     ctrl.appendChild(back4); ctrl.appendChild(bigPlay); ctrl.appendChild(fwd4); ctrl.appendChild(loopBtn);
-    // Loop-seam adjuster (Louis, 2026-08-08: "encore un poil trop tard, fais
-    // moi un outil pour décaler à l'oreille") — shown only while a loop runs.
-    // The wrap sounds late → tap "earlier". Applies from the next wrap,
-    // persists (harmLoopEpsMs), and also serves the chart's A–B loop.
-    // Lives in the FIXED bottom block (above SPEED), never in the stage — the
-    // stage can overflow on short viewports and lose its taps (see above).
-    const seam=el("div","display:none;align-items:center;justify-content:center;gap:10px;margin-bottom:10px;");
-    seam.appendChild(el("span",`font:600 10px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};`,"loop seam"));
-    const seamVal=el("span",`font:600 12px ${UI};color:${T.ink};min-width:92px;text-align:center;font-variant-numeric:tabular-nums;`,"");
-    const paintSeam=()=>{ const ms=Math.round(loopEpsS*1000);
-      seamVal.textContent = ms===0 ? "on the bar line" : Math.abs(ms)+" ms "+(ms>0?"early":"late"); };
-    const seamEarlier=kitButton("earlier", ()=>{ haptic(); loopEpsSet(Math.round(loopEpsS*1000)+4); paintSeam(); }, {small:true});
-    seamEarlier.title="the wrap sounds late — cross sooner";
-    const seamLater=kitButton("later", ()=>{ haptic(); loopEpsSet(Math.round(loopEpsS*1000)-4); paintSeam(); }, {small:true});
-    seamLater.title="the wrap clips the bar — cross later";
-    seam.appendChild(seamEarlier); seam.appendChild(seamVal); seam.appendChild(seamLater);
-    reelInner.insertBefore(seam, spdRow);
-    reelInner.insertBefore(ctrl, seam);   // transport first, seam right under it
+    // Le calage de seam (Louis, 2026-08-08 : « encore un poil trop tard, fais
+    // moi un outil pour décaler à l'oreille ») est parti dans la feuille
+    // « ··· » (T5). Il reste joignable dès qu'une boucle tourne, qu'elle ait
+    // été armée ici ou depuis l'A–B du chart : la feuille lit `loop`, pas
+    // l'écran d'où elle vient.
+    const paintSeamVal=hostVal=>{ const ms=Math.round(loopEpsS*1000);
+      hostVal.textContent = ms===0 ? "sur la barre" : Math.abs(ms)+" ms "+(ms>0?"en avance":"en retard"); };
+    reelInner.appendChild(ctrl);   // le transport, sous le reel
+    /* Ce qui a quitté l'écran de Practise et vit ici (T5) : la vitesse, le
+       calage de la boucle, le métronome et le clavier. L'écran ne garde que ce
+       qu'on touche en jouant — transport, reel, bande de forme. */
+    function openPractiseTools(){
+      const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
+      const close=()=>{ S._practiseSeamPaint=null; closeOverlay(back); };
+      sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,"Outils"));
+      sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:12px;`,
+        "on règle comment on joue, pas ce qu'on joue"));
+      const body=el("div","flex:1 1 auto;overflow-y:auto;display:flex;flex-direction:column;gap:14px;");
+      body.className="ap-scroll";
+      sheet.appendChild(body);
+      const row=(label,ctl)=>{
+        const r=el("div","display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;");
+        r.appendChild(el("div",`font:600 13px ${UI};color:${T.ink};`,label));
+        r.appendChild(ctl); return r;
+      };
+      function paint(){
+        clear(body);
+        body.appendChild(row("Vitesse", kitSegmented(RATES,
+          ()=>{ const r=S.playRate||1; let best=1,bd=9;
+                RATES.forEach(([v])=>{ const d=Math.abs(v-r); if(d<bd){bd=d;best=v;} }); return best; },
+          v=>{ S.playRate=v; applyPlayRate(); paintSub(); paint(); },
+          {inline:true, height:SZ.control, font:13})));
+        body.appendChild(row("Mains", kitSegmented([[2,"Deux"],[1,"Une"]],
+          ()=>hands2,
+          v=>{ hands2=v; try{ localStorage.setItem("harmPrompterHands",String(v)); }catch(e){}
+               if(kbCard) kbCard._show(kbMidis()); paint(); },
+          {inline:true, height:SZ.control, font:13})));
+        body.appendChild(row("Piano", kitSegmented([["never","Jamais"],["tap","Au tap"],["follow","Suit"]],
+          ()=>S.piano,
+          v=>{ S.piano=v; S.coach=(v==="follow");
+               try{ localStorage.setItem("harmPiano",v); localStorage.setItem("harmCoach",S.coach?"1":"0"); }catch(e){}
+               close(); go("prompter",{push:false}); },   // la carte apparaît/disparaît
+          {inline:true, height:SZ.control, font:13})));
+        body.appendChild(row("Clic sur les accords", kitSegmented([["on","On"],["off","Off"]],
+          ()=>S.metronome?"on":"off",
+          v=>{ S.metronome=(v==="on"); try{ localStorage.setItem("harmMetronome",S.metronome?"1":"0"); }catch(e){} paint(); },
+          {inline:true, height:SZ.control, font:13})));
+        // Le calage de seam n'existe que pendant une boucle — armée ici ou
+        // depuis l'A–B du chart, la feuille lit `loop` et ne sait pas d'où
+        // elle vient (le bug de 2026-08-08 : « l'outil de calage n'est plus
+        // présent » après un armement depuis le chart).
+        if(loop){
+          const val=el("span",`font:600 12px ${UI};color:${T.ink};min-width:104px;text-align:center;font-variant-numeric:tabular-nums;`,"");
+          paintSeamVal(val);
+          S._practiseSeamPaint=()=>paintSeamVal(val);
+          const box=el("div","display:flex;align-items:center;gap:8px;");
+          box.appendChild(kitButton("plus tôt", ()=>{ haptic(); loopEpsSet(Math.round(loopEpsS*1000)+4); paintSeamVal(val); }, {small:true}));
+          box.appendChild(val);
+          box.appendChild(kitButton("plus tard", ()=>{ haptic(); loopEpsSet(Math.round(loopEpsS*1000)-4); paintSeamVal(val); }, {small:true}));
+          const blk=el("div","display:flex;flex-direction:column;gap:8px;");
+          blk.appendChild(el("div",`font:600 13px ${UI};color:${T.ink};`,"Calage de la boucle"));
+          blk.appendChild(el("div",`font:italic 12px ${SERIF};color:${T.faint};margin-top:-4px;`,
+            "la reprise sonne en retard ? touche « plus tôt »"));
+          blk.appendChild(box);
+          body.appendChild(blk);
+        }
+      }
+      paint();
+      const cancel=el("button",`flex:0 0 auto;width:100%;margin-top:12px;background:transparent;border:none;`+
+        `color:${T.faint};font:600 13px ${UI};padding:8px;min-height:${SZ.control}px;cursor:pointer;`,"Fermer");
+      cancel.onclick=close;
+      sheet.appendChild(cancel);
+      back.onclick=e=>{ if(e.target===back) close(); };
+      back.appendChild(sheet); root.appendChild(back);
+    }
     if(loop) paintLoop();   // adopted from the chart's A–B — paint on arrival
     function layout(){
       W=reel.clientWidth; if(!W){ return; }
@@ -5062,7 +5205,7 @@ window.APP = (function(){
           big.appendChild(el("div",`font-family:${SERIF};font-style:italic;font-weight:600;font-size:${Math.round(bigSize*0.55)}px;color:${T.faint};`,"N.C."));
           sub.textContent="";
           curMids=null; curOne=null;
-          handsCard._repaint();
+          if(kbCard) kbCard._show(null);
         } else {
           big.appendChild(glyph(c.root,c.q,bigSize,"exact",bigChordColor(c.root),c.bass));
           // the ROLE on one line (design 2a) — same roleOf the editor's Guide uses
@@ -5071,11 +5214,11 @@ window.APP = (function(){
           // the next two chords, greyed
           [chords[i+1], chords[i+2]].forEach(n=>{ if(!n) return;
             nextRow.appendChild(n.nc
-              ? el("span",`font:italic 600 14px ${SERIF};color:${T.faint};`,"N.C.")
-              : glyph(n.root,n.q,24,"exact",T.ink,n.bass)); });
+              ? el("span",`font:italic 600 16px ${SERIF};color:${T.faint};`,"N.C.")
+              : glyph(n.root,n.q,26,"exact",T.ink,n.bass)); });
           curMids=midsFor(c,i);
           curOne=oneFor(c,i);
-          handsCard._repaint();
+          if(kbCard) kbCard._show(kbMidis());
         }
       }
       // bar counter (1-based), from the same grid the chart's playhead uses —
@@ -5084,18 +5227,18 @@ window.APP = (function(){
       while(lo<=hi){ const mid=(lo+hi)>>1; if(grid[mid]<=t){ bi=mid; lo=mid+1; } else hi=mid-1; }
       const bar1=Math.min(Math.max(bi+1,1), m.nBars||grid.length-1);
       if(bar1!==curBar){ curBar=bar1;
-        reelLbl.textContent="bar "+bar1+" of "+(m.nBars||grid.length-1)+" · next four bars";
+        paintSub();
         if(!loop){
           const g=Math.min(Math.floor(Math.max(0,bi)/4)*4, Math.max(0,grid.length-2));
           loopBars.textContent="bars "+(g+1)+"–"+Math.min(g+4,Math.max(1,grid.length-1));
         }
       }
-      // full-song playhead (2-decimal dedupe: skip the style write when still)
-      const ph=(Math.min(1,Math.max(0,t/songDur))*100).toFixed(2)+"%";
-      if(ph!==lastPh){ lastPh=ph; tlPh.style.left=ph; }
+      // la bande de forme (T1) tient la position dans le morceau entier —
+      // elle a remplacé la mini-timeline de 26px, et elle s'écrit sur l'horloge
+      paintFormRail(t);
       // (the loop engine drives its own wrap now — v2, 2026-08-08)
       // big play button + keep the screen awake while playing
-      if(S.playing!==lastPlaying){ lastPlaying=S.playing; playGlyph(bigPlay,S.playing,26); wakeLock(S.playing); }
+      if(S.playing!==lastPlaying){ lastPlaying=S.playing; playGlyph(bigPlay,S.playing,22); wakeLock(S.playing); }
     }
     let lastPh="", lastPlaying=null;
     async function wakeLock(on){
@@ -5112,12 +5255,15 @@ window.APP = (function(){
     if(S._prompterRaf) cancelAnimationFrame(S._prompterRaf);
     const frame=()=>{ if(S.screen!=="prompter"){ S._prompterRaf=null; wakeLock(false); loopEngineDispose(true); return; } sync(false); S._prompterRaf=requestAnimationFrame(frame); };
     S._prompterRaf=requestAnimationFrame(frame);
+    // Aucun défilement vertical dans Practise, jamais (acceptation T5). Si le
+    // compte n'y est pas sur un écran court, c'est le REEL qui rétrécit
+    // (96 → 80), jamais le clavier ni le stage.
+    function fit(){
+      reel.style.height="96px";
+      if(w.scrollHeight > w.clientHeight+1) reel.style.height="80px";
+    }
+    requestAnimationFrame(fit);
     try{ new ResizeObserver(()=>layout()).observe(reel); }catch(e){ setTimeout(layout,0); }
-    // full-song strip blocks — %-positioned, so they never need relayout
-    chords.forEach(c=>{
-      if(c.nc) return;
-      tlBlocks.appendChild(el("div",`position:absolute;top:0;bottom:0;left:${(c.t0/songDur*100).toFixed(2)}%;width:${Math.max(0.15,(c.t1-c.t0)/songDur*100).toFixed(2)}%;background:${reelFill(c.root)};`));
-    });
     // reel: DRAG to scrub (grab the tape — right = earlier), plain tap = jump
     // to the tapped instant. touch-action pan-y leaves vertical scrolling to
     // the browser and horizontal gestures to us.
@@ -5147,20 +5293,12 @@ window.APP = (function(){
       const r=reel.getBoundingClientRect();
       seekTo(nowTime()+PLAYHEAD_LEAD_S+((e.clientX-r.left)-markerX)/pxs);
     });
-    // full-song strip: tap or drag = absolute position
-    let tlDown=false;
-    const tlSeek=e=>{ const r=tl.getBoundingClientRect(); const d=totalDur();
-      if(d>0 && r.width) seekTo((e.clientX-r.left)/r.width*d); };
-    tl.addEventListener("pointerdown",e=>{ tlDown=true; try{ tl.setPointerCapture(e.pointerId); }catch(err){} tlSeek(e); });
-    tl.addEventListener("pointermove",e=>{ if(tlDown){ const now=performance.now(); if(now-lastSeekTs>70){ lastSeekTs=now; tlSeek(e); } } });
-    tl.addEventListener("pointerup",e=>{ if(tlDown){ tlSeek(e); sync(true); } tlDown=false; });
-    tl.addEventListener("pointercancel",()=>{ tlDown=false; });
     // swipe DOWN anywhere (except the reel/strip, which own their gestures,
     // and the speed slider) = back to the chart — the bottom bar is gone, so
     // the screen needs a first-class way out
     let swY=null, swX=null;
     w.addEventListener("pointerdown",e=>{
-      if(reel.contains(e.target)||tl.contains(e.target)||((e.target.tagName||"")==="INPUT")) return;
+      if(reel.contains(e.target)||((e.target.tagName||"")==="INPUT")) return;
       // a scrollable stage owns its vertical gesture — swiping there scrolls,
       // it must not yank the user back to the chart
       if(stage.contains(e.target) && stage.scrollHeight>stage.clientHeight+2) return;
