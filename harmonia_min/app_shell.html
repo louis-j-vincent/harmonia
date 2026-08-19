@@ -2391,6 +2391,7 @@ window.APP = (function(){
   const PHASE_COPY={
     listening:["listening to the track",      "finding the beat"],
     decoding: ["reading the harmony",         "this is the long part — a minute or so on a new song"],
+    head:     ["the first bars, already",     "les premières mesures pendant que le reste se calcule"],
     raw:      ["the chart, bar by bar",       "no letters yet — you can already play along"],
     sections: ["finding the sections",        "grouping the repeats into A, B, C…"],
     done:     ["ready",                       ""]
@@ -2432,7 +2433,7 @@ window.APP = (function(){
       `flex:0 0 auto;padding:14px 14px calc(14px + env(safe-area-inset-bottom));background:${T.paper};`);
     w.appendChild(foot);
 
-    S._load={title, sub, s1f, s2f, meta, body, foot, shown:null};
+    S._load={title, sub, s1f, s2f, meta, body, foot, shown:null, shownBars:0};
     paintLoading();
     return w;
   }
@@ -2467,8 +2468,12 @@ window.APP = (function(){
     L.sub.textContent=copy[0];
 
     const done = phase==="done";
-    const hasRaw = (phase==="raw" || phase==="sections" || done) && j.raw_model;
-    L.s1f.style.width = hasRaw ? "100%" : (phase==="decoding" ? "62%" : "18%");
+    const hasRaw = (phase==="head" || phase==="raw" || phase==="sections" || done)
+                   && j.raw_model;
+    // "head" : on a des accords à l'écran mais la passe complète tourne encore
+    // — la barre ne doit pas annoncer une étape terminée.
+    L.s1f.style.width = phase==="head" ? "62%"
+                      : (hasRaw ? "100%" : (phase==="decoding" ? "62%" : "18%"));
     if(hasRaw) L.s1f.style.background=T.green;
     L.s2f.style.width = done ? "100%" : (phase==="sections" ? "45%" : "0%");
     if(done) L.s2f.style.background=T.green;
@@ -2482,7 +2487,10 @@ window.APP = (function(){
     } else {
       L.meta.appendChild(el("span","", copy[1]));
     }
-    if(hasRaw && !done) L.meta.appendChild(el("span","","finding the sections…"));
+    // Dire l'étape RÉELLE : pendant l'aperçu on décode encore le morceau, on
+    // ne cherche pas les sections (2026-08-18).
+    if(hasRaw && !done) L.meta.appendChild(el("span","",
+      phase==="head" ? "le reste se décode…" : "finding the sections…"));
 
     /* ── the body ──────────────────────────────────────────────────────────
        Before the raw chart: a quiet waiting state, NOT a fake grid. After it:
@@ -2506,18 +2514,24 @@ window.APP = (function(){
       return;
     }
 
-    if(L.shown!=="chart" && j.raw_model){
+    // Le chart de tête (2026-08-18) arrive AVANT le brut et n'a que ses ~16
+    // premières mesures : il faut donc re-rendre quand le brut le remplace,
+    // sinon l'écran resterait sur l'aperçu. `shownBars` est le témoin.
+    const nb = j.raw_model ? (j.raw_model.nBars||0) : 0;
+    if(j.raw_model && (L.shown!=="chart" || L.shownBars!==nb)){
       clear(L.body);
       loadModel(j.raw_model);          // the real path — same cells as the final chart
       const head=el("div","display:flex;align-items:center;gap:8px;margin:0 4px 8px;");
       head.appendChild(el("div",
         `font:600 11px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};`,
-        "raw chart · no letters yet"));
+        phase==="head" ? "aperçu · les premières mesures" : "raw chart · no letters yet"));
       head.appendChild(el("div",`flex:1;height:1px;background:${T.line};`));
       L.body.appendChild(head);
       L.body.appendChild(buildIReal());
-      L.body.appendChild(kitLegend(T.green, "every bar written out — you can already play along"));
-      L.shown="chart";
+      L.body.appendChild(kitLegend(T.green, phase==="head"
+        ? "le reste du morceau se décode — ces mesures peuvent encore bouger"
+        : "every bar written out — you can already play along"));
+      L.shown="chart"; L.shownBars=nb;
     }
 
     clear(L.foot);
@@ -2536,7 +2550,9 @@ window.APP = (function(){
     // lecteur audio, et il s'abstient si une annotation est en cours (il pose
     // « Recharger » à la place). Il ne manquait QUE la porte : le bouton
     // n'apparaissait qu'à `done`.
-    if(done || j.raw_model){
+    // `j.file` : le chart de tête ne pose pas de `chart_url`, donc pas de
+    // bouton — il ouvrirait un fichier qui n'est pas encore écrit.
+    if(done || (j.raw_model && j.file)){
       const early = !done;
       // `grow:true` pose flex:1, qui ne veut rien dire dans un bloc : le
       // bouton principal de cet écran était en fait à la largeur de son texte.
@@ -2563,7 +2579,8 @@ window.APP = (function(){
       busy.appendChild(el("div",
         `width:14px;height:14px;border-radius:50%;border:2px solid ${T.line};`+
         `border-top-color:${T.accent};animation:ap-spin .7s linear infinite;`));
-      busy.appendChild(el("span","","Finding the sections"));
+      busy.appendChild(el("span","",
+        phase==="head" ? "Le chart complet arrive" : "Finding the sections"));
       L.foot.appendChild(busy);
     }
   }

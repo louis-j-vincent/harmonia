@@ -20,6 +20,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -201,6 +202,34 @@ def _patch_init_hidden(chordnet_module) -> None:
     chordnet_module.ChordNet.init_hidden = init_hidden
 
 
+_NETS: list | None = None
+_NETS_LOCK = threading.Lock()
+
+
+def _nets() -> list:
+    """Les 5 réseaux, chargés UNE FOIS par processus, déjà sur le bon device.
+
+    Ils étaient reconstruits à chaque appel (`NetworkInterface(...)` ×5, 0,7 s
+    de disque) — supportable sur CPU, ruineux sur MPS : chaque copie laisse ses
+    tampons dans le cache d'allocation du GPU, que rien ne rend. Mesuré le
+    2026-08-18 en rechargeant à chaque fois : la 3e analyse d'un même processus
+    mettait 26 s là où la 1re en mettait 6,6. Les poids ne changent jamais ;
+    on les garde.
+    """
+    global _NETS
+    if _NETS is None:
+        with _InMusxDir():
+            from mir.nn.train import NetworkInterface
+            from chordnet_ismir_naive import ChordNet
+            import chordnet_ismir_naive as _cn
+            _patch_init_hidden(_cn)
+            dev = _device()
+            _NETS = [NetworkInterface(ChordNet(None), n, load_checkpoint=False)
+                     .net.eval().to(dev) for n in MODEL_NAMES]
+        logger.info("musx: %d réseaux chargés sur %s", len(_NETS), _device())
+    return _NETS
+
+
 def _run_nets(cqt: np.ndarray) -> list[np.ndarray]:
     """Les 6 flux de postérieures, moyennés sur les 5 folds. UN SEUL chemin.
 
@@ -208,23 +237,24 @@ def _run_nets(cqt: np.ndarray) -> list[np.ndarray]:
     `NetworkInterface.inference`, qui appelle `init_settings(False)` — lequel
     fait `self.cpu()` et ramènerait donc les poids sur CPU à chaque appel. On
     place les modules nous-mêmes et on appelle `ChordNet.inference` directement.
+
+    Le verrou sérialise deux analyses simultanées (deux onglets, deux jobs) :
+    les modules sont partagés, et rien ne dit qu'un GPU Metal aime deux
+    inférences concurrentes sur les mêmes poids.
     """
     import torch
     dev = _device()
-    with _InMusxDir():
-        from mir.nn.train import NetworkInterface
-        from chordnet_ismir_naive import ChordNet
-        import chordnet_ismir_naive as _cn
-        _patch_init_hidden(_cn)
-        x = torch.tensor(np.asarray(cqt), dtype=torch.float32)
+    with _NETS_LOCK:
+        nets = _nets()
+        x = torch.tensor(np.asarray(cqt), dtype=torch.float32).to(dev)
         acc = None
-        for name in MODEL_NAMES:
-            net = NetworkInterface(ChordNet(None), name, load_checkpoint=False)
-            m = net.net.eval().to(dev)
-            with torch.no_grad():
-                out = m.inference(x.to(dev))
-            acc = list(out) if acc is None else [a + b for a, b in zip(acc, out)]
-            del net, m
+        with torch.no_grad():
+            for m in nets:
+                out = m.inference(x)
+                acc = list(out) if acc is None else [a + b for a, b in zip(acc, out)]
+        del x
+        if dev == "mps":
+            torch.mps.empty_cache()
     return [(a / len(MODEL_NAMES)).astype(np.float32) for a in acc]
 
 

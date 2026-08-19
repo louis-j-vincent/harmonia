@@ -1263,6 +1263,14 @@ def _run_job(job_id: str, url: str, bar1_time=None):
 
     def progress(stage, **kw):
         job["stage"] = max(job.get("stage", 0), stage)
+        # L'ÉCRAN NE RECULE PAS (2026-08-18). Le chart de tête est rendu avant
+        # que la passe complète ne commence, donc le `report(1,
+        # phase="listening")` qui suit remettait l'écran sur le rond qui
+        # tourne — et l'aperçu, déjà calculé, n'était jamais montré. La phase
+        # reste "head" jusqu'au chart brut ; `stage` continue d'avancer.
+        if job.get("phase") == "head" and kw.get("phase") in ("listening",
+                                                              "decoding"):
+            kw = {k: v for k, v in kw.items() if k != "phase"}
         job.update(kw)
 
     try:
@@ -1307,6 +1315,21 @@ def _run_job(job_id: str, url: str, bar1_time=None):
                 audio_path, title=job["title"], file_key=file_key,
                 audio_url=f"/audio/{audio_path.name}", progress=progress,
                 bar1_time=bar1_time):
+            if kind == "head":
+                # LE CHART DE TÊTE NE TOUCHE PAS LE DISQUE (2026-08-18). C'est
+                # un aperçu des ~45 premières secondes, dont 6 % des accords
+                # changeront quand la passe complète arrivera : l'écrire dans
+                # CHARTS_DIR le ferait apparaître dans la bibliothèque comme
+                # un chart tronqué si le job mourait juste après. Il voyage
+                # donc dans le job, rendu par le MÊME loadModel() que le brut,
+                # et `chart_url` reste absent — donc pas de bouton « Play it
+                # now » qui ouvrirait un fichier qui n'existe pas.
+                job.update(phase="head", raw_model=model,
+                           n_bars=model["nBars"],
+                           head_s=round(time.time() - t0, 2))
+                log.info("job %s: chart de TÊTE en %.1f s → %d mesures",
+                         job_id, time.time() - t0, model["nBars"])
+                continue
             dest.write_text(json.dumps(model), encoding="utf-8")
             if kind == "raw":
                 # UI refresh 2026-08-08 (§5): the raw ChartModel rides the job

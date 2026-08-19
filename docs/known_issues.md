@@ -1,5 +1,95 @@
 # Harmonia — Known Issues
 
+## 2026-08-19 — OUVERT : songformer TUE LE SERVEUR sur les morceaux longs
+
+Mesuré en isolant l'étape (aucun autre modèle en mémoire, processus neuf) :
+
+```
+harmonia_min.songformer.segments("docs/audio/autumn_leaves.m4a")   # 422 s
+→ code retour 137  (SIGKILL — l'OS tue le processus)
+```
+
+Le serveur meurt donc EN COURS DE JOB, après avoir publié le chart brut :
+deux fois de suite sur `autumn_leaves`, à la seconde où songformer charge
+l'audio. Le chart brut est sur disque, le raffinement ne revient jamais, et
+l'app perd le serveur.
+
+Ce n'est PAS l'inférence musx sur MPS (elle finit bien avant, et le test
+ci-dessus n'en fait aucune) : c'est la mémoire. La machine a 16 Go ; songformer
+empile MuQ + MusicFM + un Transformer et voit le morceau à deux échelles, dont
+une fenêtre de 420 s.
+
+Pas caractérisé faute de temps : la durée à partir de laquelle ça tue. Un
+morceau de 125 s (`yesterday_remastered_2009`) passe sans problème, sections
+comprises. Le seuil est donc quelque part entre 125 s et 422 s — c'est la
+première chose à mesurer, avant de découper l'audio en fenêtres ou de basculer
+le modèle sur MPS.
+
+
+## 2026-08-18 — RÉSOLU : SONGFORMER EST LE DÉTECTEUR DE SECTIONS EN PROD
+
+Louis, après avoir écouté `/plots/songformer.html` (son annotation, SongFormer
+et notre détecteur en trois bandes sur le même axe, dix-neuf morceaux, chaque
+bloc jouable d'un tap) : « je suis d'accord avec lui partout, on le prend en
+prod ». `HARMONIA_SECTIONS=songformer` est donc le défaut ; voice / harmonic /
+chroma restent joignables par la même variable.
+
+**Ce que ça change de nature.** Nos trois détecteurs cherchaient une
+RÉPÉTITION — mêmes accords, même mélodie, même chroma — et déduisaient les
+lettres. SongFormer RECONNAÎT le rôle d'un passage à sa texture : il trouve des
+frontières qu'aucune répétition ne trahit, et il les NOMME (intro, couplet,
+refrain, pont, instrumental, outro). C'est le premier détecteur du projet qui ne
+dépend pas de la justesse de notre grille de mesures pour trouver ses
+frontières : il coupe dans le temps, on tire ensuite sur la barre la plus proche.
+
+**Comment il marche** (lu dans `modeling_songformer.py`, pas dans son README).
+Audio à 24 kHz → deux encodeurs pré-entraînés, MuQ et MusicFM, 10ᵉ couche
+cachée, chacun vu à deux échelles (fenêtres de 30 s et de 420 s) = quatre flux
+concaténés → un Transformer entraîné sur des morceaux annotés à la main → à
+8,33 images/s, deux sorties : « y a-t-il une frontière ici » et « quelle
+étiquette ». Frontières = pics locaux de la première ; étiquette d'un segment =
+moyenne de la seconde entre deux frontières, argmax.
+
+**Trois frictions, payées une fois** (détaillées dans `harmonia_min/songformer.py`) :
+`AutoModel.from_pretrained` ne marche pas avec transformers 5.x (device meta) ;
+les poids sont dans `model.safetensors`, PAS dans `SongFormer.safetensors` (qui
+n'est que la copie EMA de la tête) ; et les dépendances du dépôt veulent monter
+torch de 2.12 à 2.13, ce qui casserait beatthis/demucs/musx — installées
+`--no-deps` avec `torchvision==0.27.*`.
+
+**Coût** : CPU seulement, ~1 min de chargement par processus puis quelques
+dizaines de secondes par morceau, mis en cache dans
+`harmonia_min/state/songformer/`. `scripts/songformer_prechauffe.py` remplit le
+cache d'avance ; `scripts/songformer_en_prod.py` re-découpe les charts déjà
+analysés SANS relancer les battues (les grilles ne bougent pas, donc les
+annotations posées dessus non plus).
+
+**Ce que ça NE règle pas** : il donne des frontières et des rôles, rien d'autre.
+Le repli, la longueur d'écriture, les queues, la variation en exposant restent
+notre travail en aval.
+
+## 2026-08-18 — RÉSOLU : LE REPLI D'AFFICHAGE GROUPAIT DEUX LONGUEURS SOUS UN BLOC
+
+Suite directe de l'entrée du 2026-08-17 ci-dessous, qui disait « PAS RÉSOLU, ET
+C'EST LA VRAIE ENTRÉE ». `folding.minimal_fold` groupait les occurrences d'une
+lettre **par lettre seule** : un B de 8 mesures et un B de 4 sortaient dans UN
+bloc, écrit à la longueur du représentant, et la tête de lecture se décalait
+d'une barre à chaque reprise (Louis, 2026-08-18, sur Another Day : « la dernière
+section c'est la section A mais décalée d'une barre »).
+
+`soudure.sections_pour_chart` groupait DÉJÀ par (lettre, longueur) depuis le
+chemin Soudure — les deux chemins rendaient donc deux charts différents pour le
+même découpage. `minimal_fold` fait pareil maintenant : deux longueurs d'un même
+refrain restent deux blocs, tous deux nommés B, chacun écrit à sa longueur.
+Test rouge d'abord : `tests/test_songformer_sections.py::
+test_minimal_fold_separe_les_longueurs_dune_meme_lettre`.
+
+Conséquence voulue : c'est ce qui permet à SongFormer de donner la MÊME lettre à
+toutes les occurrences d'un rôle. Sur Another Day son refrain est joué cinq fois
+et mesure 9, 7, 8, 8 puis 12 mesures (sa frontière tombe au demi-temps près) ;
+séparer par longueur dans le détecteur aurait rendu quatre lettres là où
+l'oreille entend « le refrain, cinq fois ».
+
 ## 2026-08-18 — ★ ANOTHER DAY : LA GRILLE PERD LA MESURE DANS L'OUTRO, LE PLI EN HÉRITE
 
 Louis : « sur another day les dernières sections D F G H I devraient toutes être
@@ -103,6 +193,9 @@ RÉSOLU EN AVAL (`soudure.accords_par_mesure`, `app_shell.unfoldedModel`) : les
 deux lisent maintenant `prompter.chords` — le décodage à plat, un accord par
 empan de temps, jamais replié — et recollent `sug`/`n`/`colour` depuis l'accord
 écrit qui occupe le MÊME temps. Vérifié sur le rendu : mesures 25/26 = A-, Bb.
+
+**RÉSOLU LE 2026-08-18** (`folding.minimal_fold` groupe par (lettre, longueur),
+voir l'entrée du 2026-08-18 plus haut). Le texte d'origine, gardé :
 
 **PAS RÉSOLU, ET C'EST LA VRAIE ENTRÉE :** le repli lui-même produit encore des
 sections dont les occurrences n'ont pas la même longueur, ce qui viole la règle

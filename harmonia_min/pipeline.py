@@ -37,6 +37,8 @@ from __future__ import annotations
 
 import logging
 import os
+import subprocess
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -233,11 +235,88 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
     re-anchor you cannot re-apply is not an anchor.
     """
     model = None
+    # `head_s=0` : le chart de tête ne sert qu'à l'écran de chargement. Un
+    # appelant non-streaming (rebake_library sur 80 morceaux) paierait 2 s par
+    # morceau pour un modèle qu'il jette.
     for _, model in analyze_steps(audio_path, title=title, file_key=file_key,
                                   audio_url=audio_url, progress=progress,
-                                  bar1_time=bar1_time):
+                                  bar1_time=bar1_time, head_s=0.0):
         pass
     return model
+
+
+#: Durée du « chart de tête » : les premières secondes du morceau, analysées
+#: seules pour que Louis ait des accords sous les yeux pendant que la passe
+#: complète tourne. 45 s parce que c'est la plus courte fenêtre mesurée
+#: (2026-08-18, deux morceaux) qui rende EXACTEMENT les mêmes battues que le
+#: morceau entier — écart max 0 à 20 ms, même phase de mesure.
+HEAD_SECONDS = 45.0
+
+#: En dessous, un chart de tête n'a plus de sens : la passe complète arrive
+#: quasiment en même temps.
+HEAD_MIN_SONG = 90.0
+
+_HEAD_DIR = Path(tempfile.gettempdir()) / "harmonia_head"
+
+
+def _duree(audio_path: Path) -> float:
+    """Durée en secondes, 0 si ffprobe ne répond pas (on n'échoue pas là-dessus)."""
+    try:
+        return float(subprocess.check_output(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "csv=p=0", str(audio_path)], timeout=30).strip())
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return 0.0
+
+
+def _head_chart(audio_path: Path, *, title, file_key, audio_url, bar1_time):
+    """Le chart des ~45 premières secondes, ou None. JAMAIS fatal.
+
+    Pourquoi ça marche sans rien recalculer différemment : la tête est un
+    PRÉFIXE du morceau, donc toutes les secondes qu'elle produit (mesures,
+    spans, tête de lecture) sont déjà les bonnes dans le référentiel du
+    fichier complet. On lui passe l'audio_url du morceau entier et le chart
+    est jouable tel quel.
+
+    Ce qu'il coûte, mesuré le 2026-08-18 : battues 0,9 s + CQT 0,4 s +
+    réseaux 0,3 s + re-décodage 0,2 s ≈ 2 s, contre 7 à 12 s pour la passe
+    complète.
+
+    CE QU'IL N'EST PAS : la vérité. Les postérieures d'une tranche ne sont pas
+    celles du morceau entier — le CNN normalise sur la fenêtre qu'on lui donne
+    (InstanceNorm) et le LSTM est bidirectionnel. Mesuré sur une tranche de 8
+    mesures : 94 % des accords sont déjà les bons, 6 % changeront. C'est un
+    APERÇU, remplacé quelques secondes plus tard par le chart brut.
+
+    Le nom du fichier temporaire est stable (un par morceau) pour que les
+    caches (battues, CQT, postérieures) le reconnaissent d'une analyse à
+    l'autre.
+    """
+    try:
+        _HEAD_DIR.mkdir(parents=True, exist_ok=True)
+        wav = _HEAD_DIR / f"{audio_path.stem}__head{int(HEAD_SECONDS)}.wav"
+        if not wav.exists():
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-t",
+                            str(HEAD_SECONDS), "-i", str(audio_path),
+                            "-ac", "1", "-ar", "22050", str(wav)],
+                           check=True, timeout=120)
+        gen = analyze_steps(wav, title=title, file_key=file_key,
+                            audio_url=audio_url, head_s=0.0,
+                            bar1_time=(bar1_time if bar1_time is not None
+                                       and float(bar1_time) < HEAD_SECONDS
+                                       else None))
+        try:
+            for kind, model in gen:
+                if kind == "raw":
+                    return model
+        finally:
+            gen.close()
+    except Exception as exc:                      # noqa: BLE001 — best effort
+        # Bruyant, jamais silencieux : un aperçu qui manque est une information
+        # (souvent le garde-fou de grille sur une intro rubato), pas un détail.
+        logger.warning("chart de tête indisponible pour %s : %s",
+                       audio_path.name, exc)
+    return None
 
 
 def _run_beats(audio_path, report):
@@ -287,7 +366,8 @@ def _run_beats(audio_path, report):
 
 
 def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
-                  audio_url: str = "", progress=None, bar1_time=None):
+                  audio_url: str = "", progress=None, bar1_time=None,
+                  head_s: float = HEAD_SECONDS):
     """Générateur : `("raw", modèle)` puis `("final", modèle)`.
 
     Louis, 2026-08-07 : « il faut arriver au chart brut le plus rapidement
@@ -341,6 +421,17 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
     # toutes — plus rien en dessous ne dépend du répertoire courant.
     from concurrent.futures import ThreadPoolExecutor
     audio_path = Path(audio_path).resolve()
+
+    # ── LE CHART DE TÊTE, avant tout le reste (2026-08-18) ──────────────────
+    # Louis : « j'aimerais speedup l'arrivée des premiers accords ». Les
+    # premières mesures sortent en ~2 s au lieu de 7 à 12. `head_s=0` coupe la
+    # récursion : c'est le MÊME générateur qui analyse la tête.
+    if head_s and _duree(audio_path) > HEAD_MIN_SONG:
+        _head = _head_chart(audio_path, title=title, file_key=file_key,
+                            audio_url=audio_url, bar1_time=bar1_time)
+        if _head is not None:
+            yield "head", _head
+
     _pool = ThreadPoolExecutor(max_workers=1)
     _probs_fut = _pool.submit(_musx.frame_posteriors, audio_path)
     try:
