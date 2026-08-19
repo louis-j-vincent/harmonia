@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+  body{margin:0;background:#e7e0d0;}
+  a{color:#8a2b2b;} a:hover{color:#6f2222;}
+  sup{font-size:.58em;font-weight:600;}
+</style>
+</helmet>
+
+<section style="padding:56px 48px 80px;background:#e7e0d0;font-family:system-ui,-apple-system,sans-serif;color:#1c1c1c;">
+  <div style="max-width:1680px;margin:0 auto;">
+    <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:6px;">
+      <div style="font:italic 700 30px Georgia,serif;">harmon<span style="color:#8a2b2b;">ia</span></div>
+      <div style="font:600 13px system-ui;letter-spacing:.14em;text-transform:uppercase;color:#8a8371;">cleanup · tour 1</div>
+      <div id="1a" style="font:700 12px system-ui;color:#8a2b2b;border:1px solid #8a2b2b;border-radius:6px;padding:2px 7px;">1a</div>
+    </div>
+    <div style="max-width:760px;font:400 15px/1.6 system-ui;color:#5c5545;text-wrap:pretty;margin-bottom:36px;">
+      Une seule règle pour tout ce qui suit : <strong>un écran = une chose à faire</strong>. Read lit,
+      Annotate corrige, Practise joue. Rien d'un mode n'apparaît dans un autre, et tout outil qui
+      n'est pas l'action principale de l'écran vit derrière un bouton unique.
+    </div>
+
+    <div style="display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start;">
+
+      <!-- ══ FRAME 1 — READ ══ -->
+      <div style="display:flex;flex-direction:column;gap:16px;width:390px;">
+        <div style="width:390px;height:760px;background:#f7f3e9;border:1px solid #d9d0bb;border-radius:28px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 26px 60px -34px rgba(50,38,20,.55);">
+          <!-- toolbar -->
+          <div style="flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:14px 14px 8px;">
+            <div style="width:38px;height:38px;border-radius:50%;background:#fffdf6;border:1px solid #e5dcc6;display:flex;align-items:center;justify-content:center;font:400 19px system-ui;color:#1c1c1c;">‹</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font:italic 600 19px Georgia,serif;">Autumn Leaves</div>
+              <div style="display:flex;align-items:center;gap:6px;font:500 13px system-ui;color:#8a8371;margin-top:1px;">
+                <span style="color:#1c1c1c;font-weight:600;">G minor</span><span>·</span><span>AABA</span><span style="color:#8a2b2b;">↻</span>
+              </div>
+            </div>
+            <div style="width:38px;height:38px;border-radius:50%;background:#fffdf6;border:1px solid #e5dcc6;display:flex;align-items:center;justify-content:center;font:italic 600 15px Georgia,serif;">Aa</div>
+          </div>
+          <!-- FORM TAPE -->
+          <div style="flex:0 0 auto;padding:2px 14px 12px;">
+            <div style="display:flex;gap:2px;height:22px;">
+              <sc-for list="{{ tape }}" as="t" hint-placeholder-count="9">
+                <div style="flex:{{ t.w }};position:relative;background:#fffdf6;border:1px solid #e5dcc6;border-radius:5px;overflow:hidden;display:flex;align-items:center;justify-content:center;">
+                  <div style="position:absolute;left:0;top:0;bottom:0;width:{{ t.played }};background:rgba(138,43,43,.14);"></div>
+                  <sc-for list="{{ t.ticks }}" as="k" hint-placeholder-count="0">
+                    <div style="position:absolute;top:3px;bottom:3px;left:{{ k.x }};width:1px;background:#e2d9c3;"></div>
+                  </sc-for>
+                  <div style="position:relative;{{ t.style }}">{{ t.short }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <!-- grid -->
+          <div style="flex:1;min-height:0;padding:10px 7px 0;overflow:hidden;">
+            <sc-for list="{{ readRows }}" as="row" hint-placeholder-count="4">
+              <div style="display:flex;align-items:stretch;border-left:2px solid #1c1c1c;border-top:1px solid #b9b09a;position:relative;">
+                <sc-if value="{{ row.sec }}" hint-placeholder-val="{{ true }}">
+                  <div style="position:absolute;left:2px;top:-9px;background:#f7f3e9;border:1px solid #8a2b2b;border-radius:4px;padding:0 4px;font:700 9px system-ui;color:#8a2b2b;">{{ row.sec }}</div>
+                </sc-if>
+                <sc-for list="{{ row.cells }}" as="c" hint-placeholder-count="4">
+                  <div style="flex:1;min-width:0;height:56px;border-right:1px solid #b9b09a;display:flex;align-items:center;padding-left:8px;">
+                    <div style="font:italic 700 21px Georgia,serif;color:#1c1c1c;">{{ c.r }}<sup>{{ c.q }}</sup></div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+          <!-- dock -->
+          <div style="flex:0 0 auto;background:#fffdf6;border-top:1px solid #e5dcc6;padding:12px 14px 16px;">
+            <div style="display:flex;align-items:center;gap:14px;">
+              <div style="width:52px;height:52px;border-radius:50%;background:#8a2b2b;color:#fff;display:flex;align-items:center;justify-content:center;font:400 17px system-ui;">▶</div>
+              <div style="flex:1;">
+                <div style="height:6px;border-radius:3px;background:#e5dcc6;overflow:hidden;"><div style="width:38%;height:100%;background:#8a2b2b;"></div></div>
+                <div style="display:flex;justify-content:space-between;margin-top:6px;font:500 12px system-ui;color:#8a8371;"><span>1:12</span><span>3:04</span></div>
+              </div>
+              <div style="width:52px;height:52px;border-radius:14px;background:#fffdf6;border:1px solid #e5dcc6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;">
+                <div style="font:700 14px system-ui;">A–B</div><div style="font:500 9px system-ui;color:#8a8371;">loop</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:4px;margin-top:12px;background:#e9e2d0;border-radius:12px;padding:4px;">
+              <div style="flex:1;height:38px;border-radius:9px;background:#fffdf6;box-shadow:0 1px 3px rgba(50,38,20,.18);display:flex;align-items:center;justify-content:center;font:600 13px system-ui;">Read</div>
+              <div style="flex:1;height:38px;display:flex;align-items:center;justify-content:center;font:600 13px system-ui;color:#8a8371;">Analyse</div>
+              <div style="flex:1;height:38px;display:flex;align-items:center;justify-content:center;font:600 13px system-ui;color:#8a8371;">Annotate</div>
+              <div style="flex:1;height:38px;display:flex;align-items:center;justify-content:center;font:600 13px system-ui;color:#8a8371;">Practise</div>
+            </div>
+          </div>
+        </div>
+        <div style="font:600 14px system-ui;color:#1c1c1c;">1 · Read — plus rien que la musique</div>
+        <div style="font:400 13.5px/1.65 system-ui;color:#5c5545;text-wrap:pretty;">
+          La bande de forme passe de 44 px (et deux lignes dès 10 sections) à
+          <strong>22 px, une seule ligne, quel que soit le morceau</strong>. Les passages consécutifs
+          identiques forment un <strong>groupe</strong> : largeur ∝ durée, lettre écrite une fois,
+          un trait fin par répétition — <em>A×3 B A×3 B A×3 B bridge B A×3</em> = 17 passages, 9
+          groupes, et ça tient. Les sections nommées s'écrivent en italique bordeaux (<em>b</em> pour
+          bridge) pour ne pas se confondre avec les lettres. La teinte se remplit derrière le
+          playhead ; la cible tactile reste 44 px (padding invisible).
+        </div>
+      </div>
+
+      <!-- ══ FRAME 2 — ANNOTATE ══ -->
+      <div style="display:flex;flex-direction:column;gap:16px;width:390px;">
+        <div style="width:390px;height:760px;background:#f7f3e9;border:1px solid #d9d0bb;border-radius:28px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 26px 60px -34px rgba(50,38,20,.55);">
+          <div style="flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:14px 14px 8px;">
+            <div style="width:38px;height:38px;border-radius:50%;background:#fffdf6;border:1px solid #e5dcc6;display:flex;align-items:center;justify-content:center;font:400 19px system-ui;">‹</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font:italic 600 19px Georgia,serif;">Autumn Leaves</div>
+              <div style="display:flex;align-items:center;gap:6px;font:500 13px system-ui;color:#8a8371;margin-top:1px;">
+                <span style="color:#1c1c1c;font-weight:600;">G minor</span><span>·</span><span>AABA</span><span style="color:#8a2b2b;">↻</span>
+              </div>
+            </div>
+            <div style="width:38px;height:38px;border-radius:50%;background:#fffdf6;border:1px solid #8a2b2b;display:flex;align-items:center;justify-content:center;font:700 15px system-ui;color:#8a2b2b;letter-spacing:.06em;">···</div>
+          </div>
+          <div style="flex:0 0 auto;padding:2px 14px 10px;">
+            <div style="display:flex;gap:2px;height:22px;">
+              <sc-for list="{{ tape }}" as="t" hint-placeholder-count="4">
+                <div style="flex:{{ t.w }};position:relative;background:#fffdf6;border:1px solid #e5dcc6;border-radius:5px;overflow:hidden;display:flex;align-items:center;justify-content:center;">
+                  <div style="position:absolute;left:0;top:0;bottom:0;width:{{ t.played }};background:rgba(138,43,43,.14);"></div>
+                  <sc-for list="{{ t.ticks }}" as="k" hint-placeholder-count="0">
+                    <div style="position:absolute;top:3px;bottom:3px;left:{{ k.x }};width:1px;background:#e2d9c3;"></div>
+                  </sc-for>
+                  <div style="position:relative;{{ t.style }}">{{ t.short }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="flex:0 0 auto;padding:0 16px 10px;font:italic 12.5px Georgia,serif;color:#8a8371;">
+            touche un accord dont tu es sûr — il se verrouille
+          </div>
+          <div style="flex:1;min-height:0;padding:10px 7px 0;overflow:hidden;">
+            <sc-for list="{{ annRows }}" as="row" hint-placeholder-count="4">
+              <div style="display:flex;align-items:stretch;border-left:2px solid #1c1c1c;border-top:1px solid #b9b09a;position:relative;">
+                <sc-if value="{{ row.sec }}" hint-placeholder-val="{{ true }}">
+                  <div style="position:absolute;left:2px;top:-9px;background:#f7f3e9;border:1px solid #8a2b2b;border-radius:4px;padding:0 4px;font:700 9px system-ui;color:#8a2b2b;">{{ row.sec }}</div>
+                </sc-if>
+                <sc-for list="{{ row.cells }}" as="c" hint-placeholder-count="4">
+                  <div style="flex:1;min-width:0;height:56px;border-right:1px solid #b9b09a;display:flex;flex-direction:column;justify-content:center;gap:3px;padding-left:8px;">
+                    <div style="font:italic 700 21px Georgia,serif;color:{{ c.col }};">{{ c.r }}<sup>{{ c.q }}</sup></div>
+                    <div style="display:flex;align-items:center;gap:4px;height:5px;">
+                      <sc-if value="{{ c.dot }}" hint-placeholder-val="{{ false }}">
+                        <div style="width:5px;height:5px;border-radius:50%;background:{{ c.col }};"></div>
+                      </sc-if>
+                      <sc-if value="{{ c.lock }}" hint-placeholder-val="{{ false }}">
+                        <div style="width:14px;height:2px;border-radius:1px;background:#1f8a5b;"></div>
+                      </sc-if>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+          <div style="flex:0 0 auto;padding:0 14px 10px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:#2a2622;border-radius:13px;color:#f7f3e9;">
+              <div>
+                <div style="font:600 13px system-ui;">Re-infer</div>
+                <div style="font:500 11px system-ui;color:rgba(247,243,233,.7);margin-top:2px;">2 accords verrouillés</div>
+              </div>
+              <div style="background:#8a2b2b;color:#fff;border-radius:11px;padding:11px 15px;font:600 14px system-ui;">Re-infer · 2</div>
+            </div>
+          </div>
+          <div style="flex:0 0 auto;background:#fffdf6;border-top:1px solid #e5dcc6;padding:12px 14px 16px;">
+            <div style="display:flex;align-items:center;gap:14px;">
+              <div style="width:52px;height:52px;border-radius:50%;background:#8a2b2b;color:#fff;display:flex;align-items:center;justify-content:center;font:400 17px system-ui;">▶</div>
+              <div style="flex:1;">
+                <div style="height:6px;border-radius:3px;background:#e5dcc6;overflow:hidden;"><div style="width:38%;height:100%;background:#8a2b2b;"></div></div>
+                <div style="display:flex;justify-content:space-between;margin-top:6px;font:500 12px system-ui;color:#8a8371;"><span>1:12</span><span>3:04</span></div>
+              </div>
+              <div style="width:52px;height:52px;border-radius:14px;background:#fffdf6;border:1px solid #e5dcc6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;">
+                <div style="font:700 14px system-ui;">A–B</div><div style="font:500 9px system-ui;color:#8a8371;">loop</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:4px;margin-top:12px;background:#e9e2d0;border-radius:12px;padding:4px;">
+              <div style="flex:1;height:38px;display:flex;align-items:center;justify-content:center;font:600 13px system-ui;color:#8a8371;">Read</div>
+              <div style="flex:1;height:38px;display:flex;align-items:center;justify-content:center;font:600 13px system-ui;color:#8a8371;">Analyse</div>
+              <div style="flex:1;height:38px;border-radius:9px;background:#fffdf6;box-shadow:0 1px 3px rgba(50,38,20,.18);display:flex;align-items:center;justify-content:center;font:600 13px system-ui;">Annotate</div>
+              <div style="flex:1;height:38px;display:flex;align-items:center;justify-content:center;font:600 13px system-ui;color:#8a8371;">Practise</div>
+            </div>
+          </div>
+        </div>
+        <div style="font:600 14px system-ui;color:#1c1c1c;">2 · Annotate — une seule action, un seul bouton</div>
+        <div style="font:400 13.5px/1.65 system-ui;color:#5c5545;text-wrap:pretty;">
+          Le ruban d'outils (deux blocs titrés, deux boutons pleine largeur) disparaît. Il reste
+          <strong>une ligne d'invitation</strong> et un <strong>« ··· » dans la barre du haut</strong>,
+          présent en Annotate seulement. Les « ? » flottants sont remplacés par un
+          <strong>point de 5 px sous le glyphe</strong>, dans la cellule, jamais à cheval sur une
+          barre de mesure ; un accord verrouillé porte un tiret vert. La couleur du texte reste
+          l'indice principal de confiance.
+        </div>
+      </div>
+
+      <!-- ══ FRAME 3 — TOOLS SHEET ══ -->
+      <div style="display:flex;flex-direction:column;gap:16px;width:390px;">
+        <div style="width:390px;height:760px;background:#f7f3e9;border:1px solid #d9d0bb;border-radius:28px;overflow:hidden;position:relative;box-shadow:0 26px 60px -34px rgba(50,38,20,.55);">
+          <div style="position:absolute;inset:0;background:#f7f3e9;opacity:.5;"></div>
+          <div style="position:absolute;inset:0;background:rgba(28,28,28,.34);"></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;background:#fffdf6;border-top:1px solid #e5dcc6;border-radius:22px 22px 0 0;padding:10px 18px 26px;">
+            <div style="width:38px;height:4px;border-radius:2px;background:#b9b09a;margin:0 auto 16px;"></div>
+            <div style="font:700 15px system-ui;text-align:center;margin-bottom:4px;">Outils</div>
+            <div style="font:italic 12.5px Georgia,serif;color:#8a8371;text-align:center;margin-bottom:18px;">on répare la grille, pas la musique</div>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <sc-for list="{{ tools }}" as="t" hint-placeholder-count="3">
+                <div style="display:flex;align-items:center;gap:12px;min-height:60px;padding:12px 14px;background:#f7f3e9;border:1px solid #e5dcc6;border-radius:14px;">
+                  <div style="flex:1;min-width:0;">
+                    <div style="font:600 14.5px system-ui;color:#1c1c1c;">{{ t.name }}</div>
+                    <div style="font:500 12px system-ui;color:#8a8371;margin-top:3px;">{{ t.note }}</div>
+                  </div>
+                  <div style="font:400 18px system-ui;color:#b9b09a;">›</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="text-align:center;font:600 13px system-ui;color:#8a8371;padding:16px 0 2px;">Fermer</div>
+          </div>
+        </div>
+        <div style="font:600 14px system-ui;color:#1c1c1c;">3 · La feuille « Outils »</div>
+        <div style="font:400 13.5px/1.65 system-ui;color:#5c5545;text-wrap:pretty;">
+          Trois lignes, dans l'ordre de fréquence réelle. <strong>« Redessiner les sections »</strong>
+          n'est plus un objet posé au milieu du chart : c'est un écran plein, atteint d'ici (frame 4).
+          Tout ce qui ne répond à aucune route du serveur reste caché — pas de bouton qui ne fait rien.
+        </div>
+      </div>
+
+      <!-- ══ FRAME 4 — SECTION EDITOR ══ -->
+      <div style="display:flex;flex-direction:column;gap:16px;width:390px;">
+        <div style="width:390px;height:760px;background:#f7f3e9;border:1px solid #d9d0bb;border-radius:28px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 26px 60px -34px rgba(50,38,20,.55);">
+          <div style="flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:14px 14px 10px;">
+            <div style="width:38px;height:38px;border-radius:50%;background:#fffdf6;border:1px solid #e5dcc6;display:flex;align-items:center;justify-content:center;font:400 19px system-ui;">‹</div>
+            <div style="flex:1;">
+              <div style="font:italic 600 18px Georgia,serif;">Redessiner les sections</div>
+              <div style="font:500 12.5px system-ui;color:#8a8371;margin-top:2px;">glisse une frontière, elle colle au début de mesure</div>
+            </div>
+          </div>
+          <div style="flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:22px;padding:0 18px;">
+            <div>
+              <div style="font:600 10px system-ui;letter-spacing:.07em;text-transform:uppercase;color:#8a8371;margin-bottom:8px;">la forme</div>
+              <div style="display:flex;gap:13px;height:74px;">
+                <sc-for list="{{ tape }}" as="t" hint-placeholder-count="9">
+                  <div style="flex:{{ t.w }};min-width:{{ t.minw }};position:relative;background:#fffdf6;border:1px solid #b9b09a;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;">
+                    <sc-for list="{{ t.ticks }}" as="k" hint-placeholder-count="0">
+                      <div style="position:absolute;top:6px;bottom:6px;left:{{ k.x }};width:1px;background:#e2d9c3;"></div>
+                    </sc-for>
+                    <div style="position:relative;{{ t.bigStyle }}">{{ t.short }}</div>
+                    <div style="position:relative;font:500 9.5px system-ui;color:#8a8371;">{{ t.repTag }}</div>
+                    <sc-if value="{{ t.notLast }}" hint-placeholder-val="{{ true }}">
+                      <div style="position:absolute;right:-13px;top:50%;transform:translateY(-50%);width:13px;height:44px;display:flex;align-items:center;justify-content:center;z-index:2;">
+                        <div style="width:3px;height:40px;border-radius:2px;background:#8a2b2b;"></div>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="font:500 11px system-ui;color:#8a8371;margin-top:10px;line-height:1.5;">
+                17 passages · 9 groupes · les traits fins séparent les répétitions<br>
+                <span style="color:#8a2b2b;font-style:italic;font-family:Georgia,serif;">b</span> = bridge — touche la lettre pour renommer
+              </div>
+            </div>
+            <div>
+              <div style="font:600 10px system-ui;letter-spacing:.07em;text-transform:uppercase;color:#8a8371;margin-bottom:8px;">sous le doigt</div>
+              <div style="background:#fffdf6;border:1px solid #e5dcc6;border-radius:14px;padding:14px;">
+                <div style="display:flex;align-items:baseline;justify-content:space-between;">
+                  <div style="font:700 15px system-ui;">B commence mesure 17</div>
+                  <div style="font:500 12px system-ui;color:#8a8371;">1:04</div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:12px;">
+                  <div style="flex:1;height:44px;border-radius:11px;background:#f7f3e9;border:1px solid #e5dcc6;display:flex;align-items:center;justify-content:center;font:600 13px system-ui;">écouter la jointure</div>
+                  <div style="width:44px;height:44px;border-radius:11px;background:#f7f3e9;border:1px solid #e5dcc6;display:flex;align-items:center;justify-content:center;font:600 15px system-ui;">−1</div>
+                  <div style="width:44px;height:44px;border-radius:11px;background:#f7f3e9;border:1px solid #e5dcc6;display:flex;align-items:center;justify-content:center;font:600 15px system-ui;">+1</div>
+                </div>
+              </div>
+              <div style="font:italic 12.5px Georgia,serif;color:#8a8371;margin-top:10px;">
+                renommer : touche la lettre. fusionner : rapproche deux frontières.
+              </div>
+            </div>
+          </div>
+          <div style="flex:0 0 auto;padding:0 18px 22px;display:flex;flex-direction:column;gap:8px;">
+            <div style="height:52px;border-radius:13px;background:#8a2b2b;color:#fff;display:flex;align-items:center;justify-content:center;font:600 15px system-ui;">Garder cette forme</div>
+            <div style="height:44px;display:flex;align-items:center;justify-content:center;font:600 13px system-ui;color:#8a8371;">Annuler</div>
+          </div>
+        </div>
+        <div style="font:600 14px system-ui;color:#1c1c1c;">4 · L'éditeur de sections, en plein écran</div>
+        <div style="font:400 13.5px/1.65 system-ui;color:#5c5545;text-wrap:pretty;">
+          Le même objet que la bande de forme, agrandi : on tire les poignées, ça colle à la mesure,
+          on écoute la jointure avant de valider. Une seule sortie (« Garder cette forme »), pas de
+          contrôle qui traîne sur le chart après.
+        </div>
+      </div>
+
+      <!-- ══ FRAME 5 — PRACTISE ══ -->
+      <div style="display:flex;flex-direction:column;gap:16px;width:390px;">
+        <div style="width:390px;height:760px;background:#f7f3e9;border:1px solid #d9d0bb;border-radius:28px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 26px 60px -34px rgba(50,38,20,.55);">
+          <div style="flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:14px 14px 8px;">
+            <div style="width:38px;height:38px;border-radius:50%;background:#fffdf6;border:1px solid #e5dcc6;display:flex;align-items:center;justify-content:center;font:400 19px system-ui;">‹</div>
+            <div style="flex:1;">
+              <div style="font:italic 600 18px Georgia,serif;">Autumn Leaves</div>
+              <div style="font:500 12.5px system-ui;color:#8a8371;margin-top:2px;">mesure 6 · 1×</div>
+            </div>
+            <div style="width:38px;height:38px;border-radius:50%;background:#fffdf6;border:1px solid #e5dcc6;display:flex;align-items:center;justify-content:center;font:700 15px system-ui;color:#8a2b2b;letter-spacing:.06em;">···</div>
+          </div>
+          <div style="flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:0 18px;">
+            <div style="font:italic 700 74px Georgia,serif;color:#1c1c1c;line-height:1;">F<sup style="font-size:.42em;">7</sup></div>
+            <div style="font:italic 13.5px Georgia,serif;color:#8a8371;">V⁷ — pulls home to B♭</div>
+            <div style="display:flex;align-items:baseline;gap:18px;opacity:.42;">
+              <div style="font:italic 700 26px Georgia,serif;">G<sup>m</sup></div>
+              <div style="font:italic 700 26px Georgia,serif;">C<sup>ø7</sup></div>
+            </div>
+          </div>
+          <!-- le clavier: les notes à jouer, deux mains, sans un mot de plus -->
+          <div style="flex:0 0 auto;padding:0 18px 12px;">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:7px;">
+              <div style="font:600 10px system-ui;letter-spacing:.07em;text-transform:uppercase;color:#8a8371;">au piano</div>
+              <div style="font:500 12px system-ui;color:#8a8371;">
+                <span style="color:#8a2b2b;font-weight:600;">G. F</span> · <span style="color:#2a6fb0;font-weight:600;">D. A C E♭</span>
+              </div>
+            </div>
+            <div style="position:relative;height:74px;background:#fffdf6;border:1px solid #e5dcc6;border-radius:12px;padding:6px;">
+              <div style="position:relative;height:100%;display:flex;gap:1px;">
+                <sc-for list="{{ whites }}" as="w" hint-placeholder-count="15">
+                  <div style="flex:1;position:relative;border-radius:0 0 4px 4px;background:{{ w.bg }};border:1px solid #e0d7c0;overflow:hidden;">
+                    <div style="position:absolute;left:0;right:0;bottom:0;height:34%;background:{{ w.band }};"></div>
+                  </div>
+                </sc-for>
+                <sc-for list="{{ blacks }}" as="b" hint-placeholder-count="10">
+                  <div style="position:absolute;top:0;left:{{ b.x }};width:{{ b.w }};height:62%;border-radius:0 0 3px 3px;background:{{ b.bg }};"></div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+          <div style="flex:0 0 auto;padding:0 18px;">
+            <div style="height:96px;background:#fffdf6;border:1px solid #e5dcc6;border-radius:14px;position:relative;overflow:hidden;">
+              <sc-for list="{{ reel }}" as="b" hint-placeholder-count="5">
+                <div style="position:absolute;top:14px;bottom:14px;left:{{ b.x }};width:{{ b.w }};background:{{ b.bg }};border-radius:8px;display:flex;align-items:center;justify-content:center;font:italic 700 16px Georgia,serif;color:#1c1c1c;">{{ b.label }}</div>
+              </sc-for>
+              <div style="position:absolute;top:0;bottom:0;left:18%;width:2px;background:#8a2b2b;"></div>
+            </div>
+          </div>
+          <div style="flex:0 0 auto;padding:14px 18px 22px;">
+            <div style="display:flex;align-items:center;justify-content:center;gap:14px;">
+              <div style="width:52px;height:52px;border-radius:14px;background:#fffdf6;border:1px solid #e5dcc6;display:flex;align-items:center;justify-content:center;font:600 14px system-ui;">‹‹4</div>
+              <div style="width:64px;height:64px;border-radius:50%;background:#8a2b2b;color:#fff;display:flex;align-items:center;justify-content:center;font:400 21px system-ui;">▶</div>
+              <div style="width:52px;height:52px;border-radius:14px;background:#fffdf6;border:1px solid #e5dcc6;display:flex;align-items:center;justify-content:center;font:600 14px system-ui;">4››</div>
+              <div style="width:52px;height:52px;border-radius:14px;background:#8a2b2b;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;">
+                <div style="font:700 13px system-ui;">loop</div><div style="font:500 9px system-ui;opacity:.75;">5–8</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:2px;height:16px;margin-top:16px;">
+              <sc-for list="{{ tape }}" as="t" hint-placeholder-count="4">
+                <div style="flex:{{ t.w }};position:relative;background:#fffdf6;border:1px solid #e5dcc6;border-radius:4px;overflow:hidden;">
+                  <div style="position:absolute;left:0;top:0;bottom:0;width:{{ t.played }};background:rgba(138,43,43,.14);"></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <div style="font:600 14px system-ui;color:#1c1c1c;">5 · Practise — trois zones, rien d'autre</div>
+        <div style="font:400 13.5px/1.65 system-ui;color:#5c5545;text-wrap:pretty;">
+          L'accord, <strong>le clavier</strong>, le déroulé, le transport. Le clavier montre les
+          notes des deux mains — gauche en bordeaux, droite en bleu, les noms sur une ligne — et
+          rien d'autre : pas de titre, pas de choix de voicing (il est dans « ··· »). La vitesse
+          quitte l'écran (sous-titre + « ··· » avec le calage de boucle, le métronome, le style de
+          voicing) ; la mini-timeline devient la <strong>même bande de forme</strong> qu'ailleurs,
+          16 px.
+        </div>
+      </div>
+
+    </div>
+
+    <div style="margin-top:56px;max-width:900px;">
+      <div style="font:600 13px system-ui;letter-spacing:.12em;text-transform:uppercase;color:#8a8371;margin-bottom:14px;">ce qui part</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 28px;font:400 13.5px/1.6 system-ui;color:#5c5545;">
+        <div>La bande de forme à 44 px et son retour à la ligne (<code>buildFormRail</code>)</div>
+        <div>Le ruban d'outils titré au-dessus de la grille (<code>buildRibbon</code>)</div>
+        <div>Les « ? » posés en <code>top:-4px;right:-2px</code> sur les cellules</div>
+        <div>La ligne de légende dégradée en Annotate</div>
+        <div>La rangée « speed » et la mini-timeline du prompter</div>
+        <div>Tout outil de section visible en Read ou Analyse</div>
+      </div>
+      <div style="font:400 13.5px/1.7 system-ui;color:#5c5545;margin-top:22px;max-width:760px;text-wrap:pretty;">
+        Le détail exécutable — fonctions à toucher dans <code>harmonia_min/app_shell.html</code>,
+        valeurs exactes, critères d'acceptation, pièges connus — est dans
+        <code>handoff_cleanup/CLEANUP_SPEC.md</code>.
+      </div>
+    </div>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1780,&quot;height&quot;:1180}}">
+class Component extends DCLogic {
+  renderVals(){
+    const ink="#1c1c1c";
+    // Un GROUPE = des runs consécutifs identiques. Largeur ∝ durée totale du
+    // groupe, lettre écrite une fois, chaque répétition marquée par un trait
+    // interne (et tappable séparément). A×3 B A×3 B A×3 B bridge B A×3 = 9
+    // groupes, 17 runs, une seule ligne.
+    const grp=(label,reps,bars,played)=>{
+      const ticks=[];
+      for(let i=1;i<reps;i++) ticks.push({x:(i*100/reps).toFixed(2)+"%"});
+      const named=!/^[A-Z]$/.test(label);
+      const minw=named?"34px":"16px";
+      return {label:label, short:named?label.slice(0,1):label, named:named, minw:minw,
+              reps:reps, repTag:reps>1?("×"+reps):"", w:String(reps),
+              bars:bars, played:played, ticks:ticks, ink:ink, notLast:true,
+              style:named?"font:italic 700 11px Georgia,serif;color:#8a2b2b;"
+                         :"font:700 11px system-ui;color:#1c1c1c;",
+              bigStyle:named?"font:italic 700 13px Georgia,serif;color:#8a2b2b;"
+                            :"font:700 17px system-ui;color:#1c1c1c;"};
+    };
+    const tape=[
+      grp("A",3,"1–24","100%"), grp("B",1,"25–32","100%"),
+      grp("A",3,"33–56","62%"), grp("B",1,"57–64","0%"),
+      grp("A",3,"65–88","0%"),  grp("B",1,"89–96","0%"),
+      grp("bridge",1,"97–104","0%"), grp("B",1,"105–112","0%"),
+      grp("A",3,"113–136","0%")
+    ];
+    tape[tape.length-1].notLast=false;   // pas de poignée après la dernière section
+    const g=(r,q)=>({r:r,q:q});
+    const readRows=[
+      {sec:"A", cells:[g("D","m7"),g("G","7"),g("B♭","maj7"),g("E♭","maj7")]},
+      {sec:"",  cells:[g("C","ø7"),g("F","7"),g("G","m"),g("G","m")]},
+      {sec:"B", cells:[g("C","ø7"),g("F","7"),g("G","m7"),g("G","m7")]},
+      {sec:"",  cells:[g("D","m7"),g("G","7"),g("B♭","maj7"),g("E♭","7")]},
+      {sec:"A", cells:[g("A","ø7"),g("D","7"),g("G","m"),g("G","m")]},
+      {sec:"",  cells:[g("C","m7"),g("F","7"),g("B♭","maj7"),g("E♭","maj7")]},
+      {sec:"",  cells:[g("A","ø7"),g("D","7"),g("G","m"),g("G","m")]},
+      {sec:"B", cells:[g("C","m7"),g("F","7"),g("B♭","maj7"),g("E♭","maj7")]},
+      {sec:"",  cells:[g("A","ø7"),g("D","7"),g("G","m"),g("D","7")]}
+    ];
+    const c=(r,q,col,dot,lock)=>({r:r,q:q,col:col,dot:!!dot,lock:!!lock});
+    const annRows=[
+      {sec:"A", cells:[c("D","m7",ink,false,true),c("G","7","#5c4a30"),c("B♭","maj7",ink),c("E♭","maj7","#9a6a1e")]},
+      {sec:"",  cells:[c("C","ø7","#bd6a22"),c("F","7",ink,false,true),c("G","m","#5c4a30"),c("G","m","#a8281f",true)]},
+      {sec:"B", cells:[c("C","ø7","#9a6a1e"),c("F","7",ink),c("G","m7","#5c4a30"),c("G","m7","#a8281f",true)]},
+      {sec:"",  cells:[c("D","m7",ink),c("G","7","#5c4a30"),c("B♭","maj7",ink),c("E♭","7","#bd6a22")]},
+      {sec:"A", cells:[c("A","ø7","#bd6a22",true),c("D","7","#5c4a30"),c("G","m",ink),c("G","m",ink)]},
+      {sec:"",  cells:[c("C","m7","#9a6a1e"),c("F","7",ink,false,true),c("B♭","maj7",ink),c("E♭","maj7","#5c4a30")]},
+      {sec:"",  cells:[c("A","ø7","#a8281f",true),c("D","7","#5c4a30"),c("G","m",ink),c("G","m","#9a6a1e")]}
+    ];
+    const tools=[
+      {name:"Redessiner les sections", note:"les lettres et leurs frontières, au doigt"},
+      {name:"Caler la mesure 1", note:"le vrai départ du morceau"},
+      {name:"Vérifier les fusions", note:"à l'oreille, deux passages à la fois"}
+    ];
+    const reel=[
+      {label:"F7",  x:"6%",  w:"20%", bg:"rgba(197,138,46,.20)"},
+      {label:"Gm",  x:"28%", w:"20%", bg:"rgba(31,138,91,.16)"},
+      {label:"Cø7", x:"50%", w:"20%", bg:"rgba(42,111,176,.14)"},
+      {label:"F7",  x:"72%", w:"20%", bg:"rgba(197,138,46,.20)"}
+    ];
+    // F7 sous les doigts: main gauche F2 (accent), main droite A C E♭ (bleu).
+    // 15 touches blanches = deux octaves depuis C, la fenêtre du prompter.
+    const L="#8a2b2b", R="#2a6fb0";
+    const lit={3:L, 12:R, 14:R};                 // F (G.) · A, C (D.)
+    // La touche allumée porte une BANDE basse pleine (le dessus reste blanc,
+    // là où les noires se serrent) — lisible net à 74 px de haut.
+    const whites=[];
+    for(let i=0;i<15;i++){
+      const on=lit[i];
+      whites.push({band:on?(on===L?"#8a2b2b":"#2a6fb0"):"transparent",
+                   bg:on?(on===L?"rgba(138,43,43,.10)":"rgba(42,111,176,.09)"):"#fffdf6"});
+    }
+    const BLACK_AFTER=[0,1,3,4,5,7,8,10,11,12];  // pas de noire après E et B
+    const litBlack={8:R};                        // E♭ (la noire après le D aigu)
+    const wpc=100/15, bw=wpc*0.55;
+    const blacks=BLACK_AFTER.map(i=>({
+      x:((i+1)*wpc-bw/2).toFixed(2)+"%",
+      w:bw.toFixed(2)+"%",
+      bg:litBlack[i]?litBlack[i]:"#2a2622"
+    }));
+    return {tape, readRows, annRows, tools, reel, whites, blacks};
+  }
+}
+</script>
+</body>
+</html>
