@@ -1,0 +1,64 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Empiler les répétitions ET les folds</title><style>
+:root{--pap:#f7f3ea;--ink:#1c1c1c;--f:#8a7f6d;--l:#ded5c4;--acc:#8a2b2b;--d:#f2dcc4}
+body{margin:0 auto;padding:18px 14px 60px;background:var(--pap);color:var(--ink);
+ font:15px/1.55 -apple-system,system-ui,sans-serif;max-width:900px}
+h1{font:700 22px/1.3 Georgia,serif;margin:0 0 4px}
+h2{font:700 18px/1.3 Georgia,serif;margin:34px 0 8px;border-top:1px solid var(--l);padding-top:18px}
+h2 .sec{font:600 12px -apple-system,sans-serif;color:var(--f);vertical-align:middle}
+h3{font:600 13px/1.4 -apple-system,sans-serif;margin:18px 0 6px;text-transform:uppercase;
+ letter-spacing:.06em;color:var(--f)}
+h3 small{text-transform:none;letter-spacing:0;font-weight:500;display:block;margin-top:2px}
+p.lead{color:var(--f);font-size:13.5px;margin:6px 0 10px}
+audio{width:100%;margin:2px 0 6px}
+button{background:#fff;border:1px solid var(--l);border-radius:6px;padding:3px 9px;
+ font:600 12px -apple-system,sans-serif;color:var(--ink);margin-right:3px}
+.g{display:grid;grid-template-columns:repeat(4,1fr);gap:3px}
+.m{position:relative;background:#fff;border:1px solid var(--l);border-radius:6px;
+ padding:12px 4px 7px;text-align:center;font:600 15px Georgia,serif;cursor:pointer;min-height:20px}
+.m .n{position:absolute;top:2px;left:4px;font:500 8px -apple-system,sans-serif;color:#c3b8a4}
+.m.d{background:var(--d);border-color:#e0bf95}
+.m:active{outline:2px solid var(--acc)}
+b.dd{background:var(--d);padding:1px 5px;border-radius:4px;font-weight:600}
+.intro{background:#fff;border:1px solid var(--l);border-radius:10px;padding:14px 16px;margin:14px 0}
+.intro b{color:var(--acc)}
+@media(min-width:620px){.g{grid-template-columns:repeat(8,1fr)}}
+</style></head><body>
+<h1>Empiler les répétitions <i>et</i> les folds</h1>
+<div class="intro">
+<p>Une section jouée 4 fois, un modèle livré en 5 réseaux : ça fait
+<b>20 jeux de probabilités</b> pour la même mesure. Aujourd'hui on n'en donne
+jamais 20 au décodeur — les 5 folds sont moyennés <i>avant</i> le modèle, et les
+répétitions sont empilées <i>sur le spectre</i>. Deux agrégations à deux étages,
+dont la première jette de l'information avant que la seconde n'empile.</p>
+<p>Ici les quatre lois décodent la même section, avec exactement le même
+décodeur. Celle qui m'intéresse est la dernière : avec 20 votants, le
+<b>produit</b> (somme des log-probs) devient tranchant là où la moyenne reste
+molle — un membre confiant qui dit non garde un veto.</p>
+</div>
+
+<section>
+  <h2>Maroon 5 — This Love <span class="sec">section B</span></h2>
+  <audio controls preload="none" src="/audio/maroon_5_this_love.m4a"></audio>
+  <p class="lead">8 mesures, jouées 5 fois. Aller à : <button data-t="41.48">occ. 1</button> <button data-t="91.98">occ. 2</button> <button data-t="142.47">occ. 3</button> <button data-t="162.67">occ. 4</button> <button data-t="182.87">occ. 5</button><br>
+     Clique une mesure pour l'entendre (1ʳᵉ occurrence). Les mesures
+     <b class="dd">colorées</b> diffèrent de ce que la prod écrit aujourd'hui.</p>
+  <h3>CQT moyenné <small>la prod : N spectres moyennés, une inférence · 5 membres empilés — référence — 0.64 s</small></h3><div class="g"><div class="m" data-t="41.48"><span class="n">1</span>C- F-7</div><div class="m" data-t="44.00"><span class="n">2</span>B♭ E♭</div><div class="m" data-t="46.53"><span class="n">3</span>C- F-7</div><div class="m" data-t="49.05"><span class="n">4</span>B♭ E♭</div><div class="m" data-t="51.58"><span class="n">5</span>C- F-7</div><div class="m" data-t="54.10"><span class="n">6</span>B♭ E♭</div><div class="m" data-t="56.63"><span class="n">7</span>C-7 F</div><div class="m" data-t="59.15"><span class="n">8</span>A♭ G</div></div><h3>moyenne des N <small>les folds déjà écrasés, on moyenne les répétitions · 5 membres empilés — 62 % identiques — 0.25 s</small></h3><div class="g"><div class="m" data-t="41.48"><span class="n">1</span>C- F-7</div><div class="m" data-t="44.00"><span class="n">2</span>B♭ E♭</div><div class="m d" data-t="46.53"><span class="n">3</span>C- F-</div><div class="m" data-t="49.05"><span class="n">4</span>B♭ E♭</div><div class="m d" data-t="51.58"><span class="n">5</span>C- F-</div><div class="m" data-t="54.10"><span class="n">6</span>B♭ E♭</div><div class="m d" data-t="56.63"><span class="n">7</span>C- F</div><div class="m" data-t="59.15"><span class="n">8</span>A♭ G</div></div><h3>moyenne des N×5 <small>la pile complète, moyennée · 25 membres empilés — 62 % identiques — 0.26 s</small></h3><div class="g"><div class="m" data-t="41.48"><span class="n">1</span>C- F-7</div><div class="m" data-t="44.00"><span class="n">2</span>B♭ E♭</div><div class="m d" data-t="46.53"><span class="n">3</span>C- F-</div><div class="m" data-t="49.05"><span class="n">4</span>B♭ E♭</div><div class="m d" data-t="51.58"><span class="n">5</span>C- F-</div><div class="m" data-t="54.10"><span class="n">6</span>B♭ E♭</div><div class="m d" data-t="56.63"><span class="n">7</span>C- F</div><div class="m" data-t="59.15"><span class="n">8</span>A♭ G</div></div><h3>produit des N×5 <small>la pile complète en log-probs — le veto du confiant · 25 membres empilés — 62 % identiques — 0.27 s</small></h3><div class="g"><div class="m" data-t="41.48"><span class="n">1</span>C- F-7</div><div class="m" data-t="44.00"><span class="n">2</span>B♭ E♭</div><div class="m d" data-t="46.53"><span class="n">3</span>C- F-</div><div class="m" data-t="49.05"><span class="n">4</span>B♭ E♭</div><div class="m d" data-t="51.58"><span class="n">5</span>C- F-</div><div class="m" data-t="54.10"><span class="n">6</span>B♭ E♭</div><div class="m d" data-t="56.63"><span class="n">7</span>C- F</div><div class="m" data-t="59.15"><span class="n">8</span>A♭ G</div></div><h3>moyenne des N, UN SEUL fold <small>la répétition sans l'ensemble — 5× moins cher · 5 membres empilés — 62 % identiques — 0.25 s</small></h3><div class="g"><div class="m" data-t="41.48"><span class="n">1</span>C- F-7</div><div class="m" data-t="44.00"><span class="n">2</span>B♭ E♭</div><div class="m d" data-t="46.53"><span class="n">3</span>C- F-</div><div class="m" data-t="49.05"><span class="n">4</span>B♭ E♭</div><div class="m d" data-t="51.58"><span class="n">5</span>C- F-</div><div class="m" data-t="54.10"><span class="n">6</span>B♭ E♭</div><div class="m d" data-t="56.63"><span class="n">7</span>C- F</div><div class="m" data-t="59.15"><span class="n">8</span>A♭ G</div></div>
+</section>
+<section>
+  <h2>Ben E. King — Stand By Me <span class="sec">section A</span></h2>
+  <audio controls preload="none" src="/audio/ben_e_king_stand_by_me_audio.m4a"></audio>
+  <p class="lead">8 mesures, jouées 10 fois. Aller à : <button data-t="16.38">occ. 1</button> <button data-t="32.40">occ. 2</button> <button data-t="48.40">occ. 3</button> <button data-t="64.48">occ. 4</button> <button data-t="80.58">occ. 5</button> <button data-t="96.68">occ. 6</button> <button data-t="112.80">occ. 7</button> <button data-t="128.86">occ. 8</button> <button data-t="144.96">occ. 9</button> <button data-t="160.96">occ. 10</button><br>
+     Clique une mesure pour l'entendre (1ʳᵉ occurrence). Les mesures
+     <b class="dd">colorées</b> diffèrent de ce que la prod écrit aujourd'hui.</p>
+  <h3>CQT moyenné <small>la prod : N spectres moyennés, une inférence · 10 membres empilés — référence — 0.46 s</small></h3><div class="g"><div class="m" data-t="16.38"><span class="n">1</span>%</div><div class="m" data-t="18.38"><span class="n">2</span>%</div><div class="m" data-t="20.40"><span class="n">3</span>G♭-</div><div class="m" data-t="22.40"><span class="n">4</span>%</div><div class="m" data-t="24.40"><span class="n">5</span>D</div><div class="m" data-t="26.40"><span class="n">6</span>E</div><div class="m" data-t="28.40"><span class="n">7</span>A</div><div class="m" data-t="30.40"><span class="n">8</span>%</div></div><h3>moyenne des N <small>les folds déjà écrasés, on moyenne les répétitions · 10 membres empilés — 100 % identiques — 0.19 s</small></h3><div class="g"><div class="m" data-t="16.38"><span class="n">1</span>%</div><div class="m" data-t="18.38"><span class="n">2</span>%</div><div class="m" data-t="20.40"><span class="n">3</span>G♭-</div><div class="m" data-t="22.40"><span class="n">4</span>%</div><div class="m" data-t="24.40"><span class="n">5</span>D</div><div class="m" data-t="26.40"><span class="n">6</span>E</div><div class="m" data-t="28.40"><span class="n">7</span>A</div><div class="m" data-t="30.40"><span class="n">8</span>%</div></div><h3>moyenne des N×5 <small>la pile complète, moyennée · 50 membres empilés — 100 % identiques — 0.22 s</small></h3><div class="g"><div class="m" data-t="16.38"><span class="n">1</span>%</div><div class="m" data-t="18.38"><span class="n">2</span>%</div><div class="m" data-t="20.40"><span class="n">3</span>G♭-</div><div class="m" data-t="22.40"><span class="n">4</span>%</div><div class="m" data-t="24.40"><span class="n">5</span>D</div><div class="m" data-t="26.40"><span class="n">6</span>E</div><div class="m" data-t="28.40"><span class="n">7</span>A</div><div class="m" data-t="30.40"><span class="n">8</span>%</div></div><h3>produit des N×5 <small>la pile complète en log-probs — le veto du confiant · 50 membres empilés — 100 % identiques — 0.24 s</small></h3><div class="g"><div class="m" data-t="16.38"><span class="n">1</span>%</div><div class="m" data-t="18.38"><span class="n">2</span>%</div><div class="m" data-t="20.40"><span class="n">3</span>G♭-</div><div class="m" data-t="22.40"><span class="n">4</span>%</div><div class="m" data-t="24.40"><span class="n">5</span>D</div><div class="m" data-t="26.40"><span class="n">6</span>E</div><div class="m" data-t="28.40"><span class="n">7</span>A</div><div class="m" data-t="30.40"><span class="n">8</span>%</div></div><h3>moyenne des N, UN SEUL fold <small>la répétition sans l'ensemble — 5× moins cher · 10 membres empilés — 100 % identiques — 0.2 s</small></h3><div class="g"><div class="m" data-t="16.38"><span class="n">1</span>%</div><div class="m" data-t="18.38"><span class="n">2</span>%</div><div class="m" data-t="20.40"><span class="n">3</span>G♭-</div><div class="m" data-t="22.40"><span class="n">4</span>%</div><div class="m" data-t="24.40"><span class="n">5</span>D</div><div class="m" data-t="26.40"><span class="n">6</span>E</div><div class="m" data-t="28.40"><span class="n">7</span>A</div><div class="m" data-t="30.40"><span class="n">8</span>%</div></div>
+</section>
+<script>
+document.querySelectorAll('section').forEach(sec=>{
+  const a=sec.querySelector('audio');
+  const go=t=>{a.currentTime=parseFloat(t)||0;a.play();};
+  sec.querySelectorAll('.m').forEach(m=>m.addEventListener('click',()=>go(m.dataset.t)));
+  sec.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.t)));
+});
+</script></body></html>

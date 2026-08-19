@@ -1,5 +1,46 @@
 # Harmonia — Known Issues
 
+## 2026-08-19 — MESURÉ : dans un repli, l'ensemble des 5 folds ne sert à RIEN
+
+Louis : « si on détecte 4 occurrences d'un accord, alors on replie 4 fois, donc
+si on fait déjà un 5-fold, ça nous ferait 4 × 5 = 20 probas à rentrer dans le
+décodeur ». Testé, page `/plots/fold_stack.html`, cinq lois sur la même section,
+même décodeur (`folding._decode_template`) :
+
+| loi | This Love, B ×5 | Stand By Me, A ×10 |
+|---|---|---|
+| CQT moyenné (prod) | référence | référence |
+| moyenne des N postérieures | 6 mesures /8 | 8/8 |
+| **moyenne des N×5** | 6/8, **identique à la ligne au-dessus** | 8/8 |
+| **produit des N×5** (logpool) | 6/8, **identique aussi** | 8/8 |
+| moyenne des N, **UN SEUL fold** | 6/8, **identique aussi** | 8/8 |
+
+Les quatre lois postérieures écrivent **exactement les mêmes mesures**. Empiler
+25 membres au lieu de 5 ne change pas une note ; les remplacer par 5 membres
+d'un seul réseau non plus.
+
+**Ce que ça dit :** sur du matériau répété, la répétition écrase l'ensemble.
+Cinq occurrences de la même section apportent bien plus d'information que cinq
+modèles regardant les mêmes huit mesures — et le désaccord entre folds (26 à
+41 % des mesures sur un morceau entier, voir `/plots/folds.html`) se noie
+complètement dès qu'on moyenne sur les occurrences.
+
+**Ce que ça ne dit pas :** que l'ensemble est inutile ailleurs. Hors section
+répétée — intro, pont, morceau sans forme — il n'y a rien à empiler et les
+folds restent la seule redondance disponible.
+
+**Le seul écart réel reste celui déjà connu** (CQT vs postérieures) : la prod
+écrit `C- F-7 … C-7 F`, les lois postérieures `C- F- … C- F`. Même
+fondamentales, mêmes basses : ce sont les **septièmes** qui tombent quand on
+moyenne des marginales. C'est cohérent avec l'arbitrage à l'oreille du
+2026-08-08 en faveur du CQT.
+
+**Piste ouverte, pas mesurée :** un fold suffisant sur les sections répétées
+n'économise rien tant que les postérieures du morceau entier sont calculées en
+5 folds de toute façon. Ça ne devient un levier que si on décide de tomber à
+1 fold PARTOUT — ce que `/plots/folds.html` dit coûteux hors repli.
+
+
 ## 2026-08-19 — RÉSOLU : le `.venv` a disparu, reconstruit et GELÉ
 
 En pleine session, `~/harmonia/.venv` s'est volatilisé (le `data/` voisin, lui,
