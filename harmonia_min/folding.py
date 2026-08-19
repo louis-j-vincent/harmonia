@@ -142,6 +142,37 @@ def _cqt_transpose(X: np.ndarray, demitons: int) -> np.ndarray:
     return Y
 
 
+def _rot_probs(streams, r: int):
+    """Monter les POSTÉRIEURES de `r` demi-tons — l'équivalent exact de
+    `_cqt_transpose`, mais après le modèle au lieu d'avant.
+
+    Le plan triade fait 73 = 1 (N) + 6 familles × 12 fondamentales, le plan
+    basse 13 = 1 (pas de basse) + 12 hauteurs : chaque bloc de 12 est un cycle
+    de hauteurs, la colonne 0 n'en fait pas partie et ne bouge jamais. Les
+    extensions (7e, 9e, 11e, 13e) sont relatives à la fondamentale : rien à
+    tourner.
+
+    POURQUOI CETTE FONCTION EXISTE (Louis, 2026-08-19, à l'oreille sur Bora
+    Bora A) : transposer AVANT le modèle donne à musx un spectre qui n'a jamais
+    sonné — décaler les bins déplace les partiels, mais aussi l'enveloppe, et
+    vide trois bins au bord. Tourner APRÈS est exact : chaque passage est
+    entendu dans SA tonalité réelle, on ne fait que renommer. Sur la section
+    qui module, son verdict est sans appel : « D | D/G♭ D♭/F | E- | E-7 → lui
+    a raison », contre `D^7 | % D♭/F | E-7 | %` pour la loi CQT.
+    """
+    if not r:
+        return streams
+    out = list(streams)
+    tri = np.array(streams[0], copy=True)
+    tri[:, 1:] = np.roll(tri[:, 1:].reshape(tri.shape[0], -1, 12), r % 12,
+                         axis=2).reshape(tri.shape[0], -1)
+    out[0] = tri
+    bas = np.array(streams[1], copy=True)
+    bas[:, 1:] = np.roll(bas[:, 1:], r % 12, axis=1)
+    out[1] = bas
+    return out
+
+
 def _transpose_accords(chords_k, r: int):
     """Le meme enchainement, monte de `r` demi-tons."""
     if not r:
@@ -520,15 +551,35 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
                 bars, [g or [pos_members[k][0]] for k, g in enumerate(gated)],
                 demiton, P)
         else:
+            # UNE PILE QUI MODULE NE PASSE PLUS PAR LE CQT (2026-08-19).
+            # Mesuré puis arbitré à l'oreille sur Bora Bora A (3 passages, le
+            # 3e un demi-ton plus haut, confiances jusqu'à 0,12) : la loi CQT
+            # écrit `D^7 | % D♭/F | E-7 | %`, la loi postérieure
+            # `D | D/G♭ D♭/F | E- | E-7`, et Louis tranche pour la seconde.
+            # La raison est mécanique, pas esthétique — voir `_rot_probs` :
+            # transposer le spectre AVANT le modèle lui donne à entendre un
+            # son qui n'a jamais existé, alors que tourner les postérieures
+            # APRÈS est une simple renumérotation des hauteurs.
+            # Sans modulation, rien ne change : `demiton` est vide et la loi
+            # demandée (CQT en prod, validée le 2026-08-08) s'applique telle
+            # quelle.
+            _mod = any(demiton.get(b, 0) for g in gated for b in (g or []))
+            _bp = bar_probs
+            if _mod:
+                def _bp(b, _f=bar_probs):
+                    return _rot_probs(_f(b), -demiton.get(b, 0))
+                logger.info("fold %s: la pile module (%d passage(s) transposé(s))"
+                            " → postérieures tournées, pas de moyenne de CQT",
+                            letter, len({demiton.get(b, 0)
+                                         for g in gated for b in (g or [])} - {0}))
             pos_chords = _template_chords(
                 [g or [pos_members[k][0]] for k, g in enumerate(gated)],
-                bar_probs, len(probs), Lf, bpb, P,
-                combine=combine, weight=weight, bass_mode=bass_mode,
-                bar_cqt=((lambda b: _cqt_transpose(bar_cqt(b),
-                                                   -demiton.get(b, 0)))
-                         if (cqt is not None and demiton) else
+                _bp, len(probs), Lf, bpb, P,
+                combine=("mean" if _mod else combine),
+                weight=weight, bass_mode=bass_mode,
+                bar_cqt=(None if _mod else
                          (bar_cqt if cqt is not None else None)),
-                check_thr=check_thr)
+                check_thr=(None if _mod else check_thr))
         if pos_chords is None:
             report[letter] = {"period": P, "reason": "template decoded empty"}
             continue

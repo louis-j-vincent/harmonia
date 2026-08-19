@@ -1,5 +1,37 @@
 # Harmonia — Known Issues
 
+## 2026-08-19 — TRANCHÉ À L'OREILLE : une pile qui MODULE ne passe plus par le CQT
+
+Louis, sur Bora Bora A (3 passages, le 3ᵉ un demi-ton plus haut, confiances
+jusqu'à 0,12), après avoir écouté `/plots/fold_stack.html` :
+
+> les lois postérieures `D | D/G♭ D♭/F | E- | E-7` → lui a raison
+
+contre `D^7 | % D♭/F | E-7 | %` pour la loi CQT, celle qui tourne en prod.
+
+**Ça ne renverse pas l'arbitrage du 2026-08-08** (« les CQT moyennés ça marche
+très bien »), ça le borne : sans modulation, le CQT reste la loi. Avec
+modulation, il perd, et pour une raison mécanique — transposer le spectre AVANT
+le modèle lui donne à entendre un son qui n'a jamais sonné (un décalage de bins
+déplace les partiels, mais aussi l'enveloppe, et vide trois bins au bord), alors
+que tourner les postérieures APRÈS est une simple renumérotation des hauteurs.
+
+Implémenté dans `folding.fold_letter_groups` : dès qu'un membre de la pile est
+transposé, la lettre passe en loi postérieure (`combine="mean"`, `bar_cqt=None`)
+avec les postérieures ramenées dans le ton de la référence par le nouveau
+`_rot_probs` — plan triade 1 + 6×12, plan basse 1 + 12, extensions intactes,
+huit tests dans `tests/test_fold_rot_probs.py`. Vérifié de bout en bout sur
+Bora Bora A : la mesure 2 devient `D/G♭ D♭/F`, et le 3ᵉ passage est réécrit
+transposé dans SA tonalité (`E♭/G D/G♭`).
+
+**Ce que ça ne règle pas, et c'est le prochain mur** : aux réglages de prod
+(`gate=letter`, `loop=internal`), cette pile n'est jamais construite —
+« no confident loop », puis « stack incoherent (0.85) ». Il faut
+`loop=occurrence` + `gate=bar` pour qu'elle existe. La loi est donc correcte
+mais inatteignable par défaut sur ce morceau ; le garde-fou est le chantier
+d'à côté.
+
+
 ## 2026-08-19 — MESURÉ : la loi d'empilement ne compte QUE quand les répétitions sont rares
 
 Suite du test ci-dessous, étendu à Bora Bora (Louis : « tente sur d'autres
