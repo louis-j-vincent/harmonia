@@ -3775,18 +3775,30 @@ window.APP = (function(){
           `color:${T.accent};opacity:.85;white-space:nowrap;pointer-events:none;`,
           ch.var));
         if(S.learn&&(dq!==ch.q||bassHidden)) item.appendChild(el("span",`font:600 8px ${UI};color:${T.amber};`,"simpler"));
-        if(S.mode==="annotate"&&!ch.confirmed){
-          // No percentage any more (2026-07-30). The old number was the model's
-          // own score: it read 36 pp low and had AUC 0.480 — it did not rank
-          // right chords above wrong ones, so printing it was worse than
-          // printing nothing. The colour IS the confidence now, and it comes
-          // from how often the song repeats this chord (chord_confidence.py).
-          // The "?" marks a chord the song never plays again — right 14% of the
-          // time, the one flag actually worth acting on.
-          if(ch.c<.42) item.appendChild(el("span",`position:absolute;top:-4px;right:-2px;font:700 12px ${UI};color:${confColor(ch.c)};`,"?"));
-        }
-        if(S.mode==="annotate"&&ch.confirmed){
-          item.appendChild(el("span",`font:600 10px ${UI};color:${T.green};`,"locked"));
+        // LA RANGÉE DE MARQUE (T4, 2026-08-19). Une seule rangée sous le
+        // glyphe, 5 px, TOUJOURS présente en Annotate même vide : réservée, elle
+        // ne fait sauter aucune ligne de base quand une case gagne ou perd sa
+        // marque. Elle porte l'une ou l'autre, jamais les deux.
+        //   * pas sûr  → un point de 5 px, couleur de confiance. Il remplace le
+        //     « ? » posé en top:-4px;right:-2px, qui sortait de la case et
+        //     chevauchait la barre de mesure et la ligne du dessus.
+        //   * verrouillé → un tiret vert de 14×2. Il remplace le mot « locked »,
+        //     qui coûtait une ligne de texte entière pour dire ce qu'une marque
+        //     dit d'un coup d'œil.
+        // Pas de percentage (2026-07-30) : le score du modèle lisait 36 pp trop
+        // bas, AUC 0.480 — il ne classait pas les bons accords au-dessus des
+        // mauvais. La COULEUR est la confiance, et elle vient du nombre de fois
+        // que le morceau rejoue cet accord (chord_confidence.py) ; le point
+        // marque l'accord que le morceau ne rejoue jamais — juste 14 % du temps,
+        // le seul signal sur lequel il vaut la peine d'agir.
+        // En Read et en Analyse : rien. La couleur du texte suffit.
+        if(S.mode==="annotate"){
+          const mk=el("div","flex:0 0 auto;display:flex;align-items:center;height:5px;margin-top:1px;");
+          if(ch.confirmed)
+            mk.appendChild(el("div",`width:14px;height:2px;border-radius:1px;background:${T.green};`));
+          else if(ch.c<.42)
+            mk.appendChild(el("div",`width:5px;height:5px;border-radius:50%;background:${confColor(ch.c)};`));
+          item.appendChild(mk);
         }
         const gt=gtForSpan(ch.t0,ch.t1);
         if(gt){
