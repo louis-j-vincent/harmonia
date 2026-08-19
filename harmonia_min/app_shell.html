@@ -2984,6 +2984,13 @@ window.APP = (function(){
     if(S._dockNow) S._dockNow.textContent=fmt(t);
     if(S._dockEnd) S._dockEnd.textContent=fmt(dur);
     if(S._immFill){ const f=Math.min(1,Math.max(0,t/dur)); S._immFill.style.width=(f*100)+"%"; }
+    // The form band moves on the CLOCK, like the dock's own fill (T1,
+    // 2026-08-19). setPlayhead() only fires when the BAR changes — good enough
+    // when the band lit one chip at a time, useless now that the tint has to
+    // creep across a segment: an 8-bar A would advance in 8 visible jerks.
+    // This is the one painter every clock source already calls (timeupdate,
+    // the loop timer, seek), and it costs one style write per segment.
+    paintFormRail(t);
   }
 
   // ── lecture immersive (delta2 §6 / design 3a): jouer, c'est lire ─────────
@@ -3244,68 +3251,141 @@ window.APP = (function(){
     });
     return runs;
   }
-  // ── the form RAIL (UI refresh 2026-08-08, §3 / design 1a) ────────────────
-  // Replaces the 26px-chip form strip. Louis, 2026-08-07: "les A B devraient
-  // apparaitre en petit afin que toute la chanson puisse fitter
-  // horizontalement sous forme de A B C .." — so the rail never scrolls.
-  // Every run is a flex column with a 44px floor on BOTH axes (STYLE.md's
-  // hard rule; the handoff draft let columns shrink to ~30px past 9 runs and
-  // only wrapped past 14 — the 44px floor wins, so the rail wraps exactly
-  // when a column would otherwise drop under 44px). The LETTER steps down
-  // with run count; the ROW stays 44 — that is what the finger needs.
-  function buildFormRail(){
-    const runs=formRuns();
-    if(runs.length<2) return null;
+  // ── the form BAND (cleanup 2026-08-19, T1) ───────────────────────────────
+  // It is a scale model of the song with the playhead running through it, not
+  // a row of buttons. The 44px chip rail it replaces wrapped to a second line
+  // past ~10 runs and ate a third of the space above the grid; on Louis's
+  // worst case (A×3 B A×3 B A×3 B bridge B A×3 = 17 passes) it was three rows
+  // of chrome. Two rules make 17 passes fit on ONE 22px line:
+  //   * consecutive passes of the SAME section are ONE segment, with N−1
+  //     hairlines inside saying "played N times" — no ×N left to write;
+  //   * a segment's width is its share of the DURATION, so an 8-bar A and a
+  //     2-bar tag are not drawn the same size.
+  // The 44px touch floor is won the way STYLE.md asks for it: padding and
+  // negative margins on an invisible tap layer, never by growing the drawing.
+  const FORM_BAND_H = 22;
 
-    const n=runs.length;
-    const size = n<=6 ? 16 : n<=9 ? 15 : n<=12 ? 14 : 13;
+  // Grouping happens DOWNSTREAM of formRuns(), which is left exactly as it is:
+  // it already merges bar-contiguous repeats, and this rejoins the repeats it
+  // had to split (a pass the fold rewrote, an occurrence with a hole in it).
+  function formGroups(){
+    const out=[];
+    formRuns().forEach(r=>{
+      const L=out[out.length-1];
+      if(L && L.secId===r.secId){
+        L.n+=r.n; L.b1=r.b1;
+        if(r.t1!=null) L.t1=r.t1;
+        if(L.t0==null && r.t0!=null) L.t0=r.t0;
+      } else out.push({secId:r.secId, label:r.label, b0:r.b0, b1:r.b1,
+                       n:r.n, t0:r.t0, t1:r.t1, rb0:r.rb0});
+    });
+    return out;
+  }
 
-    const rail=el("div",
-      `flex:0 0 auto;display:flex;flex-wrap:wrap;gap:3px;row-gap:6px;`+
-      `padding:0 14px 10px;background:${T.paper};`);
+  // A…H keep their printed letter. A NAMED section (bridge, intro, solo…) is
+  // written as its lowercase initial in Georgia italic bordeaux — `bridge` → b
+  // — because the full word does not fit a 20px segment and a truncation with
+  // dots reads as noise. The name itself lives in title/aria-label (and, from
+  // T3, in the section editor).
+  function formTag(label){
+    const s=String(label||"").trim();
+    if(/^[A-H]$/.test(s)) return {text:s, css:`font:700 11px ${UI};color:${T.ink};`};
+    return {text:(s[0]||"?").toLowerCase(), css:`font:italic 700 11px ${SERIF};color:${T.accent};`};
+  }
+
+  // opts.h — the band's height. 22 above the grid; T3's editor and T5's
+  // prompter reuse this same builder at their own heights.
+  function buildFormRail(opts){
+    const H=(opts&&opts.h)||FORM_BAND_H;
+    const groups=formGroups();
+    if(groups.length<2) return null;
+
+    const wrap=el("div",`flex:0 0 auto;padding:0 14px 12px;background:${T.paper};`);
+    const rail=el("div",`display:flex;gap:2px;height:${H}px;`);
+    rail.setAttribute("data-form-band","1");
+    wrap.appendChild(rail);
     S._formChips=[];
 
-    runs.forEach(r=>{
-      const b=el("button",
-        // max-width keeps a wrapped last line from ballooning two runs to
-        // half the screen each — empty space reads better than fat chips
-        `flex:1 0 ${SZ.control}px;min-width:${SZ.control}px;max-width:96px;height:${SZ.control}px;`+
-        `border-radius:10px;cursor:pointer;display:flex;align-items:${r.n>1?"baseline":"center"};`+
-        `justify-content:center;gap:1px;font:700 ${size}px ${UI};color:${T.ink};`+
-        `border:1px solid ${T.line};background:${T.card};`+
-        `-webkit-tap-highlight-color:transparent;transition:background .14s,border-color .14s;`+
-        (r.n>1?`padding-top:${Math.round(SZ.control/2-size/2)}px;`:""));
-      b.appendChild(el("span","",r.label));
-      if(r.n>1) b.appendChild(el("span",`font:600 9px ${UI};color:${T.faint};`,"×"+r.n));
-      b.setAttribute("aria-label", r.label+(r.n>1?(" ×"+r.n):"")+", bars "+(r.b0+1)+"–"+(r.b1+1));
-      b.title="bars "+(r.b0+1)+"–"+(r.b1+1);
-      b.onclick=()=>{
-        haptic();
-        const dur=totalDur()||1;
-        if(r.t0!=null && S.audio){ seekFrac(r.t0/dur); }
-        else { setPlayhead(r.rb0>=0?r.rb0:0, 0, r.t0); }
-        // Scroll to a RENDERED bar: r.b0 is a SONG bar and overshoots the
-        // folded grid (This Love: song bars run to 79, the grid has 25 rows).
-        const cell=(S._cells||[]).find(c=>c.bar===r.rb0);
-        if(cell) cell.el.scrollIntoView({block:"center",behavior:"smooth"});
-      };
-      S._formChips.push({el:b, t0:r.t0, t1:r.t1});
-      rail.appendChild(b);
+    // Width ∝ played duration. An iReal import carries no spans at all ([0,0]
+    // everywhere), and there the pass COUNT is the only honest proportion left.
+    const spanOf=g=>(g.t0!=null && g.t1!=null && g.t1>g.t0) ? (g.t1-g.t0) : 0;
+    const timed=groups.some(g=>spanOf(g)>0);
+
+    groups.forEach(g=>{
+      const grow = timed ? Math.max(spanOf(g), .001) : g.n;
+      const seg=el("div",`position:relative;flex:${grow} 1 0;min-width:14px;height:${H}px;`);
+
+      // The DRAWING, clipped to its rounded box: progress tint, repeat
+      // hairlines, one label. It never receives a touch — the zones below do.
+      const vis=el("div",`position:absolute;inset:0;border-radius:5px;overflow:hidden;`+
+        `background:${T.card};border:1px solid ${T.line};pointer-events:none;`+
+        `transition:border-color .14s;`);
+      const head=el("div",`position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(138,43,43,.14);`);
+      vis.appendChild(head);
+      for(let i=1;i<g.n;i++)
+        vis.appendChild(el("div",`position:absolute;top:3px;bottom:3px;width:1px;`+
+          `left:${i*100/g.n}%;background:${T.line};`));
+      const tag=formTag(g.label);
+      const tw=el("span",tag.css,tag.text);
+      const lab=el("div","position:absolute;inset:0;display:flex;align-items:center;justify-content:center;");
+      lab.appendChild(tw); vis.appendChild(lab);
+      seg.appendChild(vis);
+
+      const name=g.label+(g.n>1?(" ×"+g.n):"")+", bars "+(g.b0+1)+"–"+(g.b1+1);
+      seg.title=name;
+
+      // ONE TAP ZONE PER PASS, not one per group: three A's must still let you
+      // jump to the second one. 22px of drawing, 44px of finger — and the
+      // zones sit OUTSIDE the clipped drawing, or `overflow:hidden` would eat
+      // the 11px of touch above and below the band.
+      for(let i=0;i<g.n;i++){
+        const t0=(g.t0!=null && g.t1!=null) ? g.t0+(g.t1-g.t0)*i/g.n : g.t0;
+        const b=el("button",
+          `position:absolute;top:0;bottom:0;left:${i*100/g.n}%;width:${100/g.n}%;`+
+          `padding:11px 0;margin:-11px 0;border:0;background:transparent;z-index:2;`+
+          `cursor:pointer;-webkit-tap-highlight-color:transparent;`);
+        b.setAttribute("aria-label", name+(g.n>1?(" — pass "+(i+1)):""));
+        b.onclick=()=>{
+          haptic();
+          const dur=totalDur()||1;
+          if(t0!=null && S.audio){ seekFrac(t0/dur); }
+          else { setPlayhead(g.rb0>=0?g.rb0:0, 0, t0); }
+          // Scroll to a RENDERED bar: g.b0 is a SONG bar and overshoots the
+          // folded grid (This Love: song bars run to 79, the grid has 25 rows).
+          const cell=(S._cells||[]).find(c=>c.bar===g.rb0);
+          if(cell) cell.el.scrollIntoView({block:"center",behavior:"smooth"});
+        };
+        seg.appendChild(b);
+      }
+
+      S._formChips.push({el:seg, vis, head, tag:tw, t0:g.t0, t1:g.t1});
+      rail.appendChild(seg);
     });
 
     paintFormRail(S.playTime);   // unchanged contract — still keyed on TIME
-    return rail;
+    return wrap;
   }
 
-  /* paintFormChip() keeps working as written (it only touches background and
-     borderColor); this wrapper makes the active run read at a glance in a
-     dense rail — solid tint + heavier letter rather than a hairline change. */
+  /* The band's playhead. The tint fills the CURRENT segment left to right in
+     proportion to how much of it has played, so a long A reads as "we are two
+     thirds through this A" and not merely "we are somewhere in an A" — which
+     is the whole reason the 44px chips were worth losing. Written per segment
+     from TIME alone, never from the segment's index: formRuns() orders by song
+     bar, not by clock, so "every segment before the current one" is not a
+     statement this code is allowed to make. A segment with no usable span (an
+     iReal import) simply fills whole when it is the current one. */
   function paintFormRail(t){
-    paintFormChip(t);
+    paintFormChip(t);                 // decides S._formChipCur, writes nothing
+    const cur=S._formChipCur;
     (S._formChips||[]).forEach((c,i)=>{
-      const on = i===S._formChipCur;
-      c.el.style.background = on ? "rgba(138,43,43,.12)" : T.card;
-      c.el.style.fontWeight = on ? "800" : "700";
+      const on = i===cur;
+      let f=0;
+      if(t!=null && isFinite(t) && c.t0!=null && c.t1!=null && c.t1>c.t0)
+        f=Math.min(1, Math.max(0, (t-c.t0)/(c.t1-c.t0)));
+      else if(on) f=1;
+      if(c.head) c.head.style.width=(f*100)+"%";
+      if(c.vis)  c.vis.style.borderColor = on ? T.accent : T.line;
+      if(c.tag)  c.tag.style.fontWeight = on ? "800" : "700";
     });
   }
   // Highlight the chip the playhead is inside, mirroring the bar highlight so
@@ -3342,13 +3422,11 @@ window.APP = (function(){
         if(started.length) cur=started[started.length-1].i;
       }
     }
-    S._formChipCur=cur;   // read by paintFormRail — comparing style.borderColor
-                          // back to a hex fails (the browser returns rgb())
-    S._formChips.forEach((c,i)=>{
-      const on = i===cur;
-      c.el.style.background = on ? "rgba(138,43,43,.12)" : T.paper;
-      c.el.style.borderColor = on ? T.accent : T.line;
-    });
+    // DECIDES, does not draw (T1, 2026-08-19). It used to also write
+    // background/borderColor on the chip, which fought paintFormRail for the
+    // same two properties; paintFormRail owns every pixel of the band now and
+    // this function's only output is the index below.
+    S._formChipCur=cur;
   }
   // In-flow above the dock since the UI refresh (2026-08-08) — the old
   // absolute positioning was tuned to the retired bottom transport's height.
