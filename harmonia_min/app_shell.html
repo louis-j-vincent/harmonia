@@ -684,7 +684,12 @@ window.APP = (function(){
     opts=opts||{};
     clear(host);
     host.style.cssText=`position:relative;height:${h}px;`;
-    if(!midis || !midis.length) return function(){};
+    // Avec une fenêtre FIXE il n'y a rien à déduire des notes : on sait déjà
+    // quelles touches dessiner, et un clavier muet vaut mieux qu'une carte vide
+    // (constaté en vrai : Bora Bora commence sur un N.C., la carte AU PIANO
+    // s'ouvrait sur un rectangle blanc).
+    if(!rng && (!midis || !midis.length)) return function(){};
+    midis = midis || [];
     const lo = rng ? rng.lo : 12*Math.floor(Math.min(...midis)/12);
     const octaves = rng ? rng.oct
       : Math.max(1, Math.ceil((Math.max(...midis)-lo+1)/12));
@@ -769,9 +774,10 @@ window.APP = (function(){
     head.appendChild(names); card.appendChild(head);
     const kb=el("div",`flex:0 0 auto;height:${KB_H}px;`); card.appendChild(kb);
     const roles=new Map();
-    let light=null;
+    // bâti TOUT DE SUITE, éteint : la carte n'est jamais un rectangle vide
+    const light=renderHand(kb, [], KB_H, "chord", rng, {band:true, roles});
     card._show=midis=>{
-      if(!midis || !midis.length){ clear(names); if(light) light([]); return; }
+      if(!midis || !midis.length){ clear(names); light([]); return; }
       const {left,right}=splitHands(midis);
       roles.clear();
       left.forEach(x=>roles.set(x,"bass")); right.forEach(x=>roles.set(x,"chord"));
@@ -3437,7 +3443,11 @@ window.APP = (function(){
   // T3, in the section editor).
   function formTag(label){
     const s=String(label||"").trim();
-    if(/^[A-H]$/.test(s)) return {text:s, css:`font:700 11px ${UI};color:${T.ink};`};
+    // A' est une LETTRE, pas un nom : sur Bora Bora la bande écrivait « a » en
+    // italique bordeaux à côté d'un « A » droit, deux choses qui se ressemblent
+    // pour deux choses qui n'ont rien à voir. Une lettre garde son prime ou son
+    // chiffre et son dessin de lettre.
+    if(/^[A-H]['′´0-9]?$/.test(s)) return {text:s, css:`font:700 11px ${UI};color:${T.ink};`};
     return {text:(s[0]||"?").toLowerCase(), css:`font:italic 700 11px ${SERIF};color:${T.accent};`};
   }
 
@@ -4797,7 +4807,7 @@ window.APP = (function(){
     w.appendChild(foot);
 
     // ── dessin ─────────────────────────────────────────────────────────────
-    const isLetter=lb=>/^[A-H]$/.test(String(lb||"").trim());
+    const isLetter=lb=>/^[A-H]['′´0-9]?$/.test(String(lb||"").trim());   // A' est une lettre
     const segs=[];
     function paint(){
       clear(rail); segs.length=0;
