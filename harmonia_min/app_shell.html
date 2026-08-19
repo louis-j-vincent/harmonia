@@ -483,7 +483,8 @@ window.APP = (function(){
       `flex:0 0 auto;width:${SZ.control}px;height:${SZ.control}px;border-radius:50%;`+
       `background:${T.card};border:1px solid ${T.line};color:${T.ink};cursor:pointer;`+
       `display:flex;align-items:center;justify-content:center;`+
-      `font:${opts.serif?`italic 600 16px ${SERIF}`:`400 22px ${UI}`};line-height:1;`);
+      `font:${opts.serif?`italic 600 16px ${SERIF}`:`400 22px ${UI}`};line-height:1;`+
+      (opts.style||""));
     b.textContent = glyphChar;
     if(aria) b.setAttribute("aria-label", aria);
     if(onClick) b.onclick=onClick;
@@ -2845,8 +2846,66 @@ window.APP = (function(){
     tw.appendChild(meta);
     bar.appendChild(tw);
 
+    // Les outils d'Annotate, derrière UN bouton, et seulement là (T2,
+    // 2026-08-19). Dans les autres modes la barre est inchangée — Aa reste en
+    // bout, aucun trou. Un écran = une chose à faire : Read lit, Annotate
+    // corrige, et rien d'un mode n'apparaît dans un autre.
+    if(S.mode==="annotate")
+      bar.appendChild(kitIcon("···", openAnnotateTools, "Outils",
+                              {style:`border:1px solid ${T.accent};color:${T.accent};`}));
     bar.appendChild(kitIcon("Aa", openPrefsSheet, "Preferences", {serif:true}));
     return bar;
+  }
+
+  /* La ligne qui reste au-dessus de la grille en Annotate. Elle remplace la
+     légende dégradée du ruban, qui expliquait un code couleur en quatre teintes
+     là où le geste tient en huit mots. */
+  function annotateHint(){
+    return el("div",`flex:0 0 auto;padding:0 16px 10px;background:${T.paper};`+
+      `font:italic 12.5px ${SERIF};color:${T.faint};`,
+      "touche un accord dont tu es sûr — il se verrouille");
+  }
+
+  /* La feuille « Outils » (T2). Le ruban qu'elle remplace empilait une légende
+     dégradée et des blocs titrés « la grille » / « les sections » avec des
+     boutons pleine largeur : trois lignes de chrome, en permanence, pour des
+     gestes qu'on fait une fois par morceau.
+     Ce que la spec appelait « Vérifier les fusions » n'est PAS rendu : sa route
+     /debug/section-merge-game répond 404 « not in this build » — une ligne qui
+     mène à une impasse ne vaut pas mieux qu'une ligne grisée. Souder tient ce
+     rôle depuis le 2026-08-14, à l'oreille, et cette route-là existe. */
+  function openAnnotateTools(){
+    const m=S.model; if(!m||!m.file) return;
+    const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
+    const close=()=>closeOverlay(back);
+    sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,"Outils"));
+    sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:10px;`,
+      "on répare la grille, pas la musique"));
+    const list=el("div","flex:1 1 auto;overflow-y:auto;"); list.className="ap-scroll";
+    const line=(title,note,onTap)=>{
+      const r=el("button",`display:flex;align-items:center;gap:12px;width:100%;min-height:60px;`+
+        `padding:10px 2px;border:0;border-top:1px solid ${T.line};background:transparent;`+
+        `text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;`);
+      const tw=el("div","flex:1;min-width:0;");
+      tw.appendChild(el("div",`font:600 14.5px ${UI};color:${T.ink};`,title));
+      tw.appendChild(el("div",`font:500 12px ${UI};color:${T.faint};margin-top:2px;`,note));
+      r.appendChild(tw);
+      r.appendChild(el("div",`flex:0 0 auto;font:400 20px ${UI};color:${T.faint};`,"›"));
+      r.onclick=()=>{ haptic(); close(); onTap(); };
+      list.appendChild(r);
+    };
+    line("Redessiner les sections","les lettres et leurs frontières, au doigt", openSectionTool);
+    line("Caler la mesure 1","le vrai départ du morceau", openBar1Sheet);
+    line("Souder les sections","à l'oreille, deux passages à la fois",
+      ()=>{ window.location="/soudure/"+encodeURIComponent(m.file); });
+    line("Voir la matrice","où le morceau se répète, à l'œil",
+      ()=>{ window.location="/ssm/"+encodeURIComponent(m.file); });
+    sheet.appendChild(list);
+    const cancel=el("button",`flex:0 0 auto;width:100%;margin-top:10px;background:transparent;`+
+      `border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:${SZ.control}px;cursor:pointer;`,"Fermer");
+    cancel.onclick=close;
+    sheet.appendChild(cancel);
+    back.appendChild(sheet); root.appendChild(back);
   }
 
   /* The Analyse lens row + its ONE-LINE legend. Replaces the three outlined
@@ -3136,6 +3195,7 @@ window.APP = (function(){
       // (Louis, 2026-07-30: the timeline lives in the chart, never folded away).
       const rail=buildFormRail(); if(rail) w.appendChild(rail);
       if(S.mode==="analyse") w.appendChild(analyseLens());
+      if(S.mode==="annotate") w.appendChild(annotateHint());
     } else {
       w.appendChild(immersiveProgress());
       w.appendChild(immersiveHandle());
@@ -3148,10 +3208,6 @@ window.APP = (function(){
     // latérales minces, le treillis va presque bord à bord comme iRealB.
     const body=el("div",`flex:1;min-height:0;overflow-y:auto;padding:10px 7px 24px;background:${T.paper};`); body.className="ap-scroll";
     const sheet=el("div","max-width:720px;margin:0 auto;");
-    // 2026-07-18: ribbon ABOVE the grid so annotate tools surface without
-    // scrolling (verified live back then). Its own FORM chips are gone — the
-    // §2 double-FORM fix: the rail above is the one form surface.
-    if(S.mode==="annotate") sheet.appendChild(buildRibbon());
     sheet.appendChild(buildRefineBand());
     // buildSectionTool() n'est plus monté (Louis, 2026-08-14 : « pour les
     // sections, tu ne gardes que le nouvel outil de merging de sections
@@ -4555,58 +4611,12 @@ window.APP = (function(){
 
   // (barsOf/sectionSpan died with the ribbon's section chips — pooling is
   // always the swipe now, and the equal-length rule is enforced by openMerge.)
-  // UI refresh 2026-08-08 (§2): the ribbon's own FORM chips are gone — they
-  // rendered the form twice (buildFormRail above the grid already carries
-  // it; verified live before the refresh). The "tap a section chip to pool
-  // it" shortcut went with them: pooling is now always the swipe (or a
-  // suggestion). Tools are kitButtons — words, no symbol prefixes; Set bar 1
-  // and Check merges moved here from the deleted mode bar.
-  // Louis, 2026-08-08 (second pass): the tool row is down to what THIS server
-  // actually serves. Removed as STALE, verified against server.py's routes:
-  //   * "Pool two passes" — POST /api/reinfer is aliased onto the lock
-  //     rescorer, which answers a merge with a correct NO-OP ("a merge has no
-  //     lock-lattice equivalent yet") — a button that does nothing;
-  //   * "Bar suggestions" / "Section suggestions" — retirés le 2026-08-14 :
-  //     leurs endpoints de candidats n'ont jamais existé et leurs boutons
-  //     d'armement n'étaient montés nulle part.
-  // "Set bar 1" is the in-app offset tool now (openBar1Sheet), not a link to
-  // a page this server never had.
-  function buildRibbon(){
-    const wrap=el("div","margin:4px 3px 16px;");
-    wrap.appendChild(kitLegend("linear-gradient(90deg,#a8281f,#bd6a22,#9a6a1e,"+T.ink+")",
-      "shaky chords tint red — tap one you know to lock it in"));
-    const m=S.model;
-    if(m && m.file){
-      const tools=el("div","display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap;margin-top:10px;");
-      const box=(caption,btn)=>{
-        const g=el("div","display:flex;flex-direction:column;gap:5px;");
-        g.appendChild(el("div",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`,caption));
-        g.appendChild(btn); return g;
-      };
-      tools.appendChild(box("la grille",
-        kitButton("Set bar 1", openBar1Sheet, {note:"le vrai départ du morceau"})));
-      // Un SEUL outil de sections (Louis, 2026-08-14): Soudure. Il remplace
-      // « Marquer les sections » (le tracé au doigt) et « Check merges » (qui
-      // ouvrait /debug/section-merge-game dans un autre onglet) — trois
-      // portes pour une même question, dont deux légendes côte à côte qui
-      // disaient la même chose en deux langues. Il vivait dans la feuille Aa,
-      // sous l'intitulé PRÉFÉRENCES, alors que c'est un outil : sa place est
-      // ici, à côté de Set bar 1.
-      tools.appendChild(box("les sections",
-        kitButton("Souder les sections",
-          ()=>{ window.location="/soudure/"+encodeURIComponent(m.file); },
-          {note:"à l'oreille"})));
-      // L'atelier (Louis, 2026-08-15): le chart brut, on surligne les mesures
-      // sous un nom, l'algo des quatre mots complete le reste. C'est l'entree
-      // par l'OEIL la ou Souder est l'entree par l'oreille.
-      tools.appendChild(box("les nommer",
-        kitButton("Nommer les sections",
-          ()=>{ window.location="/sections/"+encodeURIComponent(m.file); },
-          {note:"au surligneur"})));
-      wrap.appendChild(tools);
-    }
-    return wrap;
-  }
+  // buildRibbon() lui-même est mort le 2026-08-19 (T2) : légende dégradée +
+  // deux blocs titrés + quatre boutons pleine largeur, en permanence au-dessus
+  // de la grille. Ses quatre outils vivent dans openAnnotateTools(), une ligne
+  // chacun, derrière le « ··· » — Set bar 1, Souder, Redessiner (l'ancien
+  // « Nommer les sections ») et la matrice SSM. Rien n'a été perdu, tout a été
+  // déplacé d'un cran.
 
   // ── Set bar 1, in-app (Louis, 2026-08-08) ────────────────────────────────
   // A practise-style reel synced to the music: drag the tape (or let it play)
