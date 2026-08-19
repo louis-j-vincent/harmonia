@@ -1,0 +1,138 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Empiler des spectres ou des postérieures ?</title><style>
+:root{--pap:#f7f3ea;--ink:#1c1c1c;--f:#8a7f6d;--l:#ded5c4;--acc:#8a2b2b;--d:#f2dcc4}
+body{margin:0 auto;padding:18px 14px 60px;background:var(--pap);color:var(--ink);
+ font:15px/1.55 -apple-system,system-ui,sans-serif;max-width:900px}
+h1{font:700 22px/1.3 Georgia,serif;margin:0 0 4px}
+h2{font:700 17px/1.35 Georgia,serif;margin:34px 0 8px;border-top:1px solid var(--l);padding-top:18px}
+h2 .sec{font:600 12px -apple-system,sans-serif;color:var(--f);display:block;margin-top:3px}
+h3{font:600 13px/1.4 -apple-system,sans-serif;margin:16px 0 6px;text-transform:uppercase;
+ letter-spacing:.06em;color:var(--f)}
+h3 small{text-transform:none;letter-spacing:0;font-weight:500;display:block;margin-top:2px}
+p.lead{color:var(--f);font-size:13.5px;margin:6px 0 10px}
+audio{width:100%;margin:2px 0 6px}
+button{background:#fff;border:1px solid var(--l);border-radius:6px;padding:3px 9px;
+ font:600 12px -apple-system,sans-serif;color:var(--ink);margin-right:3px}
+.g{display:grid;grid-template-columns:repeat(4,1fr);gap:3px}
+.m{position:relative;background:#fff;border:1px solid var(--l);border-radius:6px;
+ padding:12px 4px 7px;text-align:center;font:600 15px Georgia,serif;cursor:pointer;min-height:20px}
+.m .n{position:absolute;top:2px;left:4px;font:500 8px -apple-system,sans-serif;color:#c3b8a4}
+.m.d{background:var(--d);border-color:#e0bf95}
+.m:active{outline:2px solid var(--acc)}
+.intro{background:#fff;border:1px solid var(--l);border-radius:10px;padding:14px 16px;margin:14px 0}
+.intro b{color:var(--acc)}
+@media(min-width:620px){.g{grid-template-columns:repeat(8,1fr)}}
+</style></head><body>
+<h1>Empiler des spectres, ou des postérieures ?</h1>
+<div class="intro">
+<p>Quand une section revient N fois, on additionne les N passages avant de
+décider. Deux endroits possibles : <b>avant</b> le modèle — on moyenne les
+spectres et musx écoute la moyenne, c'est la prod depuis le 8 août — ou
+<b>après</b> — musx écoute chaque passage séparément et on moyenne ce qu'il a
+compris.</p>
+<p>Le cas qui module est déjà tranché (postérieures, Bora Bora, 19 août). Ici
+ce sont les sections qui <b>ne modulent pas</b>, et seulement celles où les deux
+lois écrivent quelque chose de différent : <b>56 sections</b> dans
+la bibliothèque. Ci-dessous 8 morceaux que tu as déjà travaillés,
+la section la plus contrastée de chacun.</p>
+<p>Les mesures colorées sont celles qui changent. Écoute et dis laquelle a
+raison.</p>
+</div>
+
+<section>
+  <h2>Maroon 5 — This Love <span class="sec">section A
+      · 4 mesures × 2 passages</span></h2>
+  <audio controls preload="none" src="/audio/maroon_5_this_love.m4a"></audio>
+  <p class="lead">Aller à : <button data-t="21.28">occ. 1</button> <button data-t="71.78">occ. 2</button> · clique une mesure pour l'entendre
+     (1ᵉʳ passage). 3 mesure(s) sur 4 diffèrent.</p>
+  <h3>CQT empilés <small>la prod : on moyenne les spectres, puis musx écoute</small></h3>
+  <div class="g"><div class="m" data-t="21.28"><span class="n">1</span>G/B</div><div class="m d" data-t="23.80"><span class="n">2</span>C-7</div><div class="m d" data-t="26.33"><span class="n">3</span>F-7</div><div class="m d" data-t="28.85"><span class="n">4</span>Dh7 A♭7</div></div>
+  <h3>postérieures empilées <small>musx écoute chaque passage, on moyenne ce qu'il a compris</small></h3>
+  <div class="g"><div class="m" data-t="21.28"><span class="n">1</span>G/B</div><div class="m d" data-t="23.80"><span class="n">2</span>C-</div><div class="m d" data-t="26.33"><span class="n">3</span>F-</div><div class="m d" data-t="28.85"><span class="n">4</span>Dh7 A♭-7</div></div>
+</section>
+<section>
+  <h2>Norah Jones — Don&#x27;t Know Why <span class="sec">section A
+      · 8 mesures × 5 passages</span></h2>
+  <audio controls preload="none" src="/audio/norah_jones_don_t_know_why.m4a"></audio>
+  <p class="lead">Aller à : <button data-t="10.98">occ. 1</button> <button data-t="38.22">occ. 2</button> <button data-t="81.80">occ. 3</button> <button data-t="125.28">occ. 4</button> <button data-t="146.76">occ. 5</button> · clique une mesure pour l'entendre
+     (1ᵉʳ passage). 4 mesure(s) sur 8 diffèrent.</p>
+  <h3>CQT empilés <small>la prod : on moyenne les spectres, puis musx écoute</small></h3>
+  <div class="g"><div class="m" data-t="10.98"><span class="n">1</span>B♭7</div><div class="m d" data-t="13.70"><span class="n">2</span>E♭^7 D7</div><div class="m" data-t="16.40"><span class="n">3</span>G-7 C7</div><div class="m d" data-t="19.14"><span class="n">4</span>F7sus4 B♭</div><div class="m" data-t="21.84"><span class="n">5</span>% B♭7</div><div class="m d" data-t="24.58"><span class="n">6</span>E♭^7 D^7</div><div class="m" data-t="27.30"><span class="n">7</span>G-7 C7</div><div class="m d" data-t="30.04"><span class="n">8</span>F7sus4 B♭</div></div>
+  <h3>postérieures empilées <small>musx écoute chaque passage, on moyenne ce qu'il a compris</small></h3>
+  <div class="g"><div class="m" data-t="10.98"><span class="n">1</span>B♭7</div><div class="m d" data-t="13.70"><span class="n">2</span>E♭^7 D+</div><div class="m" data-t="16.40"><span class="n">3</span>G-7 C7</div><div class="m d" data-t="19.14"><span class="n">4</span>F7 B♭</div><div class="m" data-t="21.84"><span class="n">5</span>% B♭7</div><div class="m d" data-t="24.58"><span class="n">6</span>E♭^7 D+</div><div class="m" data-t="27.30"><span class="n">7</span>G-7 C7</div><div class="m d" data-t="30.04"><span class="n">8</span>F7 B♭</div></div>
+</section>
+<section>
+  <h2>The Ronettes — Be My Baby <span class="sec">section B
+      · 8 mesures × 2 passages</span></h2>
+  <audio controls preload="none" src="/audio/the_ronettes_be_my_baby_music_video.m4a"></audio>
+  <p class="lead">Aller à : <button data-t="22.98">occ. 1</button> <button data-t="67.44">occ. 2</button> · clique une mesure pour l'entendre
+     (1ᵉʳ passage). 4 mesure(s) sur 8 diffèrent.</p>
+  <h3>CQT empilés <small>la prod : on moyenne les spectres, puis musx écoute</small></h3>
+  <div class="g"><div class="m d" data-t="22.98"><span class="n">1</span>A♭</div><div class="m" data-t="24.82"><span class="n">2</span>%</div><div class="m" data-t="26.64"><span class="n">3</span>D♭7</div><div class="m" data-t="28.48"><span class="n">4</span>%</div><div class="m d" data-t="30.30"><span class="n">5</span>G♭</div><div class="m" data-t="32.14"><span class="n">6</span>%</div><div class="m d" data-t="33.98"><span class="n">7</span>B</div><div class="m d" data-t="35.80"><span class="n">8</span>%</div></div>
+  <h3>postérieures empilées <small>musx écoute chaque passage, on moyenne ce qu'il a compris</small></h3>
+  <div class="g"><div class="m d" data-t="22.98"><span class="n">1</span>A♭7</div><div class="m" data-t="24.82"><span class="n">2</span>%</div><div class="m" data-t="26.64"><span class="n">3</span>D♭7</div><div class="m" data-t="28.48"><span class="n">4</span>%</div><div class="m d" data-t="30.30"><span class="n">5</span>G♭7</div><div class="m" data-t="32.14"><span class="n">6</span>%</div><div class="m d" data-t="33.98"><span class="n">7</span>B7</div><div class="m d" data-t="35.80"><span class="n">8</span>B</div></div>
+</section>
+<section>
+  <h2>Bobby Hebb — Sunny <span class="sec">section A
+      · 8 mesures × 2 passages</span></h2>
+  <audio controls preload="none" src="/audio/bobby_hebb_sunny_official_audio.m4a"></audio>
+  <p class="lead">Aller à : <button data-t="2.20">occ. 1</button> <button data-t="32.48">occ. 2</button> · clique une mesure pour l'entendre
+     (1ᵉʳ passage). 3 mesure(s) sur 8 diffèrent.</p>
+  <h3>CQT empilés <small>la prod : on moyenne les spectres, puis musx écoute</small></h3>
+  <div class="g"><div class="m" data-t="2.20"><span class="n">1</span>E-</div><div class="m" data-t="4.10"><span class="n">2</span>E-/G G</div><div class="m d" data-t="6.00"><span class="n">3</span>C^7</div><div class="m d" data-t="7.90"><span class="n">4</span>G♭h7 B7</div><div class="m" data-t="9.82"><span class="n">5</span>E-</div><div class="m" data-t="11.74"><span class="n">6</span>G</div><div class="m" data-t="13.66"><span class="n">7</span>C^7</div><div class="m d" data-t="15.54"><span class="n">8</span>G♭h7 B7</div></div>
+  <h3>postérieures empilées <small>musx écoute chaque passage, on moyenne ce qu'il a compris</small></h3>
+  <div class="g"><div class="m" data-t="2.20"><span class="n">1</span>E-</div><div class="m" data-t="4.10"><span class="n">2</span>E-/G G</div><div class="m d" data-t="6.00"><span class="n">3</span>C</div><div class="m d" data-t="7.90"><span class="n">4</span>G♭o B</div><div class="m" data-t="9.82"><span class="n">5</span>E-</div><div class="m" data-t="11.74"><span class="n">6</span>G</div><div class="m" data-t="13.66"><span class="n">7</span>C^7</div><div class="m d" data-t="15.54"><span class="n">8</span>B-/G♭ B7</div></div>
+</section>
+<section>
+  <h2>Ray Charles — Georgia On My Mind <span class="sec">section C
+      · 8 mesures × 2 passages</span></h2>
+  <audio controls preload="none" src="/audio/ray_charles_georgia_on_my_mind_official_video.m4a"></audio>
+  <p class="lead">Aller à : <button data-t="76.22">occ. 1</button> <button data-t="136.14">occ. 2</button> · clique une mesure pour l'entendre
+     (1ᵉʳ passage). 3 mesure(s) sur 8 diffèrent.</p>
+  <h3>CQT empilés <small>la prod : on moyenne les spectres, puis musx écoute</small></h3>
+  <div class="g"><div class="m" data-t="76.22"><span class="n">1</span>E- A-</div><div class="m d" data-t="79.98"><span class="n">2</span>E- C7</div><div class="m" data-t="83.62"><span class="n">3</span>E- A-</div><div class="m" data-t="87.30"><span class="n">4</span>E-7 A7</div><div class="m d" data-t="90.94"><span class="n">5</span>E-7 A-7</div><div class="m d" data-t="94.58"><span class="n">6</span>E-7 G♭7</div><div class="m" data-t="98.24"><span class="n">7</span>B-7 B♭7</div><div class="m" data-t="101.96"><span class="n">8</span>A7 D7</div></div>
+  <h3>postérieures empilées <small>musx écoute chaque passage, on moyenne ce qu'il a compris</small></h3>
+  <div class="g"><div class="m" data-t="76.22"><span class="n">1</span>E- A-</div><div class="m d" data-t="79.98"><span class="n">2</span>E- C/E</div><div class="m" data-t="83.62"><span class="n">3</span>E- A-</div><div class="m" data-t="87.30"><span class="n">4</span>E-7 A7</div><div class="m d" data-t="90.94"><span class="n">5</span>E-7</div><div class="m d" data-t="94.58"><span class="n">6</span>% G♭7</div><div class="m" data-t="98.24"><span class="n">7</span>B-7 B♭7</div><div class="m" data-t="101.96"><span class="n">8</span>A7 D7</div></div>
+</section>
+<section>
+  <h2>Elton John — Goodbye Yellow Brick Road <span class="sec">section D
+      · 8 mesures × 2 passages</span></h2>
+  <audio controls preload="none" src="/audio/elton_john_goodbye_yellow_brick_road_lyrics.m4a"></audio>
+  <p class="lead">Aller à : <button data-t="65.84">occ. 1</button> <button data-t="158.16">occ. 2</button> · clique une mesure pour l'entendre
+     (1ᵉʳ passage). 6 mesure(s) sur 8 diffèrent.</p>
+  <h3>CQT empilés <small>la prod : on moyenne les spectres, puis musx écoute</small></h3>
+  <div class="g"><div class="m d" data-t="65.84"><span class="n">1</span>F D-</div><div class="m d" data-t="67.82"><span class="n">2</span>%</div><div class="m d" data-t="69.78"><span class="n">3</span>A B♭</div><div class="m" data-t="71.76"><span class="n">4</span>% D♭</div><div class="m" data-t="73.74"><span class="n">5</span>%</div><div class="m d" data-t="75.70"><span class="n">6</span>% E♭</div><div class="m d" data-t="77.66"><span class="n">7</span>F C/E D-</div><div class="m d" data-t="79.62"><span class="n">8</span>% B♭</div></div>
+  <h3>postérieures empilées <small>musx écoute chaque passage, on moyenne ce qu'il a compris</small></h3>
+  <div class="g"><div class="m d" data-t="65.84"><span class="n">1</span>D-</div><div class="m d" data-t="67.82"><span class="n">2</span>% A</div><div class="m d" data-t="69.78"><span class="n">3</span>% B♭</div><div class="m" data-t="71.76"><span class="n">4</span>% D♭</div><div class="m" data-t="73.74"><span class="n">5</span>%</div><div class="m d" data-t="75.70"><span class="n">6</span>% E♭ F</div><div class="m d" data-t="77.66"><span class="n">7</span>% C/E D-</div><div class="m d" data-t="79.62"><span class="n">8</span>% C F</div></div>
+</section>
+<section>
+  <h2>Maroon 5 — She Will Be Loved <span class="sec">section A
+      · 4 mesures × 4 passages</span></h2>
+  <audio controls preload="none" src="/audio/maroon_5_she_will_be_loved_official_music_video.m4a"></audio>
+  <p class="lead">Aller à : <button data-t="21.35">occ. 1</button> <button data-t="40.18">occ. 2</button> <button data-t="89.60">occ. 3</button> <button data-t="108.42">occ. 4</button> · clique une mesure pour l'entendre
+     (1ᵉʳ passage). 3 mesure(s) sur 4 diffèrent.</p>
+  <h3>CQT empilés <small>la prod : on moyenne les spectres, puis musx écoute</small></h3>
+  <div class="g"><div class="m d" data-t="21.35"><span class="n">1</span>C-7 B♭7</div><div class="m d" data-t="23.70"><span class="n">2</span>%</div><div class="m d" data-t="26.06"><span class="n">3</span>C-7</div><div class="m" data-t="28.41"><span class="n">4</span>B♭ B♭7</div></div>
+  <h3>postérieures empilées <small>musx écoute chaque passage, on moyenne ce qu'il a compris</small></h3>
+  <div class="g"><div class="m d" data-t="21.35"><span class="n">1</span>C-7</div><div class="m d" data-t="23.70"><span class="n">2</span>B♭7</div><div class="m d" data-t="26.06"><span class="n">3</span>C-</div><div class="m" data-t="28.41"><span class="n">4</span>B♭ B♭7</div></div>
+</section>
+<section>
+  <h2>Michael Jackson — Billie Jean <span class="sec">section B
+      · 4 mesures × 4 passages</span></h2>
+  <audio controls preload="none" src="/audio/michael_jackson_billie_jean_official_video.m4a"></audio>
+  <p class="lead">Aller à : <button data-t="46.48">occ. 1</button> <button data-t="104.04">occ. 2</button> <button data-t="128.70">occ. 3</button> <button data-t="252.04">occ. 4</button> · clique une mesure pour l'entendre
+     (1ᵉʳ passage). 1 mesure(s) sur 4 diffèrent.</p>
+  <h3>CQT empilés <small>la prod : on moyenne les spectres, puis musx écoute</small></h3>
+  <div class="g"><div class="m" data-t="46.48"><span class="n">1</span>B-7</div><div class="m" data-t="48.54"><span class="n">2</span>%</div><div class="m d" data-t="50.59"><span class="n">3</span>G♭-7</div><div class="m" data-t="52.65"><span class="n">4</span>%</div></div>
+  <h3>postérieures empilées <small>musx écoute chaque passage, on moyenne ce qu'il a compris</small></h3>
+  <div class="g"><div class="m" data-t="46.48"><span class="n">1</span>B-7</div><div class="m" data-t="48.54"><span class="n">2</span>%</div><div class="m d" data-t="50.59"><span class="n">3</span>G♭-</div><div class="m" data-t="52.65"><span class="n">4</span>%</div></div>
+</section>
+<script>
+document.querySelectorAll('section').forEach(sec=>{
+  const a=sec.querySelector('audio');
+  const go=t=>{a.currentTime=parseFloat(t)||0;a.play();};
+  sec.querySelectorAll('.m').forEach(m=>m.addEventListener('click',()=>go(m.dataset.t)));
+  sec.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.t)));
+});
+</script></body></html>
