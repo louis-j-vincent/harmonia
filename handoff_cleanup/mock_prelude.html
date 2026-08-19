@@ -1,0 +1,45 @@
+<script>
+(function(){
+  const MODEL={"title":"Autumn Leaves","file":"autumn_leaves","key":{"tonic":7,"mode":"minor"},"bpb":4,"form":"AABA (32-bar song form)","tempo_bpm":120,"audio_url":"","merges":[],"n_bars":24,"sections":[{"id":"s0","label":"A","tag":"","reps":2,"spans":[[0,16],[16,32]],"barRanges":[[0,7],[8,15]],"bars":[[{"root":2,"q":"-7","c":0.93,"bass":-1,"nc":false,"bar":0,"beat":0,"t0":0,"t1":2,"sug":null,"confirmed":false}],[{"root":7,"q":"7","c":0.88,"bass":-1,"nc":false,"bar":1,"beat":0,"t0":2,"t1":4,"sug":null,"confirmed":false}],[{"root":10,"q":"^7","c":0.95,"bass":-1,"nc":false,"bar":2,"beat":0,"t0":4,"t1":6,"sug":null,"confirmed":false}],[{"root":3,"q":"^7","c":0.72,"bass":-1,"nc":false,"bar":3,"beat":0,"t0":6,"t1":8,"sug":null,"confirmed":false}],[{"root":0,"q":"h7","c":0.61,"bass":-1,"nc":false,"bar":4,"beat":0,"t0":8,"t1":10,"sug":null,"confirmed":false}],[{"root":5,"q":"7","c":0.9,"bass":-1,"nc":false,"bar":5,"beat":0,"t0":10,"t1":12,"sug":null,"confirmed":false}],[{"root":7,"q":"-","c":0.84,"bass":-1,"nc":false,"bar":6,"beat":0,"t0":12,"t1":14,"sug":null,"confirmed":false}],[{"root":7,"q":"-","c":0.5,"bass":-1,"nc":false,"bar":7,"beat":0,"t0":14,"t1":16,"sug":null,"confirmed":false}]]},{"id":"s1","label":"B","tag":"","reps":1,"spans":[[32,48]],"barRanges":[[16,23]],"bars":[[{"root":0,"q":"h7","c":0.66,"bass":-1,"nc":false,"bar":16,"beat":0,"t0":32,"t1":34,"sug":null,"confirmed":false}],[{"root":5,"q":"7","c":0.91,"bass":-1,"nc":false,"bar":17,"beat":0,"t0":34,"t1":36,"sug":null,"confirmed":false}],[{"root":7,"q":"-7","c":0.78,"bass":-1,"nc":false,"bar":18,"beat":0,"t0":36,"t1":38,"sug":null,"confirmed":false}],[{"root":7,"q":"-7","c":0.42,"bass":-1,"nc":false,"bar":19,"beat":0,"t0":38,"t1":40,"sug":null,"confirmed":false}],[{"root":2,"q":"-7","c":0.8,"bass":-1,"nc":false,"bar":20,"beat":0,"t0":40,"t1":41,"sug":null,"confirmed":false},{"root":7,"q":"7","c":0.7,"bass":-1,"nc":false,"bar":20,"beat":2,"t0":41,"t1":42,"sug":null,"confirmed":false}],[{"root":10,"q":"^7","c":0.9,"bass":-1,"nc":false,"bar":21,"beat":0,"t0":42,"t1":44,"sug":null,"confirmed":false}],[{"root":3,"q":"7","c":0.55,"bass":-1,"nc":false,"bar":22,"beat":0,"t0":44,"t1":46,"sug":null,"confirmed":false}],[{"root":7,"q":"-","c":0.87,"bass":-1,"nc":false,"bar":23,"beat":0,"t0":46,"t1":48,"sug":null,"confirmed":false}]]}]};
+  const LIB={charts:[{file:"autumn_leaves",title:"Autumn Leaves",key:"G minor",status:"analyzed",modified:1}]};
+  const of=window.fetch;
+  window.fetch=function(u,o){
+    u=String(u);
+    const j=d=>Promise.resolve(new Response(JSON.stringify(d),{status:200,headers:{'Content-Type':'application/json'}}));
+    if(u.indexOf('/api/chart-model/')===0) return j(MODEL);
+    if(u.indexOf('/api/library')===0) return j(LIB);
+    if(u.indexOf('/api/section-merge-verdict')===0) return j({total:0});
+    if(u.indexOf('/api/')===0) return j({});
+    return of.apply(this,arguments);
+  };
+  history.replaceState=function(){};
+  try{ Object.defineProperty(window,'__mock',{value:1}); }catch(e){}
+})();
+</script>
+
+<script>
+/* MOCK ONLY — le cas de charge de Louis (2026-08-19) : A×3 B A×3 B A×3 B
+   bridge B A×3 = 17 passages, 9 groupes. Ajouter ?form=stress à l'URL.
+   On remplace `sections` du MODEL, jamais rien dans le shell. */
+(function(){
+  if(new URLSearchParams(location.search).get('form')!=='stress') return;
+  const of=window.fetch;
+  window.fetch=function(u,o){
+    const r=of.apply(this,arguments);
+    if(String(u).indexOf('/api/chart-model/')!==0) return r;
+    return r.then(res=>res.json()).then(M=>{
+      const seq=['A','A','A','B','A','A','A','B','A','A','A','B','bridge','B','A','A','A'];
+      const proto=M.sections[0].bars.slice(0,4);
+      const byLabel={}; const order=[];
+      seq.forEach((L,j)=>{
+        let s=byLabel[L];
+        if(!s){ s=byLabel[L]={id:'x'+order.length,label:L,tag:'',reps:0,spans:[],barRanges:[],
+                              bars:JSON.parse(JSON.stringify(proto))}; order.push(s); }
+        s.spans.push([j*8,j*8+8]); s.barRanges.push([j*4,j*4+3]); s.reps++;
+      });
+      M.sections=order; M.n_bars=seq.length*4;
+      return new Response(JSON.stringify(M),{status:200,headers:{'Content-Type':'application/json'}});
+    });
+  };
+})();
+</script>
