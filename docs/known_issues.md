@@ -1,5 +1,34 @@
 # Harmonia — Known Issues
 
+## 2026-08-20 — EN PROD : la fin d'une section ne s'empile plus avec son milieu
+
+Louis : « attention quand tu empiles toujours pareil à ne pas empiler les fins
+de sections qui sont vraiment différentes — je pense à This Love ».
+
+Le piège est propre à l'empilement par SOUS-PHRASE. This Love B fait 8 mesures
+bâties sur une pompe de 2 (`C- F- | B♭ E♭`), sauf la dernière qui est `A♭ G`.
+Avec P=2, la mesure 8 tombait dans la même pile que les mesures 2, 4 et 6 :
+trois fois plus de membres disant autre chose, et la cadence se faisait
+écraser.
+
+La dernière mesure de chaque passage sort donc de la pile et garde son
+décodage de première passe (mécanisme `variants`, déjà en place ;
+`section_last` était collecté depuis toujours et n'avait jamais servi).
+UNIQUEMENT sous P < longueur de section : quand la période EST la section
+(`loop="occurrence"`), les fins s'empilent entre elles, ce qui est le cas sain
+— une cadence contre les cadences des autres passages.
+
+Portée, mesurée sur la bibliothèque : **82 sections sur 34 morceaux** sont
+empilées par sous-phrase, soit **278 fins de section** qui sortent de la pile.
+Les plus exposées étaient les pompes de 2 mesures jouées dix fois ou plus —
+Billie Jean A (11 passages), Chain of Fools A (10), The Walk A (10).
+
+Réglage : `folding.FIN_SECTION_HORS_PILE = 1`. Une seule mesure suffit sur This
+Love ; Louis avait dit « souvent les 2 dernières » le 2026-08-19, donc 2 est le
+réglage à essayer ensuite — il coûte une observation par passage, à mesurer
+avant de le passer.
+
+
 ## 2026-08-19 — EN PROD : le repli empile les POSTÉRIEURES, plus les CQT
 
 Louis, après avoir écouté `/plots/cqt_vs_post.html` (les 56 sections de la

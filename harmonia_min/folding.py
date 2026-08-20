@@ -62,6 +62,13 @@ PERIODS = (2, 4, 8)
 #: sous 2 mesures il n'y a pas de section, au-delà de 32 le template décodé
 #: (P mesures pavées ×3) devient plus long que bien des morceaux.
 MIN_OCC_PERIOD, MAX_OCC_PERIOD = 2, 32
+
+#: Combien de mesures de FIN de section restent hors de la pile de sous-phrase
+#: (voir le bloc « LA FIN D'UNE SECTION NE S'EMPILE PAS AVEC SON MILIEU »).
+#: 1 suffit sur This Love, dont seule la 8e mesure sort du motif ; Louis avait
+#: dit « souvent les 2 dernières » le 2026-08-19, donc 2 est le réglage à
+#: essayer ensuite — il coûte une observation par passage, à mesurer avant.
+FIN_SECTION_HORS_PILE = 1
 CV_MAX = 0.51            # Louis's validated metric (2026-08-01): CV =
                          # std/mean of the RAW half-bar chroma across the
                          # gated stack members, per half-bar — dimensionless,
@@ -390,13 +397,42 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
             P = int(np.bincount(picks).argmax())  # group consensus period
 
         # ── stacks: position k -> member bar indices ─────────────────────────
+        #
+        # LA FIN D'UNE SECTION NE S'EMPILE PAS AVEC SON MILIEU (Louis,
+        # 2026-08-20 : « attention quand tu empiles toujours pareil à ne pas
+        # empiler les fins de sections qui sont vraiment différentes — je pense
+        # à This Love »).
+        #
+        # Le piège est propre à l'empilement par SOUS-PHRASE. This Love B fait
+        # 8 mesures bâties sur une pompe de 2 : `C- F- | B♭ E♭` quatre fois…
+        # sauf la dernière, qui est `A♭ G`. Avec P=2, la mesure 8 tombe dans la
+        # même pile que les mesures 2, 4 et 6 — la cadence se fait écraser par
+        # trois fois plus de mesures qui disent autre chose, et le chart perd
+        # exactement la mesure qui fait la chanson.
+        #
+        # La dernière mesure de chaque passage sort donc de la pile et garde
+        # son décodage de première passe (mécanisme `variants`, déjà en place).
+        # UNIQUEMENT sous P < longueur de section : quand la période EST la
+        # section (`loop="occurrence"`), les fins s'empilent entre elles, ce
+        # qui est le cas sain — une cadence contre les cadences des autres
+        # passages.
         pos_members: list[list[int]] = [[] for _ in range(P)]
         section_last = set()
+        fins_hors_pile: list[int] = []
         for s in secs:
             b0, b1 = s["barRanges"][0]
             section_last.add(b1)
+            sous_phrase = P < (b1 - b0 + 1)
             for b in range(b0, b1 + 1):
+                if sous_phrase and b > b1 - FIN_SECTION_HORS_PILE:
+                    fins_hors_pile.append(b)
+                    continue
                 pos_members[(b - b0) % P].append(b)
+        if fins_hors_pile:
+            logger.info("fold %s: %d fin(s) de section gardée(s) hors de la "
+                        "pile de sous-phrase (mes. %s)", letter,
+                        len(fins_hors_pile),
+                        [b + 1 for b in sorted(fins_hors_pile)])
 
         # ── transposition (Louis, 2026-08-19) ────────────────────────────────
         # Un morceau qui module rejoue la MÊME section un demi-ton plus haut.
@@ -428,7 +464,7 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
         Vb_al = Vb if not demiton else np.array(
             [_rot12(v, -demiton.get(i, 0)) for i, v in enumerate(Vb)])
 
-        variants, gated = [], [[] for _ in range(P)]
+        variants, gated = list(fins_hors_pile), [[] for _ in range(P)]
         for k in range(P):
             mem = pos_members[k]
             if len(mem) < 3:
