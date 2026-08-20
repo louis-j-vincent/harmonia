@@ -31,6 +31,34 @@ sys.path.insert(0, str(REPO))
 
 CHARTS = REPO / "harmonia_min" / "state" / "charts"
 AUDIO = REPO / "docs" / "audio"
+SECTIONS = REPO / "harmonia_min" / "state" / "sections"
+
+
+def _sections_a_la_main(stem: str) -> list[dict] | None:
+    """Le découpage que Louis a validé à la main, ou None.
+
+    `state/sections/<stem>.json` est la seule vérité terrain de sections du
+    projet (23 morceaux au 2026-08-20). Le détecteur ne la lit pas : elle
+    n'entre dans un chart que par l'outil de soudure. Un recuit qui
+    l'ignorerait rendrait donc à ces 23 morceaux le découpage de la machine,
+    en silence — la même faute que le `Set bar 1` effacé le 2026-08-13, et
+    elle se répare pareil : on repasse la marque après l'analyse.
+    """
+    f = SECTIONS / f"{stem}.json"
+    if not f.exists():
+        return None
+    try:
+        doc = json.loads(f.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not doc.get("validated"):
+        return None            # un brouillon n'est pas une décision
+    secs = [{"label": x.get("label") or "?",
+             "mesure_debut": int(x["b0"]) + 1,
+             "mesure_fin": int(x["b1"]) + 1}
+            for x in (doc.get("sections") or [])
+            if isinstance(x, dict) and "b0" in x and "b1" in x]
+    return secs or None
 
 
 def rebake(file_key: str, out_dir: Path) -> tuple[bool, str]:
@@ -59,6 +87,32 @@ def rebake(file_key: str, out_dir: Path) -> tuple[bool, str]:
     if old.get("bar1") is not None and model.get("bar1") is None:
         return False, (f"{file_key}: le Set bar 1 ({old['bar1']}s) a disparu "
                        "du chart régénéré — ancien conservé")
+    # ── le découpage fait à la main repasse par-dessus le détecteur ───────
+    a_la_main = _sections_a_la_main(stem)
+    note_sec = ""
+    if a_la_main:
+        n = model.get("nBars") or 0
+        couvert = set()
+        for x in a_la_main:
+            couvert |= set(range(x["mesure_debut"] - 1, x["mesure_fin"]))
+        if set(range(n)) - couvert:
+            # La grille a bougé depuis l'annotation : appliquer un découpage
+            # qui ne couvre plus le morceau ferait un chart à trous. On le DIT
+            # au lieu de le faire à moitié.
+            note_sec = (f", découpage à la main IGNORÉ ({len(a_la_main)} "
+                        f"sections ne couvrent plus les {n} mesures)")
+        else:
+            from harmonia_min.refold import refold
+            from harmonia_min.soudure import sections_pour_chart
+            bars, rap = refold(model, a_la_main, AUDIO)
+            neuves = sections_pour_chart(model, a_la_main, bars=bars)
+            if neuves:
+                model["sections"] = neuves
+                model["fold"] = rap.get("rapport") or {}
+                model["form"] = None
+                note_sec = f", {len(a_la_main)} sections à la main rejouées"
+            else:
+                note_sec = ", découpage à la main inutilisable"
     n_old = len(old.get("barGrid") or []) - 1
     n_new = len(model["barGrid"]) - 1
     (out_dir / f"{file_key}.json").write_text(
@@ -70,7 +124,7 @@ def rebake(file_key: str, out_dir: Path) -> tuple[bool, str]:
                   f"{folded}/{len(fold)} lettres repliées, "
                   + (f"bar 1 rejouée à {old['bar1']}s, "
                      if old.get("bar1") is not None else "")
-                  + f"{time.time() - t0:.0f}s")
+                  + f"{time.time() - t0:.0f}s" + note_sec)
 
 
 def main(argv):

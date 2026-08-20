@@ -693,6 +693,19 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
     # Tout ce qu'il faut pour AFFICHER et JOUER : la grille de mesures, les
     # accords, l'audio. `meta.pending` dit à l'app ce qui manque encore.
     report(5, n_bars=n_bars)
+    # LE CLASSEMENT DU MODÈLE VOYAGE AVEC LE CHART BRUT (2026-08-20).
+    # Louis, sur Bora Bora : « je veux annotate le F dans la section A, et il
+    # me dit *it was written without the model's ranking* ». Le chart en
+    # question est un chart BRUT (`meta.raw`) dont les sections ont ensuite été
+    # posées à l'outil de soudure : les candidats (`sug`) n'étaient calculés
+    # qu'à l'étape finale, donc tout chart qui n'atteint jamais cette étape —
+    # raffinement interrompu, découpage validé à la main sur le brut — arrivait
+    # dans l'éditeur d'annotation sans rien à proposer.
+    # C'est un pooling de postérieures déjà en mémoire, pas une inférence :
+    # quelques dizaines de millisecondes, mesurées, avant le premier rendu.
+    from harmonia_min.span_rescore import musx_suggestions
+    musx_suggestions(probs, [c for bar in bars for c in bar
+                             if not c.get("carry")])
     _rk, _rkn = _draft_key(bars)
     yield "raw", _model(_one_section(bars, grid, n_bars),
                         {"raw_chart": True}, _rk, _rkn, None,

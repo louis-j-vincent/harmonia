@@ -1,5 +1,47 @@
 # Harmonia — Known Issues
 
+## 2026-08-20 — RÉSOLU : « it was written without the model's ranking » dans Annotate
+
+Louis, sur Bora Bora : « je veux annotate le F dans la section A, et il me dit
+*it was written without the model's ranking* ».
+
+Diagnostic : ce chart-là portait **0 candidat sur 21 accords** (This Love :
+36/36). Son `meta` disait tout — `{"raw": true, "pending": ["sections",
+"key"]}` : c'est un chart BRUT dont le raffinement n'est jamais arrivé (le
+serveur mourait alors de songformer, voir plus bas), et dont les sections ont
+ensuite été posées à la main par l'outil de soudure. Or `musx_suggestions` ne
+tournait qu'à l'étape FINALE. Tout chart qui n'atteint jamais cette étape
+arrivait donc dans l'éditeur d'annotation sans rien à proposer — et l'app
+disait la vérité.
+
+Corrigé en calculant les candidats **au chart brut**, juste avant son premier
+rendu (`pipeline.analyze_steps`). Ce n'est pas une inférence, c'est un pooling
+de postérieures déjà en mémoire : mesuré, invisible dans le temps de rendu
+(Bora Bora, chart brut à 1,9 s, 53/53 accords servis avec leur classement).
+Le chart de tête en profite aussi.
+
+Vérifié sur le cas exact de Louis, après recuit : `A mes.2 F → F 0,201,
+E- 0,108, D♭ 0,107` — et la faible confiance du F est cohérente avec les 0,12
+mesurés sur cette section.
+
+## 2026-08-20 — ÉVITÉ DE JUSTESSE : un recuit effaçait 20 découpages faits à la main
+
+`state/sections/<stem>.json` porte la seule vérité terrain de sections du
+projet — 21 fichiers, 20 validés. Le détecteur ne la lit pas : elle n'entre
+dans un chart que par l'outil de soudure. `rebake_library.py` rappelait
+`analyze()`, donc **le recuit rendait à ces 20 morceaux le découpage de la
+machine, en silence**. C'est exactement la faute du `Set bar 1` effacé le
+2026-08-13, et elle se répare pareil : on repasse la marque après l'analyse
+(`refold` + `sections_pour_chart`, le même chemin que la route de soudure).
+
+Un garde-fou en plus : si la grille a bougé depuis l'annotation et que le
+découpage ne couvre plus le morceau, il est IGNORÉ et le message le dit —
+plutôt qu'un chart à trous.
+
+Vérifié sur Bora Bora : « 9 sections à la main rejouées », structure
+intro / A×3 / B×2 / C / A′ / D identique à la sienne.
+
+
 ## 2026-08-20 — EN PROD : la fin d'une section ne s'empile plus avec son milieu
 
 Louis : « attention quand tu empiles toujours pareil à ne pas empiler les fins
