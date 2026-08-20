@@ -785,8 +785,7 @@ window.APP = (function(){
       names.appendChild(el("span",`color:${T.accent};`, left.map(x=>note(mod(x,12))).join(" ")));
       names.appendChild(el("span",`color:${T.faint};`," · "));
       names.appendChild(el("span","color:#2a6fb0;", right.map(x=>note(mod(x,12))).join(" ")));
-      if(!light) light=renderHand(kb, midis, KB_H, "chord", rng, {band:true, roles});
-      else light(midis);
+      light(midis);
     };
     return card;
   }
@@ -1691,18 +1690,21 @@ window.APP = (function(){
 
     const foot=el("div",
       `flex:0 0 auto;padding:16px 20px calc(18px + env(safe-area-inset-bottom));display:flex;gap:10px;`);
-    // Enregistrer et Jam restent EN PLACEHOLDER (Louis, 2026-08-14). Leurs
-    // écrans existent, mais les endpoints qu'ils appellent
-    // (/api/record-analyze, /api/jam/start|chunk|stop) n'ont jamais été
-    // servis ici : y entrer menait à un REC / START qui échouait sans rien
-    // dire. Le bouton reste — il tient sa place dans la maquette — mais il
-    // dit ce qu'il en est au lieu d'ouvrir une impasse. Rebrancher la route
-    // suffira à rendre le `go(...)`.
-    const pasBranche=(quoi)=>()=>toast(quoi+" : pas encore branché");
-    foot.appendChild(kitButton("Enregistrer", pasBranche("Enregistrer"),
-                               {height:52, grow:true, state:"off"}));
-    foot.appendChild(kitButton("Jam",         pasBranche("Jam"),
-                               {height:52, grow:true, state:"off"}));
+    // Enregistrer et Jam sont BRANCHÉS depuis le 2026-08-20 : le serveur sert
+    // /api/record-analyze et /api/jam/start|chunk|stop (harmonia_min/server.py),
+    // et l'adresse https rend le micro accessible depuis le téléphone. Ils
+    // restent gris (`state:"off"`) tant qu'on est sur une adresse http : le
+    // navigateur n'y donne AUCUN accès au micro, et un bouton qui ouvre un
+    // écran où REC ne peut pas marcher est pire qu'un bouton qui explique.
+    const micOK=micDispo();
+    const versHttps=()=>toast("Le micro demande une adresse https — ouvre "
+                              +HTTPS_HOST+" (même app, même bibliothèque).");
+    foot.appendChild(kitButton("Enregistrer",
+                               micOK?()=>go("record"):versHttps,
+                               {height:52, grow:true, state:micOK?"on":"off"}));
+    foot.appendChild(kitButton("Jam",
+                               micOK?()=>go("jam"):versHttps,
+                               {height:52, grow:true, state:micOK?"on":"off"}));
     w.appendChild(foot);
     return w;
   }
@@ -2285,8 +2287,15 @@ window.APP = (function(){
   // permission prompt: navigator.mediaDevices is simply undefined, so the old
   // code's blanket "Microphone access denied" was actively misleading (it
   // wasn't a user denial at all). Surface the REAL cause instead of guessing.
+  // L'adresse qui a le droit au micro (tailscale serve, posé le 2026-08-20) :
+  // le MÊME serveur, le même :7772, mais derrière un vrai certificat. Écrite
+  // en dur parce qu'elle ne se dérive pas d'une IP Tailscale (100.x en http),
+  // et parce que c'est précisément l'information actionnable à afficher.
+  const HTTPS_HOST="https://louiss-macbook-air.tail87ced3.ts.net:8443";
+  const micDispo=()=>!!(window.isSecureContext && navigator.mediaDevices
+                        && navigator.mediaDevices.getUserMedia);
   function requestMic(){
-    if(!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    if(!micDispo()){
       const e=new Error("insecure-context");
       e.harmReason="insecure"; throw e;
     }
@@ -2294,7 +2303,7 @@ window.APP = (function(){
   }
   function micErrorMessage(e){
     if(e && e.harmReason==="insecure")
-      return "Mic needs a secure connection (https, or localhost) — plain http over the network isn't allowed by the browser.";
+      return "Le micro demande une adresse https — ouvre "+HTTPS_HOST+" (même app).";
     if(e && e.name==="NotAllowedError") return "Microphone permission was denied — check the site settings.";
     if(e && e.name==="NotFoundError") return "No microphone found on this device.";
     return "Could not access the microphone ("+((e&&e.name)||String(e))+")";
@@ -3324,20 +3333,23 @@ window.APP = (function(){
     const body=el("div",`flex:1;min-height:0;overflow-y:auto;padding:10px 7px 24px;background:${T.paper};`); body.className="ap-scroll";
     const sheet=el("div","max-width:720px;margin:0 auto;");
     sheet.appendChild(buildRefineBand());
-    // buildSectionTool() n'est plus monté (Louis, 2026-08-14 : « pour les
-    // sections, tu ne gardes que le nouvel outil de merging de sections
-    // (soudure) »). C'était la SECONDE porte vers le tracé au doigt — celle
-    // du panneau au-dessus de la grille, ajoutée le 2026-08-10 par f85aa75
-    // « section tool: opens on what already exists, on every chart ». La
-    // machinerie reste en place (openSectionTool, attachSectionDrag,
-    // /api/section-repeats, /api/section-marks) : rien n'est perdu, seule
-    // l'entrée disparaît. state/section_marks/ est vide, donc aucune
-    // annotation de Louis ne dépend de ce chemin.
+    // L'outil sections est REVENU (Louis, 2026-08-15 : « mets moi le MÊME
+    // chart que d'habitude, la même interface, juste chart brut, comme ça je
+    // peux aussi écouter les sections tout ça, et par dessus juste une mini
+    // interface d'annotation »). Il avait été démonté la veille au profit de
+    // Soudure ; ce qu'il voulait, c'était l'annotation SUR le vrai chart, pas
+    // une page à part. Le panneau reste minuscule — des pastilles de lettres
+    // et une ligne d'état — et c'est le chart de l'app qui fait le reste :
+    // les accords, le son, la tête de lecture, l'écoute d'une section.
+    // T2 (2026-08-19) : aucun contrôle de section hors Annotate — et même en
+    // Annotate le panneau n'apparaît qu'une fois ARMÉ. Le bouton qui l'armait
+    // vivait sur le chart en permanence, dans les trois modes ; sa porte est
+    // maintenant la ligne « Redessiner les sections » de la feuille Outils.
+    if(S.mode==="annotate" && sectToolOn()) sheet.appendChild(buildSectionTool());
     sheet.appendChild(buildIReal());
     body.appendChild(sheet);
     w.appendChild(body);
 
-    const ra=renderReinferAction(); if(ra) w.appendChild(ra);
     if(S.chartChrome) w.appendChild(chartDock());
     else w.appendChild(immersiveFade());
     // §6: tout geste rappelle le chrome et relance le compte à rebours — tap
@@ -3604,20 +3616,11 @@ window.APP = (function(){
     // this function's only output is the index below.
     S._formChipCur=cur;
   }
-  // In-flow above the dock since the UI refresh (2026-08-08) — the old
-  // absolute positioning was tuned to the retired bottom transport's height.
-  function renderReinferAction(){
-    if(!(S.mode==="annotate" && S.pending.length)) return null;
-    const act=el("div",`flex:0 0 auto;padding:0 14px 10px;background:${T.paper};`);
-    const inner=el("div",`max-width:720px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:${T.deep};border-radius:13px;color:${T.paper};box-shadow:0 14px 34px -18px rgba(0,0,0,.6);`);
-    const tx=el("div",""); tx.appendChild(el("div",`font:600 13px ${UI};`,"Re-infer"));
-    tx.appendChild(el("div",`font:500 11px ${UI};color:rgba(247,243,233,.7);margin-top:2px;`, "your "+S.pending.length+" locked chord"+(S.pending.length>1?"s":"")+" will re-decode the song"));
-    inner.appendChild(tx);
-    const go2=el("button",`flex:0 0 auto;border:none;border-radius:11px;padding:12px 16px;min-height:${SZ.control}px;font:600 14px ${UI};cursor:pointer;background:${T.accent};color:#fff;`, "Re-infer · "+S.pending.length);
-    go2.onclick=runReinfer; inner.appendChild(go2);
-    act.appendChild(inner); return act;
-  }
-
+  // LE BOUTON « Re-infer · N » EST PARTI (Louis, 2026-08-20) : il propageait
+  // un accord corrigé sur ses voisins. Un accord corrigé à la main est
+  // désormais gardé tel quel, point — c'est aussi ce que le repli respecte
+  // maintenant (folding._write_position refuse de réécrire une mesure
+  // confirmée).
   // buildLadder() and legendFor() are gone (UI refresh 2026-08-08, §2): the
   // level ladder is a row in the Aa sheet, the analyse legend is the one-line
   // kitLegend inside analyseLens(), and the annotate confidence line lives in
@@ -4123,12 +4126,64 @@ window.APP = (function(){
       for(let k=0;k<n;k++) if(grid[k]<=t+1e-4) lo=k;
       return lo;
     };
-    // On repart du modèle SERVEUR, pas de l'état déjà aplati de l'écran :
-    // celui-ci a perdu les accords tenus (ils y deviennent des mesures
-    // vides « % »), et les recopier rendait un chart entièrement vide.
+    // LA LISTE À PLAT D'ABORD (2026-08-17). `prompter.chords` est le décodage
+    // tel quel, un accord par empan de temps, jamais replié — donc la seule
+    // source qui sache encore ce que joue un passage que le repli a écrasé
+    // sous un autre. Louis, sur Easy On Me : « les barres 25 et 26 sont
+    // détectées comme A- et Bb, mais affichées dans le chart de la
+    // modification des sections comme Bb et F ». Sa section D repliait
+    // [24,25] (2 mesures) avec [42,49] (8) : la vue dépliée donnait aux
+    // mesures 24-25 les deux premières mesures ÉCRITES de la section — les
+    // accords des mesures 42-43. Même cause et même correctif que
+    // `soudure.accords_par_mesure`, côté serveur.
+    const plat=((m.prompter||{}).chords)||[];
+    if(plat.length){
+      // les accords écrits, indexés par le temps : ils portent `sug`, `n`,
+      // `colour`, que la liste à plat n'a pas. On les recolle par le TEMPS et
+      // l'identité de l'accord, jamais par l'index.
+      const ecrits=[];
+      (m.sections||[]).forEach(sec=>(sec.bars||[]).forEach(bar=>(bar||[]).forEach(c=>{
+        if(c && c.t0!=null && c.t1!=null) ecrits.push(c);
+      })));
+      const metaDe=(a)=>{
+        let best=null, bov=0;
+        for(const c of ecrits){
+          const ov=Math.min(c.t1,a.t1)-Math.max(c.t0,a.t0);
+          if(ov<=0 || c.root!==a.root || (c.q||"")!==(a.q||"")) continue;
+          if(ov>bov){ best=c; bov=ov; }
+        }
+        return bov>=0.5*Math.max(a.t1-a.t0,1e-6) ? best : null;
+      };
+      const bpb=m.bpb||4;
+      const bars2=[];
+      for(let b=0;b<n;b++){
+        const t0=grid[b], t1=grid[b+1], d=Math.max(t1-t0,1e-6), cases=[];
+        plat.forEach(c=>{
+          const a=Math.max(t0,c.t0), z=Math.min(t1,c.t1);
+          if((z-a)/d < 0.10) return;                 // un éclat de frontière
+          const neuf={root:c.root, q:c.q||"", bass:(c.bass==null?-1:c.bass),
+                      nc:!!c.nc, carry:(c.t0 < t0-1e-3),
+                      beat:Math.max(0,Math.min(bpb-1,Math.round((a-t0)/d*bpb))),
+                      bar:b, c:(c.c||0), t0:a, t1:z};
+          const src=metaDe(neuf);
+          if(src){ ["sug","n","colour","confirmed","flag","inflect"].forEach(k=>{
+            if(src[k]!==undefined) neuf[k]=src[k]; }); }
+          cases.push(neuf);
+        });
+        bars2.push(cases);
+      }
+      const barSpans2=[];
+      for(let b=0;b<n;b++) barSpans2.push([[grid[b], grid[b+1]]]);
+      return {...m, sections:[{id:"RAW", label:"", tag:"", reps:1,
+                               spans:[[grid[0], grid[n]]],
+                               barRanges:[[0, n-1]], bars:bars2,
+                               barSpans:barSpans2}]};
+    }
+    // SANS LISTE À PLAT (vieux chart) : on retombe sur les mesures écrites.
     // `barSpans[r][p]` donne l'instant de la mesure écrite r au passage p —
-    // c'est la seule table qui relie les deux espaces sans supposer que les
-    // passages ont la même longueur.
+    // la seule table qui relie les deux espaces sans supposer que les
+    // passages ont la même longueur. Elle ne peut rien pour un passage plus
+    // court que le motif : ses mesures reçoivent le début du motif.
     const bars=new Array(n).fill(null);
     (m.sections||[]).forEach(sec=>{
       const written=sec.bars||[];
@@ -4306,9 +4361,19 @@ window.APP = (function(){
     });
     card.appendChild(chips);
     const row=el("div","display:flex;gap:6px;flex-wrap:wrap;align-items:center;");
-    if(st.sel && st.label) row.appendChild(kitButton(st.busy?"Recherche…":"Valider "+st.label,
+    // UN SEUL bouton d'inférence, pour TOUT le morceau (Louis, 2026-08-17 :
+    // « lorsque j'appuie sur un bouton "valider les sections", là ça valide
+    // toutes les sections que j'ai faites et ça infère le reste »). Il
+    // remplace le « Valider A » par sélection, qui relançait l'algo sur le
+    // morceau entier à chaque trait : le reste se renommait entre deux
+    // gestes, et poser trois sections coûtait trois inférences complètes.
+    const nHumain=st.marks.reduce(
+      (n,mk)=>n+(mk.occurrences||[]).filter(o=>o.source!=="algo").length, 0);
+    if(nHumain) row.appendChild(kitButton(
+      st.busy?"Inférence…":"Valider les sections",
       ()=>{ if(!st.busy) validateSectionSelection(); },
-      {state:st.busy?"off":"on", height:40}));
+      {state:st.busy?"off":"on", height:40,
+       note:nHumain+" à toi · le reste sera nommé"}));
     if(st.sel) row.appendChild(kitButton("Effacer",
       ()=>{ st.sel=null; go("chart"); }, {height:40}));
     // LA SÉVÉRITÉ EST À L'UTILISATEUR. Mesuré sur les 18 annotations : à
@@ -4401,49 +4466,149 @@ window.APP = (function(){
     } else {
       st.sel={b0:Math.min(st.pendingStart,b), b1:Math.max(st.pendingStart,b)};
       st.pendingStart=null; st.note="";
+      commitSectionSelection();          // le trait posé EST la section
     }
     haptic(5); go("chart");
   }
 
+  /* LE TRAIT EST POSÉ DÈS QUE LE DOIGT SE LÈVE (Louis, 2026-08-17 : « lorsque
+     je sélectionne une section et que je glisse le doigt par dessus ses
+     accords, elle se valide toute seule »). La section entre dans ses marques
+     sans aucun aller-retour serveur : il enchaîne les traits au rythme du
+     doigt.
+
+     Ce qui ne part PLUS ici, c'est l'inférence du reste. Avant, chaque trait
+     relançait l'algo des quatre mots sur tout le morceau, donc les autres
+     sections se renommaient sous ses yeux entre deux gestes, et il fallait
+     attendre la réponse avant de marquer la suivante. C'est le bouton
+     « Valider les sections » qui la déclenche maintenant, une fois, quand il
+     a fini de marquer. */
+  function commitSectionSelection(){
+    const st=S.sectTool;
+    if(!st || !st.sel || !st.label) return false;
+    const b0=st.sel.b0, b1=st.sel.b1;
+    // Une mesure n'appartient qu'à UNE section : le nouveau trait libère ce
+    // qu'il recouvre. Sans ça deux lettres se disputent la même mesure, et
+    // c'est le serveur qui tranche tout seul à l'aveugle (premier trait
+    // gagnant, cf. sections_inferer) — un arbitrage qui n'appartient pas à
+    // la machine ici, puisque le dernier geste est justement la correction.
+    st.marks.forEach(mk=>{
+      mk.occurrences=(mk.occurrences||[]).filter(o=>o.b1<b0 || o.b0>b1);
+    });
+    let mk=st.marks.find(x=>x.label===st.label);
+    if(!mk){ mk={label:st.label, occurrences:[]}; st.marks.push(mk); }
+    mk.occurrences.push({b0:b0, b1:b1, rot:0, source:"humain"});
+    mk.occurrences.sort((a,b)=>a.b0-b.b0);
+    st.marks=st.marks.filter(x=>(x.occurrences||[]).length);
+    st.sel=null;
+    st.note="« "+mk.label+" » posée sur les mesures "+(b0+1)+"–"+(b1+1)+
+            " — continue, puis « Valider les sections »";
+    saveSectionMarks();                  // brouillon, jamais la vérité
+    return true;
+  }
+
+  /* VALIDER — le trait de Louis est figé, l'algo des quatre mots nomme TOUT
+     le reste (Louis, 2026-08-15 : « lorsque j'ai confirmé une sélection,
+     l'algo 4 mots infère les sections similaires + autres sections
+     automatiquement »).
+
+     Avant, Valider appelait `/api/section-repeats` : la recherche de reprises
+     du bloc sélectionné, qui ne répondait qu'à « où ça se rejoue ? » et
+     laissait le reste du morceau sans nom. Elle est remplacée par
+     `/api/sections/inferer`, qui prend TOUS ses traits en contrainte et rend
+     le découpage entier — les reprises de sa section sous SON nom, le reste
+     sous des lettres neuves choisies hors de celles qu'il emploie.
+
+     Ses traits repartent à chaque appel : c'est ce qui permet de corriger.
+     Une section qu'il retouche redevient une contrainte, et l'algorithme
+     refait le tour avec cette contrainte de plus.
+
+     APPELÉE PAR UN SEUL BOUTON depuis le 2026-08-17 — « Valider les
+     sections », une fois qu'il a fini de marquer. Elle envoie TOUTES ses
+     plages d'un coup ; le geste du doigt, lui, ne parle plus au serveur. */
   async function validateSectionSelection(){
     const st=S.sectTool, m=S.model;
-    if(!st || !st.sel) return;
+    if(!st) return;
     st.busy=true; st.note=""; go("chart");
+    const humain=[];
+    st.marks.forEach(mk=>(mk.occurrences||[]).forEach(o=>{
+      if(o.source!=="algo") humain.push({label:mk.label,
+                                         mesure_debut:o.b0+1, mesure_fin:o.b1+1});
+    }));
+    if(st.sel) humain.push({label:st.label,
+                            mesure_debut:st.sel.b0+1, mesure_fin:st.sel.b1+1});
     try{
-      const r=await api.post("/api/section-repeats/"+m.file,
-        {b0:st.sel.b0, b1:st.sel.b1, claimed:sectClaimed(st.label),
-         thr:st.thr||0.78});
+      const r=await api.post("/api/sections/inferer/"+m.file, {humain});
       if(r.error){ st.busy=false; st.note=r.error; go("chart"); return; }
-      const occ=(r.occurrences||[]).map(o=>({b0:o.b0, b1:o.b1,
-                                             source:o.source, rot:o.rot||0}));
-      // VALIDER AJOUTE, ça ne remplace pas. Sur une chanson déjà annotée, la
-      // lettre porte déjà ses passages ; les écraser par une recherche
-      // fraîche jetterait le travail à la main que l'outil est censé
-      // MODIFIER. On garde donc l'existant et on n'ajoute que ce qui ne le
-      // recouvre pas (le serveur a déjà écarté les mesures des AUTRES
-      // lettres, via `claimed`).
-      let mk=st.marks.find(x=>x.label===st.label);
-      if(!mk){ mk={label:st.label, occurrences:[]}; st.marks.push(mk); }
-      const hits=(a,b)=>!(a.b1<b.b0||b.b1<a.b0);
-      // Ce que la nouvelle recherche trouve REMPLACE ce qu'il recouvre dans la
-      // même lettre. Jeter la nouveauté en cas de chevauchement rendait toute
-      // correction de frontière impossible : « A commence en fait mesure 5 »
-      // était silencieusement ignoré parce que 5–12 chevauche 1–8.
-      occ.forEach(o=>{
-        mk.occurrences=mk.occurrences.filter(q=>!hits(q,o));
-        mk.occurrences.push(o);
+      const by={};
+      (r.sections||[]).forEach(x=>{
+        // `reste` = la QUEUE de l'algo : un bloc qui n'a jamais atteint la
+        // taille d'une section (4 ou 6 bi-mesures) et qu'on n'a donc pas pu
+        // expliquer par une répétition. Il était jeté ici ; c'est pourtant
+        // exactement ce qu'il faut relire à l'oreille en premier.
+        (by[x.label]=by[x.label]||[]).push({b0:x.mesure_debut-1, b1:x.mesure_fin-1,
+                                            source:x.source, reste:!!x.reste});
       });
-      mk.occurrences.sort((a,b)=>a.b0-b.b0);
-      mk.cell=r.cell_bars;
-      const found=occ.filter(o=>o.source!=="selection"&&o.source!=="inner").length;
-      const modul=occ.filter(o=>o.rot).length;
-      st.note=`cellule de ${r.cell_bars} mesures · ${found} reprise(s) trouvée(s)`+
-              (modul?` (dont ${modul} transposée(s))`:"")+
-              " — touche une reprise pour l'enlever";
+      st.marks=Object.keys(by).map(lb=>({label:lb, occurrences:by[lb]}));
       st.sel=null; st.busy=false;
+      const nT=(r.sections||[]).filter(x=>x.source==="humain").length;
+      const nP=(r.sections||[]).filter(x=>x.source==="propage").length;
+      const nA=(r.sections||[]).filter(x=>x.source==="algo").length;
+      const nR=(r.sections||[]).filter(x=>x.reste).length;
+      st.note=nT+" de toi · "+nP+" retrouvée"+(nP>1?"s":"")+" sous ton nom · "
+              +nA+" nommée"+(nA>1?"s":"")+" par l'algo"
+              +(nR?" · "+nR+" queue"+(nR>1?"s":"")+" (trop court pour une section)":"")
+              +" — glisse pour corriger";
       go("chart");
       saveSectionMarks();
+      await writeSectionsToChart(r.sections||[]);
     }catch(e){ st.busy=false; st.note=String(e); go("chart"); }
+  }
+
+  /* ÉCRIRE LE DÉCOUPAGE DANS LE CHART — sans quoi « Valider les sections »
+     ne repeignait que les teintes de l'outil.
+
+     Louis, 2026-08-17, sur Easy On Me : « je fais valider les sections et
+     pourtant le chart n'est pas update, il garde les anciennes sections !!! »
+     Il avait raison au pied de la lettre : ses huit sections partaient bien
+     dans `state/sections/` (le fichier de vérité terrain, que lisent les
+     scripts de mesure) et NULLE PART ailleurs. Le chart, lui, garde son
+     `sections` d'origine — celui du détecteur — donc la grille, le bandeau
+     des lettres et le repli continuaient d'afficher l'ancien découpage, et
+     refermer l'outil rendait le chart d'avant.
+
+     La route est celle de la Soudure : la SEULE qui touche au chart, avec sa
+     copie de sauvegarde (`state/charts.bak_soudure/`) et son refus d'écrire
+     un découpage qui laisse des mesures orphelines. Pas de seconde version.
+
+     On recharge ensuite le modèle depuis le serveur : le modèle replié gardé
+     pour la sortie décrit l'ancien découpage, le rendre à la fermeture
+     ramènerait exactement ce dont il se plaint. */
+  async function writeSectionsToChart(sections){
+    const st=S.sectTool, m=S.model; if(!st||!m) return false;
+    const pour=sections.map(x=>({label:x.label,
+                                 mesure_debut:x.mesure_debut,
+                                 mesure_fin:x.mesure_fin}))
+                       .filter(x=>x.label && x.label!=="?");
+    if(!pour.length) return false;
+    try{
+      const w=await api.post("/api/soudure/valider/"+m.file, {sections:pour});
+      if(w && w.error){ st.note+=" · ⚠ chart inchangé : "+w.error; go("chart"); return false; }
+      const frais=await api.get("/api/chart-model/"+m.file);
+      S._foldedModel=frais;
+      const un=unfoldedModel(frais);
+      loadModel(un!==frais?un:frais, {keepTool:true});
+      S.model.file=frais.file;
+      st.note+=" · chart réécrit ("+pour.length+" sections) — ferme l'outil pour le voir replié";
+      go("chart");
+      return true;
+    }catch(e){
+      // JAMAIS en silence : croire le chart réécrit alors qu'il ne l'est pas
+      // est exactement le bug qu'on corrige ici.
+      st.note+=" · ⚠ chart inchangé : "+String(e).slice(0,70);
+      go("chart");
+      return false;
+    }
   }
 
   /* `target` est l'occurrence elle-même quand on vient du badge, sinon un
@@ -4491,6 +4656,16 @@ window.APP = (function(){
                              {marks:st.marks, validated:true});
       st.note = r && r.ok ? `enregistré comme vérité : ${r.written} section(s)`
                           : "l'enregistrement a échoué";
+      // Et DANS LE CHART, comme « Valider les sections » (même raison, même
+      // route) : enregistrer sa vérité sans réécrire le chart laissait les
+      // deux en désaccord, le fichier disant une chose et l'écran une autre.
+      // Un trou (« ? ») fait échouer la route côté serveur ; le message le dit
+      // au lieu de laisser croire que c'est passé.
+      if(r && r.ok){
+        await writeSectionsToChart(sectionRuns()
+          .filter(x=>x.label && x.label!=="?")
+          .map(x=>({label:x.label, mesure_debut:x.b0+1, mesure_fin:x.b1+1})));
+      }
     }catch(e){ st.note=String(e); }
     go("chart");
   }
@@ -4615,7 +4790,9 @@ window.APP = (function(){
       const dist=maxDist, held=Date.now()-t0;
       anchor=null; anchorCell=null; armed=false;
       grid.style.touchAction="pan-y";
-      if(wasArmed){ go("chart"); return; }
+      // Le doigt se lève sur une sélection armée : la section est posée, ici,
+      // tout de suite (voir commitSectionSelection).
+      if(wasArmed){ commitSectionSelection(); go("chart"); return; }
       // Ni armé ni traîné : c'est un TAP. Un vrai défilement (doigt parti
       // loin, ou maintenu longtemps) ne déclenche rien.
       if(dist>SECT_SLOP_PX || held>700) return;
@@ -4650,7 +4827,11 @@ window.APP = (function(){
       st.marks.forEach(mk=>mk.occurrences.forEach(o=>{
         if(inRange(o)){
           edge=sectColor(mk.label); tint=edge+"1f";
-          dashed=(o.source!=="selection");
+          // Plein = il l'a dit ; pointillé = la machine l'a deviné. Le test
+          // portait sur une source `"selection"` que plus personne n'écrit
+          // depuis que la validation passe par le serveur : TOUT sortait en
+          // pointillés, y compris ses propres traits.
+          dashed=(o.source==="algo" || o.source==="propage");
           if(sb.indexOf(o.b0)>=0){ tag=mk.label+(o.rot?" ↗":""); tagOcc=o; }
         }
       }));
@@ -6665,7 +6846,7 @@ window.APP = (function(){
     if(S._closeEditor) S._closeEditor();
     saveAnnotations();
     go("chart");
-    toast("Locked — re-infer to propagate");
+    toast("Gardé — cet accord ne bougera plus");
   }
   // Split one bar into two chords (2026-07-20 — see openEditor's splitBtn).
   // The ORIGINAL chord keeps its array index/beat and just shrinks to the
@@ -6699,7 +6880,7 @@ window.APP = (function(){
     if(S._closeEditor) S._closeEditor();
     saveAnnotations();
     go("chart");
-    toast("Bar split — re-infer to propagate");
+    toast("Mesure coupée — tes accords sont gardés");
   }
 
   // ── section merge ───────────────────────────────────────────────────────
@@ -6754,36 +6935,6 @@ window.APP = (function(){
     }
     return {confirms, merges};
   }
-  // context_rescore wire shape (harmonia.serving.api.api_context_rescore,
-  // branch feat/chord-context-prior): {chords:[{t0,t1,root,q}], confirms:
-  // [{t0,t1,root,q}]} — the FULL displayed chart (so the server can re-score
-  // every span's neighbours around the lock(s)), not just the confirms
-  // /api/reinfer takes. Same {t0,t1,root,q} field shape as buildRequest below
-  // (q is the iReal-ish string tail; the server converts with the same
-  // _ireal_q_to_q5 /api/reinfer already trusts) — no client-side quality
-  // conversion needed. No-chord (nc) spans are left out: this endpoint never
-  // invents a chord where the chart currently shows none.
-  function buildContextRescoreRequest(pending){
-    const chords=[];
-    S.chords.forEach(c=>{
-      if(c.nc) return;
-      (c.spans||[[c.t0,c.t1]]).forEach(sp=>chords.push({t0:sp[0], t1:sp[1], root:c.root, q:c.q}));
-    });
-    chords.sort((a,b)=>a.t0-b.t0);
-    const confirms=[];
-    pending.forEach(i=>{ const c=S.chords[i];
-      c.spans.forEach(sp=>confirms.push({t0:sp[0], t1:sp[1], root:c.root, q:c.q})); });
-    return {chords, confirms};
-  }
-  function runReinfer(){
-    if(!S.pending.length) return;
-    // No merges pending → the fast lock-propagation path (span lattice
-    // re-score around your locked chord(s), boundaries untouched) rather than
-    // a full from-scratch re-decode.
-    runFlow(buildContextRescoreRequest(S.pending), "Checking your fix's neighbours…",
-            "re-scoring the chords around your locked chord — a couple seconds",
-            false, "/api/context_rescore/");
-  }
   function runMerge(){
     runFlow(buildRequest([], S.spans.slice()), "Pooling both passes…",
             "one shared reading, decoded from twice the evidence — about 20 seconds", true);
@@ -6791,12 +6942,12 @@ window.APP = (function(){
   // Returns true iff the request landed and was actually applied (not
   // rejected/errored) — added 2026-07-18 so callers like confirmSuggestion()
   // can know whether to mark their own candidate "confirmed" after the
-  // shared toast/banner UX above already ran. Existing callers (runReinfer,
-  // runMerge) ignore the return value, so this is additive, not a behaviour
-  // change for them.
-  // ``endpoint`` (2026-07-30): defaults to the old full-decode /api/reinfer/
-  // (still what runMerge uses — merges have no lock-lattice equivalent yet);
-  // runReinfer passes /api/context_rescore/ instead.
+  // shared toast/banner UX above already ran.
+  // ``endpoint`` : le seul appelant restant est runMerge, qui poste sur
+  // /api/reinfer/. Cette route REFUSE depuis le 2026-08-20 (410, message
+  // lisible) : le chemin de propagation qui la servait est retiré, et le
+  // merge n'y recevait déjà qu'une réponse sans effet — l'erreur s'affiche
+  // maintenant au lieu d'un faux succès de vingt secondes.
   async function runFlow(req, title, sub, isMerge, endpoint){
     if(S.reinfering) return false; S.reinfering=true;
     const ov=el("div",`position:absolute;inset:0;z-index:60;background:rgba(247,243,233,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;animation:ap-fade .2s both;`);

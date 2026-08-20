@@ -203,6 +203,29 @@ def acoustic_logp_musx(
 Q5_TAIL = {0: "", 1: "-", 2: "7", 3: "-7b5", 4: "o"}
 
 
+def ireal_q_to_q5(q: str | None) -> int:
+    """Queue iReal (`-7`, `^7`, `h7`, `o`…) → l'index QUAL5 des candidats.
+
+    Rapatriée de `context_rescore` le 2026-08-20, quand la propagation d'un
+    accord sur ses voisins a été retirée : c'est ici qu'on en a besoin, pour
+    savoir quelle case du plan des candidats est celle de l'accord ÉCRIT.
+    Mapping inchangé, au caractère près.
+    """
+    if not q:
+        return 0
+    if q.startswith("-7b5") or q.startswith("h"):
+        return 3
+    if q.startswith("-") or q.startswith("m"):
+        return 1
+    if q.startswith("o") or q.startswith("dim"):
+        return 4
+    if q.startswith("^") or "maj7" in q or "M7" in q:
+        return 0
+    if any(t in q for t in ("7", "9", "13", "alt")):
+        return 2
+    return 0
+
+
 def musx_suggestions(probs: list[np.ndarray], chords: list[dict],
                      *, top_k: int = 3) -> int:
     """Attach musx's own top-``top_k`` candidates to each chord as ``c["sug"]``.
@@ -245,8 +268,6 @@ def musx_suggestions(probs: list[np.ndarray], chords: list[dict],
         kept.append((c, root))
     if not kept:
         return 0
-    # lazy: context_rescore imports this module, the reverse must stay lazy
-    from harmonia_min.context_rescore import ireal_q_to_q5
     pooled_triad, pooled_s7 = pool_span_musx(probs, spans)
     logp, _n_mass = acoustic_logp_musx(pooled_triad, pooled_s7)
     post = np.exp(logp)

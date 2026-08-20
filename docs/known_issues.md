@@ -1,5 +1,46 @@
 # Harmonia — Known Issues
 
+## 2026-08-20 — EN PROD : les annotations passent avant le repli, et la propagation est retirée
+
+Louis, deux consignes le même jour :
+
+> « quand je fais un refold on le refait depuis le chart brut, les annotations
+> utilisateur prennent toujours le dessus sur nos inférences »
+
+> « quand on annote un nouvel accord, ça se propage sur les accords suivants
+> mais cette fonction est deprecated, enlève-la »
+
+**Le repli respecte `confirmed`.** Vérifié avant de coder : le mot n'apparaissait
+NULLE PART dans `folding.py` ni dans `refold.py`. `_write_position` réécrivait
+une mesure entière sans regarder si Louis l'avait corrigée — donc une correction
+à la main repassait sous le gabarit au recuit suivant, sans un mot. Le veto est
+par MESURE, pas par lettre : une mesure confirmée est gardée telle quelle, les
+autres positions de la pile s'écrivent normalement.
+
+(L'autre moitié de la consigne était déjà vraie : `soudure.accords_par_mesure`
+part de `prompter.chords`, la liste à plat du décodage, « qui n'a jamais été
+repliée ».)
+
+**La propagation est retirée.** `harmonia_min/context_rescore.py` supprimé,
+bouton « Re-infer · N » retiré du shell avec `runReinfer` et
+`buildContextRescoreRequest`, tests du module supprimés. Les deux toasts qui
+promettaient « re-infer to propagate » disent maintenant ce qui se passe
+vraiment : l'accord est gardé.
+
+La route `/api/context_rescore/` et son alias `/api/reinfer/` répondent **410
+avec un message lisible** au lieu de disparaître : un 404 serait avalé en
+silence par le shell, et le chemin « merge » postait sur la même adresse — il
+n'y recevait déjà qu'une réponse sans effet, donc il affiche maintenant un
+refus plutôt qu'un faux succès de vingt secondes.
+
+Un accord corrigé était déjà sauvegardé tout seul (`confirmChord` appelle
+`saveAnnotations`), donc rien n'est perdu par la suppression — vérifié dans
+l'app : mode annotate actif, aucun bouton Re-infer, aucune erreur JS.
+
+Au passage : `ireal_q_to_q5` a été rapatriée dans `span_rescore`, dont elle est
+la dépendance réelle (les candidats du modèle) — le module supprimé la portait.
+
+
 ## 2026-08-20 — OUVERT : le repli tourne DEUX FOIS sur les morceaux annotés à la main
 
 Constaté en vérifiant le recuit. This Love, mesure 24 (dernière mesure de B) :

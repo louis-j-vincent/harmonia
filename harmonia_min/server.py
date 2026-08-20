@@ -23,7 +23,15 @@ Serves exactly what app_shell.html's milestone-1 path needs:
     GET  /audio/<name>            the local audio the charts play
     DELETE /api/chart/<file>      remove a chart from the library
 
-Everything else the shell may call (annotations, reinfer, billboard, jam,
+    POST /api/record-analyze      un enregistrement micro → même job, même
+                                  chart, l'audio rejoignant docs/audio/
+    POST /api/jam/start|chunk|stop  Jam Mode : le tampon micro grandit, la
+                                  boucle se cherche dessus (harmonia_min/jam.py)
+
+Les deux derniers exigent un contexte SÛR côté navigateur (https) — voir le
+bloc « Le micro » plus bas.
+
+Everything else the shell may call (annotations, reinfer, billboard,
 irealb, section-merge) returns 404/501 — the UI catches and degrades; those
 surfaces are later milestones.
 """
@@ -171,6 +179,46 @@ def soudure(file):
     return resp
 
 
+@app.get("/ssm/<file>")
+def page_ssm(file):
+    """La matrice SSM du morceau, cliquable, avec tête de lecture.
+
+    Louis, 2026-08-16 : « je veux une matrice ssm avec playhead cliquable »,
+    puis « branche-le moi en direct sur chaque chanson ».
+
+    Le moteur est `harmonia_min/ssm_page.py` — le MÊME que celui qui écrit les
+    pages statiques de `docs/plots/ssm_*.html` (`scripts/ssm_playhead.py`).
+    Une seule fabrique : deux copies de la page divergeraient, et c'est celle
+    du serveur qu'il ouvrira depuis le chart.
+
+    Coût : la grille sort du chart et les postérieurs musx sont en cache
+    disque (clé = stem), donc ~1 s. `base_url` reste vide — la page est servie
+    par ce serveur, ses liens relatifs tombent déjà sur les bonnes routes.
+    """
+    from harmonia_min.ssm_page import page_html
+    p = CHARTS_DIR / f"{Path(file).stem}.json"
+    if not p.exists():
+        return jsonify({"error": "no such chart"}), 404
+    chart = json.loads(p.read_text(encoding="utf-8"))
+    html = page_html(chart, audio_dir=AUDIO_DIR)
+    if html is None:
+        # Pas de 404 muet : un chart trop court ou sans audio sur disque est
+        # une raison compréhensible, et il faut une porte de sortie.
+        return ("<!doctype html><meta charset=utf-8><div style=\"font:16px "
+                "-apple-system,system-ui,sans-serif;max-width:26rem;"
+                "margin:22vh auto;padding:0 1.5rem;color:#1c1c1c\">"
+                "<p>Pas de matrice pour ce morceau : il faut au moins quatre "
+                "mesures et son audio sur le disque.</p>"
+                f"<a href=\"/?open={Path(file).stem}\" style=\"color:#8a2b2b\">"
+                "Retour au chart</a></div>"), 404
+    resp = app.make_response(html)
+    resp.headers["Content-Type"] = "text/html; charset=utf-8"
+    # Même règle que /soudure : la page change quand on la corrige, et Safari
+    # resservirait une version périmée (déjà payé le 2026-08-13 sur le son).
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
 @app.post("/api/phrases4")
 def phrases4():
     """« Appliquer » : re-inférer les sections à partir des soudures de Louis.
@@ -276,6 +324,12 @@ def soudure_valider(file):
              (f"{rap.get('n_reecrites')} mesures" if rap.get("ok")
               else f"REFUSÉ ({rap.get('raison')})"), bak)
     return jsonify({"ok": True, "sections": len(neuves),
+                    # dit toujours ce que l'empilement a fait, y compris rien :
+                    # un repli muet ferait croire le chart amélioré quand il
+                    # n'est que brut.
+                    "empile": bool(rap.get("ok")),
+                    "mesures_empilees": rap.get("n_reecrites", 0),
+                    "empile_raison": rap.get("raison"),
                     "url": "/?open=" + Path(file).stem})
 
 
@@ -372,54 +426,11 @@ def sections_inferer(file):
     return jsonify({"sections": out, "cible": info["cible"]})
 
 
-@app.get("/sections/<file>")
-def page_sections(file):
-    """L'atelier sections : un chart brut, on surligne, l'algo complète.
-
-    Louis, 2026-08-15 : « un chart brut, je peux sélectionner le nom de la
-    section que je veux (intro A B C…), puis j'ai juste à surligner sur le
-    chart brut les accords concernés pour créer une section, granularité une
-    barre. Lorsque j'ai confirmé une sélection, l'algo 4 mots infère les
-    sections similaires + autres sections automatiquement […] l'essentiel est
-    que ce soit facile à utiliser et que ce soit un outil collaboratif
-    humain / algo. »
-
-    La page est autonome (`docs/plots/sections.html`) et reçoit ici tout ce
-    qu'elle affiche : les accords mesure par mesure, la grille de bi-mesures
-    (coutures comprises) qui sert à l'inférence, et le mot.
-    """
-    from harmonia_min.soudure import _bars_par_mesure, song_du_chart
-    p = CHARTS_DIR / f"{Path(file).stem}.json"
-    if not p.exists():
-        return jsonify({"error": "no such chart"}), 404
-    chart = json.loads(p.read_text(encoding="utf-8"))
-    song = song_du_chart(chart, audio_dir=AUDIO_DIR)
-    if not song:
-        return jsonify({"error": "chart trop court"}), 400
-    song["mesures"] = [
-        [{"root": c.get("root", 0), "q": c.get("q") or "",
-          "bass": c.get("bass", -1), "nc": bool(c.get("nc"))}
-         for c in (bar or [])]
-        for bar in _bars_par_mesure(chart)]
-    # ce que le chart dit AUJOURD'HUI, pour partir de quelque chose plutôt que
-    # d'une page blanche — Louis pourra tout refaire, mais il verra d'abord
-    # l'état des lieux
-    song["sections_actuelles"] = [
-        {"label": s.get("label") or "?", "mesure_debut": b0 + 1, "mesure_fin": b1 + 1}
-        for s in (chart.get("sections") or [])
-        for b0, b1 in (s.get("barRanges") or [])]
-    song["sections_actuelles"].sort(key=lambda s: s["mesure_debut"])
-    gabarit = (REPO / "docs" / "plots" / "sections.html").read_text(encoding="utf-8")
-    tete = ("<script>window.SONG = "
-            + json.dumps(song, ensure_ascii=False, separators=(",", ":"))
-            + ";</script>\n")
-    page = gabarit.replace("<body>", "<body>\n" + tete, 1)
-    page = page.replace("<title>Sections</title>",
-                        f"<title>Sections — {song['titre']}</title>", 1)
-    resp = app.make_response(page)
-    resp.headers["Content-Type"] = "text/html; charset=utf-8"
-    resp.headers["Cache-Control"] = "no-cache"
-    return resp
+# La page /sections/<file> a vécu une heure le 2026-08-15 : Louis voulait
+# annoter SUR le chart de l'app, pas sur une page à part (« mets moi le MÊME
+# chart que d'habitude, la même interface »). L'outil est revenu dans le
+# chart ; seule la route d'inférence ci-dessus lui survit, et c'est elle qu'il
+# appelle.
 
 
 @app.get("/min/<file>")
@@ -923,30 +934,19 @@ def api_section_marks(file):
 
 @app.route("/api/context_rescore/<file>", methods=["POST"])
 @app.route("/api/reinfer/<file>", methods=["POST"])
-def context_rescore(file):
-    """Lock propagation: re-score the spans AROUND a locked chord.
+def propagation_retiree(file):
+    """RETIRÉE (Louis, 2026-08-20 : « quand on annote un nouvel accord, ça se
+    propage sur les accords suivants, mais cette fonction est deprecated,
+    enlève-la »).
 
-    Boundaries never move and confirmed spans are hard evidence — see
-    harmonia_min/context_rescore.py for the wire shape and the non-solves
-    (notably: a changed span loses its seventh, QUAL5 only).
-
-    /api/reinfer/ is aliased here on purpose: the shell's merge path still
-    posts there, and a merge has no lock-lattice equivalent yet, so it gets
-    the (correct) no-op answer instead of a 404 it silently swallows.
+    On garde la route pour DIRE que c'est parti, au lieu d'un 404 que le shell
+    avalerait en silence. Le chemin « merge » (`/api/reinfer/`) passait par ici
+    lui aussi et n'y recevait déjà qu'une réponse sans effet : il obtient
+    maintenant un refus lisible plutôt qu'un faux succès de vingt secondes.
     """
-    p = CHARTS_DIR / f"{Path(file).stem}.json"
-    if not p.exists():
-        return jsonify({"error": "no such chart"}), 404
-    body = request.get_json(silent=True) or {}
-    model = json.loads(p.read_text(encoding="utf-8"))
-    try:
-        from harmonia_min import context_rescore as cr
-        out = cr.rescore(model, body.get("chords") or [],
-                         body.get("confirms") or [])
-    except Exception as exc:  # noqa: BLE001 — the shell swallows errors
-        log.exception("context_rescore failed for %s", file)
-        return jsonify({"error": f"rescore failed: {exc}"}), 500
-    return jsonify(out)
+    return jsonify({"error": "La propagation d'un accord sur ses voisins a "
+                             "été retirée. Corrige l'accord à la main : il "
+                             "sera gardé tel quel."}), 410
 
 
 @app.delete("/api/chart/<file>")
@@ -1308,6 +1308,10 @@ def _run_job(job_id: str, url: str, bar1_time=None):
     try:
         audio_path, title, artist = _resolve_audio(url)
         job["title"] = job.get("title") or title
+        # Le titre qui GAGNE est celui du job (un enregistrement micro arrive
+        # avec « Enregistrement du … » déjà posé) — sinon le sidecar plus bas
+        # réécrivait la bibliothèque avec le slug du fichier.
+        title = job["title"]
         job["artist"] = artist
         import subprocess
         dur = float(subprocess.check_output(
@@ -1449,6 +1453,161 @@ def api_job(job_id):
     if job is None:
         return jsonify({"status": "error", "error": "unknown job"}), 404
     return jsonify(job)
+
+
+# ── Le micro : Enregistrer et Jam (2026-08-20) ──────────────────────────────
+# CE QUI LES DÉBLOQUE : getUserMedia exige un contexte SÛR. L'app est jointe
+# depuis l'iPhone par une IP Tailscale en http:// — et là Safari ne refuse même
+# pas, il fait DISPARAÎTRE navigator.mediaDevices, donc aucune demande de
+# permission n'apparaît. Le `tailscale serve` posé le 2026-08-20 sert la MÊME
+# app, ce même processus, en https://louiss-macbook-air.tail87ced3.ts.net:8443
+# avec un vrai certificat. C'est cette adresse — et elle seule — qui rend les
+# deux écrans utilisables depuis le téléphone. En http, l'app le dit maintenant
+# au lieu de proposer un bouton mort.
+
+_jam_sessions: dict = {}
+_jam_lock = threading.Lock()
+
+
+def _ffmpeg(src: Path, dest: Path, args: list[str], *, timeout: int) -> bool:
+    """Transcode, ou False (jamais d'exception) — le format que MediaRecorder
+    produit dépend du navigateur : webm/opus sur Chrome, mp4/aac sur Safari."""
+    import subprocess
+    try:
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(src),
+                        *args, str(dest)],
+                       check=True, capture_output=True, timeout=timeout)
+        return dest.exists() and dest.stat().st_size > 0
+    except (OSError, subprocess.SubprocessError) as exc:
+        log.warning("ffmpeg %s → %s a échoué : %s", src.name, dest.name, exc)
+        return False
+
+
+@app.post("/api/record-analyze")
+def api_record_analyze():
+    """Un enregistrement micro entre dans la bibliothèque comme un morceau.
+
+    Le fichier atterrit dans docs/audio/ sous un stem UNIQUE et repart dans le
+    MÊME `_run_job` que YouTube : même écran de chargement, même chart, et
+    l'audio est rejouable sous la tête de lecture (`/audio/<stem>.m4a`).
+
+    Le stem unique n'est pas cosmétique : battues, CQT et postérieures musx
+    sont TOUS cachés par stem de fichier. Deux enregistrements sous le même nom
+    et le second se verrait servir les accords du premier (mesuré en juillet
+    sur l'ancienne app — un clip de 45 s avait tronqué l'analyse d'un morceau
+    de 283 s).
+    """
+    f = request.files.get("audio")
+    if f is None:
+        return jsonify({"error": "Aucun audio reçu"}), 400
+    stem = f"rec_{int(time.time() * 1000)}"
+    AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+    raw = AUDIO_DIR / f"{stem}.upload"
+    f.save(raw)
+    dest = AUDIO_DIR / f"{stem}.m4a"
+    ok = _ffmpeg(raw, dest, ["-ac", "1", "-ar", "44100", "-c:a", "aac",
+                             "-b:a", "128k"], timeout=120)
+    raw.unlink(missing_ok=True)
+    if not ok:
+        return jsonify({"error": "Enregistrement illisible (transcodage "
+                                 "impossible)"}), 400
+
+    title = (request.form.get("title") or "").strip() or \
+        "Enregistrement du " + time.strftime("%d/%m à %H:%M")
+    job_id = uuid.uuid4().hex[:12]
+    _jobs[job_id] = {"status": "running", "stage": 0, "created": time.time(),
+                     "title": title}
+    threading.Thread(target=_run_job, args=(job_id, stem), daemon=True).start()
+    return jsonify({"job_id": job_id})
+
+
+@app.post("/api/jam/start")
+def api_jam_start():
+    from harmonia_min.jam import JamSession
+    sid = f"jam_{int(time.time() * 1000)}"
+    with _jam_lock:
+        _jam_sessions[sid] = JamSession(sr=44100)
+    log.info("jam %s: session ouverte", sid)
+    return jsonify({"session_id": sid})
+
+
+def _jam_decode(sid: str, sess) -> None:
+    """Une passe de décodage, dans son thread. Une seule à la fois par session.
+
+    POURQUOI EN FOND et pas dans la réponse au morceau : la passe redécode TOUT
+    le tampon (voir jam.py), donc elle s'allonge avec le jam — mesuré autour de
+    13 s sur 80 s de tampon, quand les morceaux arrivent toutes les 8 s. Les
+    enchaîner dans la requête ferait grossir la file sans fin. Ici le morceau
+    est simplement ajouté au tampon et repart avec le dernier état connu ; les
+    passes qui tombent pendant qu'une autre tourne sont SAUTÉES, pas empilées —
+    le tampon les contient déjà, la passe suivante les verra.
+    """
+    import shutil
+    import tempfile
+    tmp = Path(tempfile.mkdtemp(prefix="harmonia_jam_"))
+    try:
+        t0 = time.time()
+        sess.update(tmp / "buf.wav")
+        log.info("jam %s: passe sur %.0f s de tampon en %.1f s (boucle: %s)",
+                 sid, sess.elapsed_s(), time.time() - t0,
+                 "oui" if sess.cur else "pas encore")
+    except Exception:
+        # Jamais silencieux, jamais fatal : un morceau bruité ne doit pas tuer
+        # la session, mais la trace doit exister.
+        log.exception("jam %s: passe de décodage échouée", sid)
+    finally:
+        sess.busy = False
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+@app.post("/api/jam/chunk")
+def api_jam_chunk():
+    """Un morceau de micro (~8 s) → il rejoint le tampon, et on rend l'état.
+
+    L'état rendu est celui de la DERNIÈRE passe terminée (`decoding` dit si une
+    autre tourne). C'est le « near-live, pas live-live » assumé : quelques
+    secondes de retard contre des accords qu'on peut lire.
+    """
+    import shutil
+    import tempfile
+    sid = request.form.get("session_id") or ""
+    with _jam_lock:
+        sess = _jam_sessions.get(sid)
+    if sess is None:
+        return jsonify({"error": "Session de jam inconnue ou expirée"}), 404
+    f = request.files.get("audio")
+    if f is None:
+        return jsonify({"error": "Aucun audio reçu"}), 400
+
+    tmp = Path(tempfile.mkdtemp(prefix="harmonia_chunk_"))
+    try:
+        raw = tmp / "chunk.upload"
+        f.save(raw)
+        wav = tmp / "chunk.wav"
+        if not _ffmpeg(raw, wav, ["-ac", "1", "-ar", str(sess.sr)], timeout=30):
+            return jsonify({"error": "Morceau illisible"}), 400
+        import soundfile as sf
+        y, _sr = sf.read(wav)
+        sess.append(y.mean(1) if getattr(y, "ndim", 1) > 1 else y)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    if not sess.busy:
+        sess.busy = True
+        threading.Thread(target=_jam_decode, args=(sid, sess),
+                         daemon=True).start()
+    return jsonify({**sess.state(), "decoding": bool(sess.busy)})
+
+
+@app.post("/api/jam/stop")
+def api_jam_stop():
+    """Fin de session : le tampon est libéré. Rien n'est encore enregistré dans
+    la bibliothèque — transformer la boucle trouvée en chart normal est
+    l'étape d'après, signalée ici et pas construite."""
+    sid = (request.get_json(silent=True) or {}).get("session_id") or ""
+    with _jam_lock:
+        _jam_sessions.pop(sid, None)
+    return jsonify({"ok": True})
 
 
 # ── on-device audio triage page (2026-08-02 iPhone stall) ───────────────────

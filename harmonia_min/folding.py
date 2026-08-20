@@ -908,6 +908,17 @@ def _write_position(bars, grid, b, chords_k, bpb, n_obs):
     allowed to say so — the old signature took one confidence for the whole bar
     because that confidence was a property of the section, not of the chord.
     """
+    # CE QUE LOUIS A ÉCRIT NE SE FAIT PAS ÉCRASER (2026-08-20 : « les
+    # annotations utilisateur prennent toujours le dessus sur nos
+    # inférences »). `confirmed` est posé par l'éditeur d'annotation ; le repli
+    # ne le regardait pas, donc une mesure corrigée à la main repassait sous le
+    # gabarit au recuit suivant — et rien ne le disait. Une seule mesure suffit
+    # à bloquer SA mesure, pas la lettre : le reste de la pile s'écrit
+    # normalement.
+    if any(c.get("confirmed") for c in bars[b]):
+        logger.info("repli: mesure %d gardée telle quelle — accord confirmé "
+                    "à la main", b + 1)
+        return False
     bw = grid[b + 1] - grid[b]
     new = []
     for j, e in enumerate(chords_k):
