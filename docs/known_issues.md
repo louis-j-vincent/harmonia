@@ -1,5 +1,85 @@
 # Harmonia — Known Issues
 
+## 2026-08-20 — LE MICRO : ENREGISTRER ET JAM MARCHENT, PAR UNE ADRESSE HTTPS
+
+Louis : « tu peux faire marcher les versions jam + record grâce au https ».
+
+**Ce qui les bloquait n'était pas le code de l'app, c'était l'adresse.**
+`getUserMedia` exige un contexte *sûr*. Depuis l'iPhone l'app était jointe en
+`http://100.89.209.63:7772` (IP Tailscale) : sur une origine comme celle-là
+Safari ne refuse pas la permission, il fait **disparaître**
+`navigator.mediaDevices`. Aucune demande n'apparaît jamais, et l'ancien message
+« Microphone access denied » accusait l'utilisateur d'un refus qu'il n'avait pas
+fait.
+
+**L'adresse qui marche :**
+`https://louiss-macbook-air.tail87ced3.ts.net:8443` — un `tailscale serve` vers
+le même `127.0.0.1:7772`, même processus, même bibliothèque, avec un vrai
+certificat. Le **:443 de la machine était déjà pris** par un autre projet
+(Cairn, sur :8000) : d'où le port 8443 plutôt qu'un chemin, un chemin cassant
+toutes les URL absolues de l'app (`/api/…`, `/audio/…`). En http l'app affiche
+maintenant l'adresse https au lieu de proposer un bouton mort, et les deux
+boutons restent gris.
+
+**Ce qui manquait vraiment côté serveur.** Les deux écrans existaient dans le
+shell depuis juillet, mais `harmonia_min/server.py` n'a jamais servi les routes
+qu'ils appellent (elles n'existaient que dans l'ANCIENNE app, `harmonia/serving/
+api.py`, sur :7771). Elles sont maintenant dans l'app vivante :
+
+| route | ce qu'elle fait |
+|---|---|
+| `POST /api/record-analyze` | le fichier micro entre dans `docs/audio/` sous un stem unique et repart dans le MÊME `_run_job` que YouTube — même écran de chargement, même chart, audio rejouable |
+| `POST /api/jam/start\|chunk\|stop` | le tampon micro grandit, la boucle se cherche dessus (`harmonia_min/jam.py`) |
+
+Le stem unique n'est pas cosmétique : battues, CQT et postérieures musx sont
+TOUS cachés par stem. Deux enregistrements sous le même nom, et le second se
+voit servir les accords du premier (déjà mesuré en juillet sur l'ancienne app).
+
+**Jam tourne sur la pile de l'app, pas sur l'ancienne.**
+`harmonia/models/jam_mode.py` (juillet) décodait en **librosa + NNLS-24** —
+librosa est banni ici, il verrouille l'octave 2× sur un tiers du disque.
+`harmonia_min/jam.py` garde la logique pure qui avait été validée
+(`detect_loop_period`, vote par case sur les tours) et remplace le décodage par
+celui du chart : **Beat This! + postérieures musx re-décodées sur nos temps**.
+Un jam et un chart ne peuvent donc plus donner deux accords différents sur le
+même son.
+
+**Mesuré (serveur chaud, vamp de 2 mesures rejoué 8 fois, 85 bpm) :**
+
+| tampon | passe complète | résultat |
+|---|---|---|
+| 8 → 24 s | 1,0 → 1,3 s | pas encore de boucle |
+| 32 s | 1,8 s | **boucle trouvée** : 8 temps, G G G G G C C C, ×4 tours |
+| 48 s | 2,0 s | même boucle, ×7 tours, 85,0 bpm |
+
+Une passe coûte 1 à 3 s quand les modèles sont déjà en mémoire — les morceaux
+arrivent toutes les 8 s, donc ça suit. **Attention au chiffre de 13 à 54 s** que
+donne une mesure à froid : c'est le CHARGEMENT des modèles, pas le décodage. Le
+serveur saute quand même une passe si la précédente tourne encore (le tampon la
+contient déjà) plutôt que d'empiler une file.
+
+**Ce que ça ne résout pas :**
+
+* **La détection décroche une passe sur trois.** Sur le vamp ci-dessus la
+  boucle est trouvée à 32 s, perdue à 40 s, retrouvée à 48 s : le score
+  d'autocorrélation frôle son seuil (0,65) et un seul accord ambigu d'un tour à
+  l'autre le fait passer dessous. **Contourné à l'affichage, pas corrigé** : la
+  dernière boucle reste à l'écran, marquée `stale` (en retrait, « à
+  confirmer »), au lieu de clignoter. Une boucle affichée pendant une
+  abstention peut donc être périmée.
+* **Le retour à une partie déjà jouée.** Un jam à 3 parties détecte « une
+  nouvelle partie » contre la partie courante ; il ne reconnaît pas qu'on est
+  revenu sur la première.
+* **La boucle trouvée ne devient pas un chart.** `stop` libère le tampon, rien
+  n'entre dans la bibliothèque. C'est l'étape d'après.
+* **Le micro n'a été testé qu'en simulation.** Le chemin complet (upload →
+  transcodage → job → chart → audio rejouable) est vérifié bout en bout avec de
+  vrais `webm/opus` postés sur l'adresse https, et les deux écrans sont vérifiés
+  au rendu (390 px). Mais **aucun vrai micro n'a été ouvert** : Chrome headless
+  bloque sur `getUserMedia` même avec `--use-fake-device-for-media-stream`. Le
+  premier tap sur REC depuis l'iPhone reste à faire.
+
+
 ## 2026-08-20 — EN PROD : les annotations passent avant le repli, et la propagation est retirée
 
 Louis, deux consignes le même jour :

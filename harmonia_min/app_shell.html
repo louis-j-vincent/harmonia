@@ -2323,10 +2323,10 @@ window.APP = (function(){
   }
   function renderRecord(){
     const w=screenWrap();
-    w.appendChild(appBar(null,"Record",  "library"));
+    w.appendChild(appBar(null,"Enregistrer","library"));
     const body=el("div","flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px;");
     const timer=el("div",`font:700 44px ${UI};font-variant-numeric:tabular-nums;color:${T.ink};`,"0:00");
-    const hint=el("div",`font:500 13px ${UI};color:${T.faint};text-align:center;max-width:280px;`,"Tap to start recording. Play or sing anything — we'll work out the chords.");
+    const hint=el("div",`font:500 13px ${UI};color:${T.faint};text-align:center;max-width:280px;`,"Tape pour enregistrer. Joue ou chante — on en tire les accords.");
     const btn=el("button",`width:88px;height:88px;border-radius:50%;border:none;background:${T.accent};color:#fff;font:700 15px ${UI};cursor:pointer;box-shadow:0 10px 26px -12px rgba(190,90,40,.55);`,"REC");
     let rec=null, chunks=[], stream=null, t0=null, timerId=null;
     const stop=()=>{
@@ -2344,7 +2344,7 @@ window.APP = (function(){
       rec.ondataavailable=e=>{ if(e.data && e.data.size) chunks.push(e.data); };
       rec.onstop=()=>{
         const blob=new Blob(chunks, {type: rec.mimeType||"audio/webm"});
-        if(blob.size<2000){ toast("Recording too short"); return; }
+        if(blob.size<2000){ toast("Enregistrement trop court"); return; }
         startRecordAnalysis(blob);
       };
       rec.start();
@@ -2363,11 +2363,11 @@ window.APP = (function(){
   // this screen just renders whatever state came back from the last chunk.
   function renderJam(){
     const w=screenWrap();
-    w.appendChild(appBar(null,"Jam Mode","library"));
+    w.appendChild(appBar(null,"Jam","library"));
     const body=el("div","flex:1;overflow-y:auto;padding:20px;"); body.className="ap-scroll";
     const inner=el("div","max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:16px;");
 
-    const hint=el("div",`font:500 13px ${UI};color:${T.faint};text-align:center;`,"Tap to start. Play the loop a few times — it'll lock on and get cleaner as you repeat it.");
+    const hint=el("div",`font:500 13px ${UI};color:${T.faint};text-align:center;`,"Tape pour lancer. Joue la boucle deux ou trois fois — elle se verrouille, et elle se nettoie à chaque tour.");
     const status=el("div",`font:600 13px ${UI};color:${T.faint};text-align:center;`,"");
     const loopStrip=el("div","display:flex;flex-wrap:wrap;gap:8px;justify-content:center;min-height:52px;");
     const partsBox=el("div","display:flex;flex-direction:column;gap:8px;");
@@ -2383,18 +2383,30 @@ window.APP = (function(){
     };
     const renderState=(st)=>{
       loopStrip.innerHTML=""; partsBox.innerHTML="";
-      status.textContent=`${(st.elapsed_s/60|0)}:${String(Math.round(st.elapsed_s%60)).padStart(2,"0")} recorded`;
+      // « en écoute » n'est pas décoratif : une passe redécode TOUT le tampon
+      // (~13 s sur 80 s de jam) pendant que les morceaux continuent d'arriver
+      // toutes les 8 s. Sans ce mot, l'écran a l'air figé alors qu'il travaille.
+      status.textContent=`${(st.elapsed_s/60|0)}:${String(Math.round(st.elapsed_s%60)).padStart(2,"0")} enregistré`
+        +(st.decoding?" · en écoute…":"");
       if(st.current){
+        // `stale` = la dernière passe n'a pas su retrouver la boucle. On garde
+        // les accords en retrait plutôt que de vider l'écran (voir
+        // JamSession._abstain côté serveur) : sur un vrai vamp la détection
+        // décroche une passe sur trois alors que le jam n'a pas bougé.
+        loopStrip.style.opacity=st.current.stale?"0.45":"1";
         st.current.loop.forEach(c=>loopStrip.appendChild(chip(c)));
         const meta=el("div",`font:500 11px ${UI};color:${T.faint};text-align:center;width:100%;margin-top:2px;`,
-          `${st.current.period_beats}-beat loop · ×${st.current.n_reps} reps seen · ${Math.round(st.current.tempo_bpm)} BPM`);
+          `boucle de ${st.current.period_beats} temps · ×${st.current.n_reps} tours · ${Math.round(st.current.tempo_bpm)} BPM`
+          +(st.current.stale?" · à confirmer":""));
         loopStrip.appendChild(meta);
       } else {
-        loopStrip.appendChild(el("div",`font:500 13px ${UI};color:${T.faint};`,"listening for a loop…"));
+        loopStrip.style.opacity="1";
+        loopStrip.appendChild(el("div",`font:500 13px ${UI};color:${T.faint};`,
+          st.elapsed_s<20?"joue la boucle deux ou trois fois…":"pas encore de boucle qui se répète…"));
       }
       st.parts.forEach((p,i)=>{
         const row=el("div",`display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:10px;border:1px solid ${T.line};border-radius:10px;`);
-        row.appendChild(el("div",`font:700 11px ${UI};color:${T.faint};margin-right:4px;`,`Part ${i+1}:`));
+        row.appendChild(el("div",`font:700 11px ${UI};color:${T.faint};margin-right:4px;`,`Partie ${i+1} :`));
         p.loop.forEach(c=>row.appendChild(chip(c)));
         partsBox.appendChild(row);
       });
