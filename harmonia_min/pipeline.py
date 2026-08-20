@@ -798,7 +798,8 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
         # moyenne de spectres les garde — sauf sur Be My Baby où c'est
         # l'inverse. Il a tranché pour le plus propre.
         # `HARMONIA_MERGE=cqt` restaure l'ancienne loi.
-        _merge = os.environ.get("HARMONIA_MERGE", "mean").strip().lower()
+        from harmonia_min.folding import loi_de_merge
+        _merge = loi_de_merge()
         _mchk = os.environ.get("HARMONIA_MERGE_CHECK", "").strip()
         _cqt = None
         if _merge == "cqt":

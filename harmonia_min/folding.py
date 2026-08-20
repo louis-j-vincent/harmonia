@@ -63,6 +63,23 @@ PERIODS = (2, 4, 8)
 #: (P mesures pavées ×3) devient plus long que bien des morceaux.
 MIN_OCC_PERIOD, MAX_OCC_PERIOD = 2, 32
 
+#: LA loi de merge, lue au même endroit par tout le monde.
+#:
+#: Elle vivait en double — `pipeline.analyze_steps` et `refold.refold` lisaient
+#: chacun `HARMONIA_MERGE` avec SON défaut écrit en dur. Le 2026-08-20, passer
+#: la pipeline aux postérieures a donc laissé `refold` sur les CQT : This Love
+#: est repassé par là (il a un découpage à la main), et son chart est ressorti
+#: avec `C- F-7 … % G` — la loi d'avant, et la cadence `A♭` perdue au passage.
+#: Deux chemins qui replient le même morceau ne peuvent pas avoir deux défauts.
+MERGE_DEFAUT = "mean"
+
+
+def loi_de_merge() -> str:
+    """`"cqt"` ou `"mean"` — ce que `HARMONIA_MERGE` demande, défaut compris."""
+    import os
+    return "cqt" if os.environ.get("HARMONIA_MERGE", MERGE_DEFAUT
+                                   ).strip().lower() == "cqt" else "mean"
+
 #: Combien de mesures de FIN de section restent hors de la pile de sous-phrase
 #: (voir le bloc « LA FIN D'UNE SECTION NE S'EMPILE PAS AVEC SON MILIEU »).
 #: 1 suffit sur This Love, dont seule la 8e mesure sort du motif ; Louis avait

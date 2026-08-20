@@ -61,6 +61,40 @@ def _sections_a_la_main(stem: str) -> list[dict] | None:
     return secs or None
 
 
+def _completer(secs: list[dict], model: dict, n: int) -> tuple[list[dict], int]:
+    """(découpage couvrant tout le morceau, nombre de sections ajoutées).
+
+    Les mesures que l'annotation à la main ne couvre pas reçoivent l'étiquette
+    que le DÉTECTEUR leur a donnée dans ce même recuit — découpée aux mêmes
+    endroits que lui. On n'invente donc aucune frontière : on recolle deux
+    sources, la sienne d'abord.
+    """
+    secs = [dict(x) for x in secs
+            if 1 <= x["mesure_debut"] <= x["mesure_fin"] <= n]
+    couvert = set()
+    for x in secs:
+        couvert |= set(range(x["mesure_debut"] - 1, x["mesure_fin"]))
+    trous = sorted(set(range(n)) - couvert)
+    if not trous:
+        return secs, 0
+    # étiquette du détecteur, mesure par mesure
+    lab = {}
+    for sec in model.get("sections") or []:
+        for b0, b1 in sec.get("barRanges") or []:
+            for b in range(b0, b1 + 1):
+                lab[b] = sec.get("label") or "?"
+    ajouts, debut = [], trous[0]
+    for i, b in enumerate(trous):
+        suivant = trous[i + 1] if i + 1 < len(trous) else None
+        if suivant is None or suivant != b + 1 or lab.get(suivant) != lab.get(debut):
+            ajouts.append({"label": lab.get(debut) or "?",
+                           "mesure_debut": debut + 1, "mesure_fin": b + 1})
+            if suivant is not None:
+                debut = suivant
+    out = sorted(secs + ajouts, key=lambda x: x["mesure_debut"])
+    return out, len(ajouts)
+
+
 def rebake(file_key: str, out_dir: Path) -> tuple[bool, str]:
     """Recuit un chart. Renvoie (ok, message)."""
     from harmonia_min.pipeline import analyze
@@ -92,15 +126,18 @@ def rebake(file_key: str, out_dir: Path) -> tuple[bool, str]:
     note_sec = ""
     if a_la_main:
         n = model.get("nBars") or 0
-        couvert = set()
-        for x in a_la_main:
-            couvert |= set(range(x["mesure_debut"] - 1, x["mesure_fin"]))
-        if set(range(n)) - couvert:
-            # La grille a bougé depuis l'annotation : appliquer un découpage
-            # qui ne couvre plus le morceau ferait un chart à trous. On le DIT
-            # au lieu de le faire à moitié.
-            note_sec = (f", découpage à la main IGNORÉ ({len(a_la_main)} "
-                        f"sections ne couvrent plus les {n} mesures)")
+        # SA VÉRITÉ OÙ IL L'A ÉCRITE, LA MACHINE AILLEURS (2026-08-20).
+        # Première version : tout ou rien, refus dès qu'une mesure n'était pas
+        # couverte. Elle a jeté 7 découpages sur 20 — pour un trou d'UNE mesure
+        # sur Bein Green (la grille a gagné une mesure depuis l'annotation), de
+        # deux sur Be My Baby, et pour la queue jamais annotée de Chain of
+        # Fools. Jeter huit sections écrites à la main parce que la 53ᵉ mesure
+        # manque, c'est perdre son travail pour préserver une symétrie.
+        # On complète donc les trous avec ce que le détecteur a trouvé LÀ, et
+        # rien de plus.
+        a_la_main, n_comble = _completer(a_la_main, model, n)
+        if not a_la_main:
+            note_sec = ", découpage à la main inutilisable"
         else:
             from harmonia_min.refold import refold
             from harmonia_min.soudure import sections_pour_chart
@@ -110,7 +147,10 @@ def rebake(file_key: str, out_dir: Path) -> tuple[bool, str]:
                 model["sections"] = neuves
                 model["fold"] = rap.get("rapport") or {}
                 model["form"] = None
-                note_sec = f", {len(a_la_main)} sections à la main rejouées"
+                note_sec = (f", {len(a_la_main) - n_comble} sections à la main "
+                            f"rejouées"
+                            + (f" (+{n_comble} comblée(s) par le détecteur)"
+                               if n_comble else ""))
             else:
                 note_sec = ", découpage à la main inutilisable"
     n_old = len(old.get("barGrid") or []) - 1

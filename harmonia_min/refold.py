@@ -100,7 +100,8 @@ def refold(chart: dict, secs: list[dict], audio_dir) -> tuple[list, dict]:
         from harmonia_min.nnls_features import extract_bothchroma
         probs = _musx.frame_posteriors(audio)          # cache
         arr, times = extract_bothchroma(audio)         # cache
-        merge = os.environ.get("HARMONIA_MERGE", "cqt").strip().lower()
+        from harmonia_min.folding import loi_de_merge
+        merge = loi_de_merge()
         mchk = os.environ.get("HARMONIA_MERGE_CHECK", "").strip()
         loop = os.environ.get("HARMONIA_FOLD_LOOP", "occurrence").strip().lower()
         cqt = None
@@ -113,7 +114,7 @@ def refold(chart: dict, secs: list[dict], audio_dir) -> tuple[list, dict]:
                 merge = ""
         rapport = fold_letter_groups(
             sections, bars, grid, probs, bpb, arr=arr, times=times,
-            combine=("cqt" if merge == "cqt" else "mean"), cqt=cqt, loop=loop,
+            combine=merge, cqt=cqt, loop=loop,
             check_thr=(float(mchk) if mchk and merge == "cqt" else None))
     except Exception as exc:                    # jamais un chart cassé pour ça
         logger.exception("refold: empilement impossible")
