@@ -1,5 +1,27 @@
 # Harmonia — Known Issues
 
+## 2026-08-20 — OUVERT : le repli tourne DEUX FOIS sur les morceaux annotés à la main
+
+Constaté en vérifiant le recuit. This Love, mesure 24 (dernière mesure de B) :
+
+* `pipeline.analyze()` seul écrit `A♭ G` ;
+* le même morceau passé ensuite par `refold` (parce qu'il a un découpage à la
+  main, donc le recuit rejoue ses sections) écrit `% G` — l'`A♭` disparaît.
+
+Le repli s'exécute donc deux fois : une fois avec les sections du détecteur
+dans la pipeline, une fois avec celles de Louis dans `refold`, et la seconde
+part du résultat de la première. Le garde-fou de fin de section fonctionne
+pourtant bien dans les deux (rapport de repli pour B : `period 2,
+n_obs [18, 15]` — les 3 fins de section sont bien sorties de la pile).
+
+Pas encore tranché : laquelle des deux lectures est juste (`A♭ G` a l'air plus
+musical, mais c'est l'oreille de Louis qui décide), et s'il faut que `refold`
+reparte des accords BRUTS plutôt que du chart déjà replié. `refold` et
+`soudure` sont le chantier de la session concurrente — à voir avec elle.
+
+Portée : les 18 morceaux qui ont un découpage à la main validé.
+
+
 ## 2026-08-20 — RÉSOLU : « it was written without the model's ranking » dans Annotate
 
 Louis, sur Bora Bora : « je veux annotate le F dans la section A, et il me dit
