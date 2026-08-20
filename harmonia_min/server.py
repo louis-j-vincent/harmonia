@@ -1142,6 +1142,38 @@ def _video_meta(ytdlp: str, url: str) -> tuple[str, str]:
 YTDLP_CLIENTS = (None, "web_safari", "android", "ios", "tv")
 
 
+#: Au-delà de ça, un 403 sur TOUS les clients n'est plus « passager » : c'est
+#: yt-dlp qui a pris du retard sur les signatures YouTube. Les deux fois où
+#: Louis a vu l'écran d'échec (2026-08-10, 2026-08-20), la version installée
+#: avait plus d'un mois et `pip install -U yt-dlp` a suffi. 21 jours : yt-dlp
+#: publie environ toutes les deux semaines, donc trois semaines sans mise à
+#: jour veut déjà dire qu'on a sauté une release.
+YTDLP_STALE_DAYS = 21
+
+
+def _ytdlp_staleness(ytdlp: str) -> str:
+    """La phrase à afficher après un 403 : « réessaie » ou « mets à jour ».
+
+    La version de yt-dlp EST une date (`2026.08.19`), donc son âge se lit sans
+    réseau ni index PyPI. On ne le calcule que sur le chemin d'échec — un
+    sous-processus de plus ne coûte rien quand plus rien ne marche.
+    """
+    import datetime as _dt
+    import subprocess
+    try:
+        r = subprocess.run([ytdlp, "--version"], capture_output=True,
+                           text=True, timeout=30)
+        ver = r.stdout.strip().splitlines()[0]
+        y, m, d = (int(x) for x in ver.split(".")[:3])
+        age = (_dt.date.today() - _dt.date(y, m, d)).days
+    except (OSError, ValueError, IndexError, subprocess.SubprocessError):
+        return "C'est peut-être passager : réessaie dans un moment."
+    if age >= YTDLP_STALE_DAYS:
+        return (f"yt-dlp date du {ver} ({age} jours) — c'est presque sûrement "
+                "ça. Mets-le à jour : `.venv/bin/pip install -U yt-dlp`.")
+    return "C'est passager : réessaie dans un moment."
+
+
 def _download_audio(ytdlp: str, url: str, out: Path) -> tuple[str, str]:
     """Télécharge l'audio → (artiste, titre), en réessayant avec un autre client.
 
@@ -1184,9 +1216,9 @@ def _download_audio(ytdlp: str, url: str, out: Path) -> tuple[str, str]:
             junk.unlink(missing_ok=True)     # sinon la reprise repart de rien
     joined = " | ".join(errors)
     if "403" in joined or "Forbidden" in joined:
-        raise RuntimeError("YouTube a refusé le téléchargement (403) sur tous "
-                           "les clients essayés. C'est passager : réessaie "
-                           "dans un moment.")
+        raise RuntimeError(
+            "YouTube a refusé le téléchargement (403) sur tous les clients "
+            f"essayés. {_ytdlp_staleness(ytdlp)}")
     if "Private video" in joined or "Sign in" in joined:
         raise RuntimeError("Cette vidéo demande une connexion (privée ou "
                            "restreinte) — elle ne peut pas être téléchargée.")
