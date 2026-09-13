@@ -305,3 +305,12 @@ Estimating 12-minute Opus session. Awaiting confirmation before proceeding."
   template-geometry bug (docs/known_issues.md #5) is still real — but it has to be
   re-examined where the live emission is actually computed
   (`stages/chord_head.py` NNLS-24 + `chord_hmm.viterbi`), not on `ChordInferrer`.
+- **`harmonia_min`'s YouTube download (`_download_audio`) now depends on two
+  things outside the repo** (2026-09-13, see known_issues.md for the full
+  story): a Firefox profile with a live YouTube session (`--cookies-from-
+  browser firefox`) and a local Node PO-Token server on `127.0.0.1:4416`
+  (`~/.local/share/bgutil-ytdlp-pot-provider`, auto-restarted by
+  `_ensure_pot_server()` if it's down). Without both, YouTube's anti-bot check
+  now blocks most ordinary videos, not just private ones — this stopped being
+  an edge case. If yt-dlp changes ever touch this path, re-verify against a
+  handful of real URLs, not just one.

@@ -27922,3 +27922,63 @@ au mauvais endroit et casse tout l'aval, donc rien n'est branché.
 4. **La suite évidente** : brancher le détecteur haute-précision de l'autre
    session comme fournisseur de phase, à la place de `pics_de()` qui prend les
    voix brutes de `vote_fill.votes`.
+
+## Le téléchargement YouTube était cassé pour la plupart des vraies chansons, pas juste une (2026-09-13)
+
+Louis a demandé de relancer `harmonia_min` (:7772) pour tester, puis a essayé
+d'analyser une vidéo YouTube (Benny Sings, *Sunny Afternoon*, `nDUVEUjOKMw`).
+Message affiché : « Cette vidéo demande une connexion (privée ou restreinte) ».
+**Faux** — vérifié via l'API oEmbed publique (200, vidéo publique). Le vrai
+message yt-dlp était `Sign in to confirm you're not a bot`, sur les 5 clients
+essayés (`YTDLP_CLIENTS`).
+
+**Ce n'est pas un cas isolé.** 4 vidéos prises au hasard dans l'historique de
+Louis (déjà dans sa bibliothèque) ont déclenché le même blocage le même jour ;
+une seule vidéo témoin (Rick Astley, extrêmement mise en cache par YouTube) est
+passée sans souci. Le blocage anti-bot de YouTube est devenu la norme pour une
+vidéo « normale », pas l'exception — cassait silencieusement la voie d'ingestion
+YouTube de l'appli pour la plupart des vraies chansons.
+
+**Le fix a trois pièces, aucune seule ne suffit** (mesuré en isolant chacune) :
+
+1. `--cookies-from-browser firefox` — passe le portique anti-bot. **Seul**, il
+   dégrade en fait des vidéos qui marchaient : sans la pièce 2, YouTube ne
+   renvoie plus que les storyboards (aucun format audio réel), même pour Rick
+   Astley.
+2. `--remote-components ejs:github` — le solveur de challenge JS **officiel**
+   de yt-dlp (téléchargé une fois depuis leurs releases GitHub, mis en cache
+   ensuite). Sans lui : `n challenge solving failed`, YouTube force le
+   streaming SABR, mêmes symptômes que ci-dessus.
+3. Un serveur PO Token local sur `127.0.0.1:4416`
+   ([Brainicism/bgutil-ytdlp-pot-provider](https://github.com/Brainicism/bgutil-ytdlp-pot-provider),
+   installé dans `~/.local/share/bgutil-ytdlp-pot-provider`, build Node déjà
+   fait ; plugin pip `bgutil-ytdlp-pot-provider` ajouté au venv). Sans lui, la
+   pièce 2 échoue quand même sur les vidéos qui exigent un PO Token valide (99%
+   des cas testés).
+
+Implémenté dans `_download_audio` (`harmonia_min/server.py:1142` et suivantes) +
+`_ensure_pot_server()` qui relance le process Node s'il n'est pas debout — sinon
+toute la chaîne casse silencieusement après un simple redémarrage de la machine.
+**Vérifié en conditions réelles** : les 5 vidéos testées (celle de Louis + 4 de
+son historique + le témoin) téléchargent maintenant un format audio réel
+(`140`, m4a 130k), et le chart de *Sunny Afternoon* passe bien par le pipeline
+complet jusqu'à `/api/job/... status=done` avec artiste/titre corrects et un
+rendu visuellement correct (capture Playwright 390px, Eb majeur, sections
+A/B/C/D, aucune erreur console).
+
+**Ce que ça NE résout PAS :**
+- Une vraie vidéo privée reste bloquée (le message `Private video` déclenche
+  toujours le bon message côté appli, distinct du faux-positif anti-bot corrigé
+  ici — voir le nouveau branchement des deux messages dans `_download_audio`).
+- Dépend de deux choses hors du dépôt : Firefox avec une session YouTube
+  connectée, et le serveur Node tournant sur :4416. Si Firefox perd sa session
+  (déconnexion, profil différent), le téléchargement échoue à nouveau — avec le
+  message anti-bot correct cette fois, pas une fausse accusation.
+- Le serveur PO Token n'est pas géré par `launchd` — il survit à un redémarrage
+  de `harmonia_min` (auto-relancé par `_ensure_pot_server()`) mais pas encore à
+  un reboot de la machine sans qu'un `/api/analyze` soit tenté après.
+- Non testé : le cas où Firefox n'est pas installé ou n'a jamais eu de session
+  YouTube (autre machine) — `_ensure_pot_server()` dégrade proprement (log +
+  continue) mais `--cookies-from-browser firefox` planterait alors sur les 5
+  clients avec une erreur d'extraction de cookies, pas encore mappée à un
+  message lisible dans `_download_audio`.

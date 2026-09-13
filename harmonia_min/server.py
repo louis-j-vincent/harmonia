@@ -1142,6 +1142,71 @@ def _video_meta(ytdlp: str, url: str) -> tuple[str, str]:
 YTDLP_CLIENTS = (None, "web_safari", "android", "ios", "tv")
 
 
+#: Vérifié 2026-09-13 : le blocage anti-bot YouTube (« Sign in to confirm
+#: you're not a bot ») n'est plus un cas rare lié à une vidéo précise — 4
+#: vidéos prises au hasard dans l'historique de Louis l'ont déclenché le
+#: même jour, dont 3 déjà présentes dans sa bibliothèque. Le fix a trois
+#: pièces, aucune seule ne suffit (mesuré en isolant chacune) :
+#:   1. des cookies YouTube réels (`--cookies-from-browser`) pour passer
+#:      la vérif anti-bot ;
+#:   2. le solveur de challenge JS officiel de yt-dlp (`--remote-components
+#:      ejs:github`, téléchargé une fois puis mis en cache) — sans lui,
+#:      YouTube force le streaming SABR et yt-dlp ne récupère plus que les
+#:      storyboards (aucun format audio/vidéo réel), même avec les cookies ;
+#:   3. un serveur PO Token sur 127.0.0.1:4416
+#:      (github.com/Brainicism/bgutil-ytdlp-pot-provider, installé dans
+#:      ~/.local/share/bgutil-ytdlp-pot-provider ; le plugin pip
+#:      `bgutil-ytdlp-pot-provider` est dans le venv) — sans lui, le point 2
+#:      échoue quand même sur les vidéos qui exigent un PO Token valide.
+#: `_ensure_pot_server()` relance ce process s'il n'est pas déjà debout —
+#: sinon toute la chaîne casse silencieusement après un simple redémarrage
+#: de la machine.
+#: NE RÉSOUT PAS : une vraie vidéo privée reste bloquée (le fallback plus
+#: bas le dit correctement) ; et si Firefox n'a jamais eu de session
+#: YouTube connectée, `--cookies-from-browser` n'aide pas.
+YTDLP_COOKIES_BROWSER = "firefox"
+YTDLP_REMOTE_COMPONENTS = "ejs:github"
+_POT_SERVER_URL = "http://127.0.0.1:4416"
+_POT_SERVER_DIR = Path.home() / ".local" / "share" / "bgutil-ytdlp-pot-provider" / "server"
+
+
+def _ensure_pot_server() -> None:
+    """Démarre le serveur PO Token local s'il ne répond pas déjà.
+
+    Best-effort : si l'installation est absente (autre machine, pas encore
+    posée), on log et on continue — `_download_audio` retombera sur l'ancien
+    comportement (marche pour les vidéos qui ne demandent pas de PO Token,
+    échoue proprement sinon, avec le message anti-bot plus bas).
+    """
+    import subprocess
+    import urllib.request
+
+    try:
+        urllib.request.urlopen(f"{_POT_SERVER_URL}/ping", timeout=2)
+        return
+    except OSError:
+        pass
+    main_js = _POT_SERVER_DIR / "build" / "main.js"
+    if not main_js.exists():
+        log.warning("serveur PO Token absent (%s) — pas de retry auto pour "
+                    "le blocage anti-bot YouTube.", main_js)
+        return
+    log.info("serveur PO Token éteint — redémarrage depuis %s", _POT_SERVER_DIR)
+    subprocess.Popen(
+        ["node", "build/main.js"], cwd=str(_POT_SERVER_DIR),
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        start_new_session=True)
+    for _ in range(15):
+        time.sleep(1)
+        try:
+            urllib.request.urlopen(f"{_POT_SERVER_URL}/ping", timeout=2)
+            log.info("serveur PO Token de retour.")
+            return
+        except OSError:
+            continue
+    log.warning("serveur PO Token relancé mais ne répond toujours pas après 15s.")
+
+
 #: Au-delà de ça, un 403 sur TOUS les clients n'est plus « passager » : c'est
 #: yt-dlp qui a pris du retard sur les signatures YouTube. Les deux fois où
 #: Louis a vu l'écran d'échec (2026-08-10, 2026-08-20), la version installée
@@ -1191,11 +1256,14 @@ def _download_audio(ytdlp: str, url: str, out: Path) -> tuple[str, str]:
     les logs du serveur.
     """
     import subprocess          # comme partout ailleurs dans ce fichier
+    _ensure_pot_server()
     errors = []
     for client in YTDLP_CLIENTS:
         cmd = [ytdlp, "-f", "bestaudio[ext=m4a]/bestaudio",
                "--extract-audio", "--audio-format", "m4a",
                "--retries", "5", "--fragment-retries", "5",
+               "--cookies-from-browser", YTDLP_COOKIES_BROWSER,
+               "--remote-components", YTDLP_REMOTE_COMPONENTS,
                # `--print` seul implique `--simulate` : sans `--no-simulate`
                # la commande n'écrirait plus aucun fichier.
                "--no-simulate", "--print", _META_PRINT,
@@ -1219,6 +1287,20 @@ def _download_audio(ytdlp: str, url: str, out: Path) -> tuple[str, str]:
         raise RuntimeError(
             "YouTube a refusé le téléchargement (403) sur tous les clients "
             f"essayés. {_ytdlp_staleness(ytdlp)}")
+    if "not a bot" in joined or "Sign in to confirm" in joined:
+        # Vérifié 2026-09-13 sur nDUVEUjOKMw (Benny Sings, KCRW) : la vidéo
+        # est publique (oEmbed répond 200) et yt-dlp télécharge d'autres
+        # vidéos sans souci au même moment — ce n'est PAS la vidéo qui est
+        # privée, c'est la vérif anti-bot de YouTube qui bloque CE
+        # téléchargement précis, sur tous les clients essayés. L'ancien
+        # message ("privée ou restreinte") attribuait le blocage à la vidéo
+        # à tort — même bug que le pattern #1 de CLAUDE.md (message
+        # plausible, mauvais diagnostic). Le vrai fix (cookies YouTube via
+        # `--cookies-from-browser`) n'est pas branché ici.
+        raise RuntimeError(
+            "YouTube bloque ce téléchargement avec une vérification "
+            "anti-bot — la vidéo n'est pas forcément privée (souvent une "
+            "autre passe). Réessaie avec une autre vidéo pour l'instant.")
     if "Private video" in joined or "Sign in" in joined:
         raise RuntimeError("Cette vidéo demande une connexion (privée ou "
                            "restreinte) — elle ne peut pas être téléchargée.")
