@@ -242,3 +242,33 @@ référence exécutable à `chord_context_prior`/`load_context_scorer`/
 **Suivant.** Synchroniser le commit `befd8ee` de `feat/section-criteres`
 (cascade d'affichage des sections, 160 lignes dans `minimal_fold`), puis
 sprint 9 : sections/songformer seul.
+
+## Synchronisation — 2026-09-14 · `feat/section-criteres` @ cfceadf entre dans le refactor
+
+**Pourquoi.** La session concurrente a commité trois fois pendant les sprints
+7–8 : la cascade iReal d'affichage (« une lettre = un seul bloc écrit » :
+fins 1./2., passage coupé, A′/A″), puis la même cascade sur le chemin des
+découpages à la main. Ça touche `folding.py` (devenu un pont) et `soudure.py`.
+
+**Comment.** `git merge` ; conflit sur le pont `harmonia_min/folding.py` :
+pont gardé, leur delta complet (689a21c..cfceadf) rejoué sur
+`harmonia/folding.py` avec `git apply --3way` ; le pont régénéré réexporte
+les nouveaux noms privés (`_ireal_cascade`, `_ireal_endings`) — piège :
+`import *` saute les noms soulignés, un consommateur nouveau les fait
+manquer. Première tentative avec le seul delta de befd8ee : 8 morceaux en
+erreur (`fold_report` None) — la garde `(fold_report or {})` est dans le
+commit suivant. Leçon : rejouer la PLAGE, pas un commit.
+
+**Vérifié.** Bibliothèque cuite par le merge == bibliothèque cuite par
+l'arbre vivant à cfceadf, 44/44 identiques. Contre l'ancienne baseline :
+10 mesures sur 4 morceaux (Grenade, Let It Be, She Will Be Loved ×2 — tous
+à sections manuelles), 39 charts changent de forme sans changer d'accord.
+C'est l'effet que Louis a décidé dans l'autre session ; page AVANT/APRÈS
+publiée pour mémoire ; baseline re-gelée (l'ancienne reste en
+`baseline_689a21c`). pytest : 296 passés, **1 échec hérité**
+(`test_minimal_fold_separe_les_longueurs_dune_meme_lettre`, échoue aussi sur
+l'arbre vivant — la cascade a changé ce que ce test affirmait ; à leur main).
+
+**Règle adoptée.** Après chaque commit de la session concurrente sur
+`harmonia_min/`, synchroniser AVANT le sprint suivant, prouver l'identité
+avec l'arbre vivant, re-geler la baseline.
