@@ -48,6 +48,10 @@ class Settings:
     fold_loop: str = "occurrence"     # l'occurrence entière se replie (2026-08-08)
     fold_gate: str = "letter"         # veto de cohérence par lettre entière
     fold_transpose: bool = False      # pas de transposition avant l'empilement
+    #: fusion des lettres identiques nommées différemment — reste un argument
+    #: explicite de `fold_letter_groups` (2026-09-14, Louis) : recherche de
+    #: qualité de section en cours, pas encore une loi tranchée.
+    merge_letters: bool = False
 
 
 SETTINGS = Settings()

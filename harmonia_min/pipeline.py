@@ -44,6 +44,7 @@ from pathlib import Path
 import numpy as np
 
 from harmonia.bars import layout_bars
+from harmonia.settings import SETTINGS
 from harmonia_min import beats as _beats
 from harmonia_min import musx as _musx
 from harmonia_min.key_profiles import infer_key
@@ -564,76 +565,22 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
         # time and write its chords back on every contributing bar (variants
         # excluded — they keep the first-pass decode). Display folding comes
         # later.
-        from harmonia_min.folding import fold_letter_groups
-        # OÙ ON ADDITIONNE LES RÉPÉTITIONS : après le modèle (défaut) ou avant.
-        #
-        # `mean` — les postérieures. musx écoute CHAQUE passage séparément et
-        # on moyenne ce qu'il a compris.
-        # `cqt`  — les spectres. On moyenne les CQT des passages et musx
-        # écoute la moyenne. Coûte le CQT du morceau (~3 s, en cache) plus une
-        # inférence par lettre (~2 s). `HARMONIA_MERGE_CHECK=<seuil>` arme le
-        # contrôle d'adhésion, qui n'existe que sur cette loi-là.
-        #
-        # DÉFAUT `mean` DEPUIS LE 2026-08-19 — Louis, après avoir écouté
-        # /plots/cqt_vs_post.html (les 56 sections de la bibliothèque où les
-        # deux lois divergent, huit morceaux qu'il connaît, mesure par mesure) :
-        # « je préfère les postérieures empilées c'est + propre ». Ça renverse
-        # son arbitrage du 2026-08-12 (« validé partout c'est top avec la règle
-        # CQT moyenné »), qui avait été rendu sur une comparaison plus étroite.
-        # Le sens de l'écart est connu et mesuré : la moyenne de marginales
-        # lisse les extensions (This Love `C-7 F-7` devient `C- F-`), la
-        # moyenne de spectres les garde — sauf sur Be My Baby où c'est
-        # l'inverse. Il a tranché pour le plus propre.
-        # `HARMONIA_MERGE=cqt` restaure l'ancienne loi.
-        from harmonia_min.folding import loi_de_merge
-        _merge = loi_de_merge()
-        _mchk = os.environ.get("HARMONIA_MERGE_CHECK", "").strip()
-        _cqt = None
-        if _merge == "cqt":
-            try:
-                _cqt = _musx.song_cqt(audio_path)
-            except Exception:
-                logger.exception("HARMONIA_MERGE=cqt : CQT indisponible, on "
-                                 "retombe sur la moyenne de postérieures")
-                _merge = ""
-        # `loop="occurrence"` : quand une section n'a pas de boucle interne
-        # mais revient N fois à longueur égale, la section elle-même devient
-        # la période. Sans ça, le repli refusait 61 lettres sur 162 — le cas
-        # le plus fréquent du corpus, et celui que Louis décrivait au départ.
-        # HARMONIA_FOLD_LOOP=internal revient au comportement d'avant.
-        _loop = os.environ.get("HARMONIA_FOLD_LOOP", "occurrence").strip().lower()
-        # HARMONIA_FOLD_GATE=bar (Louis, 2026-08-19 : « souvent les 2 dernières
-        # barres sont différentes, auquel cas on n'empile que le début »).
-        # La concordance se décide alors MESURE PAR MESURE : la cadence qui
-        # change à chaque tour est exclue de la pile, le reste de la section
-        # garde la sienne. Défaut inchangé (`letter`, le veto par lettre) —
-        # une loi de merge réécrit TOUS les charts, elle passe en prod sur sa
-        # décision, pas sur la nôtre.
-        _gate = os.environ.get("HARMONIA_FOLD_GATE", "letter").strip().lower()
-        # HARMONIA_FOLD_TRANSPOSE=1 (Louis, 2026-08-19, sur Bora Bora : « il y a
-        # une montée d'un demi-ton… lors des repliements il faut transposer,
-        # sinon ça bousille l'input de musx »). Un passage rejoué plus haut est
-        # ramené dans le ton du premier avant d'entrer dans la pile, et le
-        # gabarit décodé lui est réécrit transposé en retour.
-        _tr = os.environ.get("HARMONIA_FOLD_TRANSPOSE", "").strip().lower() \
-            in ("1", "on", "true")
-        # HARMONIA_MERGE_LETTERS=1 (Louis, 2026-09-14, sur Sunny Afternoon :
-        # « la section A et C sont les mêmes, il faudrait les merger aussi »).
-        # songformer nomme un passage par son RÔLE (couplet/refrain/
-        # instrumental) ; un instrumental qui rejoue le refrain reçoit sa
-        # propre lettre même si les accords sont identiques. Vérifié sur ce
-        # morceau : A/C à 0.98-0.99 de similarité, plus haut que la
-        # cohérence interne de A elle-même. Défaut inchangé (off) — même
-        # règle que pour toute loi de merge : elle réécrit tous les charts,
-        # elle ne passe en prod que sur décision explicite.
-        _ml = os.environ.get("HARMONIA_MERGE_LETTERS", "").strip().lower() \
-            in ("1", "on", "true")
+        from harmonia.folding import fold_letter_groups
+        # OÙ ON ADDITIONNE LES RÉPÉTITIONS : après le modèle, sur les
+        # postérieures. musx écoute CHAQUE passage séparément et on moyenne ce
+        # qu'il a compris (Louis, 2026-08-19, après /plots/cqt_vs_post.html :
+        # « je préfère les postérieures empilées c'est + propre » — renverse
+        # son arbitrage du 2026-08-12 pour la moyenne de spectres CQT). Seule
+        # loi de production depuis le refactor (décision 4, 2026-09-14) : plus
+        # d'alternative CQT, de veto mesure-par-mesure ni de transposition à
+        # activer par variable d'environnement — voir `harmonia.folding` pour
+        # ce qui a été supprimé et pourquoi. `merge_letters` (Louis,
+        # 2026-09-14, Sunny Afternoon : « la section A et C sont les mêmes »)
+        # reste le seul réglage explicite, recherche de qualité de section en
+        # cours, défaut off.
         fold_report = fold_letter_groups(
             sections, bars, grid, probs, bpb, arr=_arr, times=_times,
-            combine=("cqt" if _merge == "cqt" else "mean"),
-            cqt=_cqt, loop=_loop, gate=_gate, transpose=_tr,
-            merge_letters=_ml,
-            check_thr=(float(_mchk) if _mchk and _merge == "cqt" else None))
+            merge_letters=SETTINGS.merge_letters)
         # repetition counts recomputed on the folded chords
         from collections import Counter as _C2
         fam2 = _C2()
