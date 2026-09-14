@@ -1284,4 +1284,162 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
             "bars": [bars[b] for b in block_rng],
             "barSpans": rows,
         })
-    return out
+    # ── LA FAÇON IREAL : une lettre = un seul bloc écrit ────────────────────
+    # (Louis, 2026-09-14 : « tu ne peux pas afficher un A deux fois »).
+    # Spec complète : docs/spec_affichage_sections.md.
+    for blk in out:
+        _ireal_endings(blk, bars, grid)
+    return _ireal_cascade(out, bars, grid, fold_report)
+
+
+# ── LA FAÇON IREAL ─────────────────────────────────────────────────────────
+# Voir docs/spec_affichage_sections.md. Une lettre nomme UN bloc écrit ; la
+# répétition est une marque (×N, fins 1./2., prime), jamais une deuxième copie
+# de la lettre. iReal écrit `*A` une fois et met le reste dans `{ }`, `N1`/`N2`,
+# `S`/`Q` — deux `*A` dans une grille n'existent pas.
+
+#: Marques de variante, dans l'ordre (règle 5). A′ se lit « A prime », c'est la
+#: notation Real Book pour « la même section, mais pas tout à fait ».
+_PRIMES = ("\u2032", "\u2033", "\u2034", "\u2057")
+
+#: Au-delà, ce n'est plus une fin alternative, c'est une autre musique.
+_ENDING_TAIL_MAX = 2
+
+
+def _barsig(bar) -> tuple:
+    """Ce qu'une mesure JOUE, pour comparer deux passages entre eux."""
+    return tuple((c["root"], c["q"], bool(c["nc"])) for c in (bar or []))
+
+
+def _ireal_endings(blk: dict, bars, grid) -> None:
+    """Règle 2 : des passages qui ne diffèrent QUE sur leur queue deviennent
+    UN bloc avec une 1ʳᵉ et une 2ᵉ fin. Mute `blk` sur place.
+
+    Le rendu existe depuis 2026-07-21 dans `app_shell.html` (le crochet
+    « ⌐1. » suspendu) mais rien ne l'alimentait sur le chemin vivant : il
+    n'était écrit que par `display_fold`, que la pipeline n'appelle pas. Le
+    contrat qu'il attend, dans cet ordre : `bars` = le passage ENTIER,
+    `endings.variants[i].bars` = la queue de ce variant, et `barSpans` listé
+    « les mesures du tronc commun, puis la queue de chaque variant ».
+
+    Ne s'applique QUE si le bloc écrit est un passage entier : quand le repli
+    a déjà réduit le bloc à sa cellule (4 mesures pour un passage de 8), il
+    n'y a pas de place pour suspendre une queue.
+    """
+    ranges = [tuple(r) for r in blk["barRanges"]]
+    if len(ranges) < 2 or blk.get("endings"):
+        return
+    lens = {c1 - c0 + 1 for c0, c1 in ranges}
+    if len(lens) != 1:
+        return
+    L = lens.pop()
+    if len(blk["bars"]) != L or L < 3:
+        return
+    sigs = [[_barsig(bars[c0 + r]) for r in range(L)] for c0, _ in ranges]
+    prefix_len = L
+    for r in range(L):
+        if len({s[r] for s in sigs}) > 1:
+            prefix_len = r
+            break
+    tail = L - prefix_len
+    if not (1 <= tail <= _ENDING_TAIL_MAX) or prefix_len < 2:
+        return
+    bytail: dict[tuple, list[int]] = {}
+    for pi, s in enumerate(sigs):
+        bytail.setdefault(tuple(s[prefix_len:]), []).append(pi)
+    if len(bytail) < 2:
+        return
+    # UNE VRAIE 2e FIN CHANGE D'ACCORD, PAS DE COULEUR (2026-09-14). Sur Sunny
+    # Afternoon la queue des trois refrains ne diffère que par `C7` contre
+    # `Cm7` sur la dernière mesure — et cette mesure-là est justement celle que
+    # le repli met hors de la pile (la cadence de fin de section), donc son
+    # décodage est du premier jet, passage par passage. Suspendre un crochet
+    # « 1./2. » pour ça, c'est sur-noter du bruit. On exige donc que la queue
+    # change de FONDAMENTALE quelque part (This Love : `B♭ E♭` contre `A♭ G`).
+    roots = {tuple(b[0] for b in key) for key in bytail}
+    if len(roots) < 2:
+        return
+    variants = []
+    rows = [[[grid[c0 + r], grid[min(len(grid) - 1, c0 + r + 1)]]
+             for c0, _ in ranges] for r in range(prefix_len)]
+    for _key, passes in sorted(bytail.items(), key=lambda kv: kv[1][0]):
+        v0 = ranges[passes[0]][0]
+        variants.append({"passes": passes,
+                         "bars": [bars[v0 + r] for r in range(prefix_len, L)]})
+        for r in range(prefix_len, L):
+            rows.append([[grid[ranges[pi][0] + r],
+                          grid[min(len(grid) - 1, ranges[pi][0] + r + 1)]]
+                         for pi in passes])
+    blk["endings"] = {"tail": tail, "variants": variants}
+    blk["barSpans"] = rows
+    logger.info("ireal: %s ×%d → une 1re/2e fin (tronc %d mes., queue %d, "
+                "%d variantes)", blk["label"], len(ranges), prefix_len, tail,
+                len(variants))
+
+
+def _ireal_cascade(out: list[dict], bars, grid, fold_report) -> list[dict]:
+    """Règles 3 et 5 + l'invariant : jamais deux blocs sous la même étiquette.
+
+    Règle 3 — un passage COUPÉ (il s'arrête en cours de boucle) rejoint le
+    bloc long : même lettre, `reps` augmenté, et il n'allume que les mesures
+    qu'il joue réellement. C'est le cas de Sunny Afternoon, dont le « A de 6
+    mesures » est la cellule de 4 jouée une fois et demie.
+
+    Règle 5 — tout ce que la cascade n'a pas réduit prend un prime (A′, A″).
+    Un deuxième « A » nu ne sort jamais d'ici.
+    """
+    by_label: dict[str, list[dict]] = {}
+    for blk in out:
+        by_label.setdefault(blk["label"], []).append(blk)
+    drop: set[int] = set()
+    for label, blks in by_label.items():
+        if len(blks) < 2:
+            continue
+        # l'hôte = le plus joué (à égalité, le premier dans le morceau)
+        host = max(blks, key=lambda b: (b["reps"], -out.index(b)))
+        rep = fold_report.get(label) or {}
+        P = None if rep.get("reason") else rep.get("period")
+        cell = [_barsig(b) for b in host["bars"][:P]] if P else None
+        rank = 0
+        for blk in blks:
+            if blk is host:
+                continue
+            if _merge_coupe(host, blk, cell, P, grid):
+                drop.add(id(blk))
+                continue
+            rank += 1
+            blk["label"] = label + (_PRIMES[rank - 1] if rank <= len(_PRIMES)
+                                    else str(rank))
+            logger.info("ireal: %s devient %s (même lettre, autre musique)",
+                        label, blk["label"])
+    return [b for b in out if id(b) not in drop]
+
+
+def _merge_coupe(host: dict, blk: dict, cell, P, grid) -> bool:
+    """Règle 3. Rend True si `blk` a été absorbé par `host`.
+
+    Le test se fait contre la CELLULE de la lettre, pas contre le bloc long :
+    c'est la cellule qui est l'unité réelle (le bloc long, c'est la cellule
+    jouée deux fois, avec parfois une mesure qui garde la lecture d'un
+    passage). Sunny Afternoon en est l'exemple : le bloc de 8 a un `B♭m7` de
+    plus en mesure 2, le bloc de 6 suit la cellule à la note près.
+    """
+    if not P or not cell or host.get("endings"):
+        return False
+    if len(blk["bars"]) >= len(host["bars"]):
+        return False
+    if any(_barsig(bar) != cell[i % P] for i, bar in enumerate(blk["bars"])):
+        return False
+    n_rows = len(host["barSpans"])
+    for c0, c1 in blk["barRanges"]:
+        for b in range(c0, c1 + 1):
+            r = b - c0
+            if r < n_rows:
+                host["barSpans"][r].append(
+                    [grid[b], grid[min(len(grid) - 1, b + 1)]])
+    host["barRanges"] += [list(r) for r in blk["barRanges"]]
+    host["spans"] += [list(s) for s in blk["spans"]]
+    host["reps"] += blk["reps"]
+    logger.info("ireal: passage coupé mes. %s rejoint %s (×%d désormais)",
+                blk["barRanges"], host["label"], host["reps"])
+    return True
