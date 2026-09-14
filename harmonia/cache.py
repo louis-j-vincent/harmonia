@@ -41,6 +41,11 @@ KINDS = {
 }
 
 
+def folder(kind: str, settings: Settings = SETTINGS) -> Path:
+    """Le dossier d'un cache — pour les ponts et les outils qui listent ou vident."""
+    return KINDS[kind][0](settings)
+
+
 def path(kind: str, audio: Path, settings: Settings = SETTINGS) -> Path:
     folder, key, ext = KINDS[kind]
     return folder(settings) / (key(audio) + ext)
