@@ -101,3 +101,22 @@ recherche iReal OK par la route (résultats standards + forum).
   le réseau vivant ; la recherche n'a pas de test hors-ligne.
 
 **Suivant.** Sprint 2 : `labels.py`, `key_profiles.py`.
+
+## Sprint 2 — 2026-09-14 · `labels.py`, `key_profiles.py`
+
+**Fait.** Les deux modules purs (aucun chemin, aucune variable d'environnement)
+déménagent par `git mv` dans `harmonia/` ; `harmonia_min/labels.py` et
+`harmonia_min/key_profiles.py` deviennent des ponts (`from harmonia.X import *`,
+plus les deux tables privées `_TAIL_PCS`/`_TRIAD_PCS` que `harmonic_key`
+importe). Les ponts disparaissent avec harmonia_min (sprint 22). Fait à la
+main plutôt que délégué : deux déplacements et deux ponts de trois lignes.
+
+**Docstrings.** `labels.py` commençait par son propre chemin de fichier
+(liste des erreurs à ne pas reporter, point 3) ; `key_profiles.py` promettait
+une détection de modulation que cette copie n'a jamais eue (tronquée au
+2026-07-30) — remplacée par la phrase « ce que ce module ne fait PAS ».
+
+**Mesuré.** Rapport d'or 46/46 identiques, 0 mesure changée. pytest : 326
+passés en 5 s (aucun test n'importe ces deux modules directement).
+
+**Suivant.** Sprint 3 : `beats.py` sur `harmonia.cache`.
