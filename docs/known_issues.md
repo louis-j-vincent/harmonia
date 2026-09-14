@@ -28020,3 +28020,30 @@ l'aveugle. Une fois la fusion faite, 5 témoins sur 6 disent en fait
 CLAUDE.md règle #5). Pas encore vérifié sur le reste du corpus annoté
 avant de devenir le défaut. `intro`/`outro` jamais comparés par design
 (repères de structure, pas matière musicale).
+
+## L'invariant « une lettre = un bloc » révèle 73 blocs uniques (2026-09-14)
+
+Louis : « tu ne peux pas afficher un A deux fois ». Cascade d'affichage
+iReal codée (spec : `docs/spec_affichage_sections.md`), bibliothèque recuite,
+invariant tenu partout : **32 morceaux corrigés, 0 doublon restant**.
+
+Mais la règle 5 (prime : A′) a dû s'appliquer **73 fois** sur 45 charts. Un
+prime ne crée rien — il NOMME un bloc que le découpage produisait déjà :
+une lettre rejouée à une longueur différente, qui sortait jusqu'ici comme un
+deuxième « A » silencieux. Le chiffre est donc une mesure de la
+**segmentation**, pas de l'affichage : sur `dOQXg6rK86I` le chart lit
+`A′ A B C′ C″ B′ C×2 C‴`, ce qu'aucun vrai chart n'écrirait. Les deux
+lectures possibles, à trancher à l'oreille :
+  * le détecteur coupe trop fin (des passages qui sont la même section
+    reviennent à des longueurs légèrement différentes) ;
+  * ou la règle 3 (« passage coupé ») est trop stricte — elle exige une
+    correspondance exacte, mesure à mesure, avec la cellule ou le début du
+    bloc long ; une seule mesure de décodage différent suffit à la refuser.
+
+Second point à arbitrer : This Love porte maintenant **4 fins** (1./2./3./4.)
+sur son refrain. C'est fidèle (4 passages, 4 queues différentes) mais aucun
+vrai chart n'écrit ça — un plafond à 2 ou 3 variantes, le reste tombant en
+prime ou en « dernière fois », serait plus lisible.
+
+Page avant/après pour arbitrer : `/reports/avant_apres.html` (5 morceaux dont
+la MUSIQUE change ; les autres ne changent que d'étiquettes).
