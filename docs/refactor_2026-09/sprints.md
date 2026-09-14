@@ -330,3 +330,36 @@ pour les ponts : on patche le module réel, jamais le pont.
 225 passés + 1 échec hérité.
 
 **Suivant.** Sprints 11–14 (serveur en blueprints), en cours en parallèle.
+
+## Sprints 11–14 — 2026-09-14 · le serveur en blueprints, `harmonia/server/`
+
+**Fait (un agent Sonnet, quatre groupes de routes, portes après chacun ; en
+parallèle du sprint 10).** `harmonia_min/server.py` (1 784 lignes) devient
+onze modules : `app.py` (fabrique + routes statiques + 404 honnête),
+`jobs.py` (registre des jobs — avec un verrou, qu'il n'y avait pas —,
+`_run_job`, `_resolve_audio`), `youtube.py` (yt-dlp, PO-token, obsolescence,
+recopiés tels quels), `routes/{library,analyze,annotate,sections,jam,irealb}.py`.
+`python -m harmonia.server` sert sur `SETTINGS.port`. Plus aucun
+`os.environ` ni `__file__` dans `harmonia/server`. Routes supprimées
+(décision 3) : `/min/<f>` (et `minimal_view.py`), `/debug/section-merge-game`,
+`/api/section-merge-verdict`, `/api/tab-import`. Les deux routes retirées
+`/api/reinfer` et `/api/context_rescore` répondent toujours 410 (le shell
+appelle encore l'une d'elles). `harmonia_min/server.py` est un pont qui garde
+`python -m harmonia_min.server` vivant jusqu'au sprint 22. La durée ffprobe du
+job est transmise à `analyze_steps` (sprint 10) : plus de double calcul.
+
+**Vérifié.** Serveur du worktree relancé sur :7773 avec le NOUVEAU point
+d'entrée (arrêt par PID du port) : `/`, `/api/library`, chart-model,
+annotations, sections, export iReal, reports → 200 ; reinfer → 410 ; `/min` →
+404. Capture Playwright à 375 px : This Love, C mineur, sections avec les
+fins 1./2./3. de la cascade, transport et dock — un vrai chart. Rapport d'or
+46/46 identiques (moteur `harmonia`) ; pytest 225 passés + 1 hérité.
+
+**Note de l'agent, exacte.** Un `POST /api/analyze` sur un morceau de la
+bibliothèque ne reproduit pas octet pour octet le chart de la baseline : la
+baseline passe par le composite du recuit (titre repris de l'ancien chart,
+sections validées à la main rejouées), pas par la route. C'était déjà vrai
+avant le refactor ; la preuve que rien ne fuit est le rapport d'or.
+
+**Suivant.** Sprint 15 : l'état humain sous git, les caches à part, la
+marque « Set bar 1 » hors du chart, les clés de cache renommées en place.
