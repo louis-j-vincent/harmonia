@@ -92,15 +92,30 @@ function t4(){
 
 
 def create_app() -> Flask:
-    app = Flask(__name__)
+    # static_folder=None: Flask's own auto-registered "/static/<path:filename>"
+    # route (rooted at harmonia/server/static/, which doesn't exist) would
+    # otherwise shadow the explicit /static route below (rooted at
+    # harmonia/static/, the sprint-16 frontend split's actual home) — same
+    # URL pattern, first-registered wins, 404 either way without this.
+    app = Flask(__name__, static_folder=None)
     CHARTS_DIR.mkdir(parents=True, exist_ok=True)
 
     @app.get("/")
     def index():
-        # Sprint 16 déplace le shell dans `harmonia/server/static/` ; jusque
-        # là c'est le MÊME fichier, servi octet pour octet, que
-        # `harmonia_min.server` servait.
-        return send_file(SETTINGS.repo / "harmonia_min" / "app_shell.html")
+        # Sprint 16 : le shell est maintenant le host statique
+        # `harmonia/static/index.html` (le même <head>/<style>/markup que
+        # `harmonia_min/app_shell.html`, moins le <script> inline — voir
+        # /static/main.js). `harmonia_min/app_shell.html` reste sur place,
+        # intact, pour que `python -m harmonia_min.server` (:7772/:7773 avant
+        # le swap du sprint 21) continue de servir l'ancien fichier.
+        return send_file(SETTINGS.repo / "harmonia" / "static" / "index.html")
+
+    @app.get("/static/<path:name>")
+    def static_files(name):
+        """Les modules ES du shell (main.js, state.js, ui/, screens/…),
+        servis tels quels — pas de bundler, pas d'étape de build (plan
+        « Frontend split design »)."""
+        return send_from_directory(SETTINGS.repo / "harmonia" / "static", name)
 
     @app.get("/audio/<path:name>")
     def audio(name):
@@ -138,7 +153,7 @@ def create_app() -> Flask:
     @app.get("/reports/<path:name>")
     def reports(name):
         """Pipeline explainer reports (state/reports/*.html)."""
-        return send_from_directory(SETTINGS.state_dir / "reports", name)
+        return send_from_directory(SETTINGS.reports_dir, name)
 
     @app.get("/plots/<path:name>")
     def plots(name):
