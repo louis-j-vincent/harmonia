@@ -1,4 +1,4 @@
-"""scripts/section_metric.compare — la distance entre deux découpages.
+"""tools.sections_bench.section_metric.compare — la distance entre deux découpages.
 
 Louis, 2026-08-07 : « vérifie que ta métrique de correction d'annotation est
 bonne ». Ce fichier EST cette vérification. Chaque test est un cas construit
@@ -13,14 +13,9 @@ et pour rien d'autre.
 """
 from __future__ import annotations
 
-import os
-import sys
-
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__))), "scripts"))
-from section_metric import compare                              # noqa: E402
+from tools.sections_bench.section_metric import compare
 
 N = 40
 # la vérité de référence : une intro, deux A collés, un B, un A
@@ -235,7 +230,7 @@ def test_apres_reparation_plus_aucun_chevauchement():
     différentes n'est pas un fantôme — c'est un vrai désaccord de frontière — et
     on le tronque plutôt que de le supprimer, mais dans tous les cas ce qui sort
     est un découpage lisible."""
-    from section_metric import segs
+    from tools.sections_bench.section_metric import segs
     for spec in ("intro:0-7 A:8-17 B:16-23 A:24-31 B:32-39",
                  "intro:0-7 A:8-9 A:8-15 B:16-23 A:24-31 B:32-39",
                  "A:0-39 B:4-8 C:4-8 D:0-39"):

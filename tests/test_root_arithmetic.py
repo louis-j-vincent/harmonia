@@ -12,14 +12,8 @@ Claims covered:
   6. max_ll_over_keys finds the right root
   7. double-check: wrong root label formula catches the old bug
 """
-import sys
-from pathlib import Path
 import numpy as np
 import pytest
-
-REPO = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO))
-sys.path.insert(0, str(REPO / "scripts"))
 
 NOTE   = ["C","Db","D","Eb","E","F","F#","G","Ab","A","Bb","B"]
 DEGREE = ["R","b2","2","b3","3","4","b5","5","#5","6","b7","7"]

@@ -1,9 +1,19 @@
 # harmonia_min expliqué — pour le réimplémenter soi-même
 
+**HISTORIQUE (sprint 20 du refactor, 2026-09-14).** Ce document décrit
+`harmonia_min`, l'app qui a servi de référence pendant le refactor. Le nouveau
+paquet `harmonia/` (voir `docs/STATE.md`) a un layout différent — sections en
+sous-package, routes en blueprints, un seul point de lecture de
+l'environnement (`settings.py`). Utile pour comprendre le RAISONNEMENT
+derrière chaque étage (pourquoi songformer tourne en sous-processus, pourquoi
+le fold n'a qu'une loi, etc.), pas pour trouver un chemin de fichier actuel.
+`harmonia_min` disparaît à la fin du refactor (sprint 22).
+
 2026-08-05, branche `feat/chord-lm` @ 3c58773. Compagnon du schéma
 `docs/harmonia_min_schema.png` (régénérable :
-`scripts/render_harmonia_min_schema.py`). Objectif : comprendre chaque étage
-assez pour le refaire de zéro, sans lire le code.
+`archive/scripts/render_harmonia_min_schema.py`, archivé au sprint 20 — il
+dessine le pipeline `harmonia_min` spécifiquement, pas le nouveau). Objectif :
+comprendre chaque étage assez pour le refaire de zéro, sans lire le code.
 
 Vue en une phrase : **audio → beats (Beat This!) → posteriors d'accords
 (musx) → re-décodage sur NOS beats → mesures → sections → folding →

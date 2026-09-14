@@ -27,6 +27,19 @@ Usage, depuis la racine du worktree :
 
 Sortie : `<out>/<clé>.json` par morceau, `<out>/_report.json`, `<out>/_golden.log`.
 Code de retour 1 seulement sur ERREUR (exception) ; froid ou différent = 0.
+
+`--publish` (sprint 20, remplace `scripts/rebake_library.py`) : cuit comme
+d'habitude dans `--out`, puis, chart par chart, déplace chaque réussite dans
+la bibliothèque RÉELLE du moteur (`eng["charts"]`) — jamais tout d'un coup :
+une interruption au milieu laissait sinon une bibliothèque mi-ancienne
+mi-nouvelle, indistinguable d'un bug. Comme l'ancien script, refuse de
+démarrer sans `--backup <dossier existant>` (une session concurrente peut
+travailler sur les mêmes fichiers) sauf en `--dry-run`, qui cuit et affiche
+sans rien publier.
+
+    python -m tools.golden --engine harmonia --out state/cache/golden/pub \\
+        --publish --backup docs/archive/charts.bak_20260914
+    python -m tools.golden --engine harmonia --out /tmp/x --publish --dry-run
 """
 from __future__ import annotations
 
@@ -34,6 +47,7 @@ import argparse
 import copy
 import json
 import logging
+import shutil
 import sys
 import time
 import traceback
@@ -253,7 +267,20 @@ def main(argv=None) -> int:
                     "(défaut : la bibliothèque du moteur)")
     ap.add_argument("--only", action="append", default=[])
     ap.add_argument("--limit", type=int)
+    ap.add_argument("--publish", action="store_true",
+                    help="publie chaque chart réussi dans la bibliothèque du "
+                    "moteur, un par un (remplace scripts/rebake_library.py)")
+    ap.add_argument("--backup", type=Path,
+                    help="dossier de sauvegarde EXISTANT de la bibliothèque — "
+                    "requis avec --publish, sauf --dry-run")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="avec --publish : cuit et affiche, ne publie rien")
     a = ap.parse_args(argv)
+
+    if a.publish and not a.dry_run and not (a.backup and a.backup.is_dir()):
+        print("refus : --publish exige --backup <dossier de copie existant> "
+              "(ou --dry-run). Une bibliothèque se remplace avec un filet.")
+        return 2
 
     a.out.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s",
@@ -318,6 +345,19 @@ def main(argv=None) -> int:
         chang = sum(r.get("mesures_changees") or 0 for r in oks)
         ligne += f" · identiques {ident}/{len(oks)} · mesures changées {chang}"
     print(ligne, flush=True)
+
+    if a.publish:
+        if a.dry_run:
+            print(f"--dry-run : {len(oks)} chart(s) seraient publiés dans "
+                  f"{eng['charts']}, la bibliothèque n'est pas touchée")
+        else:
+            moved = 0
+            for k, r in report.items():
+                if r["status"] != "ok":
+                    continue
+                shutil.move(str(a.out / f"{k}.json"), str(eng["charts"] / f"{k}.json"))
+                moved += 1
+            print(f"{moved} chart(s) publié(s) dans {eng['charts']}")
     return 1 if n_err else 0
 
 

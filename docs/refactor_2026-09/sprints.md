@@ -396,3 +396,121 @@ corriger quand l'agent du frontend aura rendu `app.py`.
 
 **Mesuré.** Rapport d'or 46/46 identiques ; pytest 229 passés + 1 hérité ;
 `state/human` non ignoré, `state/cache` ignoré (vérifié par `git check-ignore`).
+
+## Sprint 20 — 2026-09-14 · hygiène : scripts/, scratchpad/, docs, config
+
+**Fait.** Fermeture calculée à partir des 8 racines citées par le skill
+`ship`/les docstrings serveur/l'explainer (`bench.py`, `rebake_library.py`,
+`soudure_pages.py`, `ssm_playhead.py`, `quatre_mots.py`, `backfill_titles.py`,
+`render_harmonia_min_schema.py`, `songformer_en_prod.py`) : 27 scripts + 5
+modules `scratchpad/` (import `sys.path` lazy, retrouvés jusque dans
+`vocal_melody.sub_voix` → `blocks8` et `rhythm_ssm` → `pattern_slide`/
+`section_merge_declined`). Sur 489 fichiers suivis dans `scripts/` : 20 (le
+banc `bench.py` et sa chaîne) → `tools/sections_bench/` (+ 5 copies
+`scratchpad/`, qui devient non suivi) ; 4 utilitaires réutilisables cités par
+du code de prod (`quatre_mots.py` est la source dont `harmonia_min/phrases4.py`
+dit venir, `backfill_titles.py` celle que `titles.py` cite) → `tools/` ; 2
+migrations ponctuelles déjà jouées (`songformer_en_prod.py`,
+`render_harmonia_min_schema.py`) → `archive/scripts/` ; 464 scripts → `archive/
+scripts/` ; `rebake_library.py` supprimé après avoir porté son `--publish`
+(cuire dans un dossier séparé, publier chart par chart, refus sans `--backup`)
+dans `tools/golden.py`. `scratchpad/` (488 fichiers) untracké
+(`git rm -r --cached` + `/scratchpad/` dans `.gitignore`).
+
+**Bug retrouvé et corrigé en chemin.** `ssm_zoo.capture()` espionnait
+`harmonia_min.sections.detect_sections` (supprimé au sprint 9) au lieu du
+module réel `harmonia.sections` — même leçon que le sprint 10 (« on patche le
+module réel, jamais le pont »). Corrigé ; `bench.py` importe proprement et
+patche la bonne cible, mais ne tourne toujours pas de bout en bout : la
+nouvelle signature `detect_sections(grid, audio, form_start=None)` ne reçoit
+plus les tableaux NNLS/musx pré-calculés que l'espion attend — à réécrire
+(piste qualité-des-sections, après la bascule prod).
+
+**Tests.** `test_brick0_drift.py`, `test_build_aligned_corpus.py` supprimés
+(importaient des scripts archivés) ; `test_section_metric.py` pointé sur
+`tools.sections_bench.section_metric` ; `test_root_arithmetic.py` débarrassé
+d'un `sys.path.insert` mort (le fichier n'importait déjà rien de `scripts/`) ;
+`test_bar1_persistence.py::test_le_rebake_repasse_la_marque` réécrit contre
+`tools.golden.cuire` (moteur `harmonia_min`) au lieu de charger dynamiquement
+un fichier supprimé.
+
+**Config.** `pyproject.toml` : dépendances réduites à ce que `harmonia/`
+importe réellement (numpy, scipy, torch, flask, beat_this, librosa,
+soundfile, vamp, huggingface_hub, safetensors, curl_cffi, pyRealParser,
+yt-dlp) — numpyro/jax/basic-pitch/music21/pretty_midi/mir_eval/click/rich/
+pydantic/pandas/matplotlib retirés (aucun import dans `harmonia/`) ;
+`harmonia.cli:main` (fichier inexistant) retiré, `harmonia-server =
+harmonia.server.__main__:main` ajouté (`main()` existe). `Makefile` : `serve`/
+`golden`/`test`/`migrate-state`, les cibles POP909/fluidsynth/legacy retirées.
+`setup.sh` **archivé, pas réécrit** : la mémoire « un setup.sh lancé a vidé
+l'env » (2026-08-19, exécuté dans le clone obsolète qui partage le même
+`.venv` symlinké) est un incident réel, pas théorique — un script qui
+recrée un venv à cet endroit reste un pistolet chargé même réécrit « proprement
+». `.claude/skills/ship/SKILL.md` : la chaîne pointe sur `tools.golden`
+(rapport d'or) au lieu de `scripts/bench.py`, `tools.golden --publish` au lieu
+de `scripts/rebake_library.py`, redémarrage par PID du port explicité, étape
+miroir retirée (`state/human` est suivi). `CLAUDE.md` : sections « Hard-won
+process rules », « Collaboration conventions », « Default working habits »,
+« Model Tier » intouchées mot pour mot ; description, « Where things live »,
+« Environment gotchas » réécrites. `README.md` réécrit court. `docs/STATE.md`
+(140 lignes, nouveau) et `docs/known_issues.md` (60 lignes, réécrit ; ancien
+journal → `docs/archive/known_issues_2026-07_2026-09.md`, 27 984 lignes).
+
+**Clutter suivi → `archive/`.** Le zip, les deux `.html` orphelins, le
+résumé de dashboard, `handoff 2/` → `archive/` ; `handoff_cleanup/` (le
+modèle d'un refactor qui a marché) → `docs/handoffs/handoff_cleanup_2026-08-19/`,
+gardé intact. Non suivi (zip, dossiers `handoff 3`/`handoff_ui_refresh*`,
+`.egg-info`, `.coverage`) : vit dans l'arbre principal seulement, signalé,
+pas touché.
+
+**Synchronisation.** La session concurrente sur le frontend a commité les
+sprints 16-19 (`3f6c549`) pendant ce sprint — vérifié qu'aucun fichier
+n'était en commun avec ce qui était indexé ici avant de continuer.
+
+**Mesuré.** Rapport d'or 46/46 identiques, 0 mesure changée. pytest : 190
+collectés (230 − 40 tests des deux fichiers supprimés) = 189 passés + 1
+échec hérité (`test_minimal_fold_separe_les_longueurs_dune_meme_lettre`,
+inchangé). `git ls-files` : 2248 → 1780.
+
+**Non résolu, dans `docs/known_issues.md`.** Le test hérité, UG 500, deux
+morceaux froids, les deux clés vides du fold, trois scripts archivés sur
+l'ancienne clé musx, les anciennes clés `data/cache/`, SongFormer SIGKILL
+(mitigé, pas re-testé), l'explainer devenu historique, la reprise de la
+recherche qualité-des-sections.
+
+**Suivant.** Sprint 21 : bascule prod (demander à Louis avant).
+
+## Sprint 20 — 2026-09-14 · l'hygiène du dépôt
+
+**Fait (agent Sonnet ; déplacements par `git mv`, rien de supprimé par
+motif).** `scripts/` (489 fichiers) : 4 outils réutilisables → `tools/`
+(`quatre_mots`, `backfill_titles`, `soudure_pages`, `ssm_playhead`), le banc
+de recherche sur les sections (`bench.py` et sa fermeture d'imports, 20
+scripts + 5 modules copiés depuis `scratchpad/`) → `tools/sections_bench/`
+en vrai paquet (plus de `sys.path`), 464 → `archive/scripts/`,
+`rebake_library.py` supprimé et remplacé par `tools.golden --publish` (même
+garde-fou `--backup`). `scratchpad/` (488 fichiers suivis, 1,7 Go) n'est plus
+suivi. Le fatras suivi de la racine (zip, HTML, résumés) → `archive/` ;
+`handoff_cleanup/` → `docs/handoffs/` (c'est le modèle du refactor qui a
+marché). `docs/known_issues.md` (27 984 lignes) archivé, un nouveau de 60
+lignes avec ce qui est vraiment ouvert ; `docs/STATE.md` (140 lignes) dit ce
+qui est vrai aujourd'hui. `CLAUDE.md` : description, « où vivent les choses »
+et « pièges » réécrits ; les règles de travail gardées mot pour mot.
+`pyproject.toml` décrit le paquet réel (dépendances tirées des imports de
+`harmonia/`, point d'entrée `harmonia-server`) ; `Makefile` : `serve`,
+`golden`, `test`, `migrate-state` ; `setup.sh` archivé (il a déjà vidé le venv
+partagé une fois) ; le skill `ship` décrit la nouvelle chaîne (rapport d'or,
+page avant/après, arrêt par PID du port). Fichiers suivis : 2 248 → 1 780.
+
+**Trouvé en chemin.** `ssm_zoo.capture()` patchait le pont `harmonia_min.sections`
+au lieu du vrai module (la leçon du sprint 10, encore) — corrigé.
+`bench.py --quick` importe mais ne finit plus : la nouvelle signature de
+`detect_sections` ne lui donne plus les tableaux NNLS/musx — c'est le chantier
+de la piste « qualité des sections », noté dans `known_issues.md`.
+
+**Mesuré.** Rapport d'or 46/46 identiques (baseline désormais en
+`state/cache/golden/baseline`) ; pytest 189 passés + 1 hérité (les 40 tests des
+deux fichiers de scripts archivés en moins) ; `make -n serve golden test`
+imprime les bonnes commandes.
+
+**Suivant.** Sprint 21, le basculement en prod — sur décision de Louis.

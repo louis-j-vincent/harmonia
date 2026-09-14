@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Use whenever a change is finished and verified and it should reach Louis — and ALWAYS instead of waiting for him to say "push", "mets en prod", "commit". Runs the whole chain: bench, render check, log, commit, push, library rebake. Also use when he does say it, to make sure nothing in the chain is skipped.
+description: Use whenever a change is finished and verified and it should reach Louis — and ALWAYS instead of waiting for him to say "push", "mets en prod", "commit". Runs the whole chain: golden report, tests, render check, log, commit, push, library publish. Also use when he does say it, to make sure nothing in the chain is skipped.
 ---
 
 # Shipper, c'est une chaîne — pas un `git push`
@@ -27,30 +27,25 @@ Charger le skill `branch-safety` et le suivre. Le dépôt est un seul arbre de
 travail partagé par plusieurs sessions ; la branche courante peut avoir changé
 sous les pieds depuis le dernier tour.
 
-### 2. Est-ce que ça régresse ?
+### 2. Est-ce que ça régresse ? — le rapport d'or
 
-    .venv/bin/python scripts/bench.py --quick    # ~2 s, les 4 morceaux chauds
-    .venv/bin/python scripts/bench.py            # les 18 annotés
+    .venv/bin/python -m tools.golden --engine harmonia --out state/cache/golden/ship \
+        --baseline state/cache/golden/baseline
 
-Sort en code 1 sur tout recul de plus de 0,005. **Un recul arrête le ship** — on
-le comprend ou on l'assume explicitement dans le message de commit, on ne le
-découvre pas trois jours plus tard.
+Ce n'est pas une porte qui bloque : c'est un rapport que Louis arbitre (« a
+different chart doesn't mean you did bad work, you will have to tell me what
+the differences are and I'll arbitrate »). Zéro mesure changée = rien à
+arbitrer, on continue. Sinon :
 
-Si le banc dit « LA MÉTRIQUE A CHANGÉ » : les écarts ne mesurent pas le modèle.
-Relancer `--save` et l'écrire dans le message de commit.
+    .venv/bin/python -m tools.avant_apres --before state/cache/golden/baseline \
+        --after state/cache/golden/ship
 
-Si la modification ne touche pas les sections, sauter cette étape en le disant.
+publie la page AVANT/APRÈS (mesure par mesure, cliquable pour écouter) — montrer
+à Louis, jamais trancher à sa place. Un chart froid (cache manquant) est
+signalé, jamais relancé pour le rapport.
 
-### 2 bis. Sauver les étiquettes de Louis
-
-    cp harmonia_min/state/sections/*.json docs/ground_truth/sections/
-    git status --short docs/ground_truth/sections/
-
-`harmonia_min/state/` est **gitignoré**. Les annotations de sections y vivent, et
-elles sont la contrainte qui dimensionne tout le projet — une annotation non
-copiée est une annotation non sauvegardée. Le 2026-08-12, celle qu'il venait de
-faire n'était dans aucun commit. Copier à chaque ship, et commiter le miroir avec
-le reste.
+Si la modification ne touche pas les sections/le chart, sauter cette étape en
+le disant.
 
 ### 3. Les tests du périmètre touché
 
@@ -80,23 +75,37 @@ il y en a. Terminer par :
 
     Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 
-### 7. Mettre en prod, si ça change ce que l'app sert
+### 7. Republier la bibliothèque, si ça change ce que l'app sert
 
-L'app live est `harmonia_min` sur le port **7772**. Une loi de merge, un moteur
-de sections, un changement de chart réécrivent tous les charts servis :
+Un chart est cuit une fois puis servi tel quel : changer une loi du repli ne
+change donc RIEN à ce que Louis voit tant que les charts ne sont pas republiés.
 
-    .venv/bin/python scripts/rebake_library.py
+    .venv/bin/python -m tools.golden --engine harmonia --out state/cache/golden/pub \
+        --publish --backup <dossier de sauvegarde existant>
 
-Le serveur tourne **sans reloader** — un changement de code Python n'est pas
-servi tant qu'on n'a pas redémarré. Avant de redémarrer : **demander**, il est
-peut-être en train d'annoter. Un process de 4 jours a déjà servi du code périmé
-pendant toute une séance de débogage.
+Refuse de démarrer sans `--backup` (sauf `--dry-run`) — une session concurrente
+peut travailler sur les mêmes fichiers. Publie chart par chart, jamais toute la
+bibliothèque d'un coup : une interruption au milieu ne doit jamais laisser une
+bibliothèque mi-ancienne mi-nouvelle.
 
-### 8. Pousser
+### 8. Redémarrer le serveur, si le code Python a changé
+
+Il tourne **sans reloader** — un changement de code n'est pas servi tant qu'on
+n'a pas redémarré. **Demander avant** : Louis est peut-être en train d'annoter.
+
+    kill $(lsof -ti tcp:7772)
+    nohup .venv/bin/python -m harmonia.server >> /tmp/harmonia.log 2>&1 &
+
+**Toujours par PID du PORT, jamais par motif de ligne de commande** (`pkill -f
+…` a déjà tué le process VIVANT en tuant tout ce qui matchait le nom du module,
+alors qu'une autre instance tournait sur un autre port). Un process de 4 jours
+a déjà servi du code périmé pendant toute une séance de débogage.
+
+### 9. Pousser
 
     git push -u origin <branche>
 
-### 9. Le dire en une ligne
+### 10. Le dire en une ligne
 
 Un lien cliquable en `http://100.89.209.63:7772/…` (le `file://` est mort sur
 son téléphone), et **une prochaine étape nommée** — pas un menu.
@@ -105,4 +114,4 @@ son téléphone), et **une prochaine étape nommée** — pas un menu.
 
 Si une étape ne s'applique pas, la sauter **en le disant**. Ce qui n'est pas
 permis, c'est de la sauter en silence : « poussé » quand la bibliothèque n'a pas
-été recuite, c'est un faux positif qu'il découvre sur son téléphone.
+été republiée, c'est un faux positif qu'il découvre sur son téléphone.

@@ -19,6 +19,11 @@ env/
 /data
 /.venv
 
+# Research scrap heap (refactor sprint 20, 2026-09-14): 488 one-off experiment
+# scripts, never an import root for anything shipped. Files stay on disk,
+# untracked — anything worth keeping already moved to tools/sections_bench/.
+/scratchpad/
+
 # State split (decision 10, refactor sprint 15, harmonia/settings.py
 # `state_dir`): `/state/human/` (sections, annotations, marks, chart_meta,
 # folders — small JSON Louis makes by hand) is TRACKED; `/state/cache/`

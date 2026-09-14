@@ -4,75 +4,43 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "harmonia"
-version = "0.1.0"
-description = "Hierarchical Bayesian chord and structure inference from audio"
+version = "0.2.0"
+description = "Audio to chord chart: beats, chord posteriors, sections, folding, served as one Flask app."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = { text = "MIT" }
 
+# Only what harmonia/**/*.py actually imports (refactor sprint 20, 2026-09-14
+# — grep of top-level imports across the package). requirements-lock.txt is
+# still the real env freeze; this list is the declared surface.
 dependencies = [
-    "numpy>=1.26",
+    "numpy<2.5",
     "scipy>=1.12",
-    "librosa>=0.10",
-    "basic-pitch>=0.3",
-    "music21>=9.1",
-    "pretty_midi>=0.2.10",
-    "numpyro>=0.14",
-    "jax>=0.4",
-    "jaxlib>=0.4",
     "torch>=2.2",
-    "torchaudio>=2.2",
-    # SOTA downbeat-phase anchor (2026-07-21, harmonia.models.downbeat_anchor) —
-    # on by default in the production analyze path (HARMONIA_GRID_ANCHOR_SOTA),
-    # unlike madmom below which stays opt-in/unused-by-default.
+    "flask>=3.0",
     "beat_this>=1.1",
+    "librosa>=0.10,<1.0",
     "soundfile>=0.12",
-    "mir_eval>=0.7",
-    "click>=8.1",
-    "rich>=13.0",
-    "pydantic>=2.0",
-    "tqdm>=4.66",
-    "pandas>=2.0",
-    "matplotlib>=3.8",
+    "vamp>=1.1",
+    "huggingface_hub>=0.24",
+    "safetensors>=0.4",
+    "curl_cffi>=0.7",
+    "pyRealParser",
+    "yt-dlp",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=4.0",
-    "black>=24.0",
-    "ruff>=0.3",
-    "mypy>=1.9",
-    "ipykernel>=6.0",
-    "jupyter>=1.0",
-]
-madmom = [
-    "Cython>=3.0",
-    "madmom>=0.16",
-]
-render = [
-    "pyfluidsynth>=1.3",
 ]
 
 [project.scripts]
-harmonia = "harmonia.cli:main"
+harmonia-server = "harmonia.server.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["harmonia*"]
-
-[tool.black]
-line-length = 100
-target-version = ["py310", "py311", "py312"]
-
-[tool.ruff]
-line-length = 100
-select = ["E", "F", "I", "N", "W"]
-
-[tool.mypy]
-python_version = "3.10"
-strict = true
-ignore_missing_imports = true
+include = ["harmonia*", "tools*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
