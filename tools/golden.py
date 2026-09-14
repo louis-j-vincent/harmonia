@@ -2,11 +2,12 @@
 
 UNE SEULE définition de « chart = f(entrées) », la même que
 `scripts/rebake_library.py` (2026-08-20), qu'il remplacera au sprint 20 :
-analyse complète avec la marque « Set bar 1 » de Louis rejouée, puis, quand un
-découpage de sections validé à la main existe (`state/sections/<stem>.json`,
-`validated: true`), le repli est refait sur CE découpage (`refold` +
-`sections_pour_chart`), les mesures non couvertes recevant l'étiquette du
-détecteur (`_completer`).
+analyse complète avec la marque « Set bar 1 » de Louis rejouée (depuis le
+sprint 15, `state/human/marks/<stem>.json` pour le moteur `harmonia` — voir
+`jobs.bar1_for`), puis, quand un découpage de sections validé à la main
+existe (`sections/<stem>.json` du moteur, `validated: true`), le repli est
+refait sur CE découpage (`refold` + `sections_pour_chart`), les mesures non
+couvertes recevant l'étiquette du détecteur (`_completer`).
 
 Ce n'est PAS une porte qui bloque : c'est un rapport que Louis arbitre
 (2026-09-14 : « a different chart doesn't mean you did bad work, you will have
@@ -38,11 +39,12 @@ import time
 import traceback
 from pathlib import Path
 
+from harmonia.settings import SETTINGS
 from tools.avant_apres import diff_song
 
-REPO = Path(__file__).resolve().parents[1]
-AUDIO = REPO / "docs" / "audio"
-DATA_CACHE = REPO / "data" / "cache"
+REPO = SETTINGS.repo
+AUDIO = SETTINGS.audio_dir
+DATA_CACHE = SETTINGS.data_cache
 #: Le seul champ qui varie d'un run à l'autre sans que le chart change :
 #: la latence choisie par la recherche de `musx.redecode` est chronométrée.
 VOLATILE = (("meta", "musx_latency_ms"),)
@@ -51,34 +53,60 @@ log = logging.getLogger("golden")
 
 
 def charger_moteur(nom: str) -> dict:
-    """Les cinq choses dont le rapport a besoin d'un moteur, et rien d'autre."""
+    """Les choses dont le rapport a besoin d'un moteur, et rien d'autre.
+
+    `marks`/`new_cache` distinguent les deux mondes du sprint 15 : `harmonia`
+    lit sa marque « Set bar 1 » dans `state/human/marks/` (la nouvelle source
+    de vérité, voir `jobs.bar1_for`) et vérifie ses caches via
+    `harmonia.cache` (clé neuve + repli historique) ; `harmonia_min` reste
+    l'ancien monde, gelé, qui relit encore le champ `bar1` du chart et ses
+    caches à l'ancien chemin — il ne bouge pas avant le sprint 22.
+    """
     if nom == "harmonia_min":
-        import harmonia_min
         from harmonia_min.pipeline import analyze
         from harmonia_min.refold import refold
         from harmonia_min.soudure import sections_pour_chart
-        state = Path(harmonia_min.__file__).resolve().parent / "state"
+        state = SETTINGS.repo / "harmonia_min" / "state"
         return {"analyze": analyze, "refold": refold,
                 "sections_pour_chart": sections_pour_chart,
                 "charts": state / "charts", "sections": state / "sections",
-                "beats": state / "beats", "songformer": state / "songformer"}
+                "beats": state / "beats", "songformer": state / "songformer",
+                "marks": None, "new_cache": False}
     if nom == "harmonia":
         from harmonia.pipeline import analyze
         from harmonia.refold import refold
-        from harmonia.settings import SETTINGS
         from harmonia_min.soudure import sections_pour_chart
-        s = SETTINGS.state_dir
+        s = SETTINGS
         return {"analyze": analyze, "refold": refold,
                 "sections_pour_chart": sections_pour_chart,
-                "charts": s / "charts", "sections": s / "sections",
-                "beats": s / "beats", "songformer": s / "songformer"}
+                "charts": s.charts_dir, "sections": s.sections_dir,
+                "beats": s.beats_dir, "songformer": s.songformer_dir,
+                "marks": s.marks_dir, "new_cache": True}
     raise SystemExit(f"moteur inconnu : {nom}")
 
 
 def caches_manquants(eng: dict, stem: str, audio: Path) -> list[str]:
-    m = []
     if not audio.exists():
         return ["audio"]
+    if eng["new_cache"]:
+        # Passe par `harmonia.cache` — clé neuve `<stem>__<taille>`, repli sur
+        # la clé historique — pour tester EXACTEMENT ce que le serveur voit,
+        # pas une supposition de chemin réécrite ici en double.
+        from harmonia import cache as _cache
+        m = []
+        if not _cache.exists("beats", audio):
+            m.append("beats")
+        if not _cache.exists("musx_probs", audio):
+            m.append("musx")
+        if not _cache.exists("nnls", audio):
+            m.append("nnls")
+        sf = _cache.load_json("songformer", audio)
+        ok = bool(sf) and sf.get("taille") == audio.stat().st_size \
+            and "segments" in sf
+        if not ok:
+            m.append("songformer")
+        return m
+    m = []
     if not (eng["beats"] / f"{stem}.json").exists():
         m.append("beats")
     if not (DATA_CACHE / "musx_probs" / f"{stem}.npz").exists():
@@ -153,9 +181,22 @@ def cuire(eng: dict, key: str, charts: Path, out: Path) -> dict:
     if froid:
         return {"status": "froid", "manque": froid, "stem": stem}
     t0 = time.time()
+    # Sprint 15 : la marque « Set bar 1 » se lit dans `state/human/marks/`
+    # pour le moteur `harmonia` — jamais dans `old.get("bar1")`, qui ne serait
+    # que le champ d'un chart régénérable (voir `jobs.bar1_for`). Le moteur
+    # `harmonia_min`, lui, n'a pas de dossier de marques : il garde l'ancien
+    # comportement.
+    if eng.get("marks") is not None:
+        try:
+            bar1 = json.loads((eng["marks"] / f"{stem}.json")
+                              .read_text(encoding="utf-8")).get("bar1")
+        except (OSError, ValueError):
+            bar1 = None
+    else:
+        bar1 = old.get("bar1")
     model = eng["analyze"](audio, title=old.get("title") or "", file_key=key,
                            audio_url=f"/audio/{audio.name}",
-                           bar1_time=old.get("bar1"))
+                           bar1_time=bar1)
     if not model.get("barGrid") or not model.get("sections"):
         return {"status": "erreur", "stem": stem, "raison": "chart vide"}
     if old.get("bar1") is not None and model.get("bar1") is None:

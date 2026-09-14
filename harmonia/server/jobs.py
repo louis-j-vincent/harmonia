@@ -33,8 +33,8 @@ from harmonia.settings import SETTINGS
 log = logging.getLogger("harmonia.server.jobs")
 
 AUDIO_DIR = SETTINGS.audio_dir
-CHARTS_DIR = SETTINGS.state_dir / "charts"
-META_PATH = SETTINGS.state_dir / "chart_meta.json"
+CHARTS_DIR = SETTINGS.charts_dir
+META_PATH = SETTINGS.chart_meta_path
 
 _jobs: dict[str, dict] = {}
 #: Le dict `_jobs` n'était protégé par rien : le thread du job et les
@@ -50,6 +50,30 @@ def _load_chart_meta() -> dict:
         return json.loads(META_PATH.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
+
+
+def bar1_for(file_key: str) -> float | None:
+    """La marque « Set bar 1 » de Louis pour ce morceau, ou None.
+
+    SEULE source à l'exécution (sprint 15, décision 10) : le fichier
+    `state/human/marks/<stem>.json` (`{"bar1": <secondes>}`), écrit par
+    `/api/bar1/<file>`. Avant ce sprint la marque ne vivait que dans le champ
+    `bar1` du chart régénérable — perdue le 2026-08-13 dès que le chart était
+    réécrit sans elle. Cette fonction ne lit JAMAIS ce champ : le repli sur
+    le vieux chart n'existe que dans `tools/migrate_state.py`, une fois, à la
+    migration — pas ici, sinon la même perte redeviendrait possible dès
+    qu'un chart serait réécrit sans passer par cette fonction.
+
+    `file_key` est celui du chart (`min_<stem>`) ; la marque, elle, est posée
+    par AUDIO, donc sans le préfixe `min_`.
+    """
+    stem = file_key.removeprefix("min_")
+    p = SETTINGS.marks_dir / f"{stem}.json"
+    try:
+        d = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return d.get("bar1")
 
 
 def _resolve_audio(url: str) -> tuple[Path, str, str]:
@@ -156,12 +180,11 @@ def _run_job(job_id: str, url: str, bar1_time=None):
         dest = CHARTS_DIR / f"{file_key}.json"
         # Ré-analyser un morceau DÉJÀ dans la bibliothèque ne doit pas jeter
         # son « Set bar 1 » (2026-08-13). La marque est collante : on ne la
-        # relit que si l'appel n'en apporte pas une nouvelle.
-        if bar1_time is None and dest.exists():
-            try:
-                bar1_time = json.loads(dest.read_text(encoding="utf-8")).get("bar1")
-            except (OSError, ValueError):
-                bar1_time = None
+        # relit que si l'appel n'en apporte pas une nouvelle — et on la relit
+        # de `state/human/marks/`, la seule source à l'exécution (voir
+        # `bar1_for`), jamais du champ `bar1` de ce chart-ci.
+        if bar1_time is None:
+            bar1_time = bar1_for(file_key)
             if bar1_time is not None:
                 log.info("job %s: reprise du Set bar 1 de %s (%.3fs)",
                          job_id, file_key, float(bar1_time))

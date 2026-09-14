@@ -26,9 +26,31 @@ def _env(name: str, default: str) -> str:
 @dataclass(frozen=True)
 class Settings:
     repo: Path = REPO
-    #: Jusqu'au sprint 15 (état humain / caches séparés), l'état reste celui
-    #: de harmonia_min : c'est la bibliothèque que le rapport d'or compare.
-    state_dir: Path = REPO / "harmonia_min" / "state"
+    #: État split (décision 10, sprint 15) : `state/human/` est suivi par
+    #: git (petit JSON écrit à la main ou par un geste de Louis — sections,
+    #: annotations, marques, titres) ; `state/cache/` ne l'est pas
+    #: (régénérable — charts, battues, sections songformer, rapports). Un
+    #: chart perdu par un fichier gitignored (2026-08-12) est l'incident qui
+    #: a motivé la séparation ; voir `.gitignore`.
+    state_dir: Path = REPO / "state"
+    human_dir: Path = REPO / "state" / "human"
+    cache_dir: Path = REPO / "state" / "cache"
+    charts_dir: Path = REPO / "state" / "cache" / "charts"
+    beats_dir: Path = REPO / "state" / "cache" / "beats"
+    songformer_dir: Path = REPO / "state" / "cache" / "songformer"
+    reports_dir: Path = REPO / "state" / "cache" / "reports"
+    sections_dir: Path = REPO / "state" / "human" / "sections"
+    #: Les gestes en cours de l'outil sections (brouillons) — séparés de
+    #: `sections_dir`, la vérité terrain validée à la main.
+    sections_draft_dir: Path = REPO / "state" / "human" / "sections_draft"
+    annotations_dir: Path = REPO / "state" / "human" / "annotations"
+    #: La marque « Set bar 1 » de Louis, une par audio (`<stem>.json`,
+    #: `{"bar1": <secondes>}`) — la SEULE source à l'exécution (voir
+    #: `server.jobs.bar1_for`). Avant le sprint 15 elle ne vivait que dans le
+    #: champ `bar1` du chart régénérable, ce qui l'a perdue le 2026-08-13.
+    marks_dir: Path = REPO / "state" / "human" / "marks"
+    chart_meta_path: Path = REPO / "state" / "human" / "chart_meta.json"
+    folders_path: Path = REPO / "state" / "human" / "folders.json"
     data_cache: Path = REPO / "data" / "cache"
     audio_dir: Path = REPO / "docs" / "audio"
     assets: Path = Path(__file__).resolve().parent / "assets"

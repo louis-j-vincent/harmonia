@@ -363,3 +363,36 @@ avant le refactor ; la preuve que rien ne fuit est le rapport d'or.
 
 **Suivant.** Sprint 15 : l'état humain sous git, les caches à part, la
 marque « Set bar 1 » hors du chart, les clés de cache renommées en place.
+
+## Sprint 15 — 2026-09-14 · l'état humain sous git, les caches à part
+
+**Fait (agent Sonnet, en parallèle du découpage du frontend).** `state/human/`
+(sections, brouillons de sections, annotations, `marks/` = la marque « Set
+bar 1 » en secondes, `chart_meta.json`, `folders.json`) est SUIVI par git ;
+`state/cache/` (charts, battues, songformer, rapports) est ignoré. Tous les
+chemins passent par `SETTINGS` (`human_dir`, `cache_dir`, `charts_dir`,
+`marks_dir`, …) — plus un seul `Path(__file__)` ni `Path("docs/audio")`
+relatif au cwd. La marque de Louis a désormais sa source de vérité hors du
+chart régénérable (`jobs.bar1_for`, `/api/bar1` écrit la marque avant de
+relancer) ; le chart continue de porter `bar1` pour le client. Clé de cache
+= `<nom>__<taille>` à l'écriture, lecture avec repli journalisé sur
+l'ancienne clé — `data/cache/` (partagé avec le serveur vivant, 12 Go) n'est
+PAS renommé avant le basculement (sprint 21). `tools/migrate_state.py` :
+copie puis vérifie, ne supprime jamais, idempotent (2e passage : 0 copié,
+284 identiques) ; 4 marques extraites des charts, 21 découpages, 4
+annotations.
+
+**Bug attrapé au passage.** `refold.py` conditionnait le rejeu des sections à
+la main à `musx_cache_path(audio).exists()`, qui ne regarde que la NOUVELLE
+clé : avec les caches encore sous l'ancienne, 20 morceaux auraient perdu
+leurs sections en silence (127 mesures changées au rapport d'or). Corrigé
+par `cache.exists()`, qui connaît le repli. Le même motif reste dans trois
+scripts hors ligne (`page_concordance_barre`, `backfill_musx_sug`,
+`chart_retour`) — pour le sprint 20.
+
+**Reste à faire.** `app.py` sert `/reports/<name>` depuis `state_dir/"reports"`
+(devenu `state/reports`) au lieu de `SETTINGS.reports_dir` : une ligne, à
+corriger quand l'agent du frontend aura rendu `app.py`.
+
+**Mesuré.** Rapport d'or 46/46 identiques ; pytest 229 passés + 1 hérité ;
+`state/human` non ignoré, `state/cache` ignoré (vérifié par `git check-ignore`).

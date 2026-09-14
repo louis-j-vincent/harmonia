@@ -86,10 +86,16 @@ def refold(chart: dict, secs: list[dict], audio_dir) -> tuple[list, dict]:
     if not nom:
         return bars, {"ok": False, "raison": "chart sans audio"}
     audio = Path(audio_dir) / nom
-    from harmonia_min.span_rescore import musx_cache_path
-    if not musx_cache_path(audio).exists():
+    from harmonia import cache
+    if not cache.exists("musx_probs", audio):
         # Le brut est rendu tel quel, et on le DIT : c'est la différence entre
         # « on n'a pas pu empiler » et « il n'y avait rien à empiler ».
+        # `cache.exists` (pas `musx_cache_path(...).exists()`, sprint 15) :
+        # ce dernier ne teste que la clé NEUVE (`<stem>__<taille>`), et tous
+        # les caches musx de la bibliothèque vivent encore sous la clé
+        # historique dans `data/cache/` (non renommée, sprint 21) — le
+        # mauvais test faisait chuter ce chemin en silence sur 46/46 morceaux
+        # (rapport d'or : refold "réussissait" en apparence, en fait dégradé).
         return bars, {"ok": False,
                       "raison": "pas de cache musx pour ce morceau"}
 

@@ -36,8 +36,11 @@ import os
 import time
 from pathlib import Path
 
-PKG = Path(__file__).resolve().parent
-ANNOT_DIR = PKG / "state" / "annotations"
+from harmonia.settings import SETTINGS
+
+#: Sprint 15 : suivi par git (`state/human/annotations/`) — c'est le travail
+#: de correction de Louis, pas un cache régénérable.
+ANNOT_DIR = SETTINGS.annotations_dir
 
 SCHEMA = 1
 _BEAT_TOL = 3  # decimals; the schema warns `beat` may be float

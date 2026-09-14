@@ -3,8 +3,9 @@ les sections annotées à la main — tout ce qui découpe un morceau en blocs.
 
 Porté verbatim depuis `harmonia_min/server.py` (sprints 11-14). `CHARTS_DIR`
 vient de `jobs.py` (une seule définition, voir sa docstring) ; `SECTIONS_DIR`
-et `SECTIONS_DRAFT_DIR` viennent de `SETTINGS.state_dir` ici, puisque rien
-d'autre n'en avait besoin avant ce sprint.
+et `SECTIONS_DRAFT_DIR` viennent de `SETTINGS.sections_dir` /
+`SETTINGS.sections_draft_dir` (sprint 15 : `state/human/`, suivi par git —
+c'est la vérité terrain des sections écrite à la main).
 
 Ce que ce module ne fait PAS : détecter des sections tout seul (le moteur de
 prod est `harmonia.sections`, sprint 9) ; savoir empiler des accords (voir
@@ -27,10 +28,10 @@ log = logging.getLogger("harmonia.server.routes.sections")
 bp = Blueprint("sections", __name__)
 
 AUDIO_DIR = SETTINGS.audio_dir
-SECTIONS_DIR = SETTINGS.state_dir / "sections"
+SECTIONS_DIR = SETTINGS.sections_dir
 #: Les gestes de l'outil du chart (brouillons) — séparés des 18
 #: annotations faites à la main, qui sont la vérité terrain du projet.
-SECTIONS_DRAFT_DIR = SETTINGS.state_dir / "sections_draft"
+SECTIONS_DRAFT_DIR = SETTINGS.sections_draft_dir
 
 #: Le dernier morceau calculé pour la page Soudure (clé: fichier + mtime).
 _SOUDURE_CACHE: dict = {}
@@ -176,10 +177,12 @@ def soudure_valider(file):
     le chart avec la nouvelle structure ».
 
     C'est la seule route de l'outil qui TOUCHE aux données. Deux précautions :
-    le chart d'avant est copié dans `state/charts.bak_soudure/` (une session
-    concurrente peut travailler sur ces fichiers, et un découpage se regrette),
-    et on refuse d'écrire un découpage qui ne couvre pas le morceau — un chart
-    à trous serait pire que l'ancien.
+    le chart d'avant est copié dans `state/cache/charts.bak_soudure/` (une
+    session concurrente peut travailler sur ces fichiers, et un découpage se
+    regrette — cette copie est une sécurité de charts régénérables, pas de
+    l'état humain : elle vit sous `cache_dir`, pas `human_dir`), et on refuse
+    d'écrire un découpage qui ne couvre pas le morceau — un chart à trous
+    serait pire que l'ancien.
     """
     from harmonia_min.soudure import sections_pour_chart
     p = CHARTS_DIR / f"{Path(file).stem}.json"
@@ -213,7 +216,7 @@ def soudure_valider(file):
     if not neuves:
         return jsonify({"error": "aucune section utilisable"}), 400
     try:
-        bak = SETTINGS.state_dir / "charts.bak_soudure"
+        bak = SETTINGS.cache_dir / "charts.bak_soudure"
         bak.mkdir(parents=True, exist_ok=True)
         (bak / p.name).write_text(p.read_text(encoding="utf-8"), encoding="utf-8")
         chart["sections"] = neuves
@@ -414,7 +417,7 @@ def _sections_known(stem: str, model: dict) -> dict:
     l'existant, jamais sur une page blanche — sinon modifier une annotation
     veut dire la refaire.
 
-    Ordre : la vérité écrite à la main d'abord (`state/sections/`), puis le
+    Ordre : la vérité écrite à la main d'abord (`state/human/sections/`), puis le
     brouillon en cours (`sections_draft/`), puis, à défaut, ce que le
     détecteur a trouvé et que le chart affiche. Le dernier est le seul qui
     ne vient pas de lui : il est étiqueté comme tel pour que l'UI le dise.
@@ -522,7 +525,7 @@ def api_section_marks(file):
     """Les marques validées → le morceau écrit par sections.
 
     Corps {marks:[{label, occurrences:[{b0,b1}]}], validated?} → la liste
-    de sections, ET son écriture dans `state/sections/<stem>.json`, le
+    de sections, ET son écriture dans `state/human/sections/<stem>.json`, le
     fichier que Louis remplit déjà à la main dans /reports/annotate.html.
     Même schéma, même endpoint de lecture, mêmes scripts de mesure en aval :
     l'outil du chart et la page d'annotation écrivent au même endroit,
@@ -548,7 +551,7 @@ def api_section_marks(file):
     sections = st.sections_from_marks(marks or [], n_bars)
     keep = [{"label": s["label"], "b0": s["b0"], "b1": s["b1"]}
             for s in sections if not s.get("pending")]
-    # UN BROUILLON N'ÉCRASE PAS UNE VÉRITÉ TERRAIN. `state/sections/` porte
+    # UN BROUILLON N'ÉCRASE PAS UNE VÉRITÉ TERRAIN. `state/human/sections/` porte
     # les 18 annotations faites à la main par Louis — la seule référence de
     # sections du projet, ce que lisent section_bench et section_metric.
     # L'outil sauvegarde à chaque geste ; sans séparation, le premier essai

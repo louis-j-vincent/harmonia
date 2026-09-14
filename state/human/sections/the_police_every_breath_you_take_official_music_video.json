@@ -1,0 +1,77 @@
+{
+ "stem": "the_police_every_breath_you_take_official_music_video",
+ "n": 111,
+ "validated": true,
+ "sections": [
+  {
+   "label": "intro",
+   "b0": 0,
+   "b1": 7
+  },
+  {
+   "label": "A",
+   "b0": 8,
+   "b1": 15
+  },
+  {
+   "label": "A",
+   "b0": 16,
+   "b1": 23
+  },
+  {
+   "label": "B",
+   "b0": 24,
+   "b1": 31
+  },
+  {
+   "label": "A",
+   "b0": 32,
+   "b1": 39
+  },
+  {
+   "label": "C",
+   "b0": 40,
+   "b1": 49
+  },
+  {
+   "label": "A",
+   "b0": 50,
+   "b1": 57
+  },
+  {
+   "label": "A",
+   "b0": 58,
+   "b1": 65
+  },
+  {
+   "label": "B",
+   "b0": 66,
+   "b1": 73
+  },
+  {
+   "label": "A",
+   "b0": 74,
+   "b1": 83
+  },
+  {
+   "label": "D",
+   "b0": 84,
+   "b1": 87
+  },
+  {
+   "label": "A",
+   "b0": 88,
+   "b1": 95
+  },
+  {
+   "label": "A",
+   "b0": 96,
+   "b1": 103
+  },
+  {
+   "label": "A",
+   "b0": 104,
+   "b1": 110
+  }
+ ]
+}

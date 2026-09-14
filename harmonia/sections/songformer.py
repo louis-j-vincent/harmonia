@@ -138,10 +138,14 @@ def _modele():
 
 def segments(audio: str | Path, *, force: bool = False) -> list[dict]:
     """[{label, start, end}] en secondes. Mis en cache sur disque
-    (`harmonia.cache`, kind "songformer" — clé = le nom de fichier complet).
+    (`harmonia.cache`, kind "songformer").
 
-    Le cache est invalidé si le fichier audio change de taille — le nom seul ne
-    suffit pas, un ré-encodage garderait le même nom.
+    Le champ `taille` invalide le cache si le fichier change de poids — le nom
+    seul ne suffirait pas, un ré-encodage garderait le même nom. Depuis le
+    sprint 15 la clé de fichier (`harmonia.cache`) porte DÉJÀ la taille
+    (`<stem>__<taille>`) : ce contrôle est donc redondant avec la clé, gardé
+    quand même — il coûte une comparaison et protège aussi les caches encore
+    sous l'ancienne clé (nom seul), lus par repli.
     """
     audio = Path(audio)
     taille = audio.stat().st_size

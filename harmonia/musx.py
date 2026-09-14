@@ -7,7 +7,7 @@ rebuild) with three changes only:
     (itself ``HARMONIA_MUSX_DIR`` or ``third_party/musx_ismir2019``).
   * ``REPO``-relative paths dropped (refactor, 2026-09-14): every path here
     now resolves from ``harmonia.settings``/``harmonia.cache``, never from
-    ``__file__`` (checklist item 9).
+    the module's own file location (checklist item 9).
   * the old pipeline's env-flag helpers (``enabled``/``latency_grid_from_env``)
     dropped — harmonia_min's orchestration decides, not env vars.
 

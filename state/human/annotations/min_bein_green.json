@@ -1,0 +1,27 @@
+{
+  "annotator": "",
+  "chords": [
+    {
+      "bar": 5,
+      "beat": 0,
+      "root": 7,
+      "bass": -1,
+      "q": "h7",
+      "t0": 17.531,
+      "t1": 20.759
+    },
+    {
+      "bar": 6,
+      "beat": 0,
+      "root": 8,
+      "bass": -1,
+      "q": "7",
+      "t0": 20.759,
+      "t1": 23.986
+    }
+  ],
+  "merges": [],
+  "schema": 1,
+  "chart": "min_bein_green",
+  "modified": "2026-08-09T10:27:17Z"
+}

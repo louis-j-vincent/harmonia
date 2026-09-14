@@ -34,7 +34,8 @@ import html
 import json
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+from harmonia.settings import SETTINGS
+
 NOTES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
 
 
@@ -215,10 +216,8 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--before", type=Path)
     ap.add_argument("--after", type=Path)
-    ap.add_argument("--charts", type=Path,
-                    default=REPO / "harmonia_min" / "state" / "charts")
-    ap.add_argument("--reports", type=Path,
-                    default=REPO / "harmonia_min" / "state" / "reports")
+    ap.add_argument("--charts", type=Path, default=SETTINGS.charts_dir)
+    ap.add_argument("--reports", type=Path, default=SETTINGS.reports_dir)
     ap.add_argument("--title", default="Avant / après")
     ap.add_argument("--top", type=int, default=8)
     ap.add_argument("--clean", action="store_true")

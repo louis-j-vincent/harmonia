@@ -19,6 +19,14 @@ env/
 /data
 /.venv
 
+# State split (decision 10, refactor sprint 15, harmonia/settings.py
+# `state_dir`): `/state/human/` (sections, annotations, marks, chart_meta,
+# folders — small JSON Louis makes by hand) is TRACKED; `/state/cache/`
+# (charts, beats, songformer, reports — all regenerable) is not. Hand-made
+# work was lost once (2026-08-12) by living in a gitignored folder — this is
+# the fix. ANCHORED so a same-named dir elsewhere in the tree is unaffected.
+/state/cache/
+
 # Data — never commit raw audio or large datasets
 data/maestro/
 data/pop909/

@@ -103,11 +103,19 @@ _FOLD = _build_fold_tensor()   # (6,4,5)
 
 
 def musx_cache_path(audio_path: Path | str) -> Path:
-    """Le chemin où vivrait la moisson musx de ce fichier — SANS la charger.
+    """Le chemin où vivrait la moisson musx de ce fichier, SOUS LA CLÉ NEUVE
+    (``<stem>__<taille>``, sprint 15) — SANS la charger.
 
-    Certains appelants doivent savoir, avant de lancer un calcul, si un cache
-    musx existe déjà pour ce morceau, sans payer le coût de le charger pour
-    le savoir. Même dossier que ``harmonia.cache`` (``kind="musx_probs"``).
+    ATTENTION, piégé pour un test d'existence : cette fonction ne rend QUE le
+    chemin neuf, jamais le chemin historique (le stem seul) où vit encore tout
+    cache musx de la bibliothèque (`data/cache/`, non renommée avant la
+    bascule prod, sprint 21). `musx_cache_path(audio).exists()` répond donc
+    FAUX pour un cache chaud sous l'ancienne clé — c'est le bug trouvé au
+    sprint 15 dans `refold.py` (le repli d'empilement se dégradait en
+    silence sur toute la bibliothèque). Pour un VRAI test « ce cache existe-t-
+    il, neuf ou historique ? », utiliser `harmonia.cache.exists("musx_probs",
+    audio)`. Cette fonction ne sert plus qu'à des scripts hors-ligne qui
+    veulent le chemin d'ÉCRITURE (`scripts/backfill_musx_sug.py`).
     """
     return cache.path("musx_probs", Path(audio_path))
 

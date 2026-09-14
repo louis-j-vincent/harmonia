@@ -48,6 +48,11 @@ def api_bar1(file):
     to the nearest tracked beat and takes that beat's PHASE — nothing before
     the mark is cut. Returns {job_id}: the same job machinery, so the shell
     shows the two-phase loading screen and the same file_key is rewritten.
+
+    Sprint 15: the mark file (`state/human/marks/<stem>.json`) is now the
+    source of truth (`jobs.bar1_for`), not the chart's own `bar1` field — so
+    it is written HERE, before re-analysing, not left for the job to infer
+    from whatever chart happens to be on disk.
     """
     import json
     t = (request.get_json(silent=True) or {}).get("t")
@@ -59,6 +64,9 @@ def api_bar1(file):
     model = json.loads(p.read_text(encoding="utf-8"))
     stem = Path(model.get("audio_url") or "").stem or \
         Path(file).stem.removeprefix("min_")
+    SETTINGS.marks_dir.mkdir(parents=True, exist_ok=True)
+    (SETTINGS.marks_dir / f"{stem}.json").write_text(
+        json.dumps({"bar1": float(t)}), encoding="utf-8")
     job_id = start_job(stem, title=model.get("title") or "", bar1_time=float(t))
     return jsonify({"job_id": job_id})
 

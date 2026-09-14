@@ -28,7 +28,7 @@ log = logging.getLogger("harmonia.server.routes.library")
 
 bp = Blueprint("library", __name__)
 
-FOLDERS_PATH = SETTINGS.state_dir / "folders.json"
+FOLDERS_PATH = SETTINGS.folders_path
 
 
 def _pretty_title(stem: str) -> str:
