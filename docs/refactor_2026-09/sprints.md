@@ -51,3 +51,53 @@ Serveur du worktree sur :7773 (`HARMONIA_MIN_PORT=7773`), jamais :7772.
   suivis de `scratchpad/` pèsent) ; 9,5 Go au moment du commit.
 
 **Suivant.** Sprint 1 : libérer le nom `harmonia/`.
+
+## Sprint 1 — 2026-09-14 · libérer le nom `harmonia/`
+
+**Fait.** Le paquet legacy `harmonia/` (137 fichiers), `scripts/harmonia_server.py`
+(l'ancienne app :7771), `golden/` (brick 0, condamné) et 89 tests (84 qui
+importaient le legacy, 5 du chord-LM abandonné) sont supprimés de l'arbre.
+Point de retour : tag `pre-refactor-2026-09-14`. Le nouveau `harmonia/` naît
+avec `settings.py` (le seul endroit qui lit l'environnement ; les choix
+d'algorithme y sont des constantes), `cache.py` (une convention de chemin,
+clés inchangées jusqu'au sprint 15), `assets/nnls24_heads.npz` (suivi par
+git, il était orphelin non suivi) et `integrations/` : `irealb_fetcher` (la
+moitié « recherche » seulement — la conversion irealb://→ChordChart et le
+rendu HTML servaient l'ancienne app), `irealb_export`, `tab_fetcher`.
+
+**Correction au plan.** Le clone music-x-lab n'est pas « du code jamais
+exécuté » : `musx.py` fait `chdir` dedans et importe `mir`, `extractors`,
+`chordnet_ismir_naive`, et le décodeur ouvre `data/submission_chord_list.txt`.
+Il reste donc entier, déplacé en `third_party/musx_ismir2019/` (dépendance
+tierce, MIT), et son dossier `data/` (2,4 Mo, 29 fichiers) devient suivi —
+il ne l'était pas, comme `nnls24_heads.npz` : deux fichiers dont le chemin
+vivant dépendait et qu'un clone frais n'aurait pas eus.
+
+**Rebranché dans harmonia_min.** `server.py` (3 imports →
+`harmonia.integrations.*`), `musx._musx_dir` (repli → `third_party/musx_ismir2019`),
+`nnls_features.HEADS_NPZ` (→ `harmonia/assets/`). `chord_lm/corpus.py` garde
+un import legacy cassé : le chord-LM est abandonné et rien ne l'importe à
+l'exécution (drapeau OFF) ; le dossier part avec harmonia_min au sprint 22
+(il contient `acoustic.py`, non suivi, d'une autre session — ne pas y toucher).
+
+**Mesuré.** Rapport d'or : 46/46 identiques, 0 mesure changée. `pytest
+--collect-only` : 326 tests, propre. Routes : export iReal OK (URL produite),
+recherche iReal OK par la route (résultats standards + forum).
+
+**Trouvé en chemin.**
+- **INCIDENT** : pour relancer le serveur du worktree, `pkill -f
+  "harmonia_min.server"` a aussi tué l'app VIVANTE sur :7772 (même module,
+  port dans l'environnement) et le script lui-même. Relancée depuis l'arbre
+  principal, même commande, sans drapeau, HTTP 200. Règle : on tue par PID
+  du PORT (`lsof -ti tcp:7773`), jamais par motif de ligne de commande.
+- La recherche de tablatures UG est **cassée en prod aussi** : `curl_cffi`
+  n'est pas dans le venv (ni dans requirements-lock, ni dans pyproject) ; la
+  route renvoie `{"results": []}` avec un 200 et un WARNING dans le log. Pas
+  une régression du port ; décision de Louis pour l'installer dans le venv
+  partagé.
+- `search_community` avale ses exceptions (`except Exception: results = []`,
+  porté tel quel) — un repli silencieux à traiter au sprint 14 avec la route.
+- Le test `test_irealb_fetcher.py` supprimé testait la moitié abandonnée et
+  le réseau vivant ; la recherche n'a pas de test hors-ligne.
+
+**Suivant.** Sprint 2 : `labels.py`, `key_profiles.py`.

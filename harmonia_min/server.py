@@ -590,7 +590,7 @@ def irealb_search():
         return jsonify({"error": "No title provided"}), 400
     query = f"{title} {(data.get('artist') or '').strip()}".strip()
     try:
-        from harmonia.irealb_fetcher import search_community
+        from harmonia.integrations.irealb_fetcher import search_community
         return jsonify({"results": search_community(query)})
     except Exception as exc:                              # noqa: BLE001
         log.exception("irealb-search failed")
@@ -628,7 +628,7 @@ def irealb_export(file):
     if not projete["sections"]:
         return jsonify({"error": "ce chart n'a pas de sections à exporter"}), 400
     try:
-        from harmonia.irealb_export import chart_model_to_irealb_url
+        from harmonia.integrations.irealb_export import chart_model_to_irealb_url
         return jsonify({"url": chart_model_to_irealb_url(projete)})
     except Exception as exc:                              # noqa: BLE001
         log.exception("irealb export failed for %s", file)
@@ -1057,7 +1057,7 @@ def tab_search():
     if not q:
         return jsonify({"results": []})
     try:
-        from harmonia.tab_fetcher import search_tabs
+        from harmonia.integrations.tab_fetcher import search_tabs
         found = search_tabs(q, tab_types=("Chords",), max_results=12)
     except Exception:  # noqa: BLE001 — curl_cffi absent / UG down: liste vide
         log.warning("tab-search failed for %r", q, exc_info=True)

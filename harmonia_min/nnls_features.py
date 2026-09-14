@@ -32,8 +32,9 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 REPO = Path(__file__).resolve().parent.parent
-MODELS = REPO / "harmonia" / "models"  # checkpoint stays with the old tree
-HEADS_NPZ = MODELS / "nnls24_heads.npz"
+# Depuis le 2026-09-14 (refactor, sprint 1) le checkpoint est un asset suivi
+# du nouveau paquet, plus un orphelin non suivi de l'ancien arbre.
+HEADS_NPZ = REPO / "harmonia" / "assets" / "nnls24_heads.npz"
 _CACHE_DIR = REPO / "data" / "cache" / "nnls_infer"
 
 SR = 44100

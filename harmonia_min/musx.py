@@ -140,8 +140,9 @@ def _musx_dir() -> Path:
     env = os.environ.get("HARMONIA_MUSX_DIR")
     if env:
         candidates.append(Path(env))
-    candidates.append(REPO / "harmonia" / "third_party"
-                      / "ISMIR2019-Large-Vocabulary-Chord-Recognition")
+    # Depuis le 2026-09-14 (refactor, sprint 1) le clone vit à la racine :
+    # c'est une dépendance tierce exécutée, pas un morceau de l'ancien paquet.
+    candidates.append(REPO / "third_party" / "musx_ismir2019")
     for d in candidates:
         if (d / "chord_recognition.py").exists() and \
            list((d / "cache_data").glob("*.sdict")):
