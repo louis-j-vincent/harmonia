@@ -1,19 +1,22 @@
-"""harmonia_min/musx.py — music-x-lab frame posteriors + beat-grid re-decode.
+"""music-x-lab frame posteriors + beat-grid re-decode.
 
 COPIED 2026-07-30 from harmonia/models/musx_redecode.py (feat/minimal-pipeline
 rebuild) with three changes only:
   * ``musx_dir()`` inlined (was harmonia.models.musx_bass.musx_dir) — resolves
-    the vendored ISMIR2019 clone via HARMONIA_MUSX_DIR or harmonia/third_party/.
-  * ``REPO`` depth fixed (this package sits at repo root, not two levels down).
+    the vendored ISMIR2019 clone via ``harmonia.settings.SETTINGS.musx_dir``
+    (itself ``HARMONIA_MUSX_DIR`` or ``third_party/musx_ismir2019``).
+  * ``REPO``-relative paths dropped (refactor, 2026-09-14): every path here
+    now resolves from ``harmonia.settings``/``harmonia.cache``, never from
+    ``__file__`` (checklist item 9).
   * the old pipeline's env-flag helpers (``enabled``/``latency_grid_from_env``)
     dropped — harmonia_min's orchestration decides, not env vars.
 
 The science is unchanged; see the original module's header for the full
 measurement record (+2.20 pp partial-credit, latency selected per song by the
 decoder's own path log-likelihood, boundaries land exactly on OUR beats).
-Posterior cache: data/cache/musx_probs/<audio stem>.npz (shared with the old
-pipeline — same extractor, same layout: [triad(T,73), bass(T,13), s7(T,4),
-s9(T,4), s11(T,3), s13(T,3)] on the 23.22 ms frame grid).
+Posterior cache: via ``harmonia.cache`` (kind "musx_probs", stem-keyed, shared
+with the old pipeline — same extractor, same layout: [triad(T,73), bass(T,13),
+s7(T,4), s9(T,4), s11(T,3), s13(T,3)] on the 23.22 ms frame grid).
 """
 from __future__ import annotations
 
@@ -25,9 +28,10 @@ from pathlib import Path
 
 import numpy as np
 
-logger = logging.getLogger(__name__)
+from harmonia import cache
+from harmonia.settings import SETTINGS
 
-REPO = Path(__file__).resolve().parents[1]
+logger = logging.getLogger(__name__)
 
 # music-x-lab frame grid (settings.py: DEFAULT_SR=22050, DEFAULT_HOP_LENGTH=512).
 MUSX_SR = 22050
@@ -47,7 +51,9 @@ DEFAULT_LATENCY_GRID: tuple[float, ...] = (0.0, 0.04, 0.08, 0.12, 0.16,
 #: (per-fold picks were 40 on 6/7 songs, 55 on the seventh).
 DEFAULT_PENALTY = 40.0
 
-_PROB_CACHE = REPO / "data" / "cache" / "musx_probs"
+#: Bridge for callers that still want the raw folder (e.g. `span_rescore`
+#: building its own filename) — the convention lives in `harmonia.cache`.
+_PROB_CACHE = cache.folder("musx_probs")
 
 
 # ── beat_arr: the transition structure the vendored decoder already supports ──
@@ -135,20 +141,19 @@ def make_beat_arr(n_frame: int, beat_times, latency: float = 0.0,
 # ── the vendored clone (imported, never edited) ──────────────────────────────
 
 def _musx_dir() -> Path:
-    """The vendored music-x-lab clone (entry script + pretrained weights)."""
-    candidates = []
-    env = os.environ.get("HARMONIA_MUSX_DIR")
-    if env:
-        candidates.append(Path(env))
-    # Depuis le 2026-09-14 (refactor, sprint 1) le clone vit à la racine :
-    # c'est une dépendance tierce exécutée, pas un morceau de l'ancien paquet.
-    candidates.append(REPO / "third_party" / "musx_ismir2019")
-    for d in candidates:
-        if (d / "chord_recognition.py").exists() and \
-           list((d / "cache_data").glob("*.sdict")):
-            return d
+    """The vendored music-x-lab clone (entry script + pretrained weights).
+
+    Resolved once, by `harmonia.settings.SETTINGS.musx_dir` (env
+    `HARMONIA_MUSX_DIR` or, since the 2026-09-14 refactor sprint 1,
+    `third_party/musx_ismir2019` — the clone is a third-party dependency
+    this module executes, not a piece of the old package).
+    """
+    d = SETTINGS.musx_dir
+    if (d / "chord_recognition.py").exists() and \
+       list((d / "cache_data").glob("*.sdict")):
+        return d
     raise RuntimeError("harmonia_min.musx: music-x-lab clone not found "
-                       f"(tried {[str(c) for c in candidates]})")
+                       f"(tried {d})")
 
 
 # ── le GPU d'Apple, mesuré bit-à-bit identique ──────────────────────────────
@@ -178,10 +183,10 @@ _DEVICE: str | None = None
 
 
 def _device() -> str:
-    """'mps' si disponible, sinon 'cpu'. Coupe-circuit HARMONIA_MUSX_DEVICE."""
+    """'mps' si disponible, sinon 'cpu'. Coupe-circuit SETTINGS.musx_device."""
     global _DEVICE
     if _DEVICE is None:
-        want = os.environ.get("HARMONIA_MUSX_DEVICE", "auto").strip().lower()
+        want = SETTINGS.musx_device.strip().lower()
         if want in ("cpu", "mps"):
             _DEVICE = want
         else:
@@ -284,16 +289,23 @@ def frame_posteriors(audio_path: Path | str, *, use_cache: bool = True,
     ``i>=1`` is root ``(i-1)%12`` with triad type ``(i-1)//12+1`` in
     {maj,min,sus4,sus2,dim,aug}.
 
-    Cached (stem-keyed, like ``musx_bass``) to ``data/cache/musx_probs``.  A song
-    costs ~3–9 MB compressed.
+    Cached (stem-keyed, like ``musx_bass``) via ``harmonia.cache`` (kind
+    "musx_probs") when ``cache_dir`` is None, else at the given directory
+    exactly as before.  A song costs ~3–9 MB compressed.
     """
     audio_path = Path(audio_path).resolve()
-    cdir = Path(cache_dir) if cache_dir is not None else _PROB_CACHE
-    cache = cdir / f"{audio_path.stem}.npz"
     names = ("triad", "bass", "s7", "s9", "s11", "s13")
-    if use_cache and cache.exists():
-        z = np.load(cache)
-        return [z[n] for n in names]
+    explicit_dir = Path(cache_dir) if cache_dir is not None else None
+    if use_cache:
+        if explicit_dir is not None:
+            cfile = explicit_dir / f"{audio_path.stem}.npz"
+            if cfile.exists():
+                z = np.load(cfile)
+                return [z[n] for n in names]
+        else:
+            d = cache.load_npz("musx_probs", audio_path)
+            if d is not None:
+                return [d[n] for n in names]
 
     with _InMusxDir():
         from mir import io, DataEntry
@@ -306,8 +318,12 @@ def frame_posteriors(audio_path: Path | str, *, use_cache: bool = True,
         cqt = np.asarray(entry.cqt)
     probs = _run_nets(cqt)
     if use_cache:
-        cdir.mkdir(parents=True, exist_ok=True)
-        np.savez_compressed(cache, **dict(zip(names, probs)))
+        if explicit_dir is not None:
+            explicit_dir.mkdir(parents=True, exist_ok=True)
+            np.savez_compressed(explicit_dir / f"{audio_path.stem}.npz",
+                               **dict(zip(names, probs)))
+        else:
+            cache.save_npz("musx_probs", audio_path, **dict(zip(names, probs)))
     return probs
 
 
@@ -318,20 +334,23 @@ def frame_posteriors(audio_path: Path | str, *, use_cache: bool = True,
 # que le module ne savait pas faire : rendre le CQT d'une chanson, et faire
 # tourner l'ensemble de réseaux sur un CQT qu'on a soi-même construit.
 
-_CQT_CACHE = REPO / "data" / "cache" / "musx_cqt"
+#: Bridge for callers that want the raw folder — see `_PROB_CACHE` above.
+_CQT_CACHE = cache.folder("musx_cqt")
 
 
 def song_cqt(audio_path: Path | str, *, use_cache: bool = True) -> np.ndarray:
     """Le CQT que musx mange, sur la MÊME grille que frame_posteriors.
 
-    Cache disque (~2 Mo par morceau) clé par stem, comme les postérieures —
-    et avec le même défaut assumé : un fichier remplacé sous le même nom lit
-    un cache périmé, videz `data/cache/musx_cqt/` après.
+    Cache disque (~2 Mo par morceau) via `harmonia.cache` (kind "musx_cqt"),
+    clé par stem comme les postérieures — et avec le même défaut assumé : un
+    fichier remplacé sous le même nom lit un cache périmé, videz le dossier
+    `musx_cqt` après.
     """
     audio_path = Path(audio_path).resolve()
-    cache = _CQT_CACHE / f"{audio_path.stem}.npz"
-    if use_cache and cache.exists():
-        return np.load(cache)["cqt"]
+    if use_cache:
+        d = cache.load_npz("musx_cqt", audio_path)
+        if d is not None:
+            return d["cqt"]
     with _InMusxDir():
         from mir import io, DataEntry
         from extractors.cqt import CQTV2
@@ -342,8 +361,7 @@ def song_cqt(audio_path: Path | str, *, use_cache: bool = True) -> np.ndarray:
         entry.append_extractor(CQTV2, 'cqt')
         cqt = np.asarray(entry.cqt)
     if use_cache:
-        _CQT_CACHE.mkdir(parents=True, exist_ok=True)
-        np.savez_compressed(cache, cqt=cqt.astype(np.float32))
+        cache.save_npz("musx_cqt", audio_path, cqt=cqt.astype(np.float32))
     return cqt
 
 
