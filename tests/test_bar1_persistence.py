@@ -30,6 +30,7 @@ from __future__ import annotations
 import inspect
 import json
 
+import harmonia.pipeline as _pipeline_impl
 from harmonia_min import pipeline
 
 
@@ -43,14 +44,23 @@ def test_analyze_accepte_la_marque():
 
 
 def test_le_modele_porte_la_marque(monkeypatch):
-    """Le ChartModel doit écrire `bar1`, sinon rien ne peut la relire."""
+    """Le ChartModel doit écrire `bar1`, sinon rien ne peut la relire.
+
+    `pipeline.analyze` (le pont `harmonia_min.pipeline`) est le MÊME objet
+    fonction que `harmonia.pipeline.analyze` — mais son corps résout
+    `analyze_steps` dans les globals du module où il est DÉFINI
+    (`harmonia.pipeline`), pas dans ceux du pont. Patcher
+    `harmonia_min.pipeline.analyze_steps` ne serait donc jamais vu par
+    `analyze()` depuis le refactor (sprint 10, `pipeline.py` a déménagé sous
+    `harmonia/`) — le patch vise le module réel.
+    """
     vu = {}
 
     def faux_steps(audio_path, **kw):
         vu.update(kw)
         yield "final", {"file": "min_x", "bar1": kw.get("bar1_time")}
 
-    monkeypatch.setattr(pipeline, "analyze_steps", faux_steps)
+    monkeypatch.setattr(_pipeline_impl, "analyze_steps", faux_steps)
     m = pipeline.analyze("/tmp/x.m4a", bar1_time=12.5)
     assert vu["bar1_time"] == 12.5
     assert m["bar1"] == 12.5

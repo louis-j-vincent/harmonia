@@ -63,8 +63,15 @@ def charger_moteur(nom: str) -> dict:
                 "charts": state / "charts", "sections": state / "sections",
                 "beats": state / "beats", "songformer": state / "songformer"}
     if nom == "harmonia":
-        raise SystemExit("moteur harmonia : pas encore de paquet (sprint 1). "
-                         "Brancher ici settings.paths quand il existera.")
+        from harmonia.pipeline import analyze
+        from harmonia.refold import refold
+        from harmonia.settings import SETTINGS
+        from harmonia_min.soudure import sections_pour_chart
+        s = SETTINGS.state_dir
+        return {"analyze": analyze, "refold": refold,
+                "sections_pour_chart": sections_pour_chart,
+                "charts": s / "charts", "sections": s / "sections",
+                "beats": s / "beats", "songformer": s / "songformer"}
     raise SystemExit(f"moteur inconnu : {nom}")
 
 

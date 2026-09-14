@@ -306,3 +306,27 @@ morceau) ; pytest 224 passés + 1 échec hérité.
 
 **Suivant.** Sprint 10 : `analyze_steps` dans `harmonia/pipeline.py`, les
 trois derniers drapeaux et `_duree`.
+
+## Sprint 10 — 2026-09-14 · `pipeline.py` : l'orchestration, sans drapeau ni repli muet
+
+**Fait (agent Sonnet).** `harmonia/pipeline.py` importe tout de `harmonia.*`.
+Les trois derniers drapeaux partent : `HARMONIA_QUARTER_BAR` →
+`SETTINGS.quarter_bar` ; `HARMONIA_RAW_CHART` supprimé — `analyze_steps` est
+un générateur qui rend le chart brut en premier, un appelant qui ne veut que
+lui s'arrête là ; `HARMONIA_CHORD_LM_SUGGEST` et son bloc supprimés (le
+chord-LM est abandonné, net 0 sur GuitarSet). `_duree()` (0,0 sans un mot sur
+toute erreur) devient `duration_seconds()` qui LÈVE avec la sortie de
+ffprobe ; `analyze_steps(duration_s=None)` accepte la durée que le serveur
+calcule déjà (câblage au sprint 12). `meta.engine` reste « harmonia_min »
+jusqu'au sprint 22, pour que la comparaison octet par octet garde son sens.
+`tools/golden.py` sait maintenant cuire avec le moteur `harmonia`.
+
+**Piège trouvé.** Un test qui monkeypatchait `harmonia_min.pipeline.analyze_steps`
+ne touchait plus rien : `harmonia.pipeline.analyze` résout le nom dans SES
+globales, pas dans le pont. Le test vise désormais le vrai module. Leçon
+pour les ponts : on patche le module réel, jamais le pont.
+
+**Mesuré.** Rapport d'or 46/46 identiques avec les DEUX moteurs ; pytest
+225 passés + 1 échec hérité.
+
+**Suivant.** Sprints 11–14 (serveur en blueprints), en cours en parallèle.
