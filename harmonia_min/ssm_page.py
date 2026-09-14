@@ -116,7 +116,7 @@ def donnees(chart: dict, audio_dir=None) -> dict | None:
     coordonnées, donc aucun décalage possible entre ce qu'on voit et ce qu'on
     clique.
     """
-    from harmonia_min import harmonic_sections as HS
+    from harmonia.sections import similarity as HS
     from harmonia_min import musx as _musx
 
     grid = chart.get("barGrid") or []

@@ -516,15 +516,13 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
         # phase "sections" fires strictly AFTER the raw yield above and never
         # under HARMONIA_RAW_CHART=1 — the loading screen's second segment.
         report(5, phase="sections")
-        from harmonia_min.sections import detect_sections
+        from harmonia.sections import detect_sections
         from harmonia_min.nnls_features import extract_bothchroma as _ebc
+        # `_arr`/`_times` no longer feed detection itself (songformer only
+        # needs the audio file) — they still feed `fold_letter_groups` below,
+        # which stacks occurrences on the raw NNLS substrate.
         _arr, _times = _ebc(audio_path)
         sections = []
-        # `triad` selects the shipped HARMONIC detector (repetition dictionary
-        # on the musx chord posteriors); without it the old chroma detector
-        # runs.
-        # `audio_path` ne sert qu'au mode `voice` (HARMONIA_SECTIONS=voice),
-        # qui a besoin de la piste vocale ; les deux autres l'ignorent.
         if bar1_bar:
             # Louis, 2026-08-08 (Sam Smith report): the mark is the SOURCE OF
             # TRUTH for the start of A — so don't trim boundaries computed on
@@ -532,13 +530,11 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
             # only, its 2-bar blocks anchored on the mark. Everything before
             # the mark is the intro by definition; _force_bar1_sections then
             # guarantees the marked bar reads as a letter (never "intro").
-            # form_start=0: the sub-detection anchors its block lattice ON the
-            # mark instead of re-deriving a sung start inside the slice —
-            # without it the voice detector re-created a post-mark intro
-            # (2026-08-09: 1-bar A on the D-major chart).
-            sub = list(detect_sections(grid[bar1_bar:], _arr, _times,
-                                       bars[bar1_bar:],
-                                       triad=triad, audio=audio_path,
+            # form_start=0: songformer skips its own intro search on this
+            # slice, since the mark already says where the form starts —
+            # without it, treating this as mid-song re-created a spurious
+            # post-mark intro (2026-08-09: 1-bar A on the D-major chart).
+            sub = list(detect_sections(grid[bar1_bar:], audio_path,
                                        form_start=0))
             segs = _force_bar1_sections(
                 [{**sg, "b0": sg["b0"] + bar1_bar, "b1": sg["b1"] + bar1_bar}
@@ -547,8 +543,7 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
                         "from the mark (%d sections incl. intro)",
                         bar1_bar, len(segs))
         else:
-            segs = list(detect_sections(grid, _arr, _times, bars,
-                                        triad=triad, audio=audio_path))
+            segs = list(detect_sections(grid, audio_path))
         for si, sg in enumerate(segs):
             b0, b1 = sg["b0"], sg["b1"]
             sections.append({

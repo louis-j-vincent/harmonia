@@ -96,27 +96,13 @@ def test_sans_intro_quand_la_marque_bar1_est_posee():
     assert [s["label"] for s in out] == ["A", "B"]
 
 
-def test_songformer_est_le_defaut():
-    import os
-    from harmonia_min import sections as S
-    assert S.SECTION_MODE_ENV == "HARMONIA_SECTIONS"
-    assert os.environ.get(S.SECTION_MODE_ENV, "songformer") == "songformer" \
-        or os.environ.get(S.SECTION_MODE_ENV) is not None
-
-
-def test_mode_inconnu_leve():
-    import os
-    from harmonia_min import sections as S
-    old = os.environ.get(S.SECTION_MODE_ENV)
-    os.environ[S.SECTION_MODE_ENV] = "n_importe_quoi"
-    try:
-        with pytest.raises(ValueError):
-            S.detect_sections([0.0, 1.0, 2.0], None, None)
-    finally:
-        if old is None:
-            os.environ.pop(S.SECTION_MODE_ENV, None)
-        else:
-            os.environ[S.SECTION_MODE_ENV] = old
+# `test_songformer_est_le_defaut` et `test_mode_inconnu_leve` testaient
+# l'ancien dispatcher à quatre voies (`harmonia_min/sections.py`,
+# `SECTION_MODE_ENV=HARMONIA_SECTIONS`, ValueError sur un mode inconnu) —
+# supprimé au refactor sprint 9 (2026-09-14, décision de Louis) : songformer
+# est désormais le SEUL détecteur, appelé sans variable d'environnement ni
+# alternative, donc il n'y a plus de mode à vérifier ni de mode inconnu qui
+# puisse lever. Rien ne les remplace ; git history les garde.
 
 
 def test_minimal_fold_separe_les_longueurs_dune_meme_lettre():

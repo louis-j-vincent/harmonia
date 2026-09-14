@@ -250,7 +250,7 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
                 qui reste un argument explicite : recherche de qualité de
                 section en cours (2026-09-14), pas encore une loi tranchée.
     """
-    from harmonia_min.sections import halfbar_features
+    from harmonia.sections.similarity import halfbar_features
     n_bars = len(grid) - 1
     F = halfbar_features(grid, arr, times)   # same substrate as detection
     Vb = _bar_vecs(F, n_bars)

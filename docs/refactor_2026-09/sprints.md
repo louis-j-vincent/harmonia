@@ -272,3 +272,37 @@ l'arbre vivant — la cascade a changé ce que ce test affirmait ; à leur main)
 **Règle adoptée.** Après chaque commit de la session concurrente sur
 `harmonia_min/`, synchroniser AVANT le sprint suivant, prouver l'identité
 avec l'arbre vivant, re-geler la baseline.
+
+## Sprint 9 — 2026-09-14 · `sections/` : songformer seul, la similarité partagée
+
+**Fait (agent Sonnet).** `harmonia/sections/songformer.py` (cache par
+`harmonia.cache`, clé = nom complet du fichier + contrôle de taille conservé ;
+processus enfant `python -m harmonia.sections.songformer`, cwd =
+`SETTINGS.repo`), `harmonia/sections/__init__.py` (`detect_sections` = songformer,
+sans `try/except` : un enfant tué est une erreur qui remonte au job, et
+`tests/test_sections_fail_loud.py` le prouve), `harmonia/sections/similarity.py`
+(les briques que l'outil de sections, Soudure, la page /ssm et le repli
+empruntaient aux détecteurs : vecteurs chord-tone et SSM de
+`harmonic_sections`, `_diag`/`_slide`/`block_score`/`_peaks` de
+`voice_sections`, `halfbar_features` de `sections.py`). Supprimés :
+`voice_sections.py`, `harmonic_sections.py`, `sections.py` (dispatcher + chroma),
+`retour.py` (jamais branché), `minimal_form.py` (implémentation parallèle du
+repli d'affichage) et leurs tests.
+
+**La voie « chant » de l'outil de sections.** `substrates(melody=True)`
+passait par `voice_sections._scripts()`, un `sys.path.insert` vers quatre
+scripts de recherche (demucs + pyin, 2 138 lignes). L'app n'envoie jamais ce
+drapeau (`app_shell.html` : zéro occurrence ; la route qui le lisait est
+remplacée depuis le 2026-08-17). Voie morte, supprimée avec le crochet.
+
+**Deux `sys.path` restent, légitimes.** `musx.py` (le clone music-x-lab
+vendu, exécuté depuis son dossier) et `songformer.py` (le snapshot
+HuggingFace du modèle) : ce sont des chargements de code tiers, pas le
+bricolage vers `scripts/` que la liste des erreurs vise.
+
+**Mesuré.** Rapport d'or 46/46 identiques (vérifié AVANT tout autre
+lancement que le cache songformer était bien retrouvé : 0,6–1,5 s par
+morceau) ; pytest 224 passés + 1 échec hérité.
+
+**Suivant.** Sprint 10 : `analyze_steps` dans `harmonia/pipeline.py`, les
+trois derniers drapeaux et `_duree`.

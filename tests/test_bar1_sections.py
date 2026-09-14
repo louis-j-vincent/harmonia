@@ -9,7 +9,8 @@ Contract pinned here:
 * a post-mark intro tail MERGES FORWARD into the section that follows (the
   mark is the start of A, by definition of the tool) — never its own letter;
 * the sub-detection is told to anchor at the mark (`form_start=0` threads
-  from the pipeline through sections.detect_sections to voice_sections).
+  from the pipeline through `harmonia.sections.detect_sections` down to
+  `songformer.detect_sections`, the only detector since refactor sprint 9).
 """
 from __future__ import annotations
 
@@ -45,16 +46,18 @@ def test_straddling_section_still_cut_at_mark():
 
 
 def test_dispatcher_threads_form_start(monkeypatch):
-    from harmonia_min import sections as S
+    """`harmonia.sections.detect_sections` must pass `form_start` through to
+    songformer unchanged — songformer is the only detector since refactor
+    sprint 9 (2026-09-14), replacing the old env-switched dispatcher this
+    test used to exercise via `voice_sections` (deleted with the others)."""
+    from harmonia import sections as S
+    import harmonia.sections.songformer as SF
     seen = {}
 
-    def fake_voice(grid, triad, bars=None, audio=None, form_start=None):
+    def fake_songformer(grid, audio, form_start=None, **_):
         seen["form_start"] = form_start
         return [{"b0": 0, "b1": len(grid) - 2, "label": "A"}]
 
-    monkeypatch.setenv("HARMONIA_SECTIONS", "voice")
-    import harmonia_min.voice_sections as V
-    monkeypatch.setattr(V, "detect_sections", fake_voice)
-    S.detect_sections([0.0, 1.0, 2.0], None, None, bars=[[], []],
-                      triad=object(), audio="x.m4a", form_start=0)
+    monkeypatch.setattr(SF, "detect_sections", fake_songformer)
+    S.detect_sections([0.0, 1.0, 2.0], "x.m4a", form_start=0)
     assert seen["form_start"] == 0

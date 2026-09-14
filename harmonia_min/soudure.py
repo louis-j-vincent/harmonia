@@ -213,7 +213,7 @@ def _otsu(v, lo=0.30, hi=0.999, n=200, defaut=0.90) -> float:
 def _matrice_bimesures(S, bornes):
     """B[j,k] normalisée : à quel point la bi-mesure j ressemble à la k."""
     import numpy as np
-    from harmonia_min import voice_sections as VS
+    from harmonia.sections import similarity as VS
     J = len(bornes) - 1
     B = np.zeros((J, J))
     for j in range(J):
