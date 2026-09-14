@@ -163,3 +163,27 @@ Rapport d'or 46/46 identiques, 0 mesure changée ; pytest 326 passés ;
 résolu par le nouveau code est exactement l'ancien emplacement.
 
 **Suivant.** Sprint 6 : extraire `bars.py` de `pipeline.py:493-656`.
+
+## Sprint 6 — 2026-09-14 · `bars.py` extrait de `pipeline.py`
+
+**Fait (agent Sonnet).** La disposition en mesures — snap des onsets sur
+l'index de temps, vote de phase, marque « Set bar 1 », report des accords
+tenus, règle des pickups et du débordement — sort de `analyze_steps` pour
+devenir `harmonia/bars.py` : une dataclass `BarLayout` (bpb, off, n_bars,
+bar1_bar, grid, bars, step, segments) et un point d'entrée `layout_bars(...)`.
+Les commentaires datés (règle de la barre 2026-07-31, jamais de « % », on
+ne reporte jamais un N.C. 2026-08-10, la queue de N.C. qui traverse la barre
+2026-08-09, le débordement de la mesure 0) voyagent avec le code. `pipeline.py`
+passe de 923 à 710 lignes.
+
+**Ce que l'agent a trouvé que le brief n'avait pas vu.** Le bloc RÉASSIGNE
+`segments` (un N.C. de tête court est jeté) et ce `segments` rebondi est relu
+par le prompteur et par le rapport final : il fait donc partie de la sortie
+typée. Sans ça, le prompteur aurait reçu la liste non rognée — en silence.
+
+**Mesuré.** Rapport d'or 46/46 identiques ; pytest 326 passés. Aucun pont
+nécessaire : personne d'autre n'importait ces helpers (les scripts en ont
+leurs propres copies). Docstring de `musx.py` mise à jour (elle citait
+`pipeline._segment_confidence`).
+
+**Suivant.** Sprint 7 : `folding.py` et `refold.py`, une seule loi.

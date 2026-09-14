@@ -393,7 +393,7 @@ def label_confidence(triad: np.ndarray, t0: float, t1: float,
     THE single definition of "how well does the evidence support this chord",
     deliberately shared by both places that need it:
 
-      * `pipeline._segment_confidence`, on the raw per-song posteriors;
+      * `bars._segment_confidence`, on the raw per-song posteriors;
       * `folding._template_chords`, on the AVERAGED posteriors a fold decoded
         from.
 
