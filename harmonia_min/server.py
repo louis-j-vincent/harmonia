@@ -477,23 +477,13 @@ def section_merge_verdict():
 
 
 def _capabilities() -> list[str]:
-    """What this server can actually do right now (P3).
+    """What this server can actually do right now.
 
-    The shell decides what to show; we only state facts. Reported as a
-    capability only if the route exists AND its dependency is really there —
-    "reinfer" is gated on the trained prior table, because without it
-    span_rescore silently falls back to a uniform scorer that can never
-    change an argmax (a button that looks alive and does nothing).
+    The shell decides what to show from this list; we only state facts.
+    "reinfer" (chord-propagation) was retired 2026-08-20 (Louis: "cette
+    fonction est deprecated, enlève-la") and is no longer advertised.
     """
-    caps = ["annotations"]
-    try:
-        from harmonia_min import span_rescore as sr
-        scorer = sr.load_context_scorer()
-        if type(scorer).__name__ != "_UniformContextScorer":
-            caps.append("reinfer")
-    except Exception:  # noqa: BLE001 — a missing brick is a missing capability
-        log.warning("capabilities: context scorer unavailable", exc_info=True)
-    return caps
+    return ["annotations"]
 
 
 # ── artiste / titre éditables (delta2 §8) ────────────────────────────────────

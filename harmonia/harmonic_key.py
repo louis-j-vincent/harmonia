@@ -1,4 +1,4 @@
-"""harmonia_min/harmonic_key.py — tonic track → mode → scale colours → feedback.
+"""harmonic_key.py — tonic track → mode → scale colours → feedback.
 
 Minimal port (2026-07-31) of the v7c pipe in scratchpad/colour_hmm_song.py
 (``decode_segments``, feat/harmonic-key). Stages, each consuming only what the
@@ -27,7 +27,7 @@ Deliberate cuts from the scratchpad version (minimal, and the crap is gone):
   * ONE quality vocabulary — templates come from labels.py, not a third
     duplicate table.
   * NO plotting / printing / payload parsing — chords come in as the
-    ChartModel dicts pipeline.py already builds ({root,q,bass,nc,t0,t1}).
+    ChartModel dicts the chart pipeline already builds ({root,q,bass,nc,t0,t1}).
 
 Calibration constants are byte-identical to v4.1 (do not retune here).
 """

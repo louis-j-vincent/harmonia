@@ -187,3 +187,58 @@ leurs propres copies). Docstring de `musx.py` mise à jour (elle citait
 `pipeline._segment_confidence`).
 
 **Suivant.** Sprint 7 : `folding.py` et `refold.py`, une seule loi.
+
+## Sprint 7 — 2026-09-14 · `folding.py`, `refold.py` : une seule loi
+
+**Fait (agent Sonnet, en parallèle du sprint 8 sur des fichiers disjoints).**
+`folding.py` passe de 1 287 à 859 lignes : disparaissent la loi CQT
+(`combine="cqt"`, `cqt`, `check_thr`, `_cqt_template`, `_adhesion`,
+`_cqt_transpose`), `loi_de_merge()`/`MERGE_DEFAUT`, la transposition
+(`transpose`, `decalage_semitons`, `_rot_probs`, `_rot12`,
+`_transpose_accords` — devenus identité), le veto « par mesure »
+(`gate="bar"`), le paramètre `loop` (le comportement `occurrence` — boucle
+interne d'abord, puis l'occurrence entière — est désormais le seul), les
+variantes jamais appelées `weight`, `bass_mode`, `ecriture="vote"`
+(`vote_des_passages`, `_signature`, `_entropy_weights`, `_renorm`). La lecture
+de `HARMONIA_QUARTER_BAR` devient `SETTINGS.quarter_bar`. Signature
+survivante : `fold_letter_groups(sections, bars, grid, probs, bpb, arr=None,
+times=None, *, merge_letters=False)` — `merge_letters` reste un argument
+explicite (décision de Louis), alimenté par `SETTINGS.merge_letters`.
+`refold.py` et le site d'appel de `pipeline.py` perdent leurs six lectures
+d'environnement. Tests retirés : `test_loi_de_merge.py`, `test_fold_rot_probs.py`,
+six tests de transposition dans `test_songformer_sections.py`.
+
+**Compromis à retirer plus tard.** Le rapport de repli garde deux clés
+toujours vides (`demiton: {}`, `pos_skip: []`) pour que le JSON des charts
+reste identique ; à supprimer quand le schéma du chart sera formalisé
+(avec une page avant/après, puisque le JSON changera de forme).
+
+**Mesuré.** Rapport d'or 46/46 identiques, 0 mesure changée ; pytest 289
+passés (326 − 24 tests supprimés par les sprints 7 et 8 − 13 du fichier
+`test_chord_vocab_q8.py`).
+
+## Sprint 8 — 2026-09-14 · `harmonic_key.py`, `span_rescore.py` allégé, le « reinfer » enterré
+
+**Fait (agent Sonnet).** `span_rescore.py` passe de 749 à 268 lignes : reste
+le classement des alternatives par span (`musx_suggestions`, le `sug` de
+chaque accord que l'écran Annotate affiche) et ses tables ; partent le
+rescoring en treillis, le rescoring différentiel, le scorer de contexte et
+le repli NNLS-24 — la propagation est retirée depuis le 2026-08-20.
+`harmonia_min/chord_context_prior.py` (884 lignes, dont un `except Exception:
+pass` sur la lecture de son cache) est supprimé avec son test
+`test_chord_vocab_q8.py`. `server._capabilities()` renvoie `["annotations"]`
+et ne charge plus un scorer à chaque `GET /api/library` pour annoncer une
+capacité dont la route répond 410. `harmonic_key.py` : docstring seulement.
+
+**Ce que l'agent a corrigé dans le brief.** `refold.py` importe
+`musx_cache_path` de span_rescore (le brief le croyait mort) : gardé,
+réécrit sur `harmonia.cache`. La date de retrait de la propagation est le
+2026-08-20, pas le 19.
+
+**Mesuré.** Rapport d'or 46/46 identiques ; pytest 289 passés ; plus aucune
+référence exécutable à `chord_context_prior`/`load_context_scorer`/
+`lattice_rescore` dans `harmonia`, `harmonia_min`, `tests`, `tools`.
+
+**Suivant.** Synchroniser le commit `befd8ee` de `feat/section-criteres`
+(cascade d'affichage des sections, 160 lignes dans `minimal_fold`), puis
+sprint 9 : sections/songformer seul.
