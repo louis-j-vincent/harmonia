@@ -27982,3 +27982,41 @@ A/B/C/D, aucune erreur console).
   continue) mais `--cookies-from-browser firefox` planterait alors sur les 5
   clients avec une erreur d'extraction de cookies, pas encore mappée à un
   message lisible dans `_download_audio`.
+
+## songformer nomme par rôle, pas par musique — deux lettres identiques peuvent porter des noms différents (2026-09-14)
+
+En creusant le refus de la lettre A sur Sunny Afternoon (voir l'entrée du
+2026-09-13 juste au-dessus), Louis a écouté les mesures individuelles et a
+identifié deux choses par l'oreille, toutes deux vérifiées numériquement :
+
+1. **A doit se replier globalement**, pas être refusée pour une seule
+   position faible. Déjà couvert par `HARMONIA_FOLD_GATE=bar` (2026-08-19,
+   pas le défaut) — confirmé de nouveau ici.
+2. **A et C sont la même section.** songformer avait nommé "A" un passage
+   qu'il entend comme *instrumental* et "C" le même enchaînement quand il
+   est chanté (*refrain*) — deux RÔLES différents pour la MÊME musique.
+   Vérifié : cosinus des centroïdes (même substrat que la détection/le
+   repli) entre A et chaque occurrence de C = 0.98–0.99, plus haut que la
+   cohérence interne de A elle-même (0.96) ou de B (0.98).
+
+**Fix** : `folding.merge_similar_letters()` (voir `harmonia_min/folding.py`)
+réétiquette les lettres dont les centroïdes dépassent 0.93 avant le
+groupage, gardant le nom de la plus ancienne. `HARMONIA_MERGE_LETTERS=1`
+(off par défaut). Résultat sur ce morceau : A absorbe 4 des 5 occurrences
+de C (la 5e, 6 mesures, reste à part — under-fold, never over-fold),
+cohérence par position 0.95/0.95/0.94/0.94 partout — y compris la position
+3, qui passe de 2 témoins (cohérence 0.76, toujours litigieuse) à 6
+témoins (0.94) et n'a plus besoin d'aucune exclusion.
+
+**Conséquence pour la proposition « Db, C7 en option »** : Louis avait
+proposé d'écrire le dénominateur commun des 2 seuls témoins de la position
+3 (`D♭`) avec `C7` en accord optionnel au-dessus, pour ne pas trancher à
+l'aveugle. Une fois la fusion faite, 5 témoins sur 6 disent en fait
+`D♭maj7 C7` — la fusion règle le désaccord au lieu de le contourner. L'idée
+« accord optionnel » reste valable pour un futur cas réellement à égalité
+(elle touche le schéma ChartModel, pas implémentée).
+
+**Ne résout PAS** : calibré sur un seul morceau (seuil 0.93, hypothèse —
+CLAUDE.md règle #5). Pas encore vérifié sur le reste du corpus annoté
+avant de devenir le défaut. `intro`/`outro` jamais comparés par design
+(repères de structure, pas matière musicale).
