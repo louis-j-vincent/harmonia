@@ -100,6 +100,72 @@ CV_MAX = 0.51            # Louis's validated metric (2026-08-01): CV =
                          # NOT squashed.
 
 
+#: Cosinus minimal entre les CENTROÏDES de deux lettres pour les fusionner
+#: avant le repli (Louis, 2026-09-14, en écoutant les mesures de Sunny
+#: Afternoon : « la section A et C sont les mêmes, il faudrait les merger »).
+#: Vérifié : A (instrumental) et C (refrain) partagent la même progression —
+#: cosinus 0.98–0.99 selon l'occurrence de C comparée, PLUS haut que la
+#: cohérence interne de A elle-même (0.96) ou de B (0.98). songformer nomme
+#: un passage par son RÔLE (couplet/refrain/instrumental…), pas par sa
+#: musique — un instrumental qui rejoue le refrain reçoit sa propre lettre
+#: même si les accords sont identiques.
+#: Volontairement très haut : ça ne doit fusionner que ce qui est
+#: authentiquement le même passage. HYPOTHÈSE, un seul morceau — à vérifier
+#: sur le corpus avant de devenir le défaut (voir HARMONIA_MERGE_LETTERS).
+MERGE_LETTERS_COS = 0.93
+
+
+def merge_similar_letters(sections: list[dict], Vb: np.ndarray,
+                          threshold: float = MERGE_LETTERS_COS) -> None:
+    """Réétiquette IN PLACE les lettres dont les centroïdes se confondent.
+
+    Compare la moyenne des vecteurs de mesure (même substrat que la
+    détection et le repli) de chaque lettre à chaque autre ; au-dessus du
+    seuil, la plus tardive des deux prend le nom de la plus ancienne
+    (`_lettres()` nomme déjà par ordre de première apparition — on prolonge
+    la même convention). `intro`/`outro` ne sont jamais comparées : ce sont
+    des repères de structure, pas de la matière musicale à confondre avec
+    autre chose.
+
+    NE RÈGLE PAS : deux occurrences fusionnées peuvent avoir des longueurs
+    différentes (ex. le refrain court de 6 mesures) — `fold_letter_groups`
+    et `minimal_fold` gèrent déjà ce cas (`loop="occurrence"`, groupage par
+    (lettre, longueur)), donc rien de plus n'est nécessaire ici, mais ce
+    n'est pas cette fonction qui le garantit.
+    """
+    from collections import defaultdict
+    groups: dict[str, list[dict]] = defaultdict(list)
+    for s in sections:
+        groups[s["label"]].append(s)
+    letters = [l for l in groups if l not in ("intro", "outro")]
+    if len(letters) < 2:
+        return
+
+    def centroid(label):
+        idx = [b for s in groups[label]
+               for b in range(s["barRanges"][0][0], s["barRanges"][0][1] + 1)]
+        v = Vb[idx].mean(axis=0)
+        return v / max(np.linalg.norm(v), 1e-9)
+
+    cent = {l: centroid(l) for l in letters}
+    first = {l: min(s["barRanges"][0][0] for s in groups[l]) for l in letters}
+    order = sorted(letters, key=lambda l: first[l])
+    remap = {l: l for l in letters}
+    for i, li in enumerate(order):
+        for lj in order[i + 1:]:
+            if remap[li] != li or remap[lj] != lj:
+                continue                      # déjà fusionnée ce tour-ci
+            sim = float(cent[li] @ cent[lj])
+            if sim >= threshold:
+                remap[lj] = li
+                logger.info("fold: lettres %s et %s fusionnées (centroïdes "
+                            "à %.3f) — %s absorbe %s", li, lj, sim, li, lj)
+    if all(v == k for k, v in remap.items()):
+        return
+    for s in sections:
+        s["label"] = remap.get(s["label"], s["label"])
+
+
 def _bar_vecs(F: np.ndarray, n_bars: int) -> np.ndarray:
     """(n_bars, 48) unit vectors from the half-bar features (2 rows per bar)."""
     V = np.array([F[2 * b:2 * b + 2].reshape(-1) for b in range(n_bars)])
@@ -309,6 +375,7 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
                        check_thr: float | None = None,
                        loop: str = "internal",
                        transpose: bool = False,
+                       merge_letters: bool = False,
                        ecriture: str = "gabarit") -> dict:
     """Stack + re-decode + redistribute, per letter group. Mutates `bars`
     IN PLACE (each bar list object is shared with the section slices).
@@ -339,6 +406,11 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
       bass_mode "avg" (prod) | "skip" — levier 5 (la basse hors de la
                 moyenne : flux basse rendu uniforme dans le template, chaque
                 occurrence garde son inversion).
+      merge_letters False (prod) | True — fusionne d'abord les lettres dont
+                les centroïdes se confondent (voir `merge_similar_letters`),
+                AVANT le groupage par lettre ci-dessous. Sans lui, deux
+                occurrences identiques nommées différemment par le
+                détecteur de sections ne se rencontrent jamais.
     """
     from harmonia_min.sections import halfbar_features
     n_bars = len(grid) - 1
@@ -365,6 +437,9 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
 
     med_bar = float(np.median(np.diff(grid)))
     Lf = max(bpb, int(round(med_bar / _musx.FRAME_DT)))   # frames per bar
+
+    if merge_letters:
+        merge_similar_letters(sections, Vb)
 
     # ── group sections by letter, pick the group period ─────────────────────
     groups: dict[str, list[dict]] = {}

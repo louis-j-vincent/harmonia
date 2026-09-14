@@ -830,10 +830,22 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
         # gabarit décodé lui est réécrit transposé en retour.
         _tr = os.environ.get("HARMONIA_FOLD_TRANSPOSE", "").strip().lower() \
             in ("1", "on", "true")
+        # HARMONIA_MERGE_LETTERS=1 (Louis, 2026-09-14, sur Sunny Afternoon :
+        # « la section A et C sont les mêmes, il faudrait les merger aussi »).
+        # songformer nomme un passage par son RÔLE (couplet/refrain/
+        # instrumental) ; un instrumental qui rejoue le refrain reçoit sa
+        # propre lettre même si les accords sont identiques. Vérifié sur ce
+        # morceau : A/C à 0.98-0.99 de similarité, plus haut que la
+        # cohérence interne de A elle-même. Défaut inchangé (off) — même
+        # règle que pour toute loi de merge : elle réécrit tous les charts,
+        # elle ne passe en prod que sur décision explicite.
+        _ml = os.environ.get("HARMONIA_MERGE_LETTERS", "").strip().lower() \
+            in ("1", "on", "true")
         fold_report = fold_letter_groups(
             sections, bars, grid, probs, bpb, arr=_arr, times=_times,
             combine=("cqt" if _merge == "cqt" else "mean"),
             cqt=_cqt, loop=_loop, gate=_gate, transpose=_tr,
+            merge_letters=_ml,
             check_thr=(float(_mchk) if _mchk and _merge == "cqt" else None))
         # repetition counts recomputed on the folded chords
         from collections import Counter as _C2
