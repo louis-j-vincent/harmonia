@@ -37,6 +37,9 @@ strangler-pattern port of the **trusted** app, gated by "today's charts come out
 4. **Only the production choice survives** per decision: songformer only (child death = loud
    failure), merge = mean, quarter-bar on, fold loop = occurrence, gate = letter, transpose
    off. Alternatives are deleted; git history keeps them.
+   *Addendum 2026-09-14 (Louis):* the opt-in `merge_letters` knob added to folding by
+   his other session the same day is live section-quality research: it stays as an
+   explicit function argument (default off), only its env flag goes.
 5. **Frontend** split into per-screen ES modules, no build step, same pixels, dead calls removed.
 6. **New package is `harmonia/`**; `harmonia_min` stays live as the reference until the swap,
    then is deleted. Server = `python -m harmonia.server`, Flask :7772, no reloader.

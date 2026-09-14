@@ -120,3 +120,46 @@ une détection de modulation que cette copie n'a jamais eue (tronquée au
 passés en 5 s (aucun test n'importe ces deux modules directement).
 
 **Suivant.** Sprint 3 : `beats.py` sur `harmonia.cache`.
+
+**Décisions de Louis (2026-09-14, après le sprint 2).** (1) `curl_cffi` installé
+dans le venv partagé et ajouté à `requirements-lock.txt` — la recherche UG
+remarche sur :7773 et sur :7772. (2) Les sept charts « — AVANT » d'août
+retirés de la bibliothèque vivante ; les deux copies « test fusion » écrites
+aujourd'hui par sa session concurrente sont laissées. (3) `merge_letters`
+(fusion de lettres identiques, opt-in du jour) reste un argument explicite de
+`fold_letter_groups`, défaut off ; seul son drapeau d'environnement disparaît.
+*Suite (même soir).* Huit charts « — AVANT » du 2026-08-12 en fait, tous retirés.
+La recherche UG, `curl_cffi` installé, reçoit maintenant un **HTTP 500 du site**
+(anti-bot, même famille que le blocage YouTube du 2026-09-13) — sur :7772 comme
+sur :7773 ; le module le logge en WARNING et renvoie une liste vide. Rien à
+faire côté refactor ; à traiter avec la route au sprint 14 si Louis y tient.
+
+## Sprints 3, 4, 5 — 2026-09-14 · `beats.py`, `musx.py`, `nnls_features.py` sur `settings` + `cache`
+
+**Fait (délégué à un agent Sonnet, un module à la fois, porte après chacun ;
+`git mv` + ponts posés par la session principale avant, commits après).**
+- `beats.py` : lecture/écriture du cache par `harmonia.cache` (kind `beats`) ;
+  un cache corrompu se logge en WARNING puis se recalcule, au lieu du
+  `except ValueError: pass`. `CACHE_DIR` reste comme pont (des scripts le lisent).
+- `musx.py` : `_musx_dir()` et `_device()` lisent `SETTINGS` — plus aucun
+  `os.environ` dans le module ; `_PROB_CACHE`/`_CQT_CACHE` sont des alias des
+  dossiers de `cache.py` (span_rescore importe `_PROB_CACHE`) ;
+  `frame_posteriors(cache_dir=None)` passe par le cache commun, un
+  `cache_dir` explicite garde l'ancien comportement. Décodeur, patch MPS,
+  `redecode` : intouchés.
+- `nnls_features.py` : `HEADS_NPZ` = l'asset suivi ; cache par `cache.py`
+  (kind `nnls`, `savez_compressed` pour les nouveaux fichiers, identiques à la
+  relecture) ; **`get_heads()` lève `FileNotFoundError`** au lieu de renvoyer
+  `None` avec un WARNING — l'asset est suivi par git, son absence est une
+  erreur, et un `None` renvoyé obligeait chaque appelant à vérifier (deux
+  scripts ne le faisaient qu'en silence). Docstrings : plus de chemins vers
+  des fichiers supprimés ni de « voir X.py ».
+- `cache.py` gagne `folder(kind)` pour les ponts, à la place d'un
+  `path(kind, Path("_")).parent` bricolé.
+
+**Mesuré (après chaque module, puis re-vérifié par la session principale).**
+Rapport d'or 46/46 identiques, 0 mesure changée ; pytest 326 passés ;
+`grep os.environ` vide sur les trois modules ; chaque dossier de cache
+résolu par le nouveau code est exactement l'ancien emplacement.
+
+**Suivant.** Sprint 6 : extraire `bars.py` de `pipeline.py:493-656`.

@@ -127,3 +127,4 @@ webcolors==25.10.0
 Werkzeug==3.1.8
 x-clip==0.14.4
 x-transformers==2.25.5
+curl_cffi==0.16.3

@@ -1,13 +1,16 @@
-"""harmonia_min/nnls_features.py — NNLS-24 chroma front-end (copied 2026-07-31
-from harmonia/models/nnls_features.py; MLP inlined, REPO depth fixed).
+"""NNLS-24 chroma front-end (copied 2026-07-31 from
+harmonia/models/nnls_features.py; MLP inlined).
 
 The opt-in counterpart to Basic Pitch (BP48) in chord_pipeline_v1: extracts the
 real Mauch & Dixon NNLS-Chroma VAMP plugin's 24-dim `bothchroma` (bass|treble),
-pooled per beat, and loads the trained root + quality heads
-(harmonia/models/nnls24_heads.npz, from scripts/train_nnls24_heads.py).
+pooled per beat, and loads the trained root + quality heads — two small MLPs
+(`NNLS24Heads`, weights in `harmonia/assets/nnls24_heads.npz`, tracked in git)
+that predict root pitch-class and chord quality from a pooled 24-dim feature
+row, trained on RWC audio.
 
-Feature convention (matched byte-for-byte to the RWC training features in
-data/cache/rwc/rwc_nnls24.npz — see scratchpad/nnls_real_extract.py):
+Feature convention (matched byte-for-byte to the features the heads were
+trained on — 24-dim bothchroma pooled per beat, C-rolled, L2-normalised per
+half):
   * VAMP `nnls-chroma:nnls-chroma` output `bothchroma`, 24-dim, index 0 = A.
   * per beat interval [t0,t1): MEAN bothchroma over frames in the interval.
   * roll each 12-half by 9 -> C-first pitch-class frame.
@@ -29,13 +32,17 @@ from pathlib import Path
 
 import numpy as np
 
+from harmonia import cache
+from harmonia.settings import SETTINGS
+
 logger = logging.getLogger(__name__)
 
-REPO = Path(__file__).resolve().parent.parent
 # Depuis le 2026-09-14 (refactor, sprint 1) le checkpoint est un asset suivi
 # du nouveau paquet, plus un orphelin non suivi de l'ancien arbre.
-HEADS_NPZ = REPO / "harmonia" / "assets" / "nnls24_heads.npz"
-_CACHE_DIR = REPO / "data" / "cache" / "nnls_infer"
+HEADS_NPZ = SETTINGS.assets / "nnls24_heads.npz"
+#: Bridge for callers that want the raw folder — convention lives in
+#: `harmonia.cache` (kind "nnls").
+_CACHE_DIR = cache.folder("nnls")
 
 SR = 44100
 _ROLL_TO_C = 9  # index 0 = A -> roll by 9 puts C at index 0
@@ -51,32 +58,29 @@ def _l2(v: np.ndarray) -> np.ndarray:
 def extract_bothchroma(audio_path: Path, *, use_cache: bool = True):
     """Run the NNLS-Chroma VAMP plugin -> (arr (T,24) index0=A, times (T,)).
 
-    Cached to data/cache/nnls_infer/<stem>.npz — keyed on the file STEM, not
-    mtime.  An mtime-keyed cache is silently defeated in production: the server
-    downloads every fresh YouTube analysis job to a brand-new
-    ``tempfile.mkdtemp()`` directory (see ``scripts/harmonia_server.py::
-    _run_analysis``), so a re-download of the SAME video gets a new mtime every
-    time and never hits the cache — exactly the bug already root-caused and
-    fixed in the sibling ``musx_bass.py::_cache_key`` (see its docstring for the
-    full reasoning, incl. why a content hash doesn't fix it either: yt-dlp's
-    bestaudio isn't byte-deterministic across downloads). yt-dlp's ``outtmpl``
-    names the file ``<video_id>.<ext>``, so the stem IS the stable identifier
-    on the production path.
+    Cached via `harmonia.cache` (kind "nnls"), keyed on the file STEM, not
+    mtime.  An mtime-keyed cache is silently defeated in production: a fresh
+    YouTube analysis job downloads to a brand-new temp directory every time,
+    so a re-download of the SAME video gets a new mtime and never hits the
+    cache — the same reasoning that keys the musx posterior cache (`musx.py`)
+    by stem; a content hash doesn't fix it either, since yt-dlp's bestaudio
+    isn't byte-deterministic across downloads. yt-dlp's ``outtmpl`` names the
+    file ``<video_id>.<ext>``, so the stem IS the stable identifier on the
+    production path.
 
-    Caveat (same as musx_bass): a *local* file edited in place under the same
-    name will read a stale cache entry — clear ``data/cache/nnls_infer/`` after
-    replacing a local file, same as the musx cache.
+    Caveat (same as the musx cache): a *local* file edited in place under the
+    same name will read a stale cache entry — clear the "nnls" cache folder
+    after replacing a local file.
 
     Raises RuntimeError with an actionable message if the `vamp` module or the
     nnls-chroma plugin is unavailable (the plugin is a native VAMP library, not
     a pip package).
     """
     audio_path = Path(audio_path)
-    key = f"{audio_path.stem}.npz"
-    cache = _CACHE_DIR / key
-    if use_cache and cache.exists():
-        z = np.load(cache)
-        return z["arr"], z["times"]
+    if use_cache:
+        d = cache.load_npz("nnls", audio_path)
+        if d is not None:
+            return d["arr"], d["times"]
 
     try:
         import librosa
@@ -102,8 +106,7 @@ def extract_bothchroma(audio_path: Path, *, use_cache: bool = True):
     arr = np.asarray(arr, np.float32)
     times = np.arange(arr.shape[0]) * float(step)
     if use_cache:
-        _CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        np.savez(cache, arr=arr, times=times)
+        cache.save_npz("nnls", audio_path, arr=arr, times=times)
     return arr, times
 
 
@@ -146,9 +149,11 @@ class NNLS24Heads:
         import torch
         import torch.nn as nn
 
-        # MLP copied from scratchpad/multihead_training.py (2026-07-31) — the
-        # exact architecture the checkpoint was trained with; inlined so the
-        # minimal package never sys.path-hacks into scratchpad/.
+        # Two-hidden-layer MLP (Linear -> BatchNorm -> ReLU -> Dropout per
+        # hidden layer, plain Linear head) — the exact architecture the
+        # checkpoint was trained with, inlined so this package never
+        # sys.path-hacks into scratchpad/ to import the training definition
+        # (checklist item 6: no sys.path hacks).
         class MLP(nn.Module):
             def __init__(self, din, dout, hid=(128, 64), p=0.2):
                 super().__init__()
@@ -225,14 +230,25 @@ class NNLS24Heads:
 _heads: NNLS24Heads | None = None
 
 
-def get_heads() -> NNLS24Heads | None:
-    """Lazy singleton; returns None (with a warning) if the checkpoint is absent."""
+def get_heads() -> NNLS24Heads:
+    """Lazy singleton root+quality heads.
+
+    Raises FileNotFoundError if the checkpoint is absent. Before the refactor
+    this returned None with a warning, leaving every caller responsible for
+    checking — a silent fallback: `span_rescore.compute_acoustic_logp` did
+    check and raised its own error, but nothing forced the next caller to.
+    Since sprint 1 (2026-09-14) the checkpoint is a tracked git asset
+    (`harmonia/assets/nnls24_heads.npz`), so its absence is a real error, not
+    an ordinary "not trained yet" state — it deserves a hard failure at the
+    source instead of an Optional threaded through every consumer.
+    """
     global _heads
     if _heads is not None:
         return _heads
     if not HEADS_NPZ.exists():
-        logger.warning("nnls_features: %s missing — run scripts/train_nnls24_heads.py",
-                       HEADS_NPZ)
-        return None
+        raise FileNotFoundError(
+            f"nnls_features: {HEADS_NPZ} is missing. It is tracked in git — "
+            "on a fresh clone this means the checkout is incomplete; "
+            "otherwise retrain it with scripts/train_nnls24_heads.py.")
     _heads = NNLS24Heads()
     return _heads
