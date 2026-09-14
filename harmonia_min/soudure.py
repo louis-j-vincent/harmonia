@@ -763,7 +763,16 @@ def sections_pour_chart(chart: dict, secs: list[dict],
                          for b in range(b0, b1 + 1)],
         })
     out.sort(key=lambda s: s["barRanges"][0][0])
-    return out
+    # LA FAÇON IREAL, ICI AUSSI (2026-09-14). Ce chemin-là sert les morceaux
+    # dont Louis a validé le découpage à la main, et l'outil de sections de
+    # l'app ; sans cette ligne il rendait encore deux blocs « A », alors que
+    # la pipeline n'en rend plus. Deux chemins qui écrivent le même chart ne
+    # peuvent pas avoir deux façons d'écrire les lettres.
+    # Pas de rapport de repli ici : la règle 3 y retombe sur le test préfixe.
+    from harmonia_min.folding import _ireal_cascade, _ireal_endings
+    for blk in out:
+        _ireal_endings(blk, bars, grid)
+    return _ireal_cascade(out, bars, grid, None)
 
 
 def song_du_chart(chart: dict, audio_dir=None) -> dict | None:

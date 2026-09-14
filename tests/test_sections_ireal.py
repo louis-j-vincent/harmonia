@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from harmonia_min.folding import _ireal_cascade, _ireal_endings
 
+GRID = [float(i) for i in range(200)]
+
 
 def _bar(root, q="", nc=False):
     return [{"root": root, "q": q, "nc": nc}]
@@ -25,9 +27,6 @@ def _blk(label, bar_roots, ranges, reps=None):
     }
 
 
-GRID = [float(i) for i in range(200)]
-
-
 def test_deux_blocs_meme_lettre_impossible():
     """Règle 5 : ce que la cascade ne réduit pas prend un prime."""
     a = _blk("A", [0, 5, 7, 2], [(0, 3), (8, 11)])
@@ -35,7 +34,7 @@ def test_deux_blocs_meme_lettre_impossible():
     out = _ireal_cascade([a, a2], None, GRID, {})
     labels = [b["label"] for b in out]
     assert len(labels) == len(set(labels)), labels
-    assert labels[0] == "A" and labels[1] == "A′"
+    assert labels == ["A", "A′"]
 
 
 def test_passage_coupe_rejoint_le_bloc():
@@ -43,15 +42,11 @@ def test_passage_coupe_rejoint_le_bloc():
     cell = [0, 5, 7, 2]
     host = _blk("A", cell + cell, [(0, 7), (16, 23)])
     court = _blk("A", cell + cell[:2], [(40, 45)])
-    report = {"A": {"period": 4}}
-    out = _ireal_cascade([host, court], None, GRID, report)
-    assert len(out) == 1, [b["label"] for b in out]
-    assert out[0]["label"] == "A"
-    assert out[0]["reps"] == 3
-    assert len(out[0]["barRanges"]) == 3
+    out = _ireal_cascade([host, court], None, GRID, {"A": {"period": 4}})
+    assert [b["label"] for b in out] == ["A"]
+    assert out[0]["reps"] == 3 and len(out[0]["barRanges"]) == 3
     # le passage court n'allume QUE ses 6 mesures
-    lit = [len(rows) for rows in out[0]["barSpans"]]
-    assert lit[:6] == [3] * 6 and lit[6:] == [2, 2], lit
+    assert [len(rows) for rows in out[0]["barSpans"]] == [3] * 6 + [2, 2]
 
 
 def test_passage_coupe_qui_ne_suit_pas_la_cellule_prend_un_prime():
@@ -61,9 +56,23 @@ def test_passage_coupe_qui_ne_suit_pas_la_cellule_prend_un_prime():
     assert [b["label"] for b in out] == ["A", "A′"]
 
 
-def test_un_repli_refuse_ne_sert_pas_de_cellule():
-    """`reason` non vide = repli refusé : sa `period` ne doit rien piloter."""
-    host = _blk("A", [0, 5, 7, 2, 0, 5, 7, 2], [(0, 7), (16, 23)])
+def test_sans_cellule_connue_le_test_devient_le_prefixe():
+    """Repli refusé, ou découpage à la main (chemin Soudure, aucun rapport de
+    repli) : on teste « est-ce le début du bloc long ? »."""
+    for report in ({"A": {"period": 4, "reason": "stack incoherent (0.61)"}},
+                   None, {}):
+        host = _blk("A", [0, 5, 7, 2, 0, 5, 7, 2], [(0, 7), (16, 23)])
+        court = _blk("A", [0, 5, 7, 2, 0, 5], [(40, 45)])
+        out = _ireal_cascade([host, court], None, GRID, report)
+        assert [b["label"] for b in out] == ["A"], report
+        assert out[0]["reps"] == 3
+
+
+def test_un_repli_refuse_ne_sert_pas_de_cellule_modulo():
+    """La cellule de 4 ferait coller le passage court, mais le bloc long ne
+    répète pas vraiment cette cellule (mesure 5 différente) : préfixe, donc
+    prime. Un repli refusé ne doit jamais piloter l'affichage."""
+    host = _blk("A", [0, 5, 7, 2, 9, 5, 7, 2], [(0, 7), (16, 23)])
     court = _blk("A", [0, 5, 7, 2, 0, 5], [(40, 45)])
     report = {"A": {"period": 4, "reason": "stack incoherent (0.61)"}}
     out = _ireal_cascade([host, court], None, GRID, report)
@@ -72,20 +81,27 @@ def test_un_repli_refuse_ne_sert_pas_de_cellule():
 
 def test_fins_1_2_quand_seule_la_queue_differe():
     """Règle 2 : deux passages identiques sauf les 2 dernières mesures."""
-    bars = {}
-    for i, r in enumerate([0, 5, 7, 2, 0, 5, 9, 4]):      # passage 1
-        bars[i] = _bar(r)
-    for i, r in enumerate([0, 5, 7, 2, 0, 5, 11, 3]):     # passage 2
-        bars[16 + i] = _bar(r)
+    bars = {i: _bar(r) for i, r in enumerate([0, 5, 7, 2, 0, 5, 9, 4])}
+    bars.update({16 + i: _bar(r)
+                 for i, r in enumerate([0, 5, 7, 2, 0, 5, 11, 3])})
     blk = _blk("B", [0, 5, 7, 2, 0, 5, 9, 4], [(0, 7), (16, 23)])
     _ireal_endings(blk, bars, GRID)
     assert blk["endings"]["tail"] == 2
-    assert len(blk["endings"]["variants"]) == 2
-    assert blk["endings"]["variants"][0]["passes"] == [0]
-    assert blk["endings"]["variants"][1]["passes"] == [1]
-    # barSpans = 6 mesures de tronc commun, puis 2+2 mesures de queue
-    assert len(blk["barSpans"]) == 6 + 2 + 2
+    assert [v["passes"] for v in blk["endings"]["variants"]] == [[0], [1]]
+    # barSpans = 6 mesures de tronc commun, puis 2 + 2 mesures de queue
     assert [len(r) for r in blk["barSpans"]] == [2] * 6 + [1] * 4
+
+
+def test_pas_de_fins_pour_un_simple_changement_de_couleur():
+    """Une vraie 2e fin change d'ACCORD. `C7` contre `Cm7` sur la dernière
+    mesure, c'est du bruit de décodage (Sunny Afternoon, 2026-09-14)."""
+    bars = {i: _bar(r, q) for i, (r, q) in
+            enumerate([(0, ""), (5, ""), (7, ""), (2, "7")])}
+    bars.update({16 + i: _bar(r, q) for i, (r, q) in
+                 enumerate([(0, ""), (5, ""), (7, ""), (2, "-7")])})
+    blk = _blk("B", [0, 5, 7, 2], [(0, 3), (16, 19)])
+    _ireal_endings(blk, bars, GRID)
+    assert "endings" not in blk
 
 
 def test_pas_de_fins_sur_un_bloc_deja_replie_en_cellule():

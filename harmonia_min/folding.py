@@ -1356,7 +1356,8 @@ def _ireal_endings(blk: dict, bars, grid) -> None:
     # décodage est du premier jet, passage par passage. Suspendre un crochet
     # « 1./2. » pour ça, c'est sur-noter du bruit. On exige donc que la queue
     # change de FONDAMENTALE quelque part (This Love : `B♭ E♭` contre `A♭ G`).
-    roots = {tuple(b[0] for b in key) for key in bytail}
+    roots = {tuple(tuple(ch[0] for ch in bar) for bar in key)
+             for key in bytail}
     if len(roots) < 2:
         return
     variants = []
@@ -1397,7 +1398,9 @@ def _ireal_cascade(out: list[dict], bars, grid, fold_report) -> list[dict]:
             continue
         # l'hôte = le plus joué (à égalité, le premier dans le morceau)
         host = max(blks, key=lambda b: (b["reps"], -out.index(b)))
-        rep = fold_report.get(label) or {}
+        rep = (fold_report or {}).get(label) or {}
+        # un repli REFUSÉ ne sert pas de cellule (sa `period` est celle qu'il
+        # testait, pas celle qu'il a validée) — on passe alors au test préfixe
         P = None if rep.get("reason") else rep.get("period")
         cell = [_barsig(b) for b in host["bars"][:P]] if P else None
         rank = 0
@@ -1424,10 +1427,15 @@ def _merge_coupe(host: dict, blk: dict, cell, P, grid) -> bool:
     passage). Sunny Afternoon en est l'exemple : le bloc de 8 a un `B♭m7` de
     plus en mesure 2, le bloc de 6 suit la cellule à la note près.
     """
-    if not P or not cell or host.get("endings"):
+    if host.get("endings") or len(blk["bars"]) >= len(host["bars"]):
         return False
-    if len(blk["bars"]) >= len(host["bars"]):
-        return False
+    if not P or not cell:
+        # Pas de cellule connue (repli refusé, ou découpage fait à la main :
+        # le chemin Soudure n'a pas de rapport de repli) — on retombe sur le
+        # test le plus simple et le plus sûr : le bloc court est-il le DÉBUT
+        # du bloc long ? Un passage qui commence pareil et s'arrête plus tôt
+        # est un passage coupé, que le repli des accords ait abouti ou non.
+        cell, P = [_barsig(b) for b in host["bars"]], len(host["bars"])
     if any(_barsig(bar) != cell[i % P] for i, bar in enumerate(blk["bars"])):
         return False
     n_rows = len(host["barSpans"])
