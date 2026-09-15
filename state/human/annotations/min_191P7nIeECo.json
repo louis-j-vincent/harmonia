@@ -1,0 +1,27 @@
+{
+  "annotator": "",
+  "chords": [
+    {
+      "bar": 2,
+      "beat": 0,
+      "root": 8,
+      "bass": -1,
+      "q": "^7",
+      "t0": 6.409,
+      "t1": 9.056
+    },
+    {
+      "bar": 3,
+      "beat": 0,
+      "root": 6,
+      "bass": -1,
+      "q": "^7",
+      "t0": 9.056,
+      "t1": 10.31
+    }
+  ],
+  "merges": [],
+  "schema": 1,
+  "chart": "min_191P7nIeECo",
+  "modified": "2026-09-15T12:32:25Z"
+}
