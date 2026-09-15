@@ -7,30 +7,18 @@ Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 
 ## Ouvert
 
-### Audit 2026-09-15 — deux corrections candidates, page avant/après publiée, en attente d'arbitrage
+### Audit 2026-09-15 — ce qui reste ouvert
 
-Détail et mesures : `docs/audit_2026-09-15_plan.md` (section « Résultats »).
-Page : http://100.89.209.63:7772/reports/avant_apres.html (22 morceaux).
-Code NON commité en attendant Louis : `harmonia/musx.py` (grille de latence
-réduite à `(0.0,)`), `harmonia/folding.py` + `harmonia_min/soudure.py`
-(`pass_evidence`, une seule loi pour la passe écrite).
+Détail et mesures : `docs/audit_2026-09-15_plan.md`.
 
-- **Latence musx cherchée du mauvais côté.** Mesuré sur 46 morceaux : les
-  changements du modèle tombent 23–46 ms AVANT la battue Beat This!, jamais
-  après ; la recherche ne teste que 0…+280 ms. Sur le gabarit du repli,
-  89 décodages sur 96 choisissent une latence non nulle (8 à la borne 280) et
-  réécrivent les accords un temps trop tôt — 18 morceaux, 239 mesures,
-  invisibles dans `meta.musx_latency_ms`. Another Day : alias +280 ≡ −163 ms,
-  78 accords un temps trop tôt.
-- **Passe affichée = `occ[0]` sur le chemin Soudure.** Stand By Me (découpage
-  à la main) affichait sa première A (intro basse-voix, 5 N.C. sur 8) alors
-  que `minimal_fold` choisit la passe la plus riche depuis le 2026-08-10.
-  Deux chemins, deux lois ; 9 morceaux à découpage manuel changent de passe.
 - **Le re-calage harmonique de la phase (`bars._phase_correction`) ne se
   déclenche sur aucun des 44** (seuils 0,55 / 0,15 jamais satisfaits
   ensemble). Sur 2 des 3 marques « Set bar 1 » de Louis, le vote des accords
   pointait sur sa phase à 45–50 %. Pas de correctif proposé : Let It Be
   (54 %) serait re-calé d'une demi-mesure — son oreille tranche.
+- **5 mesures où le consensus du repli réécrit un accord de 1re passe sûr
+  (c ≥ 0,70)** : `0DdCoNbbRvQ` B mes. 26 (D-7 → G7), Easy On Me B mes. 15 et
+  36 (F D- → F), `oIv_Y2RPQ_A` C mes. 44 et 80 (Gb → porté). À écouter.
 - `test_minimal_fold_separe_les_longueurs_dune_meme_lettre` échoue à HEAD
   depuis la cascade iReal (le B de 4 replié comme préfixe du B de 8).
 - `sections_pour_chart` vit encore dans `harmonia_min/soudure.py` ; golden
@@ -175,6 +163,18 @@ trouvaille est vérifiée contre le code vivant et notée ici.
   la moyenne en silence ? Pas vérifié ; même piste de recherche.
 
 ## Résolu récemment
+
+- **Recherche de latence musx supprimée (2026-09-15, audit, accepté par
+  Louis).** Mesuré sur 46 morceaux : les changements du modèle tombent
+  23–46 ms AVANT la battue Beat This!, jamais après ; la recherche ne testait
+  que 0…+280 ms. Relancée par le décodage du gabarit du repli, elle aliasait
+  d'une période de battue : 18 morceaux (239 mesures) avec des accords un
+  temps trop tôt, invisibles dans `meta.musx_latency_ms` (champ disparu).
+  Une loi : pas de latence. Baseline re-gelée, bibliothèque republiée.
+- **Passe affichée = la plus riche, sur les deux chemins (2026-09-15).**
+  `sections_pour_chart` (découpage à la main) écrivait `occ[0]` ; Stand By
+  Me affichait son intro basse-voix (5 N.C. sur 8, ×6). Même loi que
+  `minimal_fold` (`folding.pass_evidence`). 9 morceaux changent de passe.
 
 - Le paquet legacy `harmonia/` (pré-refactor), `scripts/harmonia_server.py`,
   et 137+ fichiers associés sont supprimés (tag `pre-refactor-2026-09-14`

@@ -468,10 +468,8 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
         logger.info("pipeline: bar1 mark re-phases the decode downbeats "
                     "(phase %d, %d downbeats)", _k1 % _bpb_early,
                     len(downbeats))
-    segments, latency = _musx.redecode(beat_times, probs,
-                                       downbeat_times=downbeats,
-                                       beats_per_bar=_bpb_early,
-                                       quarter_beats=_quarter)
+    segments = _musx.redecode(beat_times, probs, downbeat_times=downbeats,
+                              beats_per_bar=_bpb_early, quarter_beats=_quarter)
     report(4, draft_chords=[s for _, _, s in segments if s != "N"])
 
     # (stage 4 removed 2026-08-01 — the audit found the chord-tone KS key was
@@ -512,8 +510,7 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
             "fold": fold_report,
             "sections": sections,
             "prompter": prompter,
-            "meta": {"bpm": bd["bpm"], "musx_latency_ms": round(latency * 1000),
-                     "n_segments": len(segments),
+            "meta": {"bpm": bd["bpm"], "n_segments": len(segments),
                      # Littéral gardé tel quel : le rapport d'or compare le
                      # JSON octet par octet, et bascule sur "harmonia" au
                      # sprint 22 (suppression de harmonia_min) — pas avant.

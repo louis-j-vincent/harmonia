@@ -496,7 +496,7 @@ def _decode_template(cat, Lf, bpb, P):
     # half-bar-only template decode (settings.py is the only place this is
     # read; it used to be `HARMONIA_QUARTER_BAR`, see module docstring).
     _q = "all" if SETTINGS.quarter_bar else None
-    lab, _ = _musx.redecode(beats, cat, downbeat_times=beats[::bpb],
+    lab = _musx.redecode(beats, cat, downbeat_times=beats[::bpb],
                             beat_trans_penalty=(15.0, 15.0, 100.0),
                             quarter_beats=_q)
     T0, T1 = P * Lf * _musx.FRAME_DT, 2 * P * Lf * _musx.FRAME_DT
@@ -709,6 +709,23 @@ def display_fold(sections: list[dict], bars, grid, probs=None, bpb=4,
 
 # ── phase 2b: MINIMAL fold into the EXISTING app UI (Louis, 2026-08-02) ─────
 
+def pass_evidence(bars, rng) -> int:
+    """How many REAL chord onsets a pass carries (carries and N.C. don't
+    count) — what makes a pass worth showing as the letter's block.
+
+    ONE law for the two renderers (`minimal_fold` here, and
+    `soudure.sections_pour_chart` for hand-validated sections). Audit
+    2026-09-15: Stand By Me's hand-sectioned chart still showed its first A
+    (the bass-only fade-in, 5 N.C. over 8 bars, ×6) because that second
+    path had kept the old `occ[0]` rule — the 2026-08-10 fix below only
+    covered the automatic path.
+    """
+    c0, c1 = rng
+    return sum(1 for b in range(c0, c1 + 1)
+               for c in (bars[b] if 0 <= b < len(bars) else [])
+               if not c["nc"] and not c.get("carry"))
+
+
 def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
     """One ChartModel section per LETTER — the validated minimal folding,
     rendered by the UNCHANGED app_shell (Louis: the folding logic is right,
@@ -758,11 +775,7 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
     _vus: dict[str, int] = {}
 
     def _evidence(rng):
-        """How many REAL chord onsets a pass carries (carries and N.C. don't
-        count) — what makes a pass worth showing as the letter's block."""
-        c0, c1 = rng
-        return sum(1 for b in range(c0, c1 + 1) for c in (bars[b] if 0 <= b < len(bars) else [])
-                   if not c["nc"] and not c.get("carry"))
+        return pass_evidence(bars, rng)
 
     for _k in order:
         L = _k[0]

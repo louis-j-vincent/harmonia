@@ -61,7 +61,10 @@ AUDIO = SETTINGS.audio_dir
 DATA_CACHE = SETTINGS.data_cache
 #: Le seul champ qui varie d'un run à l'autre sans que le chart change :
 #: la latence choisie par la recherche de `musx.redecode` est chronométrée.
-VOLATILE = (("meta", "musx_latency_ms"),)
+#: Champs ignorés par la comparaison. Vide depuis le 2026-09-15 : le seul
+#: qu'il y avait (`meta.musx_latency_ms`) a disparu avec la recherche de
+#: latence. Garder la mécanique : un prochain champ volatil se déclare ici.
+VOLATILE: tuple = ()
 
 log = logging.getLogger("golden")
 

@@ -752,7 +752,15 @@ def sections_pour_chart(chart: dict, secs: list[dict],
     for (lab, _lg), occ in sorted(groupes.items(), key=lambda kv: kv[1][0][0]):
         occ.sort()
         vus[lab] = vus.get(lab, 0) + 1
-        b0, b1 = occ[0]
+        # LA PASSE ÉCRITE = celle qui porte le plus d'attaques réelles (à
+        # égalité, la première) — la loi de `folding.minimal_fold` depuis le
+        # 2026-08-10, jamais appliquée ici (audit 2026-09-15 : Stand By Me,
+        # découpage à la main, affichait encore sa première A = l'intro
+        # basse-voix, 5 N.C. sur 8 mesures, ×6, alors que ses quatre
+        # couplets décodés A A F#m F#m D E A A étaient dans `bars`).
+        # `occ` reste chronologique : spans/barRanges/le curseur en dépendent.
+        from harmonia.folding import pass_evidence
+        b0, b1 = max(occ, key=lambda r: (pass_evidence(bars, r), -occ.index(r)))
         out.append({
             "id": "L" + lab + ("" if vus[lab] == 1 else str(vus[lab])),
             "label": lab, "tag": "", "reps": len(occ),

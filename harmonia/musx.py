@@ -11,9 +11,15 @@ rebuild) with three changes only:
   * the old pipeline's env-flag helpers (``enabled``/``latency_grid_from_env``)
     dropped — harmonia_min's orchestration decides, not env vars.
 
-The science is unchanged; see the original module's header for the full
-measurement record (+2.20 pp partial-credit, latency selected per song by the
-decoder's own path log-likelihood, boundaries land exactly on OUR beats).
+The science: beat-grid re-decode, boundaries land exactly on OUR beats (see
+the original module's header for the measurement record, +2.20 pp
+partial-credit). The per-song LATENCY SEARCH that came with it was removed
+on 2026-09-15 (audit, accepted by Louis): measured on 46 songs, musx's
+posterior changes sit 23–46 ms BEFORE the Beat This! beat, never after —
+the +46…+289 ms range it searched came from another beat tracker — and,
+run again by the fold's template decode, the search aliased by one beat
+period on 18 songs (chords written one beat early). One law: no latency.
+History: ``docs/audit_2026-09-15_plan.md``, ``docs/musx_latency_ab.md``.
 Posterior cache: via ``harmonia.cache`` (kind "musx_probs", stem-keyed, shared
 with the old pipeline — same extractor, same layout: [triad(T,73), bass(T,13),
 s7(T,4), s9(T,4), s11(T,3), s13(T,3)] on the 23.22 ms frame grid).
@@ -42,11 +48,6 @@ FRAME_DT = MUSX_HOP / MUSX_SR          # 0.023219954648526078 s  (43.07 fps)
 MODEL_NAMES = ['joint_chord_net_ismir_naive_v1.0_reweight(0.0,10.0)_s%d.best' % i
                for i in range(5)]
 
-#: Candidate latencies (seconds) searched per song.  Spans the measured range
-#: (+46…+289 ms across the 7 frozen songs) with a 40 ms step.
-DEFAULT_LATENCY_GRID: tuple[float, ...] = (0.0, 0.04, 0.08, 0.12, 0.16,
-                                           0.20, 0.24, 0.28)
-
 #: Viterbi change penalty on the beat grid.  Pooled optimum 40; LOSO-stable
 #: (per-fold picks were 40 on 6/7 songs, 55 on the seventh).
 DEFAULT_PENALTY = 40.0
@@ -58,9 +59,8 @@ _PROB_CACHE = cache.folder("musx_probs")
 
 # ── beat_arr: the transition structure the vendored decoder already supports ──
 
-def make_beat_arr(n_frame: int, beat_times, latency: float = 0.0,
-                  downbeat_times=None, beats_per_bar: int = 4,
-                  quarter_beats=None) -> np.ndarray:
+def make_beat_arr(n_frame: int, beat_times, downbeat_times=None,
+                  beats_per_bar: int = 4, quarter_beats=None) -> np.ndarray:
     """Mirror of ``XHMMDecoder._XHMMDecoder__get_beat_arr``, fed OUR beat grid.
 
     Semantics consumed by the clone's ``decode``:
@@ -75,10 +75,6 @@ def make_beat_arr(n_frame: int, beat_times, latency: float = 0.0,
       iterable of beat INDICES (into ``beat_times``) -> only those beats keep
       grade 4 — the targeted mode, fed by a more-chords-here detector.
 
-    ``latency`` displaces the whole grid later, so that a decoder whose evidence
-    arrives late still gets a legal transition at the right musical instant; the
-    caller shifts the decoded times back by the same amount.
-
     NOTE: ``downbeat_times`` is REQUIRED in harmonia_min (2026-07-31). The old
     accuracy study measured graded ≈ flat on label overlap (0.6627 vs 0.6644),
     but placement is what the chart lives on: with a flat penalty, last-beat
@@ -87,7 +83,7 @@ def make_beat_arr(n_frame: int, beat_times, latency: float = 0.0,
     Downbeat-graded costs break exactly that tie toward the downbeat.
     """
     arr = np.ones(int(n_frame), dtype=np.int8)
-    bt = np.asarray(beat_times, dtype=float) + float(latency)
+    bt = np.asarray(beat_times, dtype=float)
     fr = np.round(bt / FRAME_DT).astype(int)
     keep = (fr >= 0) & (fr < n_frame)
     fr_k = fr[keep]
@@ -431,98 +427,42 @@ def _decoder(penalty: float, beat_trans_penalty=(15.0, 45.0, 100.0),
                        beat_trans_penalty=tuple(beat_trans_penalty))
 
 
-def _tags_to_lab(tags: list[str], latency: float) -> list[tuple[float, float, str]]:
+def _tags_to_lab(tags: list[str]) -> list[tuple[float, float, str]]:
+    """Frame tags -> (t0, t1, label) segments on the 23.22 ms grid."""
     out, last, n = [], 0, len(tags)
     for i in range(n):
         if i + 1 == n or tags[i + 1] != tags[i]:
-            t0 = last * FRAME_DT - latency
-            t1 = (i + 1) * FRAME_DT - latency
-            if t1 > 0:
-                out.append((max(0.0, t0), t1, tags[i]))
+            out.append((last * FRAME_DT, (i + 1) * FRAME_DT, tags[i]))
             last = i + 1
     return out
 
 
-def path_loglik(logprob: np.ndarray, names: list[str],
-                lab: list[tuple[float, float, str]], penalty: float,
-                n_frame: int, latency: float = 0.0,
-                guard_frames: int = 0) -> float:
-    """The decoder's own Viterbi objective for a decoded labelling.
-
-    Used as the GT-FREE selector over candidate latencies: same observations,
-    same emission model, only the legal-transition set moves.
-
-    ``guard_frames`` (audit fix, 2026-08-02): when ``_tags_to_lab`` shifts a
-    candidate's spans back by ``latency``, a span whose true start was
-    negative gets clamped to ``t0=0`` — so re-adding ``latency`` here to
-    recover the original frame index lands PAST the clamped span's real
-    start.  The frames in that gap (``~latency`` worth, at the head of the
-    file) are never written into ``tag`` and silently keep the array's
-    default value, index 0.  Index 0 is ``names[0]``, which
-    ``XHMMDecoder.__init_known_chord_names`` always prepends as the literal
-    ``"N"`` (no-chord) tag — NOT the chord vocabulary's first data row
-    (``C:min/b7`` in ``submission_chord_list.txt``); an earlier read of this
-    code called it a "C:min/b7" penalty, which is the wrong tag identity.
-    Either way, every candidate with ``latency > 0`` pays an emission cost on
-    those head frames that candidate ``latency == 0`` never pays, which is an
-    apples-to-oranges comparison. Fix: score every candidate over the SAME
-    frame window by dropping ``guard_frames`` from both ends of the sum
-    (``redecode`` sizes it once from ``max(latency_grid)`` so it is identical
-    across the whole grid, including L=0). Measured impact (This Love,
-    2026-08-02): 2-8 nats out of an 8000-22000 nat range across the grid —
-    real but three orders of magnitude too small to be why L=0 wins; see
-    ``docs/musx_latency_ab.md``.
-    """
-    idx = {n: i for i, n in enumerate(names)}
-    tag = np.zeros(n_frame, dtype=int)
-    for t0, t1, s in lab:
-        if s not in idx:
-            return float("-inf")
-        a = max(0, int(round((t0 + latency) / FRAME_DT)))
-        b = min(n_frame, int(round((t1 + latency) / FRAME_DT)))
-        tag[a:b] = idx[s]
-    lo = max(0, int(guard_frames))
-    hi = max(lo, n_frame - int(guard_frames))
-    em = float(logprob[np.arange(lo, hi), tag[lo:hi]].sum())
-    return em - float(penalty) * max(0, len(lab) - 1)
-
-
 def redecode(beat_times, probs: list[np.ndarray], *, downbeat_times,
              penalty: float = DEFAULT_PENALTY,
-             latency_grid=DEFAULT_LATENCY_GRID,
              beats_per_bar: int = 4,
              beat_trans_penalty=(15.0, 45.0, 100.0),
              chord_dict: str = "submission",
              quarter_beats=None,
-             ) -> tuple[list[tuple[float, float, str]], float]:
-    """Beat-aware, latency-compensated re-decode -> (labels, chosen latency).
+             ) -> list[tuple[float, float, str]]:
+    """Beat-aware re-decode -> [(t0, t1, label)]; boundaries land exactly on
+    ``beat_times``.
 
-    Boundaries land exactly on ``beat_times``.  The latency is selected per song
-    by maximising the decoder's own path log-likelihood — no ground truth.
-    ``quarter_beats`` — see ``make_beat_arr``: None (half-bar only, shipped),
-    "all", or beat indices where a quarter-bar change is allowed.
+    No latency compensation (2026-09-15, module docstring): the legal
+    transitions sit on the beats themselves. What this does NOT solve: a
+    chord change played ahead of the beat (an anticipation, measured at
+    about −220 ms on ``gbO7qQliXT8``) still lands on the nearest legal
+    beat, before or after — the grid has no half-beat slot.
+    ``quarter_beats`` — see ``make_beat_arr``: None (half-bar only), "all",
+    or beat indices where a quarter-bar change is allowed.
     """
     n_frame = int(probs[0].shape[0])
     plist = [np.asarray(p, dtype=np.float64) for p in probs]
-    best = (float("-inf"), 0.0, [])
-    # Same guard for every candidate in this grid (see path_loglik docstring):
-    # sized off the LARGEST latency so no candidate — including L=0 — ever
-    # scores frames another candidate is forced to skip.
-    guard = int(np.ceil(max((abs(float(L)) for L in latency_grid), default=0.0)
-                        / FRAME_DT))
     with _InMusxDir():
         hmm = _decoder(penalty, beat_trans_penalty, chord_dict)
-        names, logprob = hmm.get_chord_tag_obs(plist)
-        for L in latency_grid:
-            arr = make_beat_arr(n_frame, beat_times, L, downbeat_times,
-                                beats_per_bar=beats_per_bar,
-                                quarter_beats=quarter_beats)
-            tags = hmm.decode(plist, arr)
-            lab = _tags_to_lab(tags, L)
-            ll = path_loglik(logprob, names, lab, penalty, n_frame, L,
-                             guard_frames=guard)
-            if ll > best[0]:
-                best = (ll, float(L), lab)
-    logger.info("musx_redecode: latency %.0f ms selected (loglik %.1f), %d segments",
-                best[1] * 1000, best[0], len(best[2]))
-    return best[2], best[1]
+        arr = make_beat_arr(n_frame, beat_times, downbeat_times,
+                            beats_per_bar=beats_per_bar,
+                            quarter_beats=quarter_beats)
+        tags = hmm.decode(plist, arr)
+    lab = _tags_to_lab(tags)
+    logger.info("musx_redecode: %d segments", len(lab))
+    return lab

@@ -402,3 +402,30 @@ plomberie.
 Non testés : C3 (qualités contre iReal — un seul standard dans la
 bibliothèque), D1 (`tools/sections_bench` à réparer d'abord), E1/E2
 (tonalité), F2 (annotations à travers une ré-analyse, chemin vivant).
+
+---
+
+# Accepté et livré (2026-09-15, 15 h 52)
+
+Louis : « Ca m'a l'air mieux sur quasi toutes les chansons, j'accepte. »
+
+Livré dans la foulée :
+- `harmonia/musx.py` : la recherche de latence est SUPPRIMÉE, pas seulement
+  réduite — plus de grille, plus de `path_loglik`, plus de garde ; `redecode`
+  fait un décodage, sur les battues, et rend les segments. 528 → 468 lignes.
+  `meta.musx_latency_ms` disparaît du chart ; `tools/golden.VOLATILE` est vide.
+- `harmonia/folding.py` (`pass_evidence`, une loi) + `harmonia_min/soudure.py`.
+- Vérifié : le code simplifié reproduit les 44 charts acceptés à l'octet près
+  (modulo le champ disparu) ; 37 tests verts, la seule rouge est celle qui
+  l'était déjà à HEAD.
+- Baseline re-gelée (`state/cache/golden/baseline`, l'ancienne gardée sous
+  `baseline_2026-09-14`) ; bibliothèque republiée chart par chart (44,
+  sauvegarde `state/cache/golden/charts.bak_20260915`) ; paires AVANT/APRÈS
+  retirées ; :7772 redémarré par PID de port ; rendu vérifié (Stand By Me lit
+  A A F#m F#m D E A A dans la bibliothèque vivante).
+
+Question de Louis pendant la livraison : « es-tu en train de réparer le bug
+qui fait que le modèle entend 25-45 ms en avance ? » — Non : ce n'est pas un
+bug, c'est une à deux trames (23 ms) de fenêtre d'analyse qui chevauche
+l'attaque, et ça ne change aucun temps du chart (mesuré : −40 ms ⇒ 0 temps
+sur 321 / 346). Le bug, c'était de chercher une compensation du mauvais côté.
