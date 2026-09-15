@@ -41,6 +41,23 @@ Détail et mesures : `docs/audit_2026-09-15_plan.md`.
   l'importe de là pour les deux moteurs. Sprint 22.
 
 
+- **RÈGLES D'OR de la basse — arbitrées à l'oreille, écrites, testées, PAS
+  branchées** (2026-09-15). 33 arbitrages de Louis en deux tours d'écoute sur
+  351 accords de 6 morceaux. Vérité terrain : `state/human/bass_verdicts.json`
+  (ne pas régénérer). Code : `harmonia/bass_rules.py`. Garde-fou :
+  `tests/test_bass_rules.py` rejoue les arbitrages — **une règle qui bouge doit
+  faire rougir ce test**. Raisonnement complet, avec ce que chaque piste a
+  coûté : `docs/bass_slash_rules.md`. En résumé : (1) la quinte est
+  asymétrique — +7 décore, +5 porte et a la priorité ; (2) le retour de la
+  basse de départ ne démonte pas une quarte (4 arbitrages sur 4) ; (3) le
+  discriminant n'est aucune de nos mesures mais « le candidat est-il la
+  fondamentale de l'accord » (16/17, contre 10/17 pour cinq curseurs) ; (4)
+  ce qui jette une basse, c'est l'intervalle, jamais la confiance (un plancher
+  de confiance se trompe 3 fois sur 4 ; une 9e à la basse est vraie, une b9
+  jamais). Effet mesuré : 70 slashes → 28 (20 % → 8 % des accords), zéro
+  intervalle impossible, zéro slash ajouté. **Ne résout pas** : 6 morceaux
+  seulement ; rien dans `pipeline.py` ne l'appelle ; la basse mobile
+  (16 accords sur 20 en ont une) reste écrite avec un seul symbole.
 - **Basse détectée à l'attaque, pas en moyenne sur tout l'accord — 6/11 → 11/11
   sur un morceau, PAS ENCORE branché au pipeline live** (2026-09-15, piste
   ouverte par Louis : « dans le doute entre deux notes basses, si l'une est
