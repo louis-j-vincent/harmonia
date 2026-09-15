@@ -1,0 +1,511 @@
+/* ============================================================================
+ * Harmonia — Chart viewer — iReal default (also supports data-hzc="A:desktop" lead-sheet, "B:desktop" form-map, ":phone")
+ * Drop-in, dependency-free. Plain vanilla JS + DOM (no framework, no build).
+ *
+ * USE:
+ *   <script src="harmonia_chart.js"></script>
+ *   <div data-hzc="C:desktop"></div>
+ *   (auto-initialises on DOM ready; styles are injected automatically.)
+ *
+ * DATA (swap for real Harmonia data — the shapes below are already what the
+ * engine expects, so adapting is a rename, not a rewrite):
+ *   BARS (bars) + SECS (form). Shape: {sec, ch:{root,q,c}, ch2?:{root,q,c}}. root=0..11, q=iReal quality token, c=certainty 0..1.
+ *   The demo data lives near the TOP of the engine section below. Replace it
+ *   with your real values (or map P.chords/etc into the same shape).
+ * ========================================================================== */
+(function(){var s=document.createElement('style');s.textContent="\n  * { box-sizing: border-box; }\n  body { margin: 0; background: #e7e0d0; }\n  a { color: #8a2b2b; } a:hover { color: #6f2020; }\n  @keyframes hzc-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(138,43,43,0); } 50% { box-shadow: 0 0 0 4px rgba(138,43,43,.28); } }\n  @keyframes hzc-play { 0% { transform: scaleX(0); } 100% { transform: scaleX(1); } }\n  @keyframes hzc-toast { 0% { opacity:0; transform:translate(-50%,8px);} 12%,80%{opacity:1;transform:translate(-50%,0);} 100%{opacity:0;transform:translate(-50%,-6px);} }\n  .hzc-scroll::-webkit-scrollbar { width:7px; height:7px; }\n  .hzc-scroll::-webkit-scrollbar-thumb { background:#cdc4ad; border-radius:4px; }\n";document.head.appendChild(s);})();
+
+
+window.HZC = (function(){
+  "use strict";
+  const FLAT = ["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
+  const TOK = { "":"", "6":"6", "^7":"maj7", "7":"7", "-":"m", "-7":"m7", "-^7":"mMaj7",
+    "o":"dim","h7":"m7♭5","o7":"dim7","+":"aug","sus":"sus","7sus":"7sus4","9":"9","7b9":"7♭9" };
+  const UI = "-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif";
+  const SERIF = "Georgia,'Times New Roman',serif";
+  const T = { paper:"#f7f3e9", card:"#fffdf6", ink:"#1c1c1c", rule:"#b9b09a", faint:"#8a8371", accent:"#8a2b2b", line:"#e5dcc6", deep:"#2a2622" };
+  const mod = (n,m)=>((n%m)+m)%m;
+  const noteName = pc => FLAT[mod(pc,12)];
+
+  // Harmonic-function colour (colour_system doc's I/IV/V anchors): Home (tonic),
+  // Setting-up (subdominant / pre-dominant), Pulling (dominant). Honest for a
+  // one-key tune where key-colour would be monochrome — and legendable.
+  function qClass(q){
+    if(q===""||q.startsWith("^")||q.startsWith("6")||q.includes("maj")) return "maj";
+    if(q.startsWith("h")||((q.startsWith("-")||q.startsWith("m"))&&q.includes("b5"))) return "m7b5";
+    if(q.startsWith("o")||q.includes("dim")) return "dim";
+    if(q.startsWith("-")||q.startsWith("m")) return "min";
+    if(q.startsWith("sus")) return (q.includes("7")||q.includes("9"))?"dom":"sus";
+    if(q.startsWith("+")) return q.includes("7")?"dom":"aug";
+    return "dom";
+  }
+  const REF = 10; // reference tonic = B♭ major (relative major of G minor home)
+  function fnOf(root, q){
+    if(qClass(q)==="dom") return "D";
+    const deg = mod(root - REF, 12);
+    if(deg===0||deg===9||deg===4) return "T";      // I, vi, iii
+    if(deg===2||deg===5||deg===11||deg===7) return "S"; // ii, IV, viiø, V-as-triad
+    if(qClass(q)==="dim") return "O";
+    return "S";
+  }
+  const FN = {
+    T: { word:"Home",       sub:"tonic — rest",       bg:"#f0d9d3", edge:"#b6674f", dot:"#b0563c" },
+    S: { word:"Setting-up", sub:"pre-dominant",       bg:"#d9e2e6", edge:"#5f7f8c", dot:"#5a7f8f" },
+    D: { word:"Pulling",    sub:"dominant",           bg:"#f0e4c4", edge:"#b39338", dot:"#b39338" },
+    O: { word:"Colour",     sub:"chromatic / passing", bg:"#e6e0d0", edge:"#a99f86", dot:"#a99f86" },
+  };
+
+  // Clean canonical Autumn Leaves — G minor, 32-bar A A B C. root pc + iReal
+  // quality token + model confidence (a few left deliberately shaky to show the
+  // "unsure" treatment). sec = form label.
+  function C(root,q,c){ return {root,q,c,fn:fnOf(root,q)}; }
+  const BARS = [
+    // A1
+    {sec:"A",ch:C(0,"-7",.97)},{sec:"A",ch:C(5,"7",.95)},{sec:"A",ch:C(10,"^7",.98)},{sec:"A",ch:C(3,"^7",.93)},
+    {sec:"A",ch:C(9,"h7",.55)},{sec:"A",ch:C(2,"7",.9)},{sec:"A",ch:C(7,"-7",.96)},{sec:"A",ch:C(7,"-7",.9)},
+    // A2
+    {sec:"A2",ch:C(0,"-7",.97)},{sec:"A2",ch:C(5,"7",.95)},{sec:"A2",ch:C(10,"^7",.98)},{sec:"A2",ch:C(3,"^7",.93)},
+    {sec:"A2",ch:C(9,"h7",.52)},{sec:"A2",ch:C(2,"7",.9)},{sec:"A2",ch:C(7,"-7",.96)},{sec:"A2",ch:C(7,"-7",.9)},
+    // B
+    {sec:"B",ch:C(9,"h7",.7)},{sec:"B",ch:C(2,"7",.9)},{sec:"B",ch:C(7,"-7",.96)},{sec:"B",ch:C(7,"-7",.9)},
+    {sec:"B",ch:C(0,"-7",.95)},{sec:"B",ch:C(5,"7",.93)},{sec:"B",ch:C(10,"^7",.98)},{sec:"B",ch:C(3,"^7",.9)},
+    // C
+    {sec:"C",ch:C(9,"h7",.72)},{sec:"C",ch:C(2,"7b9",.88)},{sec:"C",ch:C(7,"-7",.6),ch2:C(0,"7",.68)},{sec:"C",ch:C(7,"-7",.9)},
+    {sec:"C",ch:C(0,"-7",.95)},{sec:"C",ch:C(5,"7",.7)},{sec:"C",ch:C(10,"^7",.9),ch2:C(3,"7",.66)},{sec:"C",ch:C(7,"-7",.96)},
+  ];
+  // section metadata
+  const SECS = [ {id:"A",label:"A",from:0,to:7},{id:"A2",label:"A",from:8,to:15},{id:"B",label:"B",from:16,to:23},{id:"C",label:"C",from:24,to:31} ];
+  function secOfBar(b){ return SECS.find(s=>b>=s.from&&b<=s.to); }
+
+  // Repeat-collapsed sections: identical consecutive form blocks fold into one,
+  // badged ×N — never render the same bars twice.
+  function barsSig(from,to){ let s=""; for(let i=from;i<=to;i++){ const b=BARS[i]; s+=b.ch.root+b.ch.q+(b.ch2?"/"+b.ch2.root+b.ch2.q:"")+";"; } return s; }
+  const USECS = (function(){
+    const out=[];
+    SECS.forEach(s=>{ const sig=barsSig(s.from,s.to); const p=out[out.length-1];
+      if(p&&p.sig===sig){ p.reps++; } else out.push({label:s.label, from:s.from, to:s.to, reps:1, sig}); });
+    return out;
+  })();
+  function locate(cur){
+    for(let u=0;u<USECS.length;u++){ const s=USECS[u], L=s.to-s.from+1;
+      for(let k=0;k<s.reps;k++){ const st=s.from+k*L; if(cur>=st&&cur<st+L) return {ui:u, sec:s, pos:cur-st, pass:k, L}; } }
+    return {ui:0, sec:USECS[0], pos:0, pass:0, L:USECS[0].to-USECS[0].from+1};
+  }
+  // certainty ramp: sure = ink, unsure = amber → red (the old auto-mode cue)
+  function certaintyColor(c){ if(c>=0.9) return T.ink; if(c>=0.78) return "#6f4a1c"; if(c>=0.65) return "#a86a1f"; if(c>=0.5) return "#c2551f"; return "#a52121"; }
+  function certaintyWord(c){ if(c>=0.9) return "sure"; if(c>=0.65) return "likely"; if(c>=0.5) return "unsure"; return "shaky"; }
+  // key colour: circle-of-fifths hue (the shipped key-colour system)
+  function keyHue(pc){ return Math.round(mod(pc*7,12)/12*360); }
+  function keyFill(pc){ return `hsl(${keyHue(pc)} 48% 87%)`; }
+  function keyEdge(pc){ return `hsl(${keyHue(pc)} 46% 52%)`; }
+  function localKey(i){ const c=BARS[i].ch; return qClass(c.q)==="dom" ? mod(c.root+5,12) : REF; }
+  const KEYNAME = {10:"B♭ major",7:"G minor",3:"E♭ major",5:"F major",2:"D major",0:"C major",8:"A♭ major",9:"A"};
+  function keyLabel(pc){ return KEYNAME[pc] || noteName(pc)+" major"; }
+
+  function el(tag,css,txt){ const e=document.createElement(tag); if(css)e.style.cssText=css; if(txt!=null)e.textContent=txt; return e; }
+  function chordGlyph(root,q,size,transpose){
+    const wrap = el("span", `font-family:${SERIF};font-style:italic;line-height:1;white-space:nowrap;color:${T.ink};`);
+    const suf = TOK[q] ?? q;
+    wrap.appendChild(el("span", `font-size:${size}px;font-weight:600;`, noteName(root+(transpose||0))));
+    if(suf){ const s=el("sup", `font-size:${Math.round(size*0.44)}px;font-weight:600;`, suf); wrap.appendChild(s); }
+    return wrap;
+  }
+  function toast(host,msg){
+    const t = el("div", `position:absolute;left:50%;bottom:74px;transform:translateX(-50%);background:${T.deep};color:${T.paper};font:600 12px/1 ${UI};padding:9px 15px;border-radius:20px;z-index:60;pointer-events:none;animation:hzc-toast 1.9s ease forwards;box-shadow:0 6px 20px rgba(0,0,0,.25);`, msg);
+    host.appendChild(t); setTimeout(()=>t.remove(),1900);
+  }
+  function icon(paths){ const s=`<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`; return s; }
+  const IC = {
+    key:'<circle cx="8" cy="8" r="4"/><path d="M11 11l7 7M16 16l2-2M18 18l2-2"/>',
+    play:'<polygon points="7 5 19 12 7 19 7 5" fill="currentColor" stroke="none"/>',
+    pause:'<rect x="7" y="5" width="3.5" height="14" fill="currentColor" stroke="none"/><rect x="14" y="5" width="3.5" height="14" fill="currentColor" stroke="none"/>',
+    pencil:'<path d="M4 20l4-1 10-10-3-3L5 16l-1 4z"/>',
+    print:'<path d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v6H8z"/>',
+    prev:'<polygon points="15 6 8 12 15 18" fill="currentColor" stroke="none"/>',
+    next:'<polygon points="9 6 16 12 9 18" fill="currentColor" stroke="none"/>',
+  };
+
+  return { FLAT, TOK, UI, SERIF, T, mod, noteName, fnOf, FN, BARS, SECS, secOfBar, USECS, locate, certaintyColor, certaintyWord, keyHue, keyFill, keyEdge, localKey, keyLabel, qClass, REF, el, chordGlyph, toast, icon, IC };
+})();
+
+
+
+// ── Chart builders ──
+(function(){
+  const H = window.HZC, T = H.T, el = H.el;
+
+  // a bar carries one or two chords (2 beats each) — like the native Harmonia
+  function barSegs(b){ return b.ch2 ? [b.ch, b.ch2] : [b.ch]; }
+  function chordStripColor(state, ch){
+    if(state.mode==="analyse") return state.colorMode==="function" ? H.FN[ch.fn].dot : H.keyEdge(H.qClass(ch.q)==="dom"?H.mod(ch.root+5,12):H.REF);
+    if(state.mode==="annotate") return H.certaintyColor(ch.c);
+    return null;
+  }
+  function barContent(state, b, size){
+    const segs = barSegs(b);
+    const wrap = el("div", `display:flex;align-items:center;justify-content:center;gap:2px;`);
+    segs.forEach((ch,ci)=>{
+      const g = H.chordGlyph(ch.root, ch.q, b.ch2?Math.round(size*0.72):size, state.transpose);
+      if(state.mode==="annotate"){ g.querySelectorAll("span,sup").forEach(s=>s.style.color=H.certaintyColor(ch.c)); if(ch.c<0.65){ g.style.borderBottom=`2px dotted ${H.certaintyColor(ch.c)}`; g.style.paddingBottom="1px"; } }
+      wrap.appendChild(g);
+      if(b.ch2 && ci===0) wrap.appendChild(el("span", `font:italic 300 ${Math.round(size*0.95)}px ${H.SERIF};color:${T.rule};padding:0 1px;`, "/"));
+    });
+    return wrap;
+  }
+  function barStrip(state, b){
+    const strip = el("div", `position:absolute;left:0;right:0;bottom:0;height:5px;display:flex;`);
+    barSegs(b).forEach(ch=>strip.appendChild(el("div", `flex:1;background:${chordStripColor(state,ch)||"transparent"};opacity:${state.mode==="annotate"?1:.85};`)));
+    return strip;
+  }
+
+  const MODES = [ {id:"read",label:"Read",sub:"just the chords"}, {id:"analyse",label:"Analyse",sub:"see the harmony"}, {id:"annotate",label:"Annotate",sub:"fix & merge"} ];
+  function modeBar(state, device, rerender){
+    const bar = el("div", `display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;`);
+    const seg = el("div", `display:inline-flex;background:${T.paper};border:1px solid ${T.line};border-radius:12px;padding:3px;gap:2px;`);
+    MODES.forEach(m=>{
+      const b = el("button", `display:flex;flex-direction:column;align-items:center;gap:1px;border:none;background:transparent;padding:${device==="phone"?"6px 10px":"7px 16px"};border-radius:9px;cursor:pointer;transition:all .13s;-webkit-tap-highlight-color:transparent;`);
+      b.appendChild(el("span", `font:600 13px ${H.UI};`, m.label));
+      b.appendChild(el("span", `font:500 9px ${H.UI};`, m.sub));
+      b._m = m.id;
+      b.onclick=()=>{ state.mode=m.id; state.mergeSel=null; paint(); rerender(); };
+      seg.appendChild(b);
+    });
+    function paint(){ [...seg.children].forEach(b=>{ const on=b._m===state.mode; b.style.background=on?T.accent:"transparent"; b.querySelectorAll("span").forEach((s,i)=>s.style.color=on?(i?"rgba(247,243,233,.75)":T.paper):(i?T.faint:T.ink)); }); }
+    paint();
+    bar.appendChild(seg);
+    const util = el("div", "display:inline-flex;gap:8px;");
+    function pill(iconSvg,label,sub){
+      const b=el("button", `display:inline-flex;align-items:center;gap:7px;background:${T.card};border:1px solid ${T.line};border-radius:10px;padding:7px 11px;cursor:pointer;color:${T.ink};transition:all .13s;-webkit-tap-highlight-color:transparent;`);
+      b.innerHTML=`<span style="color:${T.accent};display:flex">${iconSvg}</span>`;
+      const tx=el("span",`display:flex;flex-direction:column;line-height:1.05;text-align:left;`);
+      const l=el("span",`font:600 12px ${H.UI};`,label); tx.appendChild(l);
+      if(sub){ tx.appendChild(el("span",`font:500 9px ${H.UI};color:${T.faint};margin-top:1px;`,sub)); }
+      b.appendChild(tx); b._label=l; return b;
+    }
+    const keyBtn = pill(H.icon(H.IC.key), H.noteName(state.keyTonic)+" minor", "change key");
+    keyBtn.onclick=()=>state.openRotor();
+    state._keyBtnLabel = keyBtn._label;
+    const printB = pill(H.icon(H.IC.print), "Print", "gig chart");
+    printB.onclick=()=>H.toast(state.host, "Prints a clean one-page chart of the current key");
+    util.appendChild(keyBtn); util.appendChild(printB);
+    bar.appendChild(util);
+    return bar;
+  }
+
+  // transpose rotor — a “spin to a new key” wheel (a fun one-off, not a quick tap)
+  function buildRotor(state, rerender){
+    const back = el("div", `position:absolute;inset:0;background:rgba(28,24,20,.34);display:none;align-items:center;justify-content:center;z-index:50;`);
+    const card = el("div", `background:${T.card};border:1px solid ${T.line};border-radius:18px;padding:20px 20px 22px;box-shadow:0 20px 50px -14px rgba(40,28,16,.5);text-align:center;`);
+    card.appendChild(el("div", `font:600 10px ${H.UI};letter-spacing:.09em;text-transform:uppercase;color:${T.faint};`, "Change key"));
+    const cur = el("div", `font:italic 600 22px ${H.SERIF};color:${T.accent};margin:3px 0 12px;`);
+    card.appendChild(cur);
+    const S=224, cx=S/2, cy=S/2, R=S*0.38;
+    const wheel = el("div", `position:relative;width:${S}px;height:${S}px;margin:0 auto;`);
+    for(let pc=0;pc<12;pc++){
+      const ang=(-90+pc*30)*Math.PI/180;
+      const x=cx+R*Math.cos(ang), y=cy+R*Math.sin(ang);
+      const seg=el("button", `position:absolute;left:${x}px;top:${y}px;transform:translate(-50%,-50%);width:44px;height:44px;border-radius:50%;border:1.5px solid ${H.keyEdge(pc)};background:${H.keyFill(pc)};cursor:pointer;font:600 13px ${H.UI};color:${T.ink};-webkit-tap-highlight-color:transparent;`, H.noteName(pc));
+      seg._pc=pc; wheel.appendChild(seg);
+    }
+    card.appendChild(wheel);
+    card.appendChild(el("div", `font:italic 11.5px ${H.SERIF};color:${T.faint};margin-top:12px;`, "Tap a note — the whole chart rolls into that key."));
+    const close=el("button", `margin-top:14px;border:1px solid ${T.line};background:${T.paper};color:${T.faint};border-radius:9px;padding:8px 18px;font:600 12px ${H.UI};cursor:pointer;`, "Done");
+    card.appendChild(close);
+    back.appendChild(card);
+    function paint(){ cur.textContent = H.noteName(state.keyTonic)+" minor"; [...wheel.children].forEach(s=>{ const on=s._pc===state.keyTonic; s.style.boxShadow=on?`0 0 0 3px ${T.accent}`:"none"; s.style.fontWeight=on?"800":"600"; }); }
+    wheel.querySelectorAll("button").forEach(s=>{ s.onclick=()=>{ state.keyTonic=s._pc; let d=H.mod(s._pc-7,12); if(d>6)d-=12; state.transpose=d; paint(); if(state._keyBtnLabel) state._keyBtnLabel.textContent=H.noteName(state.keyTonic)+" minor"; rerender(); }; });
+    close.onclick=()=>{ back.style.display="none"; };
+    back.onclick=(e)=>{ if(e.target===back) back.style.display="none"; };
+    state.openRotor=()=>{ paint(); back.style.display="flex"; };
+    return back;
+  }
+
+  function legend(state, device){
+    const wrap = el("div", `display:flex;align-items:center;gap:${device==="phone"?9:14}px;flex-wrap:wrap;padding:9px 12px;background:${T.card};border:1px solid ${T.line};border-radius:10px;min-height:20px;`);
+    function chip(color,edge,word,sub){
+      const item=el("span","display:inline-flex;align-items:center;gap:6px;");
+      item.appendChild(el("span", `width:13px;height:13px;border-radius:4px;background:${color};border:1px solid ${edge};`));
+      const tx=el("span","display:inline-flex;flex-direction:column;line-height:1.05;");
+      tx.appendChild(el("span", `font:600 11px ${H.UI};color:${T.ink};`, word));
+      if(sub) tx.appendChild(el("span", `font:500 9.5px ${H.UI};color:${T.faint};`, sub));
+      item.appendChild(tx); return item;
+    }
+    const head=el("span", `font:600 9.5px ${H.UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`);
+    wrap.appendChild(head);
+    if(state.mode==="read"){
+      head.textContent="Reading view";
+      wrap.appendChild(el("span", `font:500 11.5px ${H.UI};color:${T.faint};`, "Just the chords — press ▶ to play along, or switch to Analyse / Annotate."));
+    } else if(state.mode==="analyse"){
+      if(state.colorMode==="function"){
+        head.textContent="Colour = each chord’s job";
+        ["T","S","D"].forEach(k=>{ const f=H.FN[k]; wrap.appendChild(chip(f.bg,f.edge,f.word,f.sub)); });
+      } else {
+        head.textContent="Colour = local key (circle of 5ths)";
+        wrap.appendChild(chip(H.keyFill(10),H.keyEdge(10),"B♭ / G min","home key"));
+        wrap.appendChild(chip(H.keyFill(7),H.keyEdge(7),"G","where a V7 tonicises"));
+        wrap.appendChild(el("span", `font:500 10.5px ${H.UI};color:${T.faint};`, "hue shifts only where the harmony leaves home."));
+      }
+    } else {
+      head.textContent="Colour = how sure the model is";
+      wrap.appendChild(el("span", `width:120px;height:12px;border-radius:6px;background:linear-gradient(90deg,#a52121,#c2551f,#a86a1f,${T.ink});`));
+      wrap.appendChild(el("span", `font:500 10.5px ${H.UI};color:${T.faint};`, "red = shaky · black = sure. Tap a chord to fix it; tap two section tabs to merge."));
+    }
+    return wrap;
+  }
+
+  function cell(state, uSec, pos, opts){
+    opts = opts || {};
+    const abs = uSec.from + pos;
+    const b = H.BARS[abs]; const f = H.FN[b.ch.fn];
+    const L = uSec.to-uSec.from+1;
+    const playbars = []; for(let k=0;k<uSec.reps;k++) playbars.push(uSec.from + k*L + pos);
+    const c = el("button", `position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:1px solid ${T.line};background:${T.card};cursor:pointer;padding:${opts.big?"14px 6px 12px":"11px 5px 9px"};min-height:${opts.big?70:60}px;-webkit-tap-highlight-color:transparent;transition:box-shadow .12s,border-color .12s,background .12s;`);
+    if(state.mode!=="read") c.appendChild(barStrip(state, b));
+    c.appendChild(barContent(state, b, opts.big?26:22));
+    c._playbars = playbars;
+    c.onclick=()=>{ if(state.mode==="annotate"){ H.toast(state.host, "Opens the chord editor · bar "+(abs+1)+" ("+H.certaintyWord(b.ch.c)+")"); c.style.animation="hzc-pulse .5s"; setTimeout(()=>c.style.animation="",500); } else { state.seek(abs); } };
+    return c;
+  }
+
+  // ============ Option A — refined lead sheet ============
+  function sectionTab(state, uSec){
+    const tab = el("div", `flex:0 0 42px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:${T.paper};border-right:2px solid ${T.accent};padding:4px 0;`);
+    tab.appendChild(el("div", `font:700 15px ${H.SERIF};font-style:italic;color:${T.accent};`, uSec.label));
+    if(uSec.reps>1) tab.appendChild(el("div", `font:700 8px ${H.UI};color:${T.paper};background:${T.accent};border-radius:8px;padding:1px 5px;`, "×"+uSec.reps));
+    const mg = state.merges.find(m=>m.a===uSec.label||m.b===uSec.label);
+    if(mg) tab.appendChild(el("div", `font:700 11px ${H.UI};color:${T.faint};`, "≡"));
+    if(state.mode==="annotate"){
+      const on=state.mergeSel===uSec.label;
+      const link = el("button", `border:1px solid ${on?T.accent:T.line};background:${on?T.accent:T.card};color:${on?T.paper:T.faint};border-radius:7px;font:600 9px ${H.UI};padding:3px 5px;cursor:pointer;`, "link");
+      link.onclick=()=>state.mergeClick(uSec.label);
+      tab.appendChild(link);
+    }
+    return tab;
+  }
+  function buildLeadSheet(state, device){
+    const grid = el("div", "display:flex;flex-direction:column;gap:0;");
+    H.USECS.forEach(uSec=>{
+      const block = el("div", `display:flex;align-items:stretch;gap:0;border-top:1px solid ${T.rule};`);
+      block.appendChild(sectionTab(state, uSec));
+      const bars = el("div", `flex:1;display:grid;grid-template-columns:repeat(4,1fr);`);
+      const L = uSec.to-uSec.from+1;
+      for(let pos=0;pos<L;pos++){
+        const cl = cell(state, uSec, pos);
+        cl.style.borderLeft = (pos%4===0)?"none":`1px solid ${T.line}`;
+        cl.style.borderTop = (pos>=4)?`1px solid ${T.line}`:"none";
+        cl.style.borderRight = "none"; cl.style.borderBottom = "none";
+        bars.appendChild(cl);
+      }
+      block.appendChild(bars);
+      grid.appendChild(block);
+    });
+    grid.style.borderBottom = `1px solid ${T.rule}`;
+    state.cells = [...grid.querySelectorAll("button")].filter(b=>b._playbars);
+    return grid;
+  }
+
+  // ============ Option B — form map + section cards ============
+  function buildFormMap(state, device){
+    const wrap = el("div", "display:flex;flex-direction:column;gap:14px;");
+    const ribbon = el("div", `display:flex;gap:5px;`);
+    H.USECS.forEach(uSec=>{
+      const L=uSec.to-uSec.from+1;
+      const seg = el("button", `flex:${L} 1 0;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border:1.5px solid ${T.line};background:${T.card};border-radius:9px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:all .13s;`);
+      const top=el("div","display:flex;align-items:center;gap:5px;");
+      top.appendChild(el("div", `font:700 15px ${H.SERIF};font-style:italic;color:${T.ink};`, uSec.label));
+      if(uSec.reps>1) top.appendChild(el("div", `font:700 8px ${H.UI};color:${T.paper};background:${T.accent};border-radius:8px;padding:1px 5px;`, "×"+uSec.reps));
+      seg.appendChild(top);
+      seg.appendChild(el("div", `font:600 9px ${H.UI};color:${T.faint};`, uSec.reps>1?("plays "+uSec.reps+"×"):("bars "+(uSec.from+1)+"–"+(uSec.to+1))));
+      seg._ui = uSec;
+      seg.onclick=()=>state.seek(uSec.from);
+      ribbon.appendChild(seg);
+    });
+    wrap.appendChild(ribbon);
+    state.ribbon = [...ribbon.children];
+    const cards = el("div", `display:grid;grid-template-columns:${device==="phone"?"1fr":"1fr 1fr"};gap:12px;`);
+    H.USECS.forEach(uSec=>{
+      const card = el("div", `background:${T.card};border:1px solid ${T.line};border-radius:12px;padding:12px;`);
+      const head = el("div", "display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;");
+      const lft=el("div","display:flex;align-items:center;gap:8px;");
+      lft.appendChild(el("div", `font:700 16px ${H.SERIF};font-style:italic;color:${T.accent};`, "Section "+uSec.label));
+      if(uSec.reps>1) lft.appendChild(el("div", `font:700 9px ${H.UI};color:${T.paper};background:${T.accent};border-radius:8px;padding:2px 7px;`, "plays "+uSec.reps+"×"));
+      const mg=state.merges.find(m=>m.a===uSec.label||m.b===uSec.label);
+      if(mg) lft.appendChild(el("div", `font:600 10px ${H.UI};color:${T.faint};`, "≡ "+(mg.a===uSec.label?mg.b:mg.a)));
+      head.appendChild(lft);
+      if(state.mode==="annotate"){
+        const on=state.mergeSel===uSec.label;
+        const link=el("button", `border:1px solid ${on?T.accent:T.line};background:${on?T.accent:T.card};color:${on?T.paper:T.faint};border-radius:8px;font:600 10px ${H.UI};padding:4px 9px;cursor:pointer;`, "⧉ merge");
+        link.onclick=()=>state.mergeClick(uSec.label);
+        head.appendChild(link);
+      } else {
+        head.appendChild(el("div", `font:600 10px ${H.UI};color:${T.faint};`, "8 bars"));
+      }
+      card.appendChild(head);
+      const g = el("div", "display:grid;grid-template-columns:repeat(4,1fr);gap:4px;");
+      const L=uSec.to-uSec.from+1;
+      for(let pos=0;pos<L;pos++){ const cl=cell(state,uSec,pos,{}); cl.style.borderRadius="7px"; g.appendChild(cl); }
+      card.appendChild(g);
+      cards.appendChild(card);
+    });
+    wrap.appendChild(cards);
+    state.cells = [...cards.querySelectorAll("button")].filter(b=>b._playbars);
+    return wrap;
+  }
+
+  // transport
+  function transport(state, device){
+    const bar = el("div", `display:flex;align-items:center;gap:12px;padding:10px 14px;background:${T.deep};border-radius:12px;color:${T.paper};`);
+    const play = el("button", `flex:0 0 auto;width:40px;height:40px;border-radius:50%;border:none;background:${T.accent};color:${T.paper};cursor:pointer;display:flex;align-items:center;justify-content:center;`);
+    play.innerHTML = H.icon(H.IC.play);
+    const bn = el("div", `font:600 12px ${H.UI};min-width:70px;`);
+    const track = el("div", `flex:1;height:6px;border-radius:3px;background:rgba(247,243,233,.18);overflow:hidden;cursor:pointer;position:relative;`);
+    const fill = el("div", `height:100%;width:0;background:${T.paper};border-radius:3px;`);
+    track.appendChild(fill);
+    const tempo = el("div", `font:600 11px ${H.UI};color:rgba(247,243,233,.7);`, "♩ = 120");
+    bar.appendChild(play); bar.appendChild(bn); bar.appendChild(track); bar.appendChild(tempo);
+    track.onclick=(e)=>{ const r=track.getBoundingClientRect(); state.seek(Math.floor((e.clientX-r.left)/r.width*32)); };
+    state._play = play; state._bn = bn; state._fill = fill;
+    function setPlayIcon(){ play.innerHTML = state.playing?H.icon(H.IC.pause):H.icon(H.IC.play); }
+    play.onclick=()=>{ state.playing=!state.playing; setPlayIcon(); state.tick(); };
+    state._setPlayIcon = setPlayIcon;
+    return bar;
+  }
+
+  // ============ Option C — iReal-style: continuous vertical barlines, boxed
+  // section letters, multi-chord bars side by side, certainty colour on the
+  // chord text, maroon playhead on the right edge (matches native Harmonia) ====
+  function irealGlyphs(state, b, size){
+    const segs = b.ch2 ? [b.ch, b.ch2] : [b.ch];
+    const wrap = el("div", `display:flex;align-items:baseline;justify-content:center;gap:${b.ch2?"14":"0"}px;`);
+    segs.forEach(ch=>{
+      const g = H.chordGlyph(ch.root, ch.q, b.ch2?Math.round(size*0.66):size, state.transpose);
+      const col = state.mode==="analyse" ? T.ink : H.certaintyColor(ch.c);
+      g.querySelectorAll("span,sup").forEach(s=>s.style.color=col);
+      if(state.mode==="annotate" && ch.c<0.65){ g.style.borderBottom=`2px dotted ${col}`; g.style.paddingBottom="1px"; }
+      wrap.appendChild(g);
+    });
+    return wrap;
+  }
+  function buildIReal(state, device){
+    const rowH = device==="phone"?70:90;
+    const big = device!=="phone";
+    const page = el("div", `background:${T.paper};`);
+    const meta = el("div", `display:flex;align-items:baseline;gap:12px;margin:0 2px 12px;`);
+    meta.appendChild(el("div", `font:700 14px ${H.UI};color:${T.faint};`, "4/4"));
+    meta.appendChild(el("div", `font:italic 600 17px ${H.SERIF};color:${T.ink};`, H.noteName(state.keyTonic)+" minor"));
+    meta.appendChild(el("div", `font:600 11px ${H.UI};letter-spacing:.05em;color:${T.faint};`, "MEDIUM SWING"));
+    page.appendChild(meta);
+
+    const frame = el("div", `position:relative;border-left:3px double ${T.ink};border-right:2px solid ${T.ink};`);
+    const grid = el("div", `display:grid;grid-template-columns:repeat(4,1fr);`);
+    const measures=[]; let renderIdx=0; const sectionRows=[];
+    H.USECS.forEach(uSec=>{
+      const L=uSec.to-uSec.from+1;
+      sectionRows.push({row:Math.floor(renderIdx/4), label:uSec.label, reps:uSec.reps});
+      for(let pos=0;pos<L;pos++){
+        const col = renderIdx%4;
+        const abs = uSec.from+pos;
+        const b = H.BARS[abs];
+        const playbars=[]; for(let k=0;k<uSec.reps;k++) playbars.push(uSec.from+k*L+pos);
+        const cell = el("button", `position:relative;display:flex;align-items:center;justify-content:center;min-height:${rowH}px;padding:0 8px 0 ${col===0?20:8}px;background:transparent;cursor:pointer;border:none;${col>0?`border-left:1px solid ${T.rule};`:""}-webkit-tap-highlight-color:transparent;transition:background .12s;`);
+        if(state.mode==="analyse") cell.style.background = state.colorMode==="function" ? H.FN[b.ch.fn].bg : H.keyFill(H.localKey(abs));
+        cell.appendChild(irealGlyphs(state, b, big?34:26));
+        cell._playbars = playbars;
+        (function(abs,b,cell){ cell.onclick=()=>{ if(state.mode==="annotate"){ H.toast(state.host,"Opens the chord editor · bar "+(abs+1)+" ("+H.certaintyWord(b.ch.c)+")"); cell.style.animation="hzc-pulse .5s"; setTimeout(()=>cell.style.animation="",500);} else state.seek(abs); }; })(abs,b,cell);
+        measures.push(cell); grid.appendChild(cell);
+        renderIdx++;
+      }
+    });
+    frame.appendChild(grid);
+    sectionRows.forEach(s=>{
+      const box = el("div", `position:absolute;left:5px;top:${s.row*rowH + 8}px;display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none;`);
+      box.appendChild(el("div", `font:800 13px ${H.UI};color:${T.accent};border:1.5px solid ${T.accent};border-radius:4px;padding:1px 6px;background:${T.paper};`, s.label));
+      if(s.reps>1) box.appendChild(el("div", `font:800 10px ${H.UI};color:${T.accent};`, "×"+s.reps));
+      frame.appendChild(box);
+    });
+    const ph = el("div", `position:absolute;right:-2px;width:4px;background:${T.accent};border-radius:2px;display:none;`);
+    frame.appendChild(ph);
+    state._irealPh = ph; state._irealRowH = rowH;
+    page.appendChild(frame);
+    page.appendChild(el("div", `font:italic 12.5px ${H.SERIF};color:${T.faint};margin:12px 2px 2px;line-height:1.5;`, "Auto: shows 7th / exact only where certainty ≥ 0.60; colour = certainty at the shown depth."));
+    state.cells = measures;
+    return page;
+  }
+
+  window.HZC.buildChart = function(host, variant, device){
+    host.style.position="relative";
+    host.innerHTML = "";
+    const key = "harmChart:"+variant+":"+device;
+    let saved = 0; try { saved = JSON.parse(localStorage.getItem(key)||"0")||0; } catch(e){}
+    const state = { host, mode:"read", colorMode:"function", transpose:0, keyTonic:7, playing:false, cur:saved, cells:[], ribbon:null, merges:[], mergeSel:null, _timer:null };
+
+    const stack = el("div", "display:flex;flex-direction:column;gap:12px;");
+    stack.appendChild(modeBar(state, device, ()=>rerender()));
+    const sub = el("div", ""); stack.appendChild(sub);
+    const legendSlot = el("div",""); stack.appendChild(legendSlot);
+    const bodyWrap = el("div", `background:${T.paper};border:1px solid ${T.line};border-radius:12px;overflow:hidden;`);
+    stack.appendChild(bodyWrap);
+    stack.appendChild(transport(state, device));
+    host.appendChild(stack);
+    host.appendChild(buildRotor(state, ()=>rerender()));
+
+    function colorToggle(){
+      sub.innerHTML="";
+      if(state.mode!=="analyse") return;
+      const row = el("div","display:inline-flex;align-items:center;gap:8px;");
+      row.appendChild(el("span", `font:600 10px ${H.UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};`, "Colour by"));
+      const grp = el("div", `display:inline-flex;background:${T.paper};border:1px solid ${T.line};border-radius:9px;padding:3px;gap:2px;`);
+      [["function","Function"],["key","Key"]].forEach(o=>{
+        const on=state.colorMode===o[0];
+        const b=el("button", `border:none;background:${on?T.accent:"transparent"};color:${on?T.paper:T.faint};font:600 11.5px ${H.UI};padding:5px 12px;border-radius:7px;cursor:pointer;`, o[1]);
+        b.onclick=()=>{ state.colorMode=o[0]; rerender(); };
+        grp.appendChild(b);
+      });
+      row.appendChild(grp); sub.appendChild(row);
+    }
+
+    function highlight(){
+      const loc = H.locate(state.cur);
+      state.cells.forEach(c=>{
+        const on = c._playbars.indexOf(state.cur)>=0;
+        if(state._irealPh){ c.style.boxShadow="none"; }
+        else { c.style.boxShadow = on?`inset 0 0 0 2px ${T.accent}`:"none"; c.style.background = on?"#fbf3e4":T.card; }
+      });
+      if(state._irealPh){ const pi=state.cells.findIndex(c=>c._playbars.indexOf(state.cur)>=0); if(pi>=0){ const row=Math.floor(pi/4); state._irealPh.style.top=(row*state._irealRowH)+"px"; state._irealPh.style.height=state._irealRowH+"px"; state._irealPh.style.display="block"; } else { state._irealPh.style.display="none"; } }
+      if(state.ribbon) state.ribbon.forEach(seg=>{ const on=seg._ui===loc.sec; seg.style.borderColor=on?T.accent:T.line; seg.style.background=on?"#fbf3e4":T.card; });
+      const passTxt = loc.sec.reps>1 ? " · "+loc.sec.label+" ("+(loc.pass+1)+"/"+loc.sec.reps+")" : " · "+loc.sec.label;
+      if(state._bn) state._bn.textContent = "Bar "+(state.cur+1)+"/32"+passTxt;
+      if(state._fill) state._fill.style.width = ((state.cur+1)/32*100)+"%";
+      try { localStorage.setItem(key, JSON.stringify(state.cur)); } catch(e){}
+      const cc = state.cells.find(c=>c._playbars.indexOf(state.cur)>=0);
+      if(cc && device==="phone"){ const r=cc.getBoundingClientRect(), pr=bodyWrap.getBoundingClientRect(); if(r.bottom>pr.bottom||r.top<pr.top){ bodyWrap.scrollTop += (r.top-pr.top)-46; } }
+    }
+    state.seek = (i)=>{ state.cur = H.mod(i,32); highlight(); };
+    state.tick = ()=>{ clearTimeout(state._timer); if(!state.playing) return; state._timer = setTimeout(()=>{ state.cur=H.mod(state.cur+1,32); highlight(); state.tick(); }, 1400); };
+    state.mergeClick = (label)=>{
+      if(state.mergeSel===null){ state.mergeSel=label; H.toast(state.host,"Merge: now tap another section to link with "+label); rerender(); }
+      else if(state.mergeSel===label){ state.mergeSel=null; rerender(); }
+      else { state.merges.push({a:state.mergeSel,b:label}); H.toast(state.host,"Sections "+state.mergeSel+" & "+label+" marked as the same material"); state.mergeSel=null; rerender(); }
+    };
+    state.rerender = rerender;
+
+    function rerender(){
+      colorToggle();
+      legendSlot.innerHTML=""; legendSlot.appendChild(legend(state, device));
+      bodyWrap.innerHTML = "";
+      bodyWrap.style.padding = variant==="B"?"14px":"0";
+      if(device==="phone"){ bodyWrap.style.maxHeight = variant==="B"?"400px":"340px"; bodyWrap.style.overflowY="auto"; bodyWrap.className="hzc-scroll"; }
+      bodyWrap.appendChild(variant==="A"?buildLeadSheet(state,device):variant==="C"?buildIReal(state,device):buildFormMap(state,device));
+      highlight();
+    }
+    rerender();
+  };
+})();
+
+
+
+(function(){ const H=window.HZC; function go(){ if(H&&H.buildChart){ document.querySelectorAll("[data-hzc]").forEach(host=>{ const v=host.getAttribute("data-hzc").split(":"); H.buildChart(host, v[0], v[1]); }); } else setTimeout(go,40); } window.__hzcGo=go; })();
+
+
+/* auto-init */
+(function(){function boot(){if(window.__hzcGo)window.__hzcGo();}if(document.readyState!=='loading'){setTimeout(boot,0);}else{document.addEventListener('DOMContentLoaded',boot);}})();

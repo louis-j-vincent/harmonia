@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="ext-resource-dependency" content="https://www.youtube.com/iframe_api">
+<title>Harmonia</title>
+<template id="__bundler_thumbnail">
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+<rect width="100" height="100" fill="#e7e0d0"/>
+<text x="50" y="62" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-weight="600" font-size="34" fill="#1c1c1c">h<tspan fill="#8a2b2b">a</tspan></text>
+</svg>
+</template>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #e7e0d0; }
+  a { color: #8a2b2b; } a:hover { color: #6f2020; }
+  @keyframes ap-in { from { opacity:0; transform:translateY(10px);} to { opacity:1; transform:translateY(0);} }
+  @keyframes ap-fade { from { opacity:0;} to { opacity:1;} }
+  @keyframes ap-spin { to { transform: rotate(360deg); } }
+  @keyframes ap-sheet { from { transform:translateY(100%);} to { transform:translateY(0);} }
+  @keyframes ap-halo { 0%{box-shadow:0 0 0 0 rgba(31,138,91,0);} 30%{box-shadow:0 0 0 5px rgba(31,138,91,.35);} 100%{box-shadow:0 0 0 0 rgba(31,138,91,0);} }
+  @keyframes ap-pulse { 0%,100%{transform:scale(1);opacity:1;} 50%{transform:scale(1.06);opacity:.85;} }
+  @keyframes ap-orb { from { opacity:0; transform:scale(.4);} to { opacity:1; transform:scale(1);} }
+  .ap-scroll::-webkit-scrollbar{width:7px;height:7px;} .ap-scroll::-webkit-scrollbar-thumb{background:#cdc4ad;border-radius:4px;}
+</style>
+<script>
+window.APP = (function(){
+  "use strict";
+  const UI="-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif";
+  const SERIF="Georgia,'Times New Roman',serif";
+  const T={ bg:"#e7e0d0", paper:"#f7f3e9", card:"#fffdf6", ink:"#1c1c1c", rule:"#b9b09a", faint:"#8a8371", accent:"#8a2b2b", line:"#e5dcc6", deep:"#2a2622", green:"#1f8a5b", amber:"#c58a2e", blue:"#2a6fb0" };
+  const FLAT=["C","D\u266d","D","E\u266d","E","F","G\u266d","G","A\u266d","A","B\u266d","B"];
+  const mod=(n,m)=>((n%m)+m)%m;
+  const note=pc=>FLAT[mod(pc,12)];
+  const el=(t,c,x)=>{const e=document.createElement(t); if(c)e.style.cssText=c; if(x!=null)e.textContent=x; return e;};
+  const clear=n=>{ while(n.firstChild) n.removeChild(n.firstChild); };
+
+  const TOK={"":"","6":"6","^7":"maj7","7":"7","-":"m","-7":"m7","-^7":"mMaj7","o":"dim","-7b5":"m7\u266d5","o7":"dim7","9":"9","7b9":"7\u266d9"};
+  function seventhOf(q){ if(q==="6"||q==="^7")return "^7"; if(q==="-7b5")return "-7b5"; if(q==="o7"||q==="o")return q; if(q.indexOf("-")===0)return "-7"; if(q==="")return ""; return "7"; }
+  function famSuffix(q){ if(q.indexOf("-7b5")===0||q.indexOf("o")===0)return "\u00b0"; if(q.indexOf("-")===0)return "m"; if(q.indexOf("+")===0)return "+"; return ""; }
+  function confColor(c){ if(c>=.82)return T.ink; if(c>=.66)return "#5c4a30"; if(c>=.5)return "#9a6a1e"; if(c>=.38)return "#bd6a22"; return "#a8281f"; }
+  function depthOf(c){ return c>=.66?"exact":(c>=.42?"seventh":"family"); }
+  function glyph(root,q,size,depth,color){
+    const w=el("span",`font-family:${SERIF};font-style:italic;line-height:1;white-space:nowrap;color:${color};display:inline-flex;align-items:baseline;`);
+    w.appendChild(el("span",`font-size:${size}px;font-weight:600;`,note(root)));
+    let suf; if(depth==="family") suf=famSuffix(q); else if(depth==="seventh") suf=TOK[seventhOf(q)]||""; else suf=(TOK[q]!=null?TOK[q]:q);
+    if(suf) w.appendChild(el("sup",`font-size:${Math.round(size*0.44)}px;font-weight:600;`,suf));
+    return w;
+  }
+  // circle-of-fifths hue
+  const fifthsIndex=pc=>mod(pc*7,12);
+  const keyHue=pc=>fifthsIndex(pc)/12*360;
+  const keyFill=pc=>`hsl(${keyHue(pc)} 42% 62%)`;
+  // harmonic function colour (relative to key tonic)
+  function fnColor(root,keyTonic){ const d=mod(root-keyTonic,12);
+    if(d===0||d===9) return T.green;         // I / vi  (home)
+    if(d===5||d===2) return T.blue;          // IV / ii (setting up)
+    if(d===7||d===11) return T.accent;       // V / vii (pulling)
+    return "#8a7d5a"; }
+  // ── suggestion colour: hue = circle-of-fifths position, deeper/more saturated = more sure ──
+  const rootHue=pc=>Math.round(fifthsIndex(pc)/12*360);
+  function petalFill(pc,conf){ return `hsl(${rootHue(pc)} ${Math.round(46+conf*26)}% ${Math.round(84-conf*34)}%)`; }
+  function petalEdge(pc,conf){ return `hsl(${rootHue(pc)} ${Math.round(50+conf*26)}% ${Math.round(60-conf*22)}%)`; }
+  function keyTint(pc){ return `hsl(${rootHue(pc)} 52% 90%)`; }
+  const SVGNS="http://www.w3.org/2000/svg";
+  function sv(t,a){ const e=document.createElementNS(SVGNS,t); for(const k in a) e.setAttribute(k,a[k]); return e; }
+  // ── functional role of a candidate (roman numeral + plain-language why) ──
+  function qClass(q){ if(q===""||q.startsWith("^")||q.startsWith("6")) return "maj"; if(q.startsWith("-7b5")||q.startsWith("h")) return "m7b5"; if(q.startsWith("o")) return "dim"; if(q.startsWith("-")) return "min"; if(q.startsWith("sus")) return (q.indexOf("7")>=0)?"dom":"sus"; if(q.startsWith("+")) return q.indexOf("7")>=0?"dom":"aug"; return "dom"; }
+  const ROMAN=["I","\u266dII","II","\u266dIII","III","IV","\u266dV","V","\u266dVI","VI","\u266dVII","VII"];
+  function romanFor(deg,cls){ let n=ROMAN[deg]; if(cls==="min"||cls==="m7b5"||cls==="dim") n=n.toLowerCase(); if(cls==="m7b5") n+="\u00f8"; else if(cls==="dim") n+="\u00b0"; else if(cls==="dom") n+="\u2077"; return n; }
+  function roleOf(home,root,q,next){ const cls=qClass(q); const deg=mod(root-home,12); const num=romanFor(deg,cls); const nRoot=next?next.root:null, nCls=next?qClass(next.q):null; const resolvesTo=t=>nRoot!==null&&nRoot===t; let text;
+    if(cls==="dom"){ const target=mod(root+5,12), tdeg=mod(target-home,12); if(deg===1) text="Tritone sub of V\u2077 \u2014 slides down a half-step to I"; else if(deg===7) text="V\u2077 \u2014 the dominant, pulls home to I"+(resolvesTo(target)?" (resolves)":""); else if(target===home) text="V\u2077 \u2014 dominant, resolves home"; else text="V\u2077 of "+ROMAN[tdeg]+" \u2014 secondary dominant"+(resolvesTo(target)?" (resolves down a 5th)":""); }
+    else if(cls==="min"||cls==="m7b5"){ const v=mod(root+5,12); if(nCls==="dom"&&resolvesTo(v)) text=(cls==="m7b5"?"ii\u00f8":"ii")+" \u2014 sets up the V into "+note(mod(v+5,12)); else if(deg===2) text=(cls==="m7b5"?"ii\u00f8":"ii")+" \u2014 pre-dominant, leads to the V"; else if(deg===9) text="vi \u2014 the relative minor"; else if(deg===5) text="iv \u2014 borrowed minor subdominant, strong pull"; else if(deg===0) text="i \u2014 the tonic (minor)"; else text=num+" \u2014 minor colour"; }
+    else if(cls==="maj"){ if(deg===0) text="I \u2014 home, the tonic"; else if(deg===5) text="IV \u2014 subdominant"; else if(deg===7) text="V \u2014 dominant degree"; else if(deg===9) text="VI \u2014 submediant"; else if(deg===2) text="II \u2014 supertonic"; else if(deg===10) text="\u266dVII \u2014 borrowed from Mixolydian"; else if(deg===8) text="\u266dVI \u2014 modal-interchange borrow"; else if(deg===3) text="\u266dIII \u2014 modal-interchange borrow"; else text=num+" \u2014 chromatic colour"; }
+    else if(cls==="dim"){ text="\u00b0 \u2014 passing / leading-tone diminished"; }
+    else if(cls==="sus"){ text="sus \u2014 suspended, the 3rd held open"; }
+    else { text="augmented \u2014 raised 5th, unstable"; }
+    return { num, text }; }
+  // ── audio: short felt-piano arpeggio ──
+  const CE_IV={ "":[0,4,7],"6":[0,4,7,9],"^7":[0,4,7,11],"7":[0,4,7,10],"-":[0,3,7],"-7":[0,3,7,10],"-^7":[0,3,7,11],"-7b5":[0,3,6,10],"o":[0,3,6],"o7":[0,3,6,9],"+":[0,4,8],"sus4":[0,5,7],"sus2":[0,2,7],"9":[0,4,7,10,14] };
+  let actx=null;
+  function play(root,q){ try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==="suspended") actx.resume(); const ivs=CE_IV[q]||CE_IV[""]; const base=233.08*Math.pow(2,root/12); ivs.forEach((iv,i)=>{ const f=base*Math.pow(2,iv/12), t0=actx.currentTime+i*0.075; const o=actx.createOscillator(), o2=actx.createOscillator(), g=actx.createGain(); o.type="triangle"; o2.type="sine"; o.frequency.value=f; o2.frequency.value=f*2; g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(0.16,t0+0.012); g.gain.exponentialRampToValueAtTime(0.0001,t0+0.55); o.connect(g); o2.connect(g); g.connect(actx.destination); o.start(t0); o2.start(t0); o.stop(t0+0.6); o2.stop(t0+0.6); }); }catch(e){} }
+  function haptic(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms||6); }catch(e){} }
+
+  // ── Harte parsing (real /api/reinfer response) ──
+  const NOTE_PC={C:0,"C#":1,Db:1,D:2,"D#":3,Eb:3,E:4,F:5,"F#":6,Gb:6,G:7,"G#":8,Ab:8,A:9,"A#":10,Bb:10,B:11};
+  const HARTE_Q={maj:"",maj7:"^7",min:"-",min7:"-7","7":"7",hdim7:"-7b5",dim:"o",dim7:"o7","6":"6"};
+  const NOTE_NAME=["C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B"];
+  function parseLabel(l){ const p=String(l).split(":"); return { root: NOTE_PC[p[0]]!=null?NOTE_PC[p[0]]:0, q: HARTE_Q[p[1]]!=null?HARTE_Q[p[1]]:(p[1]||"") }; }
+  function qToHarte(q){ for(const k in HARTE_Q){ if(HARTE_Q[k]===q) return k; } return "maj"; }
+  function labelOf(r,q){ return NOTE_NAME[mod(r,12)]+":"+qToHarte(q); }
+  function overlaps(a0,a1,b0,b1){ return Math.min(a1,b1)-Math.max(a0,b0) > 1e-6; }
+
+  // ── Song model (Autumn Leaves excerpt, inferred key G# major) ──
+  // Each bar: {chords:[{root,q,c}, ...]} — 1 or 2 chords per bar.
+  const FORM=[
+    { label:"A", reps:2, bars:[
+      [{root:10,q:"-7",c:.88}],[{root:3,q:"7",c:.79}],[{root:8,q:"^7",c:.94}],[{root:1,q:"^7",c:.46}],
+      [{root:7,q:"-7b5",c:.33}],[{root:7,q:"-7b5",c:.33}],[{root:6,q:"^7",c:.40}],[{root:10,q:"-7",c:.90}] ] },
+    { label:"B", reps:1, bars:[
+      [{root:1,q:"-7",c:.90}],[{root:6,q:"7",c:.88}],[{root:11,q:"^7",c:.85}],[{root:11,q:"6",c:.80}],
+      [{root:10,q:"-7",c:.87}],[{root:3,q:"7",c:.86}],[{root:8,q:"^7",c:.92}],[{root:8,q:"6",c:.82}] ] },
+    { label:"C", reps:1, bars:[
+      [{root:1,q:"-7",c:.84},{root:6,q:"7",c:.80}],[{root:11,q:"^7",c:.86},{root:4,q:"7",c:.78}],
+      [{root:10,q:"-7",c:.83}],[{root:3,q:"7",c:.80}],[{root:8,q:"^7",c:.90}],[{root:5,q:"-7",c:.74}],
+      [{root:3,q:"7",c:.77}],[{root:8,q:"^7",c:.88}] ] },
+  ];
+  // scripted re-infer responses (mock; live server replaces)
+  const CANDS={ // per flat-chord-index candidate lists (demo) — {root,q,c}
+    4:[{root:2,q:"7",c:.62},{root:7,q:"7",c:.26},{root:7,q:"-7b5",c:.16}],
+    5:[{root:7,q:"7",c:.55},{root:7,q:"-7b5",c:.28},{root:2,q:"7",c:.20}],
+    3:[{root:1,q:"^7",c:.46},{root:1,q:"7",c:.34},{root:6,q:"7",c:.24}],
+    6:[{root:6,q:"^7",c:.40},{root:6,q:"7",c:.33},{root:1,q:"-7",c:.22}]
+  };
+  const REINFER_DIFF=[
+    {i:5, oldRoot:7,oldQ:"-7b5",oldC:.33, root:7,q:"7", c:.71},
+    {i:6, oldRoot:6,oldQ:"^7",  oldC:.40, root:6,q:"7", c:.77},
+    {i:3, oldRoot:1,oldQ:"^7",  oldC:.46, root:1,q:"7", c:.68},
+  ];
+  const MERGE_DIFF=[
+    {i:4, oldRoot:7,oldQ:"-7b5",oldC:.33, root:2,q:"7", c:.76},
+    {i:5, oldRoot:7,oldQ:"-7b5",oldC:.33, root:7,q:"7", c:.69},
+    {i:6, oldRoot:6,oldQ:"^7",  oldC:.40, root:6,q:"7", c:.73},
+  ];
+  const SECTIONS=[{id:"A1",label:"A",tag:"\u00b9"},{id:"A2",label:"A",tag:"\u00b2"},{id:"B",label:"B",tag:""},{id:"C",label:"C",tag:""}];
+
+  // ── build a flat working chord list from the (first-pass) form ──
+  function buildChords(){
+    const chords=[]; let t=0;
+    FORM.forEach(sec=>{
+      sec.bars.forEach((bar,bi)=>{
+        const span=2, step=span/bar.length;
+        bar.forEach((c,ci)=>{
+          chords.push({ root:c.root, q:c.q, c:c.c, confirmed:false, sec:sec.label,
+            barFirst: ci===0, secFirst: bi===0&&ci===0, reps:sec.reps,
+            t0:t, t1:t+step });
+          t+=step;
+        });
+      });
+    });
+    return chords;
+  }
+  function buildRequest(chords,pending,merges){
+    return { confirms: pending.map(i=>{const c=chords[i];return {t0:c.t0,t1:c.t1,root:c.root,q:c.q};}), merges: merges||[] };
+  }
+  const FILENAME="inferred_autumn_leaves.html";
+  async function reinfer(body){
+    // ⇩ SWAP FOR LIVE: uncomment the fetch, delete the mock line.
+    // return (await fetch("/api/reinfer/"+FILENAME,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})).json();
+    return mockReinfer(body);
+  }
+  function mockReinfer(body){
+    const srcArr=(body.merges&&body.merges.length)?MERGE_DIFF:REINFER_DIFF;
+    const diff=srcArr.map(d=>({ index:d.i, start_s:d.i*0, end_s:d.i*0,
+      old_label:labelOf(d.oldRoot,d.oldQ), new_label:labelOf(d.root,d.q),
+      old_confidence:d.oldC, new_confidence:d.c, _i:d.i }));
+    return { key:"G# major", tempo_bpm:112.3, n_changed:diff.length, diff, chords:[] };
+  }
+
+  // ── YouTube playback: the fetched song, synced to the grid ──
+  // The real app feeds the id of the track it fetched audio from; the playhead
+  // follows real playback time, mapped onto each chord's [t0,t1] span.
+  const VIDEO_ID="sTfmMd0uOEc"; // Autumn Leaves demo — swap for the fetched track's id
+  let ytApiReady=(typeof YT!=="undefined" && !!YT.Player), pendingYtInit=null;
+  window.onYouTubeIframeAPIReady=function(){ ytApiReady=true; if(pendingYtInit){ pendingYtInit(); pendingYtInit=null; } };
+  function fmt(s){ s=Math.max(0,Math.floor(s||0)); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+
+  // ══════════════════════════════════════════════════════════════
+  const API={};
+  let root, S;
+  API.build=function(host){
+    root=host;
+    root.style.cssText="position:relative;height:100%;background:"+T.bg+";overflow:hidden;font-family:"+UI+";color:"+T.ink+";";
+    S={ screen:null, mode:"read", colorMode:"function", key:8, chords:buildChords(),
+        pending:[], selectedSecs:[], playing:false, playIdx:-1, reinfering:false,
+        ytPlayer:null, ytReady:false, videoDur:0, videoOpen:false, rafId:null, demoStart:0, _cells:[] };
+    go("launcher");
+  };
+
+  function screenWrap(){ const w=el("div","position:absolute;inset:0;display:flex;flex-direction:column;animation:ap-fade .28s ease both;"); return w; }
+  function go(screen){
+    const leavingChart = S.screen==="chart" && screen!=="chart";
+    if(leavingChart) stopPlayback();
+    S.screen=screen;
+    // remove old screen + any transient overlays, but KEEP the persistent transport
+    // (moving the transport would reload its YouTube iframe and stop playback)
+    [...root.children].forEach(c=>{ if(c!==S._np) root.removeChild(c); });
+    let elS;
+    if(screen==="launcher") elS=renderLauncher();
+    else if(screen==="library") elS=renderLibrary();
+    else if(screen==="analysing") elS=renderAnalysing();
+    else elS=renderChart();
+    S._screenEl=elS; root.appendChild(elS);
+    syncTransport(screen);
+  }
+
+  // ── shared app bar ──
+  function appBar(title, sub, backTo){
+    const bar=el("div",`flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid ${T.line};background:${T.paper};`);
+    if(backTo){
+      const b=el("button",`flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:1px solid ${T.line};background:${T.card};color:${T.ink};font:600 17px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;`,"\u2039");
+      b.onclick=()=>go(backTo); bar.appendChild(b);
+    }
+    const tw=el("div","flex:1;min-width:0;");
+    const wm=el("div",`font:italic 600 17px ${SERIF};color:${T.ink};`); wm.innerHTML='harmon<span style="color:'+T.accent+'">ia</span>';
+    if(title){ wm.textContent=""; wm.appendChild(el("span",`font:italic 600 17px ${SERIF};`,title)); }
+    tw.appendChild(wm);
+    if(sub) tw.appendChild(el("div",`font:500 12px ${UI};color:${T.faint};margin-top:1px;`,sub));
+    bar.appendChild(tw);
+    return bar;
+  }
+
+  // ── 1. LAUNCHER ──
+  function renderLauncher(){
+    const w=screenWrap(); w.style.background=`radial-gradient(120% 90% at 50% 0%, ${T.paper}, ${T.bg})`;
+    w.style.alignItems="center"; w.style.justifyContent="center"; w.style.textAlign="center"; w.style.padding="24px";
+    const wm=el("div",`font:italic 600 clamp(46px,13vw,72px) ${SERIF};color:${T.ink};letter-spacing:-.01em;`);
+    wm.innerHTML='harmon<span style="color:'+T.accent+'">ia</span>';
+    w.appendChild(wm);
+    w.appendChild(el("div",`font:500 15px ${UI};color:${T.faint};margin-top:8px;max-width:340px;line-height:1.5;`,"Read, understand and annotate the harmony of any song \u2014 with an ear that tells you how sure it is."));
+    const ring=el("div",`margin-top:34px;width:74px;height:74px;border-radius:50%;background:${T.green};display:flex;align-items:center;justify-content:center;box-shadow:0 12px 30px -10px rgba(31,138,91,.55);animation:ap-pulse 2.4s ease-in-out infinite;cursor:pointer;`);
+    ring.appendChild(el("div",`color:#fff;font:600 15px ${UI};`,"Open"));
+    ring.onclick=()=>go("library");
+    w.appendChild(ring);
+    w.appendChild(el("div",`margin-top:16px;font:500 11.5px ${UI};color:${T.faint};`,"server \u00b7 localhost:7771"));
+    return w;
+  }
+
+  // ── 2. LIBRARY / SEARCH ──
+  const RECENT=[
+    {title:"Autumn Leaves",artist:"Joseph Kosma",key:"G\u266f major",chords:32,fresh:true},
+    {title:"Blue in Green",artist:"Miles Davis",key:"D minor",chords:20},
+    {title:"So What",artist:"Miles Davis",key:"D dorian",chords:16},
+    {title:"Fly Me to the Moon",artist:"Bart Howard",key:"C major",chords:32},
+  ];
+  function renderLibrary(){
+    const w=screenWrap();
+    w.appendChild(appBar(null,"Your charts",null));
+    const body=el("div","flex:1;overflow-y:auto;padding:18px;"); body.className="ap-scroll";
+    const inner=el("div","max-width:640px;margin:0 auto;");
+    // search / paste field
+    const field=el("div",`display:flex;align-items:center;gap:10px;background:${T.card};border:1.5px solid ${T.line};border-radius:14px;padding:13px 15px;box-shadow:0 6px 18px -12px rgba(50,35,20,.3);`);
+    field.appendChild(el("span",`font:400 17px ${UI};color:${T.faint};`,"\u26b2"));
+    const input=el("input",`flex:1;border:none;outline:none;background:transparent;font:500 15px ${UI};color:${T.ink};`);
+    input.placeholder="Search a song or paste a YouTube link";
+    field.appendChild(input);
+    const goBtn=el("button",`flex:0 0 auto;border:none;background:${T.accent};color:#fff;border-radius:10px;padding:9px 15px;font:600 13px ${UI};cursor:pointer;`,"Analyse");
+    goBtn.onclick=()=>go("analysing");
+    field.appendChild(goBtn);
+    inner.appendChild(field);
+    input.addEventListener("keydown",e=>{ if(e.key==="Enter") go("analysing"); });
+    inner.appendChild(el("div",`font:600 10px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};margin:22px 4px 10px;`,"Recent"));
+    RECENT.forEach(r=>{
+      const card=el("button",`width:100%;display:flex;align-items:center;gap:14px;background:${T.card};border:1px solid ${T.line};border-radius:14px;padding:14px 16px;margin-bottom:10px;cursor:pointer;text-align:left;transition:transform .12s,box-shadow .12s;`);
+      card.onmouseenter=()=>{card.style.transform="translateY(-2px)";card.style.boxShadow="0 10px 24px -14px rgba(50,35,20,.4)";};
+      card.onmouseleave=()=>{card.style.transform="";card.style.boxShadow="";};
+      const disc=el("div",`flex:0 0 auto;width:44px;height:44px;border-radius:10px;background:${keyFill(NOTE_PC[r.key.split(" ")[0].replace("\u266f","#")]||0)};display:flex;align-items:center;justify-content:center;color:#fff;font:italic 700 20px ${SERIF};`, r.title[0]);
+      card.appendChild(disc);
+      const tx=el("div","flex:1;min-width:0;");
+      const tl=el("div",`font:600 15px ${UI};color:${T.ink};`,r.title);
+      tx.appendChild(tl);
+      tx.appendChild(el("div",`font:500 12.5px ${UI};color:${T.faint};margin-top:2px;`, r.artist+" \u00b7 "+r.key+" \u00b7 "+r.chords+" bars"));
+      card.appendChild(tx);
+      if(r.fresh) card.appendChild(el("span",`flex:0 0 auto;font:600 10px ${UI};color:${T.green};border:1px solid ${T.green};border-radius:20px;padding:3px 9px;`,"ready"));
+      else card.appendChild(el("span",`flex:0 0 auto;font:400 18px ${UI};color:${T.rule};`,"\u203a"));
+      card.onclick=()=> r.fresh?go("chart"):go("analysing");
+      inner.appendChild(card);
+    });
+    body.appendChild(inner); w.appendChild(body);
+    return w;
+  }
+
+  // ── 3. ANALYSING ──
+  const STAGES=[
+    {k:"Fetching audio",r:"3:04 stereo"},
+    {k:"Listening for notes",r:"Basic Pitch"},
+    {k:"Beat & tempo",r:"112 bpm \u00b7 4/4"},
+    {k:"Finding sections",r:"A A B C"},
+    {k:"Estimating key",r:"G\u266f major"},
+    {k:"Decoding chords",r:"32 bars"},
+  ];
+  function renderAnalysing(){
+    const w=screenWrap();
+    w.appendChild(appBar(null,"Analysing",null));
+    const body=el("div","flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;"); body.className="ap-scroll";
+    const card=el("div",`width:100%;max-width:420px;background:${T.card};border:1px solid ${T.line};border-radius:18px;padding:22px;box-shadow:0 16px 40px -22px rgba(50,35,20,.4);`);
+    card.appendChild(el("div",`font:600 16px ${UI};color:${T.ink};`,"Autumn Leaves"));
+    card.appendChild(el("div",`font:500 12.5px ${UI};color:${T.faint};margin:2px 0 18px;`,"listening to the recording\u2026"));
+    const rows=[];
+    STAGES.forEach(s=>{
+      const row=el("div","display:flex;align-items:center;gap:12px;padding:9px 0;");
+      const dot=el("div",`flex:0 0 auto;width:20px;height:20px;border-radius:50%;border:2px solid ${T.line};`);
+      row.appendChild(dot);
+      const tx=el("div","flex:1;");
+      tx.appendChild(el("div",`font:600 13.5px ${UI};color:${T.faint};`,s.k));
+      const res=el("div",`font:500 11.5px ${UI};color:${T.rule};margin-top:1px;height:0;overflow:hidden;transition:height .3s;`,s.r);
+      tx.appendChild(res); row.appendChild(tx);
+      card.appendChild(row); rows.push({row,dot,tx,res});
+    });
+    body.appendChild(card); w.appendChild(body);
+    let i=0;
+    const tick=()=>{
+      if(i>0){ const p=rows[i-1]; p.dot.style.background=T.green; p.dot.style.borderColor=T.green; p.dot.innerHTML='<span style="color:#fff;font:700 11px '+UI+';display:flex;align-items:center;justify-content:center;height:100%;">\u2713</span>'; p.tx.firstChild.style.color=T.ink; p.res.style.height="16px"; }
+      if(i>=rows.length){ setTimeout(()=>go("chart"),450); return; }
+      const cur=rows[i]; cur.dot.style.borderColor=T.accent; cur.dot.innerHTML='<div style="width:100%;height:100%;border-radius:50%;border:2px solid transparent;border-top-color:'+T.accent+';animation:ap-spin .7s linear infinite;"></div>'; cur.tx.firstChild.style.color=T.ink;
+      i++; setTimeout(tick,620);
+    };
+    setTimeout(tick,400);
+    return w;
+  }
+
+  // ── 4. CHART (iReal default) ──
+  function renderChart(){
+    const w=screenWrap();
+    // app bar with title + key pill (rotor)
+    const bar=appBar("Autumn Leaves", null, "library");
+    const keyPill=el("button",`flex:0 0 auto;display:flex;align-items:center;gap:6px;border:1.5px solid ${T.line};background:${T.card};border-radius:20px;padding:7px 13px;font:600 13px ${UI};color:${T.ink};cursor:pointer;`);
+    keyPill.innerHTML='<span style="color:'+T.faint+';font-weight:500;">Key</span> '+note(S.key)+' <span style="color:'+T.faint+';">major</span> <span style="color:'+T.accent+';">\u21bb</span>';
+    keyPill.onclick=openRotor;
+    bar.appendChild(keyPill);
+    w.appendChild(bar);
+
+    // mode segmented control
+    const modeBar=el("div",`flex:0 0 auto;display:flex;gap:0;padding:12px 18px 0;background:${T.paper};`);
+    const seg=el("div",`display:inline-flex;background:${T.line};border-radius:11px;padding:3px;gap:2px;`);
+    [["read","Read"],["analyse","Analyse"],["annotate","Annotate"]].forEach(([k,lbl])=>{
+      const on=S.mode===k;
+      const b=el("button",`border:none;border-radius:9px;padding:8px 16px;font:600 13px ${UI};cursor:pointer;background:${on?T.card:"transparent"};color:${on?T.ink:T.faint};box-shadow:${on?"0 1px 3px rgba(0,0,0,.12)":"none"};transition:all .15s;`,lbl);
+      b.onclick=()=>{ S.mode=k; go("chart"); };
+      seg.appendChild(b);
+    });
+    modeBar.appendChild(seg);
+    // analyse sub-toggle
+    if(S.mode==="analyse"){
+      const sub=el("div","display:inline-flex;gap:6px;margin-left:12px;");
+      [["function","Function"],["key","Key"]].forEach(([k,lbl])=>{
+        const on=S.colorMode===k;
+        const b=el("button",`border:1.5px solid ${on?T.accent:T.line};background:${on?T.accent:T.card};color:${on?"#fff":T.faint};border-radius:9px;padding:7px 13px;font:600 12px ${UI};cursor:pointer;`,lbl);
+        b.onclick=()=>{ S.colorMode=k; go("chart"); };
+        sub.appendChild(b);
+      });
+      modeBar.appendChild(sub);
+    }
+    w.appendChild(modeBar);
+
+    // caption / legend
+    const cap=el("div",`flex:0 0 auto;padding:10px 18px 0;background:${T.paper};`);
+    cap.appendChild(legendFor());
+    w.appendChild(cap);
+
+    // chart body
+    const body=el("div","flex:1;overflow-y:auto;padding:14px 18px 120px;background:"+T.paper+";"); body.className="ap-scroll";
+    const sheet=el("div","max-width:720px;margin:0 auto;");
+    sheet.appendChild(buildIReal());
+    if(S.mode==="annotate") sheet.appendChild(buildRibbon());
+    body.appendChild(sheet);
+    w.appendChild(body);
+
+    // re-infer action floats above the persistent transport (annotate + pending)
+    const ra=renderReinferAction(); if(ra) w.appendChild(ra);
+    return w;
+  }
+  function renderReinferAction(){
+    if(!(S.mode==="annotate" && S.pending.length)) return null;
+    const act=el("div",`position:absolute;left:0;right:0;bottom:78px;z-index:25;padding:0 14px;`);
+    const inner=el("div",`max-width:720px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:${T.deep};border-radius:13px;color:${T.paper};box-shadow:0 14px 34px -18px rgba(0,0,0,.6);`);
+    const tx=el("div",""); tx.appendChild(el("div",`font:600 13px ${UI};`,"Re-infer"));
+    tx.appendChild(el("div",`font:500 11px ${UI};color:rgba(247,243,233,.7);margin-top:2px;`, "your "+S.pending.length+" locked chord"+(S.pending.length>1?"s":"")+" will re-decode the song"));
+    inner.appendChild(tx);
+    const go2=el("button",`flex:0 0 auto;border:none;border-radius:11px;padding:12px 18px;font:600 14px ${UI};cursor:pointer;background:${T.accent};color:#fff;`, "Re-infer with "+S.pending.length+" fix"+(S.pending.length>1?"es":""));
+    go2.onclick=runReinfer; inner.appendChild(go2);
+    act.appendChild(inner); return act;
+  }
+
+  function legendFor(){
+    const box=el("div",`display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:${T.card};border:1px solid ${T.line};border-radius:10px;padding:8px 12px;`);
+    if(S.mode==="read"){
+      box.appendChild(el("span",`font:italic 12px ${SERIF};color:${T.faint};`,"Clean lead sheet \u2014 tap Analyse to see the harmony in colour, or Annotate to fix chords."));
+    } else if(S.mode==="analyse"){
+      const items = S.colorMode==="function"
+        ? [["Home",T.green],["Setting up",T.blue],["Pulling",T.accent],["Colour",("#8a7d5a")]]
+        : null;
+      box.appendChild(el("span",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`, S.colorMode==="function"?"Harmonic role":"Key colour (circle of fifths)"));
+      if(items){ items.forEach(([lbl,col])=>{ const c=el("span","display:inline-flex;align-items:center;gap:5px;"); c.appendChild(el("span",`width:12px;height:12px;border-radius:3px;background:${col};`)); c.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,lbl)); box.appendChild(c); }); }
+      else box.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,"each key gets its own hue \u2014 modulations shift colour."));
+    } else {
+      box.appendChild(el("span",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`,"How sure the model is"));
+      box.appendChild(el("span",`width:96px;height:11px;border-radius:6px;background:linear-gradient(90deg,#a8281f,#bd6a22,#9a6a1e,${T.ink});`));
+      box.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,"shaky chords show just the family \u2014 tap one you know to lock it in."));
+    }
+    return box;
+  }
+
+  function chordColor(ch){
+    if(S.mode==="read") return T.ink;
+    if(S.mode==="analyse") return S.colorMode==="function"?fnColor(ch.root,S.key):keyFill(ch.root);
+    return ch.confirmed?T.ink:confColor(ch.c); // annotate
+  }
+  function chordDepth(ch){ if(S.mode!=="annotate"||ch.confirmed) return "exact"; return depthOf(ch.c); }
+
+  function buildIReal(){
+    const frame=el("div",`position:relative;background:${T.paper};border:1px solid ${T.line};border-radius:8px;overflow:hidden;`);
+    const grid=el("div","display:grid;grid-template-columns:repeat(4,1fr);");
+    S._cells=[];
+    // group flat chords back into bars
+    const bars=[]; let cur=null;
+    S.chords.forEach((ch,idx)=>{ if(ch.barFirst){ cur={sec:ch.sec,secFirst:ch.secFirst,reps:ch.reps,chords:[]}; bars.push(cur);} cur.chords.push({ch,idx}); });
+    bars.forEach((b,bi)=>{
+      const col=bi%4;
+      const cell=el("div",`position:relative;min-height:74px;display:flex;align-items:center;justify-content:center;gap:10px;padding:0 8px 0 ${b.secFirst?24:8}px;${col>0?`border-left:1px solid ${T.rule};`:""}${bi>=4?`border-top:1px solid ${T.rule};`:""}`);
+      // section box + double barline
+      if(b.secFirst){
+        cell.appendChild(el("div",`position:absolute;left:5px;top:8px;font:800 11px ${UI};color:${T.accent};border:1.5px solid ${T.accent};border-radius:4px;padding:1px 5px;background:${T.paper};`,b.sec));
+        cell.appendChild(el("div",`position:absolute;left:2px;top:0;bottom:0;width:2px;background:${T.ink};`));
+        if(b.reps>1) cell.appendChild(el("div",`position:absolute;left:5px;bottom:6px;font:700 10px ${UI};color:${T.faint};`,"\u00d7"+b.reps));
+      }
+      b.chords.forEach(({ch,idx})=>{
+        const item=el(S.mode==="annotate"?"button":"div",`display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;cursor:${S.mode==="annotate"?"pointer":"default"};padding:0;`);
+        item.appendChild(glyph(ch.root,ch.q,b.chords.length>1?24:30,chordDepth(ch),chordColor(ch)));
+        if(S.mode==="annotate"&&!ch.confirmed){
+          item.appendChild(el("span",`font:600 10px ${UI};color:${confColor(ch.c)};opacity:.8;`, Math.round(ch.c*100)+"%"));
+        }
+        if(S.mode==="annotate"&&ch.confirmed){
+          const pin=el("span",`display:inline-flex;align-items:center;gap:3px;font:600 10px ${UI};color:${T.green};`); pin.innerHTML='\u2713 locked'; item.appendChild(pin);
+        }
+        if(S.mode==="annotate"&&!ch.confirmed&&ch.c<.42){
+          item.appendChild(el("span",`position:absolute;top:6px;right:8px;font:700 12px ${UI};color:${confColor(ch.c)};`,"?"));
+        }
+        if(S.mode==="annotate") item.onclick=()=>openEditor(idx);
+        cell.appendChild(item);
+      });
+      const ph=el("div",`position:absolute;right:0;top:0;bottom:0;width:3px;background:${T.accent};display:none;`); cell.appendChild(ph);
+      S._cells.push({el:cell, idxs:b.chords.map(x=>x.idx), ph});
+      grid.appendChild(cell);
+    });
+    frame.appendChild(grid);
+    setPlayhead(S.playIdx);
+    return frame;
+  }
+  function barNumFor(idx){ let n=0; for(let i=0;i<=idx&&i<S.chords.length;i++){ if(S.chords[i].barFirst) n++; } return n; }
+  function setPlayhead(idx){
+    S.playIdx=idx;
+    if(S._cells) S._cells.forEach(c=>{ const on=idx>=0&&c.idxs.indexOf(idx)>=0; c.el.style.background=on?"rgba(138,43,43,.09)":""; c.ph.style.display=on?"block":"none"; });
+    if(S._barLabel) S._barLabel.textContent = idx>=0?("bar "+barNumFor(idx)):"\u2014";
+  }
+
+  // form ribbon (annotate) — two-tap to merge
+  function buildRibbon(){
+    const wrap=el("div",`display:flex;align-items:center;gap:10px;margin-top:16px;flex-wrap:wrap;`);
+    wrap.appendChild(el("span",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`,"Form"));
+    const chips=el("div","display:flex;gap:7px;flex-wrap:wrap;");
+    SECTIONS.forEach(s=>{
+      const on=S.selectedSecs.indexOf(s.id)>=0;
+      const chip=el("button",`display:flex;align-items:baseline;gap:1px;border:1.5px solid ${on?T.accent:T.line};background:${on?T.accent:T.card};color:${on?"#fff":T.ink};border-radius:9px;padding:7px 13px;font:700 13px ${UI};cursor:pointer;transition:all .15s;`);
+      chip.appendChild(el("span","",s.label)); if(s.tag) chip.appendChild(el("sup","font-size:9px;font-weight:700;opacity:.85;",s.tag));
+      chip.onclick=()=>toggleSec(s.id);
+      chips.appendChild(chip);
+    });
+    wrap.appendChild(chips);
+    const hint=el("span",`font:italic 11px ${SERIF};color:${T.faint};`, S.selectedSecs.length===1?"pick one more to merge":"tap two sections to merge");
+    wrap.appendChild(hint);
+    return wrap;
+  }
+
+  // ── persistent transport (survives screen re-renders so audio keeps playing) ──
+  function ensureTransport(){
+    if(S._np) return;
+    const np=el("div",`position:absolute;left:0;right:0;bottom:0;z-index:30;background:${T.card};border-top:1px solid ${T.line};box-shadow:0 -8px 24px -16px rgba(50,35,20,.4);`);
+    // hidden YouTube player — we only want its AUDIO, played against the grid
+    const hidden=el("div","position:absolute;width:1px;height:1px;left:-9999px;top:0;overflow:hidden;opacity:0;pointer-events:none;");
+    const mount=el("div",""); mount.id="ap-yt-"+Math.random().toString(36).slice(2,7);
+    hidden.appendChild(mount); np.appendChild(hidden); S._ytMount=mount;
+    // control row
+    const row=el("div",`display:flex;align-items:center;gap:13px;padding:11px 18px 14px;max-width:720px;margin:0 auto;`);
+    const play=el("button",`flex:0 0 auto;width:44px;height:44px;border-radius:50%;border:none;background:${T.accent};color:#fff;font:600 16px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;`,"\u25b6");
+    play.onclick=togglePlay; S._playBtn=play; row.appendChild(play);
+    const mid=el("div","flex:1;min-width:0;");
+    const meta=el("div","display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px;");
+    const src=el("div","display:flex;align-items:center;gap:6px;min-width:0;");
+    src.appendChild(el("span",`flex:0 0 auto;font:600 9px ${UI};letter-spacing:.04em;color:#fff;background:#c00;border-radius:3px;padding:2px 5px;`,"YT"));
+    src.appendChild(el("div",`font:600 12px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,"Autumn Leaves \u2014 audio"));
+    meta.appendChild(src);
+    const timeL=el("div",`flex:0 0 auto;font:600 11px ${UI};color:${T.faint};`,"0:00 / 0:00"); S._timeLabel=timeL; meta.appendChild(timeL);
+    mid.appendChild(meta);
+    const track=el("div",`height:6px;border-radius:3px;background:${T.line};position:relative;cursor:pointer;`);
+    const fill=el("div",`position:absolute;left:0;top:0;bottom:0;width:0%;background:${T.accent};border-radius:3px;`);
+    const knob=el("div",`position:absolute;top:50%;width:12px;height:12px;border-radius:50%;background:${T.accent};transform:translate(-50%,-50%);left:0%;box-shadow:0 1px 4px rgba(0,0,0,.3);`);
+    track.appendChild(fill); track.appendChild(knob); S._scrubFill=fill; S._scrubKnob=knob;
+    track.onclick=(e)=>{ const r=track.getBoundingClientRect(); seekFrac((e.clientX-r.left)/r.width); };
+    mid.appendChild(track); row.appendChild(mid);
+    const barL=el("div",`flex:0 0 auto;font:600 12px ${UI};color:${T.faint};min-width:44px;text-align:right;`,"\u2014"); S._barLabel=barL; row.appendChild(barL);
+    np.appendChild(row);
+    root.appendChild(np); S._np=np;
+    initYt();
+  }
+  function syncTransport(screen){
+    ensureTransport();
+    S._np.style.display = screen==="chart" ? "block" : "none";
+    setPlayBtn();
+    if(S._scrubFill){ const dur=totalDur()||1; const t=nowTime(); const f=S.playing?Math.min(1,t/dur):(S.playIdx>=0?(S.playIdx+1)/S.chords.length:0); S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; }
+  }
+  function setPlayBtn(){ if(S._playBtn) S._playBtn.textContent = S.playing?"\u2758\u2758":"\u25b6"; }
+  function initYt(){
+    if(S.ytPlayer || typeof YT==="undefined" || !YT.Player){ if(!ytApiReady) pendingYtInit=initYt; return; }
+    try{
+      S.ytPlayer=new YT.Player(S._ytMount,{ videoId:VIDEO_ID,
+        playerVars:{playsinline:1,controls:0,modestbranding:1,rel:0,fs:0},
+        events:{
+          onReady:e=>{ S.ytReady=true; S.videoDur=e.target.getDuration()||0; syncTransport(S.screen); },
+          onStateChange:e=>{ if(e.data===YT.PlayerState.PLAYING){ S.playing=true; setPlayBtn(); startTick(); }
+            else if(e.data===YT.PlayerState.PAUSED){ S.playing=false; setPlayBtn(); stopTick(); }
+            else if(e.data===YT.PlayerState.ENDED){ stopPlayback(); setPlayhead(-1); } }
+        }});
+    }catch(err){}
+  }
+  // time helpers — playhead maps real playback time onto each chord's [t0,t1]
+  function songTotal(){ return S.chords[S.chords.length-1].t1; }
+  function totalDur(){ return (S.ytReady && S.videoDur) ? S.videoDur : songTotal()*0.62; }
+  function timeScale(){ return totalDur()/songTotal(); }
+  // real YouTube time when the audio is actually advancing; otherwise a virtual
+  // clock (keeps the grid moving in a blocked/offline preview — on-device the
+  // real getCurrentTime wins immediately, so the playhead tracks the audio).
+  function nowTime(){ if(S.ytReady && S.ytPlayer && S.ytPlayer.getCurrentTime){ try{ const t=S.ytPlayer.getCurrentTime(); if(t>0.05) return t; }catch(e){} } return (performance.now()-S.demoStart)/1000; }
+  function idxAtTime(t){ const sc=timeScale(); for(let i=0;i<S.chords.length;i++){ if(t < S.chords[i].t1*sc) return i; } return -1; }
+  function togglePlay(){
+    if(S.playing){ stopPlayback(); return; }
+    S.playing=true; if(S.playIdx<0) setPlayhead(0); setPlayBtn();
+    const startT = S.playIdx>=0 ? S.chords[S.playIdx].t0*timeScale() : 0;
+    S.demoStart = performance.now() - startT*1000;
+    if(S.ytReady && S.ytPlayer && S.ytPlayer.playVideo){ try{ S.ytPlayer.playVideo(); }catch(e){} }
+    startTick();
+  }
+  function seekFrac(f){ f=Math.max(0,Math.min(1,f)); const t=f*totalDur(); if(S.ytReady && S.ytPlayer){ try{ S.ytPlayer.seekTo(t,true); }catch(e){} } else { S.demoStart=performance.now()-t*1000; } setPlayhead(idxAtTime(t)); if(S._scrubFill){ S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; } }
+  function startTick(){ stopTick(); const loop=()=>{ if(!S.playing) return; const t=nowTime(), dur=totalDur(); const idx=idxAtTime(t); if(idx<0){ stopPlayback(); setPlayhead(-1); return; } if(idx!==S.playIdx) setPlayhead(idx); if(S._scrubFill){ const f=Math.min(1,t/dur); S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; } if(S._timeLabel) S._timeLabel.textContent=fmt(t)+" / "+fmt(dur); S.rafId=requestAnimationFrame(loop); }; S.rafId=requestAnimationFrame(loop); }
+  function stopTick(){ if(S.rafId) cancelAnimationFrame(S.rafId); S.rafId=null; }
+  function stopPlayback(){ S.playing=false; stopTick(); if(S.ytReady && S.ytPlayer && S.ytPlayer.pauseVideo){ try{ S.ytPlayer.pauseVideo(); }catch(e){} } setPlayBtn(); }
+
+  // ── key rotor ──
+  function openRotor(){
+    const back=overlay();
+    const sheet=sheetBox(360);
+    sheet.appendChild(handle());
+    sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,"Change key"));
+    sheet.appendChild(el("div",`text-align:center;font:italic 12px ${SERIF};color:${T.faint};margin-bottom:16px;`,"spin the circle of fifths \u2014 the whole chart transposes"));
+    const size=220, cx=size/2, cy=size/2, R=88;
+    const dial=el("div",`position:relative;width:${size}px;height:${size}px;margin:0 auto;`);
+    dial.appendChild(el("div",`position:absolute;inset:22px;border-radius:50%;border:1.5px dashed ${T.line};`));
+    for(let f=0; f<12; f++){
+      const pc=mod(f*7,12); const ang=(f/12)*2*Math.PI - Math.PI/2;
+      const x=cx+R*Math.cos(ang), y=cy+R*Math.sin(ang);
+      const on=pc===S.key;
+      const b=el("button",`position:absolute;left:${x}px;top:${y}px;transform:translate(-50%,-50%);width:${on?46:40}px;height:${on?46:40}px;border-radius:50%;border:2px solid ${on?T.accent:"transparent"};background:${keyFill(pc)};color:#fff;font:italic 700 ${on?16:14}px ${SERIF};cursor:pointer;box-shadow:${on?"0 6px 16px -6px rgba(138,43,43,.7)":"0 2px 6px rgba(0,0,0,.2)"};transition:all .15s;`, note(pc));
+      b.onclick=()=>{ transposeTo(pc); closeOverlay(back); };
+      dial.appendChild(b);
+    }
+    dial.appendChild(el("div",`position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;font:italic 600 13px ${SERIF};color:${T.faint};`,"major"));
+    sheet.appendChild(dial);
+    const cancel=el("button",`width:100%;margin-top:16px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;cursor:pointer;`,"Cancel");
+    cancel.onclick=()=>closeOverlay(back); sheet.appendChild(cancel);
+    back.appendChild(sheet); root.appendChild(back);
+  }
+  function transposeTo(pc){ const d=mod(pc-S.key,12); S.chords.forEach(c=>{ c.root=mod(c.root+d,12); }); S.key=pc; go("chart"); }
+
+  // ── EDITOR overlay (Compass + Guide + By hand) ──
+  let editTab="compass";
+  function openEditor(idx){
+    const back=overlay();
+    const sheet=sheetBox(520);
+    sheet.appendChild(handle());
+    const ch=S.chords[idx];
+    // header: current chord + certainty
+    const hd=el("div","display:flex;align-items:center;gap:12px;margin-bottom:14px;");
+    hd.appendChild(glyph(ch.root,ch.q,32,ch.confirmed?"exact":depthOf(ch.c),ch.confirmed?T.ink:confColor(ch.c)));
+    const meta=el("div","");
+    meta.appendChild(el("div",`font:600 12px ${UI};color:${ch.confirmed?T.green:confColor(ch.c)};`, ch.confirmed?"locked by you":Math.round(ch.c*100)+"% sure"));
+    meta.appendChild(el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:2px;`, ch.c<.42?"the model is guessing here":"choose a reading, or fix it by hand"));
+    hd.appendChild(meta); sheet.appendChild(hd);
+    // tabs
+    const tabs=el("div",`display:inline-flex;background:${T.line};border-radius:10px;padding:3px;gap:2px;margin-bottom:14px;`);
+    [["compass","Compass"],["guide","Guide"],["hand","By hand"]].forEach(([k,lbl])=>{
+      const on=editTab===k;
+      const b=el("button",`border:none;border-radius:8px;padding:7px 14px;font:600 12.5px ${UI};cursor:pointer;background:${on?T.card:"transparent"};color:${on?T.ink:T.faint};box-shadow:${on?"0 1px 2px rgba(0,0,0,.12)":"none"};`,lbl);
+      b.onclick=()=>{ editTab=k; renderPane(); };
+      tabs.appendChild(b);
+    });
+    sheet.appendChild(tabs);
+    const pane=el("div","min-height:230px;"); sheet.appendChild(pane);
+    let picked=null, selBtn=null;
+    const preview=el("div",`display:flex;align-items:center;justify-content:center;gap:10px;margin-top:14px;min-height:26px;font:italic 12.5px ${SERIF};color:${T.faint};`,"Tap a chord to hear it");
+    const lockBtn=el("button",`width:100%;margin-top:10px;border:none;border-radius:12px;padding:14px;font:600 14px ${UI};cursor:pointer;background:${T.line};color:${T.faint};pointer-events:none;transition:all .15s;`,"Lock this chord");
+    function onPick(cand, btn){
+      picked=cand; play(cand.root,cand.q); haptic(6);
+      if(selBtn){ selBtn.style.outline=""; selBtn.style.outlineOffset=""; }
+      if(btn){ btn.style.outline=`2.5px solid ${T.accent}`; btn.style.outlineOffset="2px"; selBtn=btn; }
+      clear(preview); preview.appendChild(el("span","","\u25b6 previewing")); preview.appendChild(glyph(cand.root,cand.q,20,"exact",T.ink));
+      lockBtn.style.background=T.accent; lockBtn.style.color="#fff"; lockBtn.style.pointerEvents="auto";
+      lockBtn.textContent="Lock "+note(cand.root)+(TOK[cand.q]!=null?TOK[cand.q]:cand.q);
+    }
+    function renderPane(){
+      clear(pane); selBtn=null;
+      [...tabs.children].forEach((b,j)=>{ const k=["compass","guide","hand"][j]; const on=editTab===k; b.style.background=on?T.card:"transparent"; b.style.color=on?T.ink:T.faint; b.style.boxShadow=on?"0 1px 2px rgba(0,0,0,.12)":"none"; });
+      if(editTab==="compass") pane.appendChild(buildCompass(idx,onPick));
+      else if(editTab==="guide") pane.appendChild(buildGuide(idx,onPick));
+      else pane.appendChild(buildHand(idx,onPick));
+    }
+    renderPane();
+    lockBtn.onclick=()=>{ if(picked) confirmChord(idx,picked.root,picked.q); };
+    sheet.appendChild(preview); sheet.appendChild(lockBtn);
+    const cancel=el("button",`width:100%;margin-top:8px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:10px;cursor:pointer;`,"Cancel");
+    cancel.onclick=()=>closeOverlay(back); sheet.appendChild(cancel);
+    back.appendChild(sheet); root.appendChild(back);
+    S._closeEditor=()=>closeOverlay(back);
+  }
+  function candList(idx){ const ch=S.chords[idx]; if(CANDS[idx]) return CANDS[idx]; return [ {root:ch.root,q:ch.q,c:Math.max(.5,ch.c)}, {root:mod(ch.root+7,12),q:"7",c:.3}, {root:mod(ch.root+2,12),q:"-7",c:.22} ]; }
+  // circle-of-fifths COMPASS — rim + ticks + home marker, orbs relaxed in 2D so none bump
+  function buildCompass(idx,onPick){
+    const chord=S.chords[idx]; const sug=candList(idx);
+    const Sz=286, cx=Sz/2, cy=Sz/2, R=Sz*0.4;
+    const svg=sv("svg",{width:Sz,height:Sz,viewBox:`0 0 ${Sz} ${Sz}`,style:"display:block;overflow:visible"});
+    svg.appendChild(sv("circle",{cx,cy,r:R,fill:"none",stroke:T.line,"stroke-width":1.5}));
+    for(let i=0;i<12;i++){ const a=(-90+i*30)*Math.PI/180; const pc=mod(i*7,12); const isHome=pc===S.key;
+      const tx=cx+(R+Sz*0.05)*Math.cos(a), ty=cy+(R+Sz*0.05)*Math.sin(a);
+      svg.appendChild(sv("circle",{cx:cx+R*Math.cos(a),cy:cy+R*Math.sin(a),r:2,fill:T.rule}));
+      const lbl=sv("text",{x:tx,y:ty,"text-anchor":"middle","dominant-baseline":"central","font-family":UI,"font-size":Sz*0.042,"font-weight":isHome?700:500,fill:isHome?T.accent:T.faint}); lbl.textContent=note(pc); svg.appendChild(lbl);
+      if(isHome) svg.appendChild(sv("circle",{cx:cx+R*Math.cos(a),cy:cy+R*Math.sin(a),r:5,fill:"none",stroke:T.accent,"stroke-width":1.5}));
+    }
+    const top=sug.reduce((a,b)=>b.c>a.c?b:a,sug[0]);
+    const centerClear=Sz*0.185;
+    const nodes=sug.map((s,i)=>{ const k=fifthsIndex(s.root); const a=(-90+k*30)*Math.PI/180; const pr=Sz*0.05+Math.sqrt(s.c)*Sz*0.07; const seedR=R*0.7; const jit=(i%2?1:-1)*(0.05+0.02*i); return {s,pr,isTop:s===top,x:cx+seedR*Math.cos(a+jit),y:cy+seedR*Math.sin(a+jit)}; });
+    const gap=Sz*0.022, Rmax=R-Sz*0.008;
+    for(let it=0;it<140;it++){ for(let i=0;i<nodes.length;i++){ for(let j=i+1;j<nodes.length;j++){ const A=nodes[i],B=nodes[j]; let dx=B.x-A.x,dy=B.y-A.y,d=Math.hypot(dx,dy)||0.01; const need=A.pr+B.pr+gap; if(d<need){ const push=(need-d)/2; dx/=d;dy/=d; A.x-=dx*push;A.y-=dy*push;B.x+=dx*push;B.y+=dy*push; } } } nodes.forEach(n=>{ let dx=n.x-cx,dy=n.y-cy,d=Math.hypot(dx,dy)||0.01; const minD=centerClear+n.pr; if(d<minD){n.x=cx+dx/d*minD;n.y=cy+dy/d*minD;d=minD;} const maxD=Rmax-n.pr; if(d>maxD){n.x=cx+dx/d*maxD;n.y=cy+dy/d*maxD;} }); }
+    nodes.forEach(n=>{ svg.appendChild(sv("line",{x1:cx,y1:cy,x2:n.x,y2:n.y,stroke:petalEdge(n.s.root,n.s.c),"stroke-width":1,"stroke-opacity":0.4})); });
+    svg.appendChild(sv("circle",{cx,cy,r:Sz*0.12,fill:keyTint(chord.root),stroke:T.accent,"stroke-width":2}));
+    const wrap=el("div",`position:relative;width:${Sz}px;margin:0 auto;`);
+    const layer=el("div","position:absolute;inset:0;pointer-events:none;");
+    nodes.forEach((n,i)=>{ const b=el("button",`position:absolute;left:${n.x}px;top:${n.y}px;transform:translate(-50%,-50%);width:${n.pr*2}px;height:${n.pr*2}px;border-radius:50%;border:${n.isTop?2:1.5}px solid ${petalEdge(n.s.root,n.s.c)};background:${petalFill(n.s.root,n.s.c)};cursor:pointer;pointer-events:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;box-shadow:0 2px 6px rgba(60,40,20,.14);transition:transform .18s cubic-bezier(.34,1.4,.5,1);animation:ap-orb .3s ${0.04*i}s both;`);
+      b.appendChild(glyph(n.s.root,n.s.q,Math.max(13,Math.round(n.pr*0.6)),"exact",T.ink));
+      if(n.pr>Sz*0.072) b.appendChild(el("span",`font:600 ${Math.max(9,Math.round(n.pr*0.32))}px ${UI};font-style:normal;color:${T.faint};`,Math.round(n.s.c*100)+"%"));
+      if(n.isTop){ b.appendChild(el("span",`position:absolute;inset:-6px;border-radius:50%;border:2px solid ${T.accent};opacity:.4;animation:ap-pulse 2s ease-in-out infinite;`)); }
+      b.onmouseenter=()=>{b.style.transform="translate(-50%,-50%) scale(1.12)";b.style.zIndex=5;};
+      b.onmouseleave=()=>{b.style.transform="translate(-50%,-50%) scale(1)";b.style.zIndex="";};
+      b.onclick=()=>onPick({root:n.s.root,q:n.s.q}, b);
+      layer.appendChild(b);
+    });
+    const cl=el("div",`position:absolute;left:${cx}px;top:${cy}px;transform:translate(-50%,-50%);text-align:center;pointer-events:none;`);
+    cl.appendChild(glyph(chord.root,chord.q,Math.round(Sz*0.1),"exact",T.ink)); layer.appendChild(cl);
+    wrap.appendChild(svg); wrap.appendChild(layer);
+    const box=el("div","");
+    box.appendChild(el("div",`text-align:center;font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:8px;`,"candidates the model considered"));
+    box.appendChild(wrap);
+    const cap=el("div",`text-align:center;font:italic 12px ${SERIF};color:${T.faint};margin-top:10px;line-height:1.5;`); cap.innerHTML="<b>size</b> = how sure \u00b7 <b>colour</b> = its key on the circle of fifths \u00b7 <b>angle</b> groups related keys";
+    box.appendChild(cap); return box;
+  }
+  // ranked suggestion CARDS — roman-numeral swatch + plain-language why + probability meter
+  function buildGuide(idx,onPick){
+    const chord=S.chords[idx]; const sug=candList(idx);
+    const next=S.chords[idx+1]?{root:S.chords[idx+1].root,q:S.chords[idx+1].q}:null;
+    const top=sug.reduce((a,b)=>b.c>a.c?b:a,sug[0]);
+    const list=el("div","display:flex;flex-direction:column;gap:8px;");
+    sug.forEach((s,i)=>{ const role=roleOf(S.key,s.root,s.q,next);
+      const card=el("button",`display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;text-align:left;background:${T.card};border:1.5px solid ${s===top?T.accent:T.line};border-radius:12px;padding:11px 13px;cursor:pointer;transition:all .14s;animation:ap-in .32s ${i*0.05}s both;`);
+      card.onmouseenter=()=>{card.style.transform="translateY(-1px)";card.style.boxShadow="0 5px 16px rgba(60,40,20,.1)";};
+      card.onmouseleave=()=>{card.style.transform="";card.style.boxShadow="";};
+      const swatch=el("div",`width:38px;height:38px;border-radius:10px;background:${petalFill(s.root,s.c)};border:1.5px solid ${petalEdge(s.root,s.c)};display:flex;align-items:center;justify-content:center;`);
+      swatch.appendChild(el("span",`font:700 11px ${UI};color:${T.ink};`,role.num));
+      const mid=el("div","min-width:0;");
+      const t1=el("div","display:flex;align-items:baseline;gap:8px;");
+      t1.appendChild(glyph(s.root,s.q,22,"exact",T.ink));
+      if(s===top) t1.appendChild(el("span",`font:700 8.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.accent};border:1px solid ${T.accent};border-radius:5px;padding:2px 5px;`,"Top pick"));
+      mid.appendChild(t1);
+      mid.appendChild(el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,role.text));
+      const right=el("div","display:flex;flex-direction:column;align-items:flex-end;gap:5px;width:74px;");
+      right.appendChild(el("div",`font:700 13px ${UI};color:${T.ink};`,Math.round(s.c*100)+"%"));
+      const track=el("div",`width:100%;height:5px;border-radius:3px;background:${T.line};overflow:hidden;`);
+      track.appendChild(el("div",`height:100%;width:${Math.round(s.c*100)}%;background:${T.accent};border-radius:3px;`)); right.appendChild(track);
+      card.appendChild(swatch); card.appendChild(mid); card.appendChild(right);
+      card.onclick=()=>onPick({root:s.root,q:s.q}, card);
+      list.appendChild(card);
+    });
+    return list;
+  }
+  const ROOTS=[0,1,2,3,4,5,6,7,8,9,10,11];
+  const QS=[["","maj"],["^7","maj7"],["6","6"],["-","m"],["-7","m7"],["7","7"],["-7b5","m7\u266d5"],["o7","dim7"]];
+  function buildHand(idx,onPick){
+    const ch=S.chords[idx]; let selRoot=ch.root, selQ=ch.q;
+    const box=el("div","");
+    const preview=el("div",`display:flex;justify-content:center;margin-bottom:12px;`);
+    const refresh=()=>{ clear(preview); preview.appendChild(glyph(selRoot,selQ,30,"exact",T.ink)); };
+    box.appendChild(preview);
+    box.appendChild(el("div",`font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin:2px 0 6px;`,"Root"));
+    const rg=el("div","display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:12px;");
+    ROOTS.forEach(r=>{ const b=el("button",`padding:9px 0;border-radius:8px;border:1.5px solid ${T.line};background:${T.card};font:italic 600 15px ${SERIF};cursor:pointer;`,note(r)); const paint=()=>{ b.style.borderColor=r===selRoot?T.accent:T.line; b.style.background=r===selRoot?T.accent:T.card; b.style.color=r===selRoot?"#fff":T.ink; }; paint(); b.onclick=()=>{ selRoot=r; [...rg.children].forEach((c,j)=>{ c.style.borderColor=ROOTS[j]===selRoot?T.accent:T.line; c.style.background=ROOTS[j]===selRoot?T.accent:T.card; c.style.color=ROOTS[j]===selRoot?"#fff":T.ink;}); refresh(); onPick&&onPick({root:selRoot,q:selQ}); }; rg.appendChild(b); });
+    box.appendChild(rg);
+    box.appendChild(el("div",`font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin:2px 0 6px;`,"Quality"));
+    const qg=el("div","display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;");
+    QS.forEach(([q,lbl])=>{ const b=el("button",`padding:9px 0;border-radius:8px;border:1.5px solid ${T.line};background:${T.card};font:600 12px ${UI};cursor:pointer;`,lbl); const paint=()=>{ b.style.borderColor=q===selQ?T.accent:T.line; b.style.background=q===selQ?T.accent:T.card; b.style.color=q===selQ?"#fff":T.ink; }; paint(); b.onclick=()=>{ selQ=q; [...qg.children].forEach((c,j)=>{ c.style.borderColor=QS[j][0]===selQ?T.accent:T.line; c.style.background=QS[j][0]===selQ?T.accent:T.card; c.style.color=QS[j][0]===selQ?"#fff":T.ink;}); refresh(); onPick&&onPick({root:selRoot,q:selQ}); }; qg.appendChild(b); });
+    box.appendChild(qg);
+    box.appendChild(el("div",`text-align:center;font:italic 11.5px ${SERIF};color:${T.faint};`,"pick a root & quality \u2014 hear it, then lock below"));
+    refresh(); return box;
+  }
+  function confirmChord(idx,root,q){
+    const ch=S.chords[idx]; ch.root=root; ch.q=q; ch.confirmed=true; ch.c=1;
+    if(S.pending.indexOf(idx)<0) S.pending.push(idx);
+    if(S._closeEditor) S._closeEditor();
+    go("chart");
+    toast("Locked \u2014 re-infer to propagate");
+  }
+
+  // ── section merge ──
+  function toggleSec(id){
+    const k=S.selectedSecs.indexOf(id);
+    if(k>=0) S.selectedSecs.splice(k,1);
+    else { S.selectedSecs.push(id); if(S.selectedSecs.length>2) S.selectedSecs.shift(); }
+    if(S.selectedSecs.length===2){ openMerge(); }
+    else go("chart");
+  }
+  function openMerge(){
+    go("chart");
+    const back=overlay(); const sheet=sheetBox(420); sheet.appendChild(handle());
+    const secs=S.selectedSecs.map(id=>SECTIONS.find(s=>s.id===id));
+    const same=secs[0].label===secs[1].label;
+    const pair=el("div","display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:12px;");
+    secs.forEach((s,i)=>{ if(i===1) pair.appendChild(el("span",`font:600 22px ${UI};color:${T.accent};`,"\u22c8")); const b=el("div",`display:flex;align-items:baseline;gap:1px;border:2px solid ${T.accent};border-radius:9px;padding:8px 15px;font:800 20px ${UI};color:${T.accent};background:${T.paper};`); b.appendChild(el("span","",s.label)); if(s.tag) b.appendChild(el("sup","font-size:12px;",s.tag)); pair.appendChild(b); });
+    sheet.appendChild(pair);
+    sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:4px;`, same?("Merge the two "+secs[0].label+" sections"):("Merge "+secs[0].label+" and "+secs[1].label)));
+    sheet.appendChild(el("div",`text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:16px;`, same?"They\u2019re the same music \u2014 pooling their audio gives the decoder twice the evidence, so the shaky bars resolve.":"Their audio is pooled into one shared reading and re-decoded together."));
+    const go2=el("button",`width:100%;border:none;background:${T.accent};color:#fff;border-radius:12px;padding:14px;font:600 14px ${UI};cursor:pointer;`,"\u22c8  Merge & re-infer");
+    go2.onclick=()=>{ closeOverlay(back); runMerge(); };
+    sheet.appendChild(go2);
+    const cancel=el("button",`width:100%;margin-top:10px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;cursor:pointer;`,"Cancel");
+    cancel.onclick=()=>{ S.selectedSecs=[]; closeOverlay(back); go("chart"); };
+    sheet.appendChild(cancel);
+    back.appendChild(sheet); root.appendChild(back);
+  }
+
+  // ── re-infer flows ──
+  function runReinfer(){ runFlow(buildRequest(S.chords,S.pending,[]), "Re-analysing with your fix\u2026","re-decoding on cached audio \u00b7 ~2s", false); }
+  function runMerge(){ runFlow(buildRequest(S.chords,[],[S.selectedSecs.slice()]), "Pooling both sections\u2026","one shared reading, re-decoded \u00b7 ~2s", true); }
+  function runFlow(req, title, sub, isMerge){
+    if(S.reinfering) return; S.reinfering=true;
+    const ov=el("div",`position:absolute;inset:0;z-index:60;background:rgba(247,243,233,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;animation:ap-fade .2s both;`);
+    ov.appendChild(el("div",`width:36px;height:36px;border:3px solid ${T.line};border-top-color:${T.accent};border-radius:50%;animation:ap-spin .8s linear infinite;`));
+    ov.appendChild(el("div",`font:600 15px ${UI};color:${T.ink};`,title));
+    ov.appendChild(el("div",`font:italic 12px ${SERIF};color:${T.faint};`,sub));
+    root.appendChild(ov);
+    setTimeout(async ()=>{ let resp; try{ resp=await reinfer(req); }catch(e){ resp={diff:[]}; } ov.remove(); applyResp(resp,isMerge); S.reinfering=false; }, 1900);
+  }
+  function applyResp(resp,isMerge){
+    const diff=(resp&&resp.diff)||[]; const changed=[];
+    diff.forEach(d=>{ const j=d._i; if(j==null||j<0||j>=S.chords.length) return; if(S.chords[j].confirmed) return; const pl=parseLabel(d.new_label); S.chords[j].root=pl.root; S.chords[j].q=pl.q; S.chords[j].c=(d.new_confidence!=null?d.new_confidence:S.chords[j].c); changed.push({j,d}); });
+    S.pending=[]; S.selectedSecs=[]; go("chart");
+    showPropagation(changed,isMerge);
+  }
+  function showPropagation(changed,isMerge){
+    const n=changed.length; if(!n) return;
+    const banner=el("div",`position:absolute;left:14px;right:14px;bottom:14px;z-index:55;background:${T.card};border:1.5px solid ${T.green};border-radius:16px;padding:15px 17px;box-shadow:0 18px 44px -18px rgba(31,138,91,.55);animation:ap-in .35s both;max-width:520px;margin:0 auto;`);
+    const top=el("div","display:flex;align-items:center;gap:10px;margin-bottom:10px;");
+    top.innerHTML='<span style="width:26px;height:26px;border-radius:50%;background:'+T.green+';color:#fff;display:flex;align-items:center;justify-content:center;font:700 14px '+UI+';">\u2713</span>';
+    top.appendChild(el("div",`font:700 14px ${UI};color:${T.ink};`, isMerge?"Merged \u2014 both A sections now share one reading":("Your fix sharpened "+n+" nearby chord"+(n>1?"s":""))));
+    banner.appendChild(top);
+    changed.forEach(ch=>{ const d=ch.d; const o=parseLabel(d.old_label), nw=parseLabel(d.new_label); const row=el("div","display:flex;align-items:center;gap:9px;padding:5px 0;"); const from=glyph(o.root,o.q,17,"exact",confColor(d.old_confidence!=null?d.old_confidence:.3)); from.style.opacity=".7"; row.appendChild(from); row.appendChild(el("span",`color:${T.faint};font:600 13px ${UI};`,"\u2192")); row.appendChild(glyph(nw.root,nw.q,19,"exact",T.ink)); row.appendChild(el("span",`margin-left:auto;font:600 11px ${UI};color:${T.green};`, Math.round((d.old_confidence||0)*100)+"% \u2192 "+Math.round((d.new_confidence||0)*100)+"%")); banner.appendChild(row); });
+    const done=el("button",`width:100%;margin-top:10px;border:none;background:${T.deep};color:#fff;border-radius:10px;padding:11px;font:600 13px ${UI};cursor:pointer;`,"Nice \u2014 keep going");
+    done.onclick=()=>banner.remove(); banner.appendChild(done);
+    root.appendChild(banner);
+  }
+
+  // ── overlay + toast helpers ──
+  function overlay(){ const b=el("div",`position:absolute;inset:0;z-index:50;background:rgba(28,24,20,.32);display:flex;align-items:flex-end;justify-content:center;animation:ap-fade .2s both;`); b.onclick=e=>{ if(e.target===b) closeOverlay(b); }; return b; }
+  function sheetBox(maxH){ return el("div",`width:100%;max-width:520px;background:${T.card};border-top-left-radius:22px;border-top-right-radius:22px;padding:16px 20px 24px;box-shadow:0 -14px 36px -16px rgba(50,35,20,.5);animation:ap-sheet .3s cubic-bezier(.32,.9,.35,1);max-height:88%;overflow-y:auto;`); }
+  function handle(){ return el("div",`width:38px;height:4px;border-radius:2px;background:${T.rule};margin:0 auto 14px;`); }
+  function closeOverlay(b){ b.style.animation="ap-fade .18s reverse both"; setTimeout(()=>b.remove(),160); }
+  function toast(msg){ const t=el("div",`position:absolute;left:50%;bottom:96px;transform:translateX(-50%);z-index:70;background:${T.deep};color:#fff;font:600 12.5px ${UI};padding:10px 16px;border-radius:22px;box-shadow:0 10px 26px -10px rgba(0,0,0,.5);animation:ap-in .25s both;`,msg); root.appendChild(t); setTimeout(()=>{ t.style.opacity="0"; t.style.transition="opacity .3s"; setTimeout(()=>t.remove(),300); },1500); }
+
+  return API;
+})();
+</script>
+<script src="https://www.youtube.com/iframe_api"></script>
+</helmet>
+<div data-app-mount style="height:100vh;"></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  componentDidMount(){
+    const go = () => {
+      const host = this.el ? this.el.querySelector("[data-app-mount]") : document.querySelector("[data-app-mount]");
+      if(window.APP && window.APP.build && host){ window.APP.build(host); }
+      else setTimeout(go, 40);
+    };
+    go();
+  }
+}
+</script>
+</body>
+</html>
