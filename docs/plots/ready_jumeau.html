@@ -1,0 +1,286 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Un temps de trop — Ready</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;500&display=swap">
+<style>
+  :root{
+    --bg:#F5F1E7; --surface:#FFFFFF; --surface-2:#FBF7EE; --rule:#E3DAC4; --rule-strong:#C9BE9F;
+    --ink:#211C14; --ink-dim:#6F6555; --ink-faint:#A79C86;
+    --accent:#B4632A; --accent-soft:#EFDFC5; --accent-ink:#5A3315;
+    --mark:#1F6E5C; --mark-soft:#DCEDE7;
+    --warn:#B23A33; --warn-soft:#F6E0DD;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14120D; --surface:#1B1812; --surface-2:#211D16; --rule:#332D22; --rule-strong:#4A4130;
+      --ink:#ECE4D3; --ink-dim:#A89D89; --ink-faint:#726858;
+      --accent:#DE9251; --accent-soft:#3B2C1B; --accent-ink:#F3D2AC;
+      --mark:#59B39C; --mark-soft:#1B302B;
+      --warn:#E1837B; --warn-soft:#3A2220;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{background:var(--bg); color:var(--ink); margin:0;
+    font-family:'Public Sans',-apple-system,BlinkMacSystemFont,sans-serif;
+    padding:22px 16px 80px; max-width:900px; margin:0 auto; font-size:14.5px; line-height:1.55;}
+  h1{font-family:'Fraunces',Georgia,serif; font-size:26px; font-weight:600; margin:0; text-wrap:balance;}
+  h2{font-family:'Fraunces',Georgia,serif; font-size:17px; font-weight:600; margin:30px 0 8px;}
+  .eyebrow{font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--accent-ink); background:var(--accent-soft); display:inline-block; padding:2px 7px;
+    border-radius:3px; margin-bottom:8px;}
+  .sub{color:var(--ink-dim); font-size:13.5px; margin:5px 0 0;}
+  p{margin:9px 0;} code{font-family:'IBM Plex Mono',monospace; font-size:12.5px;
+    background:var(--surface); border:1px solid var(--rule); border-radius:4px; padding:1px 5px;}
+  .card{background:var(--surface); border:1px solid var(--rule); border-radius:11px; padding:14px 16px; margin:14px 0;}
+
+  /* le temps parasite */
+  .zoom{position:relative; height:98px; margin:16px 26px 6px;}
+  .zm{position:absolute; bottom:0; transform:translateX(-50%); text-align:center;
+      font-family:'IBM Plex Mono',monospace; width:52px;}
+  .zm i{display:block; width:3px; height:52px; background:var(--mark); margin:0 auto 5px;
+        border-radius:2px;}
+  .zm.bad{bottom:-17px;}                 /* la paire serrée : on décale l'étiquette */
+  .zm.bad i{background:var(--warn); height:34px; margin-top:17px;}
+  .zm b{display:block; font-size:10.5px; font-weight:500; color:var(--ink-dim);}
+  .zm.bad b{color:var(--warn); font-weight:600;}
+  .gap{position:absolute; bottom:38px; transform:translateX(-50%); white-space:nowrap;
+    font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-faint);}
+  .gap.tiny{color:var(--warn); font-weight:600; bottom:50px;}
+
+  table{border-collapse:collapse; width:100%; font-size:12px; margin:8px 0;}
+  th,td{text-align:left; padding:6px 5px; border-bottom:1px solid var(--rule);
+    font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;}
+  th:first-child,td:first-child{padding-left:0;}
+  th:last-child,td:last-child{padding-right:0;}
+  @media (min-width:560px){ table{font-size:13px;} th,td{padding:6px 9px;} }
+  th{font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint);
+     font-weight:500; border-bottom-color:var(--rule-strong);}
+  td.ok{color:var(--mark); font-weight:600;} td.ko{color:var(--warn);}
+  .wrap{overflow-x:auto;}
+
+  /* les deux grilles */
+  .gridwrap{margin:10px 0 4px;}
+  .glab{font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase;
+    letter-spacing:.05em; color:var(--ink-faint); margin-bottom:5px;}
+  .strip{position:relative; height:46px; background:var(--surface); border:1px solid var(--rule);
+    border-radius:7px;}
+  .bl{position:absolute; top:0; bottom:0; width:2px; background:var(--rule-strong);}
+  .bn{position:absolute; bottom:2px; font-family:'IBM Plex Mono',monospace; font-size:9px;
+    color:var(--ink-faint); padding-left:4px;}
+  .cd{position:absolute; top:5px; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600;
+    background:var(--mark-soft); color:var(--mark); border:1px solid var(--mark);
+    border-radius:4px; padding:1px 5px; white-space:nowrap; transform:translateX(-1px);}
+  .apres .cd{background:var(--accent-soft); color:var(--accent-ink); border-color:var(--accent);}
+  .cur{position:absolute; top:0; bottom:0; width:2px; background:var(--warn); display:none; z-index:4;}
+
+  .acts{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px;}
+  button{font-family:'IBM Plex Mono',monospace; font-size:12.5px; border-radius:6px; padding:7px 12px;
+    cursor:pointer; border:1px solid var(--rule); background:var(--surface-2); color:var(--ink-dim);}
+  button:hover{border-color:var(--accent); color:var(--accent-ink); background:var(--accent-soft);}
+  button.on{background:var(--accent); border-color:var(--accent); color:var(--surface);}
+  a.btn{display:inline-block; text-decoration:none; font-family:'IBM Plex Mono',monospace; font-size:12.5px;
+    border:1px solid var(--rule); border-radius:6px; padding:7px 12px; color:var(--ink-dim);
+    background:var(--surface-2);}
+  a.btn:hover{border-color:var(--accent); color:var(--accent-ink); background:var(--accent-soft);}
+  .verdict{display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;}
+  .verdict button.y.on{background:var(--mark); border-color:var(--mark); color:#fff;}
+  .verdict button.n.on{background:var(--warn); border-color:var(--warn); color:#fff;}
+  .said{font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-faint); margin-top:7px;}
+  footer{margin-top:34px; padding-top:12px; border-top:1px solid var(--rule); font-size:11.5px;
+    color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; line-height:1.8;}
+  footer a{color:var(--accent-ink);}
+</style>
+
+<span class="eyebrow">Ready &middot; PJ Morton &middot; 2026-09-15</span>
+<h1>Un temps de trop</h1>
+<p class="sub">Tu entendais une pause entre les mesures 8 et 9. Il y en a bien une —
+mais ce qui décalait le chart, c'est une marque de temps en trop, 7 secondes plus tôt.</p>
+
+<h2>Ce qui s'est passé</h2>
+<div class="card">
+  <p>Beat This! a posé <b>deux marques à 180 ms d'écart</b> à 13,9 s, sur un temps qui en dure 640.
+  Le filtre qui retire ces doublons coupe à 0,25 fois le temps ; celui-ci vaut <b>0,28</b>.
+  Il est passé au travers.</p>
+  <div class="zoom" id="zoom"></div>
+  <p style="margin-top:14px">Un temps de trop dans la liste, et <b>toutes les barres de mesure
+  après 14 s tombent un temps trop tôt</b>. D'où ton « on décale tous les accords d'un quart de barre » :
+  c'était exactement ça, un quart de mesure.</p>
+</div>
+
+<h2>Le juge extérieur</h2>
+<div class="card">
+  <p>Beat This! marque lui-même ses temps forts. Il ne servait à rien de le croire sur parole&nbsp;:
+  voici où il les met, où le chart mettait ses barres, et où tu as posé les accords à l'oreille.</p>
+  <div class="wrap"><table>
+    <tr><th>mesure</th><th>chart avant</th><th>chart après</th><th>Beat&nbsp;This!</th><th>ton oreille</th></tr>
+    <tr><td>8</td><td class="ko">18,360</td><td class="ok">18,960</td><td>18,960</td><td>—</td></tr>
+    <tr><td>9</td><td class="ko">20,900</td><td class="ok">21,520</td><td>21,520</td><td class="ok">21,520</td></tr>
+    <tr><td>10</td><td class="ko">23,540</td><td class="ok">24,100</td><td>24,100</td><td class="ok">24,097</td></tr>
+    <tr><td>14</td><td class="ko">33,720</td><td class="ok">34,380</td><td>34,380</td><td>—</td></tr>
+  </table></div>
+  <p>Les trois accords que tu as déplacés à la main sont retombés <b>à 10 ms près</b> tout seuls&nbsp;:
+  <code>Bb-7</code> 21,525 &middot; <code>Db/Ab</code> 24,102 &middot; <code>Eb</code> 35,689.
+  Je n'ai rien réglé sur tes réponses — c'est une marque supprimée, et le reste a suivi.</p>
+</div>
+
+<h2>Écoute&nbsp;: les 16 premières mesures</h2>
+<div class="card">
+  <div class="gridwrap">
+    <div class="glab">avant — les barres de mesure du chart actuel</div>
+    <div class="strip avant" id="sA"></div>
+  </div>
+  <div class="gridwrap apres">
+    <div class="glab">après — une marque de temps retirée</div>
+    <div class="strip apres" id="sB"></div>
+  </div>
+  <div class="acts">
+    <button id="play" type="button">&#9658; jouer</button>
+    <button id="seam" type="button">&#9658; la couture (mes. 8&ndash;9)</button>
+    <button id="slow" type="button">ralenti 60&nbsp;%</button>
+    <span id="clock" style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-dim)"></span>
+  </div>
+  <p class="sub" style="margin-top:10px">Clique dans une bande pour déplacer la lecture.
+  Le trait rouge défile sur les deux à la fois&nbsp;: c'est le même instant, lu par deux grilles.</p>
+</div>
+
+<h2>Ton verdict</h2>
+<div class="card">
+  <p>Est-ce que la grille « après » tombe juste&nbsp;?</p>
+  <div class="verdict">
+    <button class="y" data-v="oui" type="button">oui, c'est calé</button>
+    <button class="n" data-v="non" type="button">non, toujours faux</button>
+    <button class="n" data-v="mieux" type="button">mieux, mais pas encore</button>
+  </div>
+  <div class="said" id="said"></div>
+</div>
+
+<h2>Ce que ça ne règle pas</h2>
+<div class="card">
+  <p><b>Les effets de bord.</b> La règle touche 16 morceaux de la bibliothèque, 82 mesures en tout.
+  Ils sont sur leur propre page, à arbitrer séparément&nbsp;:
+  <a class="btn" href="/reports/jumeau_large/avant_apres.html">ouvrir les 16 morceaux</a></p>
+  <p><b>L'accord posé trop tôt.</b> J'avais cru tenir une loi — « le changement est écrit sur le temps
+  où le nouvel accord prend l'avantage, pas sur celui où il est joué ». Mesuré sur 2132 changements
+  dans 46 morceaux&nbsp;: l'accord écrit est déjà le plus probable dans <b>91,0 %</b> des cas, et le
+  décaler d'un temps ne monte qu'à <b>91,4 %</b>. Ce n'est pas une loi. Ready est même banal là-dessus.
+  Un tiers des cas douteux vient d'un seul morceau, <i>Man I Need</i>, où le même <code>Gb</code>
+  revient 25 fois — ça, c'est un bug de section répétée, pas une règle.</p>
+  <p><b>La phase des barres reste un seul nombre pour tout le morceau.</b> Si un morceau gagne
+  vraiment un temps au milieu, le code ne sait toujours pas l'écrire. Ici il ne le fallait pas —
+  la pause était réelle mais la grille n'avait pas besoin de changer de phase, juste de perdre
+  une marque parasite.</p>
+</div>
+
+<footer>
+  <code>harmonia/beats.py::drop_duplicate_beats</code> — jumeau large : la paire couvre une seule
+  période locale &middot; portée mesurée 9 morceaux / 15 paires sur 197 &middot;
+  tests <code>tests/test_beats_jumeaux_larges.py</code> (7, dont 2 sur le vrai morceau)<br>
+  rapport d'or : 45 cuits, 0 erreur, 28 identiques, 16 changent, 82 mesures
+</footer>
+
+<script>
+const D = {"avant":{"chords":[{"t0":1.37,"bar":1,"beat":1,"label":"Bb-7"},{"t0":3.901,"bar":2,"beat":1,"label":"Db/Eb"},{"t0":5.132,"bar":2,"beat":3,"label":"Eb7"},{"t0":6.409,"bar":3,"beat":1,"label":"Eb"},{"t0":9.056,"bar":4,"beat":1,"label":"Eb-/Gb"},{"t0":10.31,"bar":4,"beat":3,"label":"F7"},{"t0":11.564,"bar":5,"beat":1,"label":"Bb-7"},{"t0":13.909,"bar":6,"beat":1,"label":"Bb-"},{"t0":17.067,"bar":7,"beat":3,"label":"Eb"},{"t0":18.971,"bar":8,"beat":2,"label":"Gb^7"},{"t0":20.271,"bar":8,"beat":4,"label":"F7"},{"t0":20.898,"bar":9,"beat":1,"label":"Bb-7"},{"t0":23.545,"bar":10,"beat":1,"label":"Db/Ab"},{"t0":25.983,"bar":11,"beat":1,"label":"Eb"},{"t0":29.095,"bar":12,"beat":2,"label":"Gb^7"},{"t0":30.534,"bar":12,"beat":4,"label":"F7"},{"t0":31.881,"bar":13,"beat":2,"label":"Bb-"},{"t0":35.039,"bar":14,"beat":3,"label":"Eb"},{"t0":39.59,"bar":16,"beat":2,"label":"Gb^7"},{"t0":40.89,"bar":16,"beat":4,"label":"F7"}],"bars":[1.38,3.9,6.42,9.06,11.56,13.9,15.92,18.36,20.9,23.54,25.98,28.58,31.2,33.72,36.36,38.94,41.52]},"apres":{"chords":[{"t0":1.37,"bar":1,"beat":1,"label":"Bb-7"},{"t0":3.901,"bar":2,"beat":1,"label":"Db/Eb"},{"t0":5.132,"bar":2,"beat":3,"label":"Eb7"},{"t0":6.409,"bar":3,"beat":1,"label":"Eb"},{"t0":9.056,"bar":4,"beat":1,"label":"Eb-/Gb"},{"t0":10.31,"bar":4,"beat":3,"label":"F7"},{"t0":11.564,"bar":5,"beat":1,"label":"Bb-7"},{"t0":16.509,"bar":7,"beat":1,"label":"Eb"},{"t0":18.971,"bar":8,"beat":1,"label":"Gb^7"},{"t0":20.271,"bar":8,"beat":3,"label":"Bb-/F"},{"t0":21.525,"bar":9,"beat":1,"label":"Bb-7"},{"t0":24.102,"bar":10,"beat":1,"label":"Db/Ab"},{"t0":25.983,"bar":10,"beat":4,"label":"Eb"},{"t0":29.095,"bar":12,"beat":1,"label":"Gb^7"},{"t0":30.534,"bar":12,"beat":3,"label":"F7"},{"t0":31.881,"bar":13,"beat":1,"label":"Bb-"},{"t0":34.389,"bar":14,"beat":1,"label":"Ab/Eb"},{"t0":35.689,"bar":14,"beat":3,"label":"Eb"},{"t0":39.59,"bar":16,"beat":1,"label":"Gb^7"},{"t0":40.89,"bar":16,"beat":3,"label":"F7"}],"bars":[1.38,3.9,6.42,9.06,11.56,14.08,16.5,18.96,21.52,24.1,26.66,29.1,31.88,34.38,37.02,39.58,42.16]},"louis":[{"label":"Bb-7","av":20.898,"ap":21.525,"ear":21.52},{"label":"Db/Ab","av":23.545,"ap":24.102,"ear":24.097},{"label":"Eb","av":35.039,"ap":35.689,"ear":35.699}],"beatthis":[18.96,21.52,24.1,34.38],"jumeau":{"avant":13.9,"garde":14.08,"precedent":13.44,"suivant":14.7,"med":0.64},"audio":"../audio/191P7nIeECo.m4a"};
+const A = document.getElementById('sA'), B = document.getElementById('sB');
+const T0 = Math.min(D.avant.bars[0], D.apres.bars[0]) - 0.6;
+const T1 = Math.max(D.avant.bars[16], D.apres.bars[16]) + 0.4;
+const X = t => (t - T0) / (T1 - T0) * 100;
+
+// le zoom sur le temps parasite
+(function(){
+  const j = D.jumeau, z = document.getElementById('zoom');
+  const pts = [[j.precedent,'ok','13,440'], [j.avant,'bad','13,900'],
+               [j.garde,'ok','14,080'], [j.suivant,'ok','14,700']];
+  const t0 = j.precedent, t1 = j.suivant;
+  const px = t => (t - t0) / (t1 - t0) * 100;
+  pts.forEach((p, k) => {
+    if (k){
+      const dt = Math.round((p[0] - pts[k-1][0]) * 1000);
+      const g = document.createElement('div');
+      g.className = 'gap' + (dt < 300 ? ' tiny' : '');
+      g.style.left = ((px(p[0]) + px(pts[k-1][0])) / 2) + '%';
+      g.textContent = dt + ' ms';
+      z.appendChild(g);
+    }
+    const d = document.createElement('div');
+    d.className = 'zm' + (p[1] === 'bad' ? ' bad' : '');
+    d.style.left = px(p[0]) + '%';
+    d.innerHTML = '<i></i><b>' + p[2] + '</b>';
+    z.appendChild(d);
+  });
+})();
+
+// les deux bandes
+function fill(el, side){
+  el.innerHTML = '';
+  for (let i = 0; i <= 16; i++){
+    const t = side.bars[i];
+    if (t < T0 || t > T1) continue;
+    const l = document.createElement('div'); l.className = 'bl'; l.style.left = X(t) + '%';
+    el.appendChild(l);
+    if (i < 16){
+      const n = document.createElement('div'); n.className = 'bn';
+      n.style.left = X(t) + '%'; n.textContent = i + 1; el.appendChild(n);
+    }
+  }
+  side.chords.forEach(c => {
+    const d = document.createElement('div'); d.className = 'cd';
+    d.style.left = X(c.t0) + '%'; d.textContent = c.label;
+    d.title = c.label + ' — mes.' + c.bar + '.' + c.beat + ' — ' + c.t0.toFixed(3) + ' s';
+    el.appendChild(d);
+  });
+  const cur = document.createElement('div'); cur.className = 'cur'; el.appendChild(cur);
+  return cur;
+}
+const curA = fill(A, D.avant), curB = fill(B, D.apres);
+
+// audio : fetch + blob (le lecteur de Safari ne bufferise pas les 206)
+let audio = null, playing = false;
+const playBtn = document.getElementById('play'), clock = document.getElementById('clock');
+fetch(D.audio).then(r => r.blob()).then(b => {
+  audio = new Audio(URL.createObjectURL(b));
+  audio.preservesPitch = true;
+  audio.addEventListener('timeupdate', tick);
+  audio.addEventListener('play',  () => { playing = true;  playBtn.innerHTML = '&#10073;&#10073; pause'; });
+  audio.addEventListener('pause', () => { playing = false; playBtn.innerHTML = '&#9658; jouer'; });
+}).catch(() => { clock.textContent = 'audio indisponible'; });
+
+function tick(){
+  const t = audio.currentTime;
+  [curA, curB].forEach(c => {
+    c.style.display = (t >= T0 && t <= T1) ? 'block' : 'none';
+    c.style.transition = 'none'; c.style.left = X(t) + '%';
+    void c.offsetWidth;
+    if (playing && t + 0.3 <= T1){ c.style.transition = 'left 300ms linear'; c.style.left = X(t + 0.3) + '%'; }
+  });
+  clock.textContent = t.toFixed(1).replace('.', ',') + ' s';
+}
+function seek(t){ if (!audio) return; audio.currentTime = Math.max(0, t); tick(); if (!playing) audio.play().catch(()=>{}); }
+[A, B].forEach(el => el.addEventListener('click', e => {
+  const r = el.getBoundingClientRect();
+  seek(T0 + (e.clientX - r.left) / r.width * (T1 - T0));
+}));
+playBtn.addEventListener('click', () => { if (!audio) return; playing ? audio.pause() : audio.play().catch(()=>{}); });
+document.getElementById('seam').addEventListener('click', () => seek(18.4));
+document.getElementById('slow').addEventListener('click', e => {
+  if (!audio) return;
+  const on = audio.playbackRate === 1;
+  audio.playbackRate = on ? 0.6 : 1;
+  e.currentTarget.classList.toggle('on', on);
+});
+
+// le verdict, gardé sur l'appareil (aucun serveur ici)
+const said = document.getElementById('said');
+const KEY = 'ready_jumeau_verdict';
+function paint(){
+  let v = null; try { v = localStorage.getItem(KEY); } catch (e) {}
+  document.querySelectorAll('.verdict button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  said.textContent = v ? 'noté : « ' + v + ' » — dis-le-moi dans le fil, je ne le lis pas d’ici.' : '';
+}
+document.querySelectorAll('.verdict button').forEach(b => b.addEventListener('click', () => {
+  try { localStorage.setItem(KEY, b.dataset.v); } catch (e) {}
+  paint();
+}));
+paint();
+</script>

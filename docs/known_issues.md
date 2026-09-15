@@ -210,6 +210,41 @@ trouvaille est vérifiée contre le code vivant et notée ici.
 
 ## Résolu récemment
 
+- **Un temps en trop à 0,28 fois le temps décale toutes les barres après lui
+  (2026-09-15, Louis sur Ready de PJ Morton).** Son diagnostic : « entre la
+  mesure 8 et la mesure 9 il y a un petit temps de pause qui devrait être
+  détecté […] on décale tous les accords d'un quart de barre ». La pause est
+  réelle et mesurée (le temps à 20,90 s est à −15 dB sous le niveau courant,
+  musx y met 12–18 % sur « aucun accord »), mais ce n'est pas elle qui décale :
+  Beat This! pose **deux marques à 180 ms** à 13,9 s, soit 0,281 fois le temps
+  médian, et `drop_duplicate_beats` coupait à 0,25. La paire passait, la liste
+  gardait un temps de trop, et toute la grille de mesures construite par
+  arithmétique d'indices tombait un temps trop tôt à partir de là — mesure 9 à
+  20,900 au lieu de 21,520.
+  Le seuil ne pouvait pas monter : remesuré sur les 199 morceaux en cache, les
+  intervalles courts ne font pas les trois paquets nets qu'annonçait la
+  docstring — la distribution est continue de 0,10 à 0,40 et le paquet des
+  triolets (0,34–0,36, 130 cas) est trop proche. Ce qui sépare proprement,
+  c'est ce que la paire COUVRE du temps d'avant au temps d'après : **1,0
+  période** (142 cas) ou **2,0 périodes** (459 cas), creux franc entre les
+  deux. Règle ajoutée, additive, sans toucher au seuil existant.
+  Vérification par un juge extérieur : les barres retombent exactement sur les
+  temps forts de Beat This! (18,960 / 21,520 / 24,100 / 34,380) et les trois
+  accords que Louis avait déplacés à la main retombent à 10 ms près tout
+  seuls. Portée : 9 morceaux / 15 paires sur 197 en cache ; rapport d'or 16
+  morceaux, 82 mesures (page d'effets de bord à part).
+  `harmonia/beats.py::drop_duplicate_beats`, `tests/test_beats_jumeaux_larges.py`,
+  pages `/plots/ready_jumeau.html` et `/reports/jumeau_large/avant_apres.html`.
+  **Ce que ça ne règle pas** : (a) la phase des barres reste un seul nombre
+  pour tout le morceau (`bars.py`, `Counter(...).most_common(1)`) — un morceau
+  qui gagne vraiment un temps au milieu reste inécrivable ; (b) l'accord posé
+  sur le temps où il « prend l'avantage » plutôt que sur celui où il est joué
+  — hypothèse mesurée et **refusée comme loi** : sur 2132 changements / 46
+  morceaux, l'accord écrit est déjà l'argmax dans 91,0 % des cas et le décaler
+  d'un temps ne monte qu'à 91,4 % ; 4 % de cas stricts, dont 29 % sur le seul
+  *Man I Need* (le même Gb, 25 fois, en section repliée). Voir
+  `scratchpad/early_switch_screen.md`.
+
 - **La façade d'un bloc ×N montre le consensus, jamais une mesure rejetée
   (2026-09-15, verdicts de Louis sur la page d'arbitrage).** Lazy Song A
   affichait « B Ab- » ×6, Every Breath « Ab » ×7, Yesterday « E- D-/A » ×4 :

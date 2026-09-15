@@ -215,6 +215,12 @@ def _tile(idx: list[int], metre: int, max_bridge: int = MAX_BRIDGE):
 
 DUP_TOL = 0.25     # en deca, deux temps ne peuvent pas etre deux temps
 
+# Le jumeau LARGE : la paire est trop ecartee pour DUP_TOL, mais du temps
+# d'avant au temps d'apres elle ne couvre qu'UNE periode. Voir la deuxieme
+# moitie de la docstring de `drop_duplicate_beats` (Louis, Ready, 2026-09-15).
+LARGE_TOL = 0.45   # au-dela on est dans l'octave (0,5), traitee ailleurs
+SPAN_LO, SPAN_HI = 0.88, 1.12   # « la paire couvre une seule periode »
+
 RIGIDE_ECART = 0.01   # trois zones d'accord a 1 % : le morceau ne derive pas
 RIGIDE_ZONE = 24      # battues par zone (debut, milieu, fin)
 RIGIDE_COLLE = 0.25   # 95 % des battues a moins d un quart de temps d une case :
@@ -444,6 +450,33 @@ def drop_duplicate_beats(beats, downbeats, tol=DUP_TOL):
 
     **On ne fait que supprimer, jamais inserer** — meme doctrine que
     `repair_grid` et `drop_inserted_beats`, donc aucune phase n'est inventee.
+
+    LE JUMEAU LARGE (Louis, 2026-09-15, sur Ready de PJ Morton : « entre la
+    mesure 8 et la mesure 9 il y a un petit temps de pause qui devrait etre
+    detecte […] on decale tous les accords d'un quart de barre »). Beat This!
+    y pose deux marques a 0,180 s l'une de l'autre sur un temps de 0,640 :
+    0,281 fois le temps, juste AU-DESSUS du seuil. La paire passe, la liste
+    garde un temps de trop, et toutes les barres apres 14 s tombent un temps
+    trop tot — mesure 9 a 20,900 au lieu de 21,520.
+
+    Le seuil ne peut pas monter. Remesure sur les 199 morceaux en cache : les
+    intervalles courts ne font PAS les trois paquets nets annonces plus haut,
+    la distribution est continue de 0,10 a 0,40 et le paquet des triolets
+    (0,34-0,36, 130 cas) est trop proche. Ce qui separe proprement, c'est ce
+    que la paire COUVRE, du temps d'avant au temps d'apres : 1,0 periode
+    (deux marques pour un seul temps, 142 cas) ou 2,0 periodes (deux vrais
+    temps, 459 cas), avec un creux franc entre les deux. On ajoute donc une
+    seconde condition, SANS toucher a la premiere : sous `LARGE_TOL` et si la
+    paire ne couvre qu'une periode locale, c'est un jumeau.
+
+    La regle est ADDITIVE — rien de ce qui etait supprime hier ne cesse de
+    l'etre. Portee mesuree : 9 morceaux, 15 paires sur les 197 en cache.
+
+    CE QU'ELLE NE REGLE PAS : elle remet les BARRES a leur place, pas les
+    accords. Sur Ready, `Bb-7` reste ecrit a 20,898 alors que Louis l'entend
+    a 21,520 — c'est un autre defaut (le changement pose sur le temps ou le
+    nouvel accord prend l'avantage, pas sur celui ou il est joue), mesure
+    comme minoritaire : 4 % des changements du disque, sans lien avec celui-ci.
     """
     import numpy as np
     if len(beats) < 8:
@@ -452,11 +485,47 @@ def drop_duplicate_beats(beats, downbeats, tol=DUP_TOL):
     med = float(np.median(np.diff(b)))
     if med <= 0:
         return beats, downbeats
+
+    def _jumeau_large(i, out):
+        """Laquelle des deux marques est en trop — ou aucune.
+
+        Rend `None` si la paire (out[-1], b[i]) porte vraiment deux temps, et
+        sinon l'INDICE de celle qu'il faut jeter. La marque en trop peut etre
+        l'une ou l'autre, et c'est la portee qui le dit :
+
+            temps d'avant ──┬── out[-1] ── b[i] ──┬── temps d'apres
+                            └─ une periode ? ─────┘   => out[-1] est en trop
+                                └──── une periode ? ──┘   => b[i] est en trop
+
+        Une paire qui couvre DEUX periodes dans les deux sens porte vraiment
+        deux temps : on ne touche a rien.
+        """
+        if not (tol * med <= b[i] - out[-1] < LARGE_TOL * med):
+            return None
+        voisins = np.diff(b[max(0, i - 6):i + 7])
+        loc = float(np.median(voisins)) if len(voisins) else med
+        if loc <= 0:
+            return None
+        une = lambda d: SPAN_LO < d / loc < SPAN_HI
+        if len(out) >= 2 and une(b[i] - out[-2]):
+            return 0                         # jeter la premiere, garder b[i]
+        if i + 1 < len(b) and une(b[i + 1] - out[-1]):
+            return 1                         # jeter la seconde, garder out[-1]
+        return None
+
     out = [b[0]]
     i = 1
     while i < len(b):
         if b[i] - out[-1] >= tol * med:
-            out.append(b[i])
+            # trop ecarte pour le seuil : reste le jumeau LARGE, ou rien
+            jeter = _jumeau_large(i, out)
+            if jeter is None:
+                out.append(b[i])
+                i += 1
+                continue
+            # ici la portee a DEJA dit laquelle est en trop
+            if jeter == 0:
+                out[-1] = b[i]
             i += 1
             continue
         # jumeaux : on garde celui qui tombe le plus pres de l'attendu
