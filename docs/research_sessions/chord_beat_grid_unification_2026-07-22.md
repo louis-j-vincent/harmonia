@@ -221,3 +221,53 @@ Script: scratchpad/musx_ref.py. Same nnls labels; only segmentation differs.
   NOT downbeat/bar-grid unification. In the production default (segment_source='musx' +
   musx labels) boundaries already come from musx, so the nnls-flip over-segmentation is
   mostly a DRAFT/fallback-path issue.
+
+---
+
+## FOLLOW-UP (coordinator, 2026-07-22): does the flip-gate survive the PRODUCTION config?
+Measurement-only, no commits. My STEP-8b +3pp used NNLS labels + GT grid.
+
+### Q1 — shipped segment_source (definitive, from code)
+Shipped server `scripts/harmonia_server.py:4729-4743` with defaults (L259-267):
+`feature_frontend="nnls24"`, `segment_source="nnls"`, `bass_frontend="musx"`,
+`quality_frontend="musx"`. So:
+- **Chord-change BOUNDARIES = NNLS root-argmax flips (`_root_change_segs`, L3586)** — the
+  musx-boundary replacement (L3594) is NOT taken (segment_source=nnls). → the flip-gate IS
+  on the production hot path (nnls24 branch).
+- **LABELS = music-x-lab per-segment** (midpoint lookups via `musx_bass.root_quality_per_segment`
+  etc.), NNLS heads only as fallback.
+- NOTE the DEFAULT `infer_chords_v1` (feature_frontend="bp48", use_semi_markov=True) DISCARDS
+  `_root_change_segs` for a semi-Markov decode (L4464-4489) — but the SERVER overrides to
+  nnls24, so production does use the flip segmentation. The gate is production-relevant, NOT
+  draft-only. The one axis my STEP-8b got wrong: labels (I used NNLS; production uses musx).
+
+### Test A — gate under EXACT production musx labeling (N=8, cache-bound; GT grid)
+Same 8 POP909 songs, only the label frontend switched. Script: scratchpad/prod_config_test.py
+                    baseline root   gate T=0.5   Δroot   Δq7    Δfam
+  NNLS labels (8b)     83.80%         87.18%     +3.39  +0.97  +1.57
+  MUSX labels (PROD)   91.93%         93.26%     +1.33  +0.28  +0.27
+- Under production musx labels the gate SHRINKS to +1.33 root / +0.28 q7 / +0.27 fam.
+- Mechanism (visible in seg/song): even at baseline T=0, musx labeling coalesces 114.9→87.8
+  segments — musx labels adjacent NNLS-flip segments the SAME more often, so `_coalesce_labeled`
+  already absorbs most spurious flips FOR FREE. The gate has little left to merge (87.8→87.2).
+- musx T-sweep: peaks T=0.5 (+1.33); T=0.7 +0.53 (q7 −0.93); T=0.9 −2.25. Higher T over-merges
+  → +1.33 is the musx ceiling, quality/family flat-to-negative.
+
+### Test B — grid-noise robustness (jitter = detected-grid proxy). Script: scratchpad/grid_noise_test.py
+Δroot(gate T=0.5) vs grid condition:
+                     GT clean   jitter σ25ms   jitter σ40ms
+  MUSX labels (N=7)   +1.41       +1.40          +1.25
+  NNLS labels (N=40)  +3.05       +3.04          +2.94
+- The gate's delta is ESSENTIALLY INVARIANT to grid localization noise in both regimes.
+  → DETECTED grid is NOT what shrinks it; the LABEL regime is.
+
+### PRODUCTION VERDICT: SHRINKS (not draft-only, not a ≥2pp lever)
+Under the shipped config (nnls24 + segment_source=nnls + MUSX labels), the flip-confidence
+gate is a small, grid-robust positive on root (~+1.3pp, N=8) but negligible on quality/family
+(~+0.3pp) and BELOW the ≥2pp bar. The headline +3pp was a NNLS-label artifact: music-x-lab
+labeling + coalescing already do most of the spurious-flip cleanup the gate targets. It is
+NOT draft-only (it does help the production path a little), but it is not the ≥2pp production
+lever it looked like under NNLS labels.
+CAVEATS: N=8 musx (cache ceiling — no POP909 wavs/soundfont to expand foreground; directional
+only); detected grid approximated by jitter (localization only; the gate ignores downbeats so
+phase/octave errors shouldn't matter for it); POP909 functional-root/rendered/slow-rhythm.

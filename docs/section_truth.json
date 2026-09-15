@@ -2,7 +2,10 @@
   "_comment": "Verdicts de Louis, verrouilles. Mesures 1-indexees, comme il les dit.",
   "bein_green": {
     "a_starts_bar": 5,
-    "intro_bars": [1, 4],
+    "intro_bars": [
+      1,
+      4
+    ],
     "locked": "2026-08-06",
     "quote": "Bein Green depart 5 est bon lock le",
     "sections": "intro[1-4] A[5-12] A[13-20] B[21-28] A[29-36] B[37-44] A[45-52]"
@@ -17,6 +20,22 @@
     "quote": "mesure 14/15 c'est bien encore une section A",
     "quote_2026_08_06_erronee": "la partie B commence a mesure 14/15 -- retire le 2026-08-07 par Louis : 'soit on s'est mal compris soit je me suis trompe, mais en effet mesure 14/15 c'est bien encore une section A'"
   },
-  "maroon_5_this_love": {"n_sections": 3, "note": "son B et son D sont la meme"},
-  "mayer_hawthorne_the_walk": {"n_sections": 2, "note": "A = Bm7, puis C#m7 Bm7"}
+  "maroon_5_this_love": {
+    "n_sections": 3,
+    "note": "son B et son D sont la meme"
+  },
+  "mayer_hawthorne_the_walk": {
+    "n_sections": 2,
+    "note": "A = Bm7, puis C#m7 Bm7"
+  },
+  "norah_jones_come_away_with_me": {
+    "a_starts_bar": 9,
+    "intro_bars": [
+      1,
+      8
+    ],
+    "locked": "2026-08-07",
+    "quote": "A demarre sur la mesure 9",
+    "note": "CONTRE-EXEMPLE a la regle de la levee. La 1re note chantee tombe a 0.77 de la mesure 9 - franchement dans la seconde moitie, donc la regle decale d'une mesure et place le A en 10. Louis dit 9. Sur Bein Green (0.85), Let It Be (0.92) et Norah Don't Know Why (0.67) il avait au contraire annote le decalage. La phase seule ne suffit donc pas : les deux groupes se recouvrent entre 0.67 et 0.85."
+  }
 }
