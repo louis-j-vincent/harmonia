@@ -53,6 +53,49 @@ Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
   l'ancien dispatcher passait) — à réécrire pour lire ces features
   directement via `harmonia.nnls_features`/`harmonia.musx`.
 
+## Trois trouvailles récupérées d'un arbre non commité, auditées le 2026-09-15
+
+Trois tests non commités traînaient dans l'arbre principal (fichiers datés du
+2026-07-21 au 2026-08-02, jamais commités ni jetés). Le code qu'ils testaient
+a disparu avec le legacy (sprint 1) : les fichiers sont jetés, mais chaque
+trouvaille est vérifiée contre le code vivant et notée ici.
+
+- **Accord « add9 » mal lu comme dominant.** Un accord iReal comme « Aadd9 »
+  (un accord majeur avec une neuvième ajoutée, sans septième) était compris
+  comme un accord dominant, parce que le chiffre « 9 » de « add9 » suffisait
+  à déclencher la règle. Vivait dans l'IMPORT iReal (`harmonia/irealb_fetcher.py`,
+  supprimé) — l'import iReal n'existe plus dans l'app (seuls la recherche et
+  l'export ont survécu, décision du refactor). **Rien à corriger aujourd'hui** ;
+  si l'import revient un jour, ne pas chercher un chiffre dans le texte de
+  l'accord, comparer le suffixe entier.
+- **Un accord dominant non résolu devrait pencher vers le relatif mineur.**
+  Sur une grille « Do maj7, Mi min7, Fa maj7, La7 », le La7 (qui contient un
+  Do dièse) n'a de sens que comme le 5e degré de Ré mineur — mais sans accord
+  de Ré qui suit pour le confirmer, l'ancien traceur de tonalité restait sur
+  Do majeur quand même. Vivait dans `harmonia/theory/local_key.py` (supprimé,
+  lisait le CHART, pas l'audio). **Pas transposable tel quel** : le traceur de
+  tonalité vivant (`harmonia/harmonic_key.py`) lit le son réel (le chroma),
+  pas les symboles d'accords, et accumule la preuve accord par accord
+  (CUSUM) plutôt que de comparer des gammes. L'ancien bug ne peut plus
+  arriver puisque son code est parti, mais personne n'a écouté si la même
+  situation musicale (une dominante ambiguë, jamais résolue) trompe le
+  nouveau traceur À SA manière. À vérifier à l'oreille quand la piste
+  qualité-des-sections reprendra.
+- **Un accord de substitution casse le comptage des répétitions.** Sur This
+  Love, trois refrains identiques suivis d'un quatrième avec UN accord
+  différent (une substitution dominante, très courante en vrai) étaient vus
+  comme un seul bloc de 79 mesures au lieu de 3 répétitions + 1 variante,
+  parce que la règle de groupage exigeait que CHAQUE accord corresponde
+  exactement. Vivait dans `harmonia/output/chart_model.py` (supprimé, le
+  rendu de l'ancienne app :7771). **Le groupage a changé de nature** : le
+  repli vivant (`harmonia/folding.py`) groupe par l'ÉTIQUETTE que le
+  détecteur de sections (SongFormer, qui écoute le son) a déjà posée, pas en
+  comparant les accords — ce bug précis ne peut plus arriver là. Reste une
+  question ouverte, différente : quand plusieurs passages de la même lettre
+  sont empilés et moyennés, un passage avec une substitution est-il bien
+  écarté comme exception (le contrôle de cohérence existant), ou fausse-t-il
+  la moyenne en silence ? Pas vérifié ; même piste de recherche.
+
 ## Résolu récemment
 
 - Le paquet legacy `harmonia/` (pré-refactor), `scripts/harmonia_server.py`,
