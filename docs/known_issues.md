@@ -7,6 +7,29 @@ Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 
 ## Ouvert
 
+- **Corrections « Set bar 1 » / Annotate invisibles d'un checkout à l'autre**
+  (2026-09-15, investigation demandée par Louis). Pas un bug du code de
+  propagation lui-même — vérifié ligne par ligne (`api_bar1` → `jobs.start_job`
+  → `_run_job` → `analyze_steps(bar1_time=...)`, et `tools/golden.py` pour le
+  moteur `harmonia`) : tout est correctement câblé, et le chart servi
+  (`state/cache/charts/min_191P7nIeECo.json`) porte bien la marque corrigée
+  (1.355s) et la bonne grille. Le vrai problème : `state/human/marks/` et
+  `state/human/annotations/` sont sous git mais PAS partagés entre checkouts —
+  une correction faite sur le serveur d'un worktree (ici `:7773`,
+  `.claude/worktrees/refactor`) reste invisible du serveur d'un AUTRE checkout
+  (`:7772`, `feat/section-criteres`) tant qu'elle n'est pas commitée+mergée :
+  vérifié, `state/human/marks/191P7nIeECo.json` et
+  `state/human/annotations/min_191P7nIeECo.json` n'existent QUE dans le
+  worktree refactor (`git status` les montre `??`, jamais ajoutés). Deux
+  serveurs tournent en ce moment (`ps`: PID 44180 sur :7772, cwd = checkout
+  principal ; PID 50047 sur :7773, cwd = worktree refactor, up depuis la
+  veille ~21h — process de longue durée, code potentiellement pas rechargé
+  depuis). Si Louis corrige un morceau sur un serveur puis regarde le résultat
+  sur l'autre, ça ressemble exactement à « le recalage ne se transmet pas ».
+  Pas de fix appliqué (délégué à l'agent dédié de Louis) — actions
+  candidates : commit+push les fichiers `state/human/` non trackés avant de
+  changer de checkout ; vérifier laquelle des deux instances (:7772/:7773)
+  tourne du code à jour.
 - **Test hérité rouge.** `tests/test_songformer_sections.py::test_minimal_fold_separe_les_longueurs_dune_meme_lettre`
   échoue depuis la fusion de la cascade iReal (commit `8146efd`, 2026-09-14) :
   la cascade a changé ce que ce test affirme sur le repli d'une même lettre à
