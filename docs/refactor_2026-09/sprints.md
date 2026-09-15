@@ -514,3 +514,35 @@ deux fichiers de scripts archivés en moins) ; `make -n serve golden test`
 imprime les bonnes commandes.
 
 **Suivant.** Sprint 21, le basculement en prod — sur décision de Louis.
+
+## Sprint 21 — 2026-09-15 · le basculement en prod
+
+**Fait, dans l'arbre principal (feat/section-criteres), sur décision de
+Louis ("go ahead for the swap").**
+
+Avant de fusionner, l'arbre vivant avait 509 fichiers non commités, presque
+tous datés d'un seul événement (2026-08-02 02:13:47) — probablement un vieux
+`checkout`/`stash` jamais nettoyé, six semaines de bruit. Triés un par un :
+- **Récupéré** (contenu réel, pas régénérable) : `docs/section_truth.json`
+  (verdicts verrouillés de Louis, dont Norah Jones Come Away With Me jamais
+  commité), cinq comptes rendus dans `docs/research_sessions/`. Commit `38b5025`.
+- **Jeté** (`git checkout --`, superflu ou déjà remplacé) : ~45 pages
+  `docs/plots/*.html` régénérées, et les trois corrections legacy déjà
+  auditées la veille (`harmonia/irealb_fetcher.py`, `output/chart_model.py`,
+  `theory/local_key.py` — les trouvailles vivent dans `known_issues.md`,
+  le code est supprimé par la fusion de toute façon).
+
+Fusion `refactor/clean-app` (50d6d50, sprints 0-20) dans `feat/section-criteres`,
+sans conflit (`8321e3a`). `tools.migrate_state` : sections/annotations/marks/
+titres déjà identiques à l'instantané du worktree, 8 brouillons de sections
+rattrapés (`0fc70ca`). Rapport d'or sur l'arbre vivant fusionné : **44/44
+identiques, 0 mesure changée** (2 morceaux froids comme d'habitude). pytest :
+222 passés + le même échec hérité que sur le worktree.
+
+Serveur :7772 relancé par PID du port (jamais par nom) sur `harmonia.server` :
+`/`, `/api/library` (46 morceaux), `/static/main.js`, un chart complet
+vérifiés à l'œil (This Love, capture Playwright 390 px — la cascade de fins
+1./2./3./4. s'affiche, aucune casse visuelle).
+
+**Reste.** L'oreille de Louis sur les cinq morceaux de la décision 12, 24 h de
+vie normale, puis le sprint 22 : supprimer `harmonia_min` et ses ponts.
