@@ -571,3 +571,46 @@ les dernières mesures gardées hors pile, décodées passe par passe, font
 autant de fins que de passes dès que le tronc s'accorde. Loi candidate «
 pas de crochets quand les queues se dispersent » — à poser avec Louis sur
 une page dédiée, pas en passant.
+
+---
+
+# La brique « rôle dans la cadence » (Louis, 2026-09-15, soir)
+
+« Il va falloir faire une fonction ou un mapping pour tester si deux
+accords sont équivalents au sein d'une cadence : sur un 2-5-1 en C majeur,
+G7 a le même rôle que F/G (qu'on considérera comme un Gsus), que G7b9 et
+alternativement que Db7 … afin de permettre un repliement logique de
+voisins équivalents si une section a plusieurs passes avec des variations
+(commun en jazz / soul / neo soul / funk). »
+
+Fait, en brique à part — rien n'est branché dans le repli tant que les
+règles ne sont pas arbitrées à l'oreille :
+
+- `harmonia/roles.py` : `role(accord, tonalité)` et `equivalent(a, b,
+  tonalité)`. Quatre règles : la couleur ne change pas le rôle (G ≡ G7 ≡
+  G13, C ≡ C^7 ≡ C6) ; une basse étrangère fait la fondamentale (F/G = Gsus
+  ; C/E = C) ; le triton fait la dominante (G7 ≡ Db7, Bo7 ≡ G7b9) ; et avec
+  la tonalité, trois candidates : V majeur = dominante, viiø7 = V9 sans
+  fondamentale (Dh7 en Eb mineur ≡ Bb7, Virtual Insanity), I7 = couleur du
+  tonique (A7 ≡ A^7, The Walk). Plus l'identité des notes (D-7 = F6).
+  9 tests, dont les exemples de Louis.
+- `tools/roles_page.py` → http://100.89.209.63:7772/reports/roles_cadence.html :
+  sur Virtual Insanity, Lost Without U, The Walk, Cry Me A River, position
+  par position, les mesures entendues différemment d'une passe à l'autre,
+  regroupées d'abord à l'identique puis par rôle, chaque accord écoutable,
+  trois verdicts par position (même rôle / distincts / détection fausse).
+
+Ce que la page dit déjà : 16 positions à variations sur 4 morceaux ; la
+brique en réunit entièrement 3 (The Walk : A | A7 | A^7 sur le I) et en
+rapproche 4 (Virtual Insanity Bb7 ≡ Dh7 ; Lost Without U F^7 ≡ F ; Cry Me
+A River Ab-7/Gb ≡ Ab-, Gb/Db ≡ Gb). Ce qu'elle ne réunit pas et qu'il
+faudra peut-être : Db-7 contre A^7 sur The Walk (le iii-7 est un I^9 sans
+fondamentale — même question que viiø7/V9) ; « F C/G » contre « C » (deux
+attaques contre une : un rythme harmonique différent, pas un rôle).
+
+Prochaine étape, après les verdicts : brancher `equivalent` dans le repli
+à deux endroits — la porte de la pile (une mesure dont les accords sont
+équivalents au consensus n'est plus une variante) et le test de
+fondamentale des fins iReal (une fin qui ne change que de rôle n'en est
+pas une). Et l'accord optionnel « en petit au-dessus » (Easy On Me) pour
+montrer la variation repliée.
