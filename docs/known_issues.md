@@ -164,6 +164,13 @@ trouvaille est vérifiée contre le code vivant et notée ici.
 
 ## Résolu récemment
 
+- **La tenue qui ouvre une boucle repliée n'était jamais écrite
+  (2026-09-15, Louis sur Let It Be : « le premier accord (C) n'est jamais
+  propagé sur la première barre »).** `folding._decode_template` écrivait
+  la tenue au temps 1 pour toutes les positions sauf la 0 ; le segment qui
+  chevauche le début de la copie du milieu du gabarit ×3 devient cette
+  tenue (jamais un N.C.). Let It Be A : C~ G | Am F | C G | F C.
+
 - **Recherche de latence musx supprimée (2026-09-15, audit, accepté par
   Louis).** Mesuré sur 46 morceaux : les changements du modèle tombent
   23–46 ms AVANT la battue Beat This!, jamais après ; la recherche ne testait

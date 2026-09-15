@@ -429,3 +429,21 @@ qui fait que le modèle entend 25-45 ms en avance ? » — Non : ce n'est pas un
 bug, c'est une à deux trames (23 ms) de fenêtre d'analyse qui chevauche
 l'attaque, et ça ne change aucun temps du chart (mesuré : −40 ms ⇒ 0 temps
 sur 321 / 346). Le bug, c'était de chercher une compensation du mauvais côté.
+
+## Retour de Louis sur Let It Be (2026-09-15, 16 h)
+
+« La barre m'a l'air bien placée » → le seuil du re-calage reste tel quel
+(question B2 close : la phase de Let It Be est juste, baisser le seuil
+l'aurait cassée).
+
+« Par contre le premier accord (C) n'est jamais propagé sur la première
+barre » → bug du décodage du gabarit (`folding._decode_template`) : la
+règle « un accord qui se prolonge écrit une tenue au temps 1 » valait pour
+toutes les positions sauf la 0, parce que l'accord courant démarrait vide
+alors que le gabarit est tuilé ×3 justement pour que la position 0 ait de
+la musique avant elle. Le C tenu depuis la fin de la boucle (F C |) tombait
+dans la fenêtre rejetée. Corrigé : le segment qui chevauche le début de la
+copie du milieu devient la tenue qui ouvre la boucle (jamais un N.C.).
+Let It Be A lit maintenant C~ G | Am F | C G | F C. Sur la bibliothèque, un
+seul autre bloc replié partait avec un trou ; deux charts (Stand By Me,
+Norah Jones) ne changent que par la confiance de leur tenue d'ouverture.

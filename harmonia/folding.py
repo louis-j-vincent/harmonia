@@ -514,8 +514,25 @@ def _decode_template(cat, Lf, bpb, P):
     # Viterbi returns Cm Fm Bb Eb exactly, aggregation and all.
     edge_tol = _musx.FRAME_DT / 2
     events = []
+    # THE CHORD SUSTAINED INTO POSITION 0 (Louis, 2026-09-15, Let It Be:
+    # « le premier accord (C) n'est jamais propagé sur la première barre »).
+    # The template is tiled ×3 precisely so that the middle copy's first
+    # beat has music before it; the chord still sounding when the middle
+    # copy starts is the last chord of the loop (F C | → C). Its segment
+    # begins in the FIRST copy, so the window test below dropped it, and
+    # `cur` started empty: every other position wrote its sustain as a
+    # carry at beat 0, position 0 alone got a hole (Let It Be's verse read
+    # « · G | Am F | … » and its C was never shown). Keep that chord as the
+    # sustain that opens the loop. Never an N.C. (bars.py rule, 2026-08-10).
+    wrap = None
     for t0, t1, l in lab:
-        if t0 < T0 - edge_tol or t0 >= T1 - edge_tol:
+        if t0 < T0 - edge_tol:
+            if t1 > T0 + edge_tol and l != "N" and to_chord(l) is not None:
+                wrap = {**to_chord(l), "nc": False,
+                        "c": round(_musx.label_confidence(
+                            cat[0], T0, min(t1, T1), l), 3)}
+            continue
+        if t0 >= T1 - edge_tol:
             continue
         beat = int(round((max(t0, T0) - T0) / step))
         # ACOUSTIC confidence, measured on the averaged template this decode
@@ -529,7 +546,7 @@ def _decode_template(cat, Lf, bpb, P):
     if not events or all(l == "N" for _, _, l, _ in events):
         return None
     pos_chords: list[list[dict]] = [[] for _ in range(P)]
-    cur = None
+    cur = wrap
     for k in range(P):
         evk = [e for e in events if e[0] == k]
         if (not evk or evk[0][1] > 0) and cur is not None:
