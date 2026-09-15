@@ -23,13 +23,18 @@ Louis, c'est sa marque qui a disparu.
 Le contrat épinglé ici :
 * le modèle porte la marque, en secondes, telle qu'elle a été posée ;
 * `analyze()` la prend et la transmet ;
-* le rebake relit celle du chart existant et la repasse.
+* la cuisson (`tools.golden.cuire`, moteur `harmonia_min` — ce que
+  `scripts/rebake_library.py` faisait avant d'être remplacé par
+  `tools.golden --publish` au sprint 20) relit la marque du chart existant et
+  la repasse.
 """
 from __future__ import annotations
 
 import inspect
 import json
 
+import harmonia.pipeline as _pipeline_impl
+import tools.golden as golden
 from harmonia_min import pipeline
 
 
@@ -43,35 +48,35 @@ def test_analyze_accepte_la_marque():
 
 
 def test_le_modele_porte_la_marque(monkeypatch):
-    """Le ChartModel doit écrire `bar1`, sinon rien ne peut la relire."""
+    """Le ChartModel doit écrire `bar1`, sinon rien ne peut la relire.
+
+    `pipeline.analyze` (le pont `harmonia_min.pipeline`) est le MÊME objet
+    fonction que `harmonia.pipeline.analyze` — mais son corps résout
+    `analyze_steps` dans les globals du module où il est DÉFINI
+    (`harmonia.pipeline`), pas dans ceux du pont. Patcher
+    `harmonia_min.pipeline.analyze_steps` ne serait donc jamais vu par
+    `analyze()` depuis le refactor (sprint 10, `pipeline.py` a déménagé sous
+    `harmonia/`) — le patch vise le module réel.
+    """
     vu = {}
 
     def faux_steps(audio_path, **kw):
         vu.update(kw)
         yield "final", {"file": "min_x", "bar1": kw.get("bar1_time")}
 
-    monkeypatch.setattr(pipeline, "analyze_steps", faux_steps)
+    monkeypatch.setattr(_pipeline_impl, "analyze_steps", faux_steps)
     m = pipeline.analyze("/tmp/x.m4a", bar1_time=12.5)
     assert vu["bar1_time"] == 12.5
     assert m["bar1"] == 12.5
 
 
-def _charge_rebake():
-    import importlib.util
-    from pathlib import Path
-    p = Path(__file__).resolve().parents[1] / "scripts" / "rebake_library.py"
-    spec = importlib.util.spec_from_file_location("rebake_library", p)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+def test_le_golden_cuire_repasse_la_marque(tmp_path, monkeypatch):
+    """La cuisson (moteur `harmonia_min`) doit relire la marque du chart
+    existant et la repasser.
 
-
-def test_le_rebake_repasse_la_marque(tmp_path, monkeypatch):
-    """Le rebake doit relire la marque du chart existant et la repasser.
-
-    C'est le chemin qui efface réellement : `/ship` prescrit le rebake dès
-    qu'une loi de repli change, et il repasse sur les 45 charts."""
-    reb = _charge_rebake()
+    C'est le chemin qui efface réellement : `/ship` prescrit `tools.golden
+    --publish` dès qu'une loi de repli change, et il recuit toute la
+    bibliothèque."""
     recu = {}
 
     def faux_analyze(audio, **kw):
@@ -81,19 +86,24 @@ def test_le_rebake_repasse_la_marque(tmp_path, monkeypatch):
                 "sections": [{"label": "A"}], "fold": {}}
 
     monkeypatch.setattr("harmonia_min.pipeline.analyze", faux_analyze)
-    monkeypatch.setattr(reb, "CHARTS", tmp_path / "charts")
-    monkeypatch.setattr(reb, "AUDIO", tmp_path / "audio")
+    # Le rapport d'or refuse de lancer un modèle sur un cache froid — hors
+    # sujet ici, on épingle seulement le passage de la marque.
+    monkeypatch.setattr(golden, "caches_manquants", lambda eng, stem, audio: [])
+    monkeypatch.setattr(golden, "AUDIO", tmp_path / "audio")
+
     (tmp_path / "charts").mkdir()
     (tmp_path / "audio").mkdir()
-    (tmp_path / "audio" / "abc.m4a").write_bytes(b"\0")
-    (tmp_path / "charts" / "min_abc.json").write_text(json.dumps(
-        {"file": "min_abc", "title": "T", "audio_url": "/audio/abc.m4a",
-         "bar1": 7.25}), encoding="utf-8")
+    (tmp_path / "audio" / "bar1_persistence_stem.m4a").write_bytes(b"\0")
+    (tmp_path / "charts" / "min_bar1_persistence_stem.json").write_text(json.dumps(
+        {"file": "min_bar1_persistence_stem", "title": "T",
+         "audio_url": "/audio/bar1_persistence_stem.m4a", "bar1": 7.25}),
+        encoding="utf-8")
     out = tmp_path / "out"
     out.mkdir()
 
-    ok, msg = reb.rebake("min_abc", out)
-    assert ok, msg
+    eng = golden.charger_moteur("harmonia_min")
+    r = golden.cuire(eng, "min_bar1_persistence_stem", tmp_path / "charts", out)
+    assert r["status"] == "ok", r
     assert recu.get("bar1_time") == 7.25, (
-        "le rebake a rejoué la pipeline sans la marque : le « Set bar 1 » "
-        "de Louis est effacé à chaque passage de /ship")
+        "la cuisson a rejoué la pipeline sans la marque : le « Set bar 1 » "
+        "de Louis serait effacé à chaque publication")

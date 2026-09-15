@@ -213,7 +213,7 @@ def _otsu(v, lo=0.30, hi=0.999, n=200, defaut=0.90) -> float:
 def _matrice_bimesures(S, bornes):
     """B[j,k] normalisée : à quel point la bi-mesure j ressemble à la k."""
     import numpy as np
-    from harmonia_min import voice_sections as VS
+    from harmonia.sections import similarity as VS
     J = len(bornes) - 1
     B = np.zeros((J, J))
     for j in range(J):
@@ -798,9 +798,10 @@ def song_du_chart(chart: dict, audio_dir=None) -> dict | None:
     base["mot_source"] = "basse"
     try:
         from pathlib import Path
+        from harmonia.settings import SETTINGS
         from harmonia_min import musx as _musx
         stem = Path(chart.get("audio_url") or "").stem
-        audio = (audio_dir or Path("docs/audio")) / f"{stem}.m4a"
+        audio = (audio_dir or SETTINGS.audio_dir) / f"{stem}.m4a"
         if stem and audio.exists():
             bornes, m, info = grille_et_mot(chart["barGrid"],
                                             _musx.frame_posteriors(audio)[0],

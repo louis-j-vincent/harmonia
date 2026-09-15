@@ -53,10 +53,13 @@ from pathlib import Path
 
 import numpy as np
 
+from harmonia.settings import SETTINGS
+
 log = logging.getLogger(__name__)
 
-PKG = Path(__file__).resolve().parent
-SECTIONS_DIR = PKG / "state" / "sections"
+#: Sprint 15 : `state/human/sections/`, suivi par git — la vérité terrain
+#: écrite à la main, pas un cache régénérable.
+SECTIONS_DIR = SETTINGS.sections_dir
 
 #: Une seule teinte, clair -> foncé : une similarité est une MAGNITUDE. Reprise
 #: telle quelle de `scripts/ssm_zoo.py`, pour que les deux pages se lisent avec
@@ -116,14 +119,14 @@ def donnees(chart: dict, audio_dir=None) -> dict | None:
     coordonnées, donc aucun décalage possible entre ce qu'on voit et ce qu'on
     clique.
     """
-    from harmonia_min import harmonic_sections as HS
+    from harmonia.sections import similarity as HS
     from harmonia_min import musx as _musx
 
     grid = chart.get("barGrid") or []
     if len(grid) < 5:
         return None
     stem = Path(chart.get("audio_url") or "").stem
-    audio = (audio_dir or Path("docs/audio")) / f"{stem}.m4a"
+    audio = (audio_dir or SETTINGS.audio_dir) / f"{stem}.m4a"
     if not stem or not audio.exists():
         return None
 

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Harmonia</title>
+<link rel="manifest" href="/pwa/manifest.json">
+<link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Harmonia">
+<meta name="theme-color" content="#8a2b2b">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #e7e0d0; overscroll-behavior-y: none; }
+  body { -webkit-overflow-scrolling: touch; }
+  a { color: #8a2b2b; }
+  @keyframes ap-in { from { opacity:0; transform:translateY(10px);} to { opacity:1; transform:translateY(0);} }
+  @keyframes ap-fade { from { opacity:0;} to { opacity:1;} }
+  @keyframes ap-spin { to { transform: rotate(360deg); } }
+  @keyframes ap-sheet { from { transform:translateY(100%);} to { transform:translateY(0);} }
+  @keyframes ap-pulse { 0%,100%{transform:scale(1);opacity:1;} 50%{transform:scale(1.06);opacity:.85;} }
+  /* delta2 §6: la cellule dont la carte de voicing est ouverte — comme la
+     cellule du playhead mais en bleu (l'accent est déjà pris par la lecture) */
+  [data-voicing-open] { box-shadow: inset 0 0 0 2px #2a6fb0; background: rgba(42,111,176,.10); }
+  /* keyframes MUST carry the button's own translate(-50%,-50%): with
+     fill-mode:both the final keyframe REPLACES the inline transform, and a
+     bare scale(1) left every orb shifted +half its size — that offset, not
+     the sizing, is what glued orbs onto the hub/rim (found 2026-08-08). */
+  @keyframes ap-orb { from { opacity:0; transform:translate(-50%,-50%) scale(.4);} to { opacity:1; transform:translate(-50%,-50%) scale(1);} }
+  .ap-scroll::-webkit-scrollbar{width:7px;height:7px;} .ap-scroll::-webkit-scrollbar-thumb{background:#cdc4ad;border-radius:4px;}
+  /* the cylinder's columns scroll but must show no bar (iOS picker look) */
+  .ap-nobar::-webkit-scrollbar{display:none;width:0;height:0;}
+  #app { height: 100dvh; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script type="module" src="/static/main.js"></script>
+</body>
+</html>

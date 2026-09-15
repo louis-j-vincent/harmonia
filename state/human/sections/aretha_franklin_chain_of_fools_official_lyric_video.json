@@ -1,0 +1,57 @@
+{
+ "stem": "aretha_franklin_chain_of_fools_official_lyric_video",
+ "n": 78,
+ "validated": true,
+ "sections": [
+  {
+   "label": "intro",
+   "b0": 0,
+   "b1": 0
+  },
+  {
+   "label": "A",
+   "b0": 1,
+   "b1": 8
+  },
+  {
+   "label": "A",
+   "b0": 9,
+   "b1": 16
+  },
+  {
+   "label": "A",
+   "b0": 17,
+   "b1": 24
+  },
+  {
+   "label": "A",
+   "b0": 25,
+   "b1": 32
+  },
+  {
+   "label": "A",
+   "b0": 33,
+   "b1": 36
+  },
+  {
+   "label": "B",
+   "b0": 37,
+   "b1": 46
+  },
+  {
+   "label": "A",
+   "b0": 47,
+   "b1": 54
+  },
+  {
+   "label": "A",
+   "b0": 55,
+   "b1": 62
+  },
+  {
+   "label": "A",
+   "b0": 63,
+   "b1": 70
+  }
+ ]
+}

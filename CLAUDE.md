@@ -1,21 +1,36 @@
 # Harmonia — working conventions for agents
 
-Jazz/pop chord-recognition pipeline (Basic Pitch → beat quantisation → SSM
-segmentation → key inference → chord HMM), evaluated on POP909 with MIREX
-weighted-overlap metrics. Personal research project; the human is an ML PhD
-and jazz musician — be concise, be rigorous, show numbers.
+Audio-to-chord-chart app: any recording in (YouTube link, upload, or mic) →
+beats, chord posteriors, sections, a folded chart out — served by one Flask
+app (`harmonia/server`) on :7772, used from a Mac browser and an iPhone over
+Tailscale. Personal project; the human is an ML PhD and jazz musician — be
+concise, be rigorous, show numbers, and back a claim with a chart he can open
+and listen to (see `docs/STATE.md` — "the golden report").
 
 ## Where things live
 
+- `docs/STATE.md` — **start here.** What the app is today, the package map,
+  the state layout, how to run it, the golden report, the sync rule.
 - `docs/known_issues.md` — **authoritative** open-issues tracker ("what's wrong
-  right now"). Update it whenever an issue is found, characterized, or resolved.
-- `docs/architecture_extensions.md` — forward-looking design ideas.
-- `docs/suggestions.md` — specific stage-1/stage-5 improvement proposals.
+  right now"), kept short on purpose. Update it whenever an issue is found,
+  characterized, or resolved. History predating the 2026-09 refactor is in
+  `docs/archive/known_issues_2026-07_2026-09.md`.
+- `docs/refactor_2026-09/` — the plan and the sprint-by-sprint log of the
+  `harmonia_min` → `harmonia` rewrite; the reasoning trail if something in the
+  new package looks unexplained. Restore point: git tag `pre-refactor-2026-09-14`.
 - `docs/blog/` — narrative devlog; keep it updated after significant sessions.
+- The package map (`harmonia/`, five lines — full detail in `docs/STATE.md`):
+  `settings.py` (the only place that reads the environment), `pipeline.py`
+  (orchestration: beats → musx → bars → sections → folding → key/colours),
+  leaf stages (`beats.py`, `musx.py`, `nnls_features.py`, `folding.py`,
+  `harmonic_key.py`, `span_rescore.py`), `sections/` (songformer + shared
+  similarity), `server/` (Flask app factory, jobs, routes as blueprints).
+- `third_party/musx_ismir2019/` is a vendored clone (MIT) — executed via
+  `chdir`, not just read; its weights (`cache_data/*.sdict`) are tracked.
+- `archive/scripts/` holds one-off/superseded scripts kept for history, not
+  imported by anything live. `scratchpad/` is untracked (research scrap).
 - `data/` and `.venv` are symlinks into `~/harmonia/`; there is a stale clone
   at `~/harmonia/` — never work there, this repo is the canonical one.
-- Renders: use `*_v005_musescoregeneral.wav` (current default soundfont), not
-  the old `prog0` Vintage-Dreams renders.
 
 ## Hard-won process rules (each one paid for with real wasted effort)
 
@@ -258,59 +273,48 @@ Estimating 12-minute Opus session. Awaiting confirmation before proceeding."
 
 ## Environment gotchas
 
-- Python 3.12; numpy `<2.5` (numba); basic-pitch via ONNX (TF backend broken).
-- `PitchExtractor` caches to `data/cache/*.npz` — the cache key does NOT
-  cover module-level constants; clear the cache after changing any.
-- `POP909Song.ChordEvent.start_beat`/`end_beat` are **seconds**, not beat
-  indices, despite the names — use `song.chord_at_time(t)`, not a
-  now-removed `chord_at_beat`.
-- Song 002's GT tempo is **~64 BPM** (beat_midi 64.0 / beat_audio 63.8 / MIDI
-  62 — three POP909 annotations agree, verified 2026-07-21 by rendering the MIDI
-  and scoring vs `beat_midi.txt`). librosa **doubles** it to ~129 BPM (2x-fast
-  octave lock); the live `beatthis` backend gets it right (~64). Earlier notes
-  labeled 129 as "GT" — that was the tracker's error octave mislabeled as GT
-  (error-pattern #1). Anything measuring "beats" for 002 via the *librosa*
-  fallback inherits the 2x error; the default backend does not.
-- `POP909Song.is_downbeat`/`.downbeat_times` are real ground truth (from
-  `beat_midi.txt` column 3) — prefer these over audio-only downbeat
-  detection for any POP909 experiment.
-- **There is ONE chord pipeline: `chord_pipeline_v1.infer_chords_v1`.** It is what
-  the Brick-0 scorer (`harmonia.eval.accuracy_score`) and the app run. A second
-  one, `pipeline.HarmoniaPipeline`, existed until 2026-07-30 and was deleted —
-  `harmonia/pipeline.py` is now data types only (`ChordChart`, `PipelineConfig`).
-  This mattered: work briefed against "the pipeline" landed in the copy nobody
-  measured. If you are told to change "the pipeline", change `infer_chords_v1`,
-  and put live-affecting env flags there (the `HARMONIA_NNLS24_CALIB` /
-  `HARMONIA_SECTION_MODE` / `HARMONIA_VOCAB_FOLD` precedent).
-- **L'app `harmonia_min` a sa propre pipeline** (`harmonia_min/pipeline.py`,
-  `analyze_steps`) — c'est elle qui sert :7772, et ses drapeaux à elle :
-  `HARMONIA_SECTIONS` (**songformer** par défaut depuis 2026-08-18 — un modèle
-  pré-entraîné qui écoute le son et nomme intro/couplet/refrain/pont ; Louis a
-  arbitré à l'oreille sur `/plots/songformer.html` : « je suis d'accord avec
-  lui partout, on le prend en prod ». Les anciens restent joignables :
-  voice/harmonic/chroma), `HARMONIA_RAW_CHART`,
-  `HARMONIA_QUARTER_BAR`, et `HARMONIA_MERGE` : où on additionne les
-  répétitions d'une section. **Défaut `mean` depuis 2026-08-19** — les
-  postérieures, c'est-à-dire APRÈS le modèle (Louis, sur
-  /plots/cqt_vs_post.html : « je préfère les postérieures empilées c'est +
-  propre »). `HARMONIA_MERGE=cqt` (+ `HARMONIA_MERGE_CHECK=<seuil>`) restaure
-  l'empilement sur le **CQT**, avant le modèle, qui était le défaut du
-  2026-08-11 au 2026-08-19. Une loi de merge réécrit TOUS les charts : elle ne
-  change que sur sa décision explicite, jamais par confort.
-- `ChordInferrer(emission_scoring=...)` — **NOT in the live path.** `infer_chords_v1`
-  never builds a `ChordInferrer`; it calls `chord_hmm.viterbi` directly. The old
-  note here said to gate an `emission_scoring` flip behind
-  `experiment_issue1.py --sweep-emission-scoring`; that mode is deleted and it was
-  guarding a knob that could not move a live number. The underlying
-  template-geometry bug (docs/known_issues.md #5) is still real — but it has to be
-  re-examined where the live emission is actually computed
-  (`stages/chord_head.py` NNLS-24 + `chord_hmm.viterbi`), not on `ChordInferrer`.
-- **`harmonia_min`'s YouTube download (`_download_audio`) now depends on two
-  things outside the repo** (2026-09-13, see known_issues.md for the full
-  story): a Firefox profile with a live YouTube session (`--cookies-from-
-  browser firefox`) and a local Node PO-Token server on `127.0.0.1:4416`
-  (`~/.local/share/bgutil-ytdlp-pot-provider`, auto-restarted by
-  `_ensure_pot_server()` if it's down). Without both, YouTube's anti-bot check
-  now blocks most ordinary videos, not just private ones — this stopped being
-  an edge case. If yt-dlp changes ever touch this path, re-verify against a
-  handful of real URLs, not just one.
+- Python 3.12; numpy `<2.5`. `harmonia/settings.py` is the **only** place that
+  reads `os.environ`, and only three names: `HARMONIA_PORT` (Flask port,
+  default 7772), `HARMONIA_MUSX_DIR`, `HARMONIA_MUSX_DEVICE` (the vendored
+  musx model's folder/device). Every algorithm choice (section detector, merge
+  law, fold gate, quarter-bar) is a **constant** in `settings.py`, decided by
+  Louis and changed by a commit + a before/after page — never by an env flag.
+  If you're told to change "the pipeline", that's `harmonia/pipeline.py`
+  (`analyze_steps`) — the only one; the legacy `harmonia/` package (a
+  different, pre-refactor codebase) was deleted 2026-09-14, tag
+  `pre-refactor-2026-09-14`.
+- State lives under `state/`: `state/human/` (sections, annotations, marks,
+  chart_meta.json — small JSON Louis makes by hand) is **tracked** by git;
+  `state/cache/` (charts, beats, songformer, reports — all regenerable) is
+  **not**. A hand-made annotation living in a gitignored folder was lost once
+  (2026-08-12) — this split is the fix. Never assume `__file__`-relative
+  paths; every path comes from `SETTINGS`.
+- **The golden report is how you know a change didn't silently move the
+  library.** `python -m tools.golden --engine harmonia --out DIR --baseline
+  state/cache/golden/baseline` rebakes the 44 library songs with warm caches
+  and diffs bar-by-bar against the frozen baseline. It never runs a cold
+  model — a missing cache marks a song "froid", not measured. Zero changed
+  bars = nothing to arbitrate; otherwise `tools.avant_apres` builds a
+  listenable before/after page and **Louis arbitrates** — a different chart
+  is not automatically a regression. See `docs/STATE.md`.
+- **Restart the server by PORT PID, never by process name.** `pkill -f
+  "harmonia_min.server"` (or any `-f <module>` pattern) has killed the
+  *other* live instance on a different port before, because the pattern
+  matched both. Always `kill $(lsof -ti tcp:<port>)`, then relaunch with
+  `nohup .venv/bin/python -m harmonia.server &`. It runs with no reloader —
+  ask before restarting, Louis may be mid-annotation, and a stale process has
+  served old code through an entire debugging session before.
+- **Sync rule for concurrent sessions.** Louis runs several Claude sessions on
+  this one shared tree. `docs/plots/`, `state/human/sections/`, and whatever
+  another session's CLAUDE.md task list names are not yours to overwrite —
+  check `git log`/`git status` for unfamiliar recent changes before touching
+  a file you didn't just create. Stage and commit in one command
+  (`git add <paths> && git commit …`) — a two-step add-then-commit has had its
+  staged hunks swept into a concurrent session's commit before.
+- **The YouTube download (`harmonia/server/youtube.py`, `_download_audio`)
+  depends on two things outside the repo** (2026-09-13): a Firefox profile with a live
+  YouTube session (`--cookies-from-browser firefox`) and a local Node
+  PO-Token server on `127.0.0.1:4416` (`~/.local/share/bgutil-ytdlp-pot-
+  provider`, auto-restarted by `_ensure_pot_server()` if down). Without both,
+  YouTube's anti-bot check blocks most ordinary videos, not just private
+  ones. Re-verify against real URLs after any yt-dlp change, not just one.

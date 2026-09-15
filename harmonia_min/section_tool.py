@@ -48,12 +48,13 @@ TROIS AJOUTS, chacun pour une raison précise.
    `merge_letters`, APRÈS coup ; ici elle doit être dans la recherche,
    parce que l'utilisateur désigne une occurrence et attend les autres.
 
-3. LE CHANT EST OPTIONNEL. `block_score` veut deux voies (harmonie +
-   mélodie) ; la mélodie coûte une séparation de voix (demucs) qui n'est
-   PAS forcément en cache quand le chart brut vient d'apparaître — et
-   l'outil doit répondre au doigt, tout de suite. Sans mélodie on passe la
-   voie harmonique dans les deux entrées : `block_score` retombe alors
-   exactement sur l'harmonie seule. La réponse dit laquelle a servi.
+3. LE CHANT ÉTAIT OPTIONNEL, IL EST MORT (2026-09-14, refactor sprint 9).
+   `block_score` sait lire deux voies (harmonie + mélodie), et une voie
+   mélodie a existé ici — coûtant une séparation de voix (demucs) au premier
+   passage — mais l'app ne l'a jamais déclenchée : voir la docstring de
+   `substrates` pour la preuve (`grep melody` sur le serveur et le shell) et
+   ce qui a été retiré. La voie harmonique sert désormais dans les deux
+   entrées de `block_score`, toujours.
 
 4. LES LETTRES DÉJÀ VALIDÉES SONT RETIRÉES DU JEU (`claimed_bars`).
    L'utilisateur étiquette A, valide, puis B… Passer au moteur ce qui est
@@ -78,7 +79,6 @@ désélectionner. L'outil réduit le travail, il ne le supprime pas.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 import numpy as np
 
@@ -120,7 +120,7 @@ FLOOD_RATIO = 3.0
 
 
 def _vs():
-    from harmonia_min import voice_sections as VS
+    from harmonia.sections import similarity as VS
     return VS
 
 
@@ -128,22 +128,27 @@ def substrates(grid, triad, audio=None, melody: bool = False):
     """Les matrices de similarité mesure×mesure, comme la prod les fait.
 
     Renvoie (S, V, M, mute, channels) : S = harmonie (n,n), V = vecteurs de
-    hauteurs (n,12) pour la rotation, M/mute = chant (ou None), et le nom
-    des voies effectivement disponibles.
+    hauteurs (n,12) pour la rotation, M/mute et « channels » restent pour la
+    forme des appelants (voir plus bas).
+
+    HARMONIE SEULE (2026-09-14, refactor sprint 9 — la voie chant est morte).
+    Cette fonction avait une seconde voie, la mélodie chantée : `melody=True`
+    appelait `voice_sections._scripts()`, un hack `sys.path` important
+    `scripts/{vocal_anchor,vocal_melody,melody_ssm,blocks8}.py` (2 138 lignes
+    de recherche demucs + pyin) pour séparer la voix et suivre sa hauteur.
+    `grep -n melody harmonia_min/server.py harmonia_min/app_shell.html`
+    montre que l'app ne l'a JAMAIS déclenchée : la seule route qui lisait un
+    drapeau `melody` (`/api/section-repeats`) a été remplacée le 2026-08-17
+    par `/api/sections/inferer` (voir le commentaire de
+    `validateSectionSelection` dans `app_shell.html`), qui n'envoie jamais ce
+    drapeau. `audio`/`melody` restent acceptés en paramètres pour ne pas
+    casser l'appel de cette route morte, mais ne font plus rien : cette
+    fonction est désormais harmonie seule, toujours.
     """
-    from harmonia_min import harmonic_sections as HS
+    HS = _vs()
     V = HS.harmonic_vectors(triad, grid)
     S = V @ V.T
-    if not melody or audio is None:
-        return S, V, None, None, "harmonie"
-    VS = _vs()
-    VA, VM, MS, _B8 = VS._scripts()
-    voc = VA.separate_vocals(Path(audio))
-    tt, ff, vv, rr = VM.track_f0(voc)
-    notes, _ = VM.melody_notes(tt, ff, vv, rr)
-    notes, _ = VM.clean(notes)
-    M, mute = MS.melody_bars(notes, grid, len(grid) - 1)
-    return S, V, M, mute, "harmonie+chant"
+    return S, V, None, None, "harmonie"
 
 
 def _cell_agreement(S, b0, L, p) -> float:

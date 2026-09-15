@@ -1,60 +1,27 @@
-.PHONY: install install-dev test lint format check clean
+.PHONY: serve golden test migrate-state clean
 
-# ── Environment ────────────────────────────────────────────────────────────────
+# ── Run ──────────────────────────────────────────────────────────────────────
 
-install:
-	pip install -e .
+serve:
+	.venv/bin/python -m harmonia.server
 
-install-dev:
-	pip install -e ".[dev,render]"
+# ── Golden report (rebake the library with the live engine, diff a baseline) ─
 
-# ── Quality ────────────────────────────────────────────────────────────────────
+golden:
+	.venv/bin/python -m tools.golden --engine harmonia --out state/cache/golden/run \
+		--baseline state/cache/golden/baseline
 
-lint:
-	ruff check harmonia/ tests/
-	mypy harmonia/
-
-format:
-	black harmonia/ tests/
-	ruff check --fix harmonia/ tests/
-
-check: lint test
-
-# ── Tests ──────────────────────────────────────────────────────────────────────
+# ── Tests ────────────────────────────────────────────────────────────────────
 
 test:
-	pytest tests/ -v
+	.venv/bin/python -m pytest tests/ -v
 
-test-theory:
-	pytest tests/test_theory.py -v
+# ── State layout migration (harmonia_min/state -> state/{human,cache}) ──────
 
-# ── Data pipeline ──────────────────────────────────────────────────────────────
+migrate-state:
+	.venv/bin/python -m tools.migrate_state
 
-download-pop909:
-	@echo "Cloning POP909 dataset (~500MB)..."
-	git clone https://github.com/music-x-lab/POP909-Dataset data/pop909
-	@echo "Done. Run: make parse-pop909"
-
-parse-pop909:
-	python -c "\
-from harmonia.data.pop909_parser import POP909Parser; \
-p = POP909Parser('data/pop909'); \
-songs = p.parse_all(); \
-print(p.chord_statistics(songs))"
-
-accomp-deps:
-	bash scripts/fetch_accompaniment_deps.sh
-
-accomp-db:
-	.venv/bin/python scripts/build_accompaniment_db.py
-
-# ── Inference ──────────────────────────────────────────────────────────────────
-
-infer:
-	@test -n "$(FILE)" || (echo "Usage: make infer FILE=path/to/audio.wav"; exit 1)
-	python scripts/process_audio.py $(FILE)
-
-# ── Clean ──────────────────────────────────────────────────────────────────────
+# ── Clean ────────────────────────────────────────────────────────────────────
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
