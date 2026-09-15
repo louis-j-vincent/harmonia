@@ -447,3 +447,78 @@ copie du milieu devient la tenue qui ouvre la boucle (jamais un N.C.).
 Let It Be A lit maintenant C~ G | Am F | C G | F C. Sur la bibliothèque, un
 seul autre bloc replié partait avec un trou ; deux charts (Stand By Me,
 Norah Jones) ne changent que par la confiance de leur tenue d'ouverture.
+
+## Verdicts de Louis sur la page d'arbitrage du repli (2026-09-15, 17 h)
+
+Vérité terrain à l'oreille, mot pour mot, avant toute correction :
+
+- **Lost Without U (B, mes. 26)** : « le premier passage on entend bien un
+  D-, tous les autres passages on entend un G. Le souci, c'est qu'il y a un
+  petit contretemps/pause avant de reprendre à chaque fois que la chanson
+  boucle, donc ça décale la mesure, ce qui explique que le repliement ait
+  décalé d'une mesure. » → la pile empile des positions qui ne se
+  correspondent pas (grille / alignement des passages), pas un accord faux.
+- **Easy On Me (B, mes. 15 et 36)** : « c'est un F puis la basse descend sur
+  D (donc ça donne un D-7) avant d'atterrir sur le C ; sur les passes
+  suivantes des fois la basse fait quelque chose de plus complexe, donc
+  difficile à dire — typiquement le genre de cas où j'aimerais avoir juste F
+  affiché et le D-7 en optionnel en petit au-dessus en suggestion, comme
+  iReal fait. » → demande de fonctionnalité : l'accord optionnel.
+- **The Lazy Song (A, mes. 16 et 38)** : « il n'y a que la variante à la
+  mesure 8 qui joue B puis Eb, tout le reste c'est B puis Gb, donc mauvaise
+  détection de l'accord Eb qui est écrit Ab- à la place, et mauvais
+  repliement qui remplace tous les autres Gb par des Ab- → à investiguer. »
+- **Every Breath You Take (A, mes. 57)** : « un peu la même histoire que
+  Lazy Song, ici tous les accords sont bien détectés, par contre lors du
+  repliement c'est la seule variante qui emporte le nom de l'accord — la
+  variante ne devrait même pas être utilisée dans le moyennage des
+  postérieures ! »
+- **Yesterday (A, mes. 11 et 26)** : « Eo A partout. »
+
+### Ce que les verdicts ont donné (2026-09-15, 18 h)
+
+Sondage de la pile sur les quatre lettres (membres, rejetées, moyenne,
+décodage) : **le consensus était juste sur les trois lettres « repli »**
+(Lazy Song B Gb, Every Breath F-, Yesterday E- A). Ce qui s'affichait ×N,
+c'était une passe contenant des mesures que la pile avait REJETÉES, et ces
+mesures gardaient leur propre décodage faux — le même mécanisme que Stand
+By Me, un cran plus loin : la passe la plus riche peut elle aussi porter
+une mesure rejetée.
+
+**La loi de façade** (`folding.facade`, les deux chemins de rendu) : dans un
+bloc écrit ×N, une mesure rejetée par la pile montre le consensus que les
+autres passes ont reçu — la même mesure de la section, chez au moins deux
+autres passes acceptées et d'accord entre elles. `bars` reste intact (la
+lecture, l'annotation et les autres passes gardent le décodage réel).
+Jamais sur une passe seule ni à deux passes (under-fold : une fin de
+section, un turnaround, s'écrivent). Le rapport de repli gagne une clé
+`rejetees` (les vraies rejetées, à part des fins gardées hors pile exprès).
+
+Essayé et abandonné le même jour : classer les passes par « le moins de
+rejetées d'abord » — ça a déplacé Every Breath sur une passe dont les
+positions non empilées étaient moins bien décodées (Db Eb → Db~ Ab/Eb). Et
+une première façade par « même position modulo P » qui allait chercher la
+pompe deux mesures plus tôt dans la MÊME passe et effaçait des cadences
+réelles (Sam Smith F C → F A, Norah Jones, Hot N Cold) — remplacée par
+« même mesure de la section dans une AUTRE passe ».
+
+Rapport d'or : 4 blocs changent — exactement les trois verdicts (Lazy Song
+B Gb ×4, Every Breath F- à la 7e, Yesterday E- A) et The Walk où la façade
+remet le même accord.
+
+Ce que ça ne résout PAS :
+- **Yesterday E- vs Eo** : le consensus dit E- à 0,36 (Eo 0,14). Qualité
+  d'accord du modèle, pas du repli — l'éditeur d'annotation est là pour ça.
+- **Lost Without U** : la grille est bonne (battues brutes et grille
+  rigide à ±23 ms, 4 battues par mesure, downbeats à 0). La pause est
+  musicale : la mesure 25 est un N.C. (0,20) et la boucle de 4 repart à la
+  26 avec une position de retard ; la pile, qui compte les positions depuis
+  le début de la section, empile donc la 26 (D-7) avec les G7. Loi
+  candidate : « une mesure de silence dans une boucle n'est pas une
+  position ». Contre-cas réel : un break d'une mesure qui FAIT PARTIE de la
+  boucle (funk). Pas posée aujourd'hui.
+- **Easy On Me** : demande de fonctionnalité — l'accord optionnel en petit
+  au-dessus (F, avec D-7 en suggestion), comme iReal. La pile sait déjà, à
+  chaque position, quels accords les passes minoritaires ont entendus
+  (`rejetees` + première passe) ; il manque le champ dans le ChartModel et
+  le rendu. À faire en sprint dédié.

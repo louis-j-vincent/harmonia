@@ -212,7 +212,8 @@ def soudure_valider(file):
     # dit la précédente ; le jeter lui rendrait un chart moins bon qu'avant.
     from harmonia_min.refold import refold
     bars, rap = refold(chart, secs, AUDIO_DIR)
-    neuves = sections_pour_chart(chart, secs, bars=bars)
+    neuves = sections_pour_chart(chart, secs, bars=bars,
+                                 fold_report=rap.get("rapport"))
     if not neuves:
         return jsonify({"error": "aucune section utilisable"}), 400
     try:

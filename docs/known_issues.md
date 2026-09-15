@@ -16,12 +16,18 @@ Détail et mesures : `docs/audit_2026-09-15_plan.md`.
   ensemble). Sur 2 des 3 marques « Set bar 1 » de Louis, le vote des accords
   pointait sur sa phase à 45–50 %. Pas de correctif proposé : Let It Be
   (54 %) serait re-calé d'une demi-mesure — son oreille tranche.
-- **5 mesures où le consensus du repli réécrit un accord de 1re passe sûr
-  (c ≥ 0,70)** : `0DdCoNbbRvQ` B mes. 26 (D-7 → G7), Easy On Me B mes. 15 et
-  36 (F D- → F)… — recalculé contre la bibliothèque servie : **8 mesures**,
-  page d'arbitrage `python -m tools.arbitrage_repli` →
-  http://100.89.209.63:7772/reports/arbitrage_repli.html (entendu ici /
-  écrit / les autres passages, écoute et verdicts copiables).
+- **Lost Without U (B, mes. 26) : la boucle repart avec une position de
+  retard après une mesure de pause** (mes. 25, N.C. à 0,20). La grille est
+  bonne ; la pile compte les positions depuis le début de la section, donc
+  empile la 26 (D-7, vraie) avec les G7 des autres passes. Loi candidate :
+  « une mesure de silence dans une boucle n'est pas une position » —
+  contre-cas : un break qui fait partie de la boucle. Pas posée.
+- **L'accord optionnel « en petit au-dessus », comme iReal** (Louis, Easy On
+  Me : F affiché, D-7 en suggestion). La pile connaît déjà les accords
+  minoritaires par position (`rejetees` + première passe) ; il manque le
+  champ dans le ChartModel et le rendu. Sprint dédié.
+- **Yesterday A : E- écrit, Eo entendu par Louis.** Consensus E- à 0,36
+  contre Eo 0,14 — qualité d'accord du modèle, pas du repli. Annotation.
 - `test_minimal_fold_separe_les_longueurs_dune_meme_lettre` échoue à HEAD
   depuis la cascade iReal (le B de 4 replié comme préfixe du B de 8).
 - `sections_pour_chart` vit encore dans `harmonia_min/soudure.py` ; golden
@@ -166,6 +172,13 @@ trouvaille est vérifiée contre le code vivant et notée ici.
   la moyenne en silence ? Pas vérifié ; même piste de recherche.
 
 ## Résolu récemment
+
+- **La façade d'un bloc ×N montre le consensus, jamais une mesure rejetée
+  (2026-09-15, verdicts de Louis sur la page d'arbitrage).** Lazy Song A
+  affichait « B Ab- » ×6, Every Breath « Ab » ×7, Yesterday « E- D-/A » ×4 :
+  le consensus était juste, la passe affichée portait une mesure rejetée
+  par la pile qui gardait son propre décodage. `folding.facade`, sur les
+  deux chemins de rendu ; `bars` intact ; jamais sur une passe seule.
 
 - **La tenue qui ouvre une boucle repliée n'était jamais écrite
   (2026-09-15, Louis sur Let It Be : « le premier accord (C) n'est jamais

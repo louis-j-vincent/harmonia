@@ -226,7 +226,8 @@ def cuire(eng: dict, key: str, charts: Path, out: Path) -> dict:
         a_la_main, n_comble = completer(a_la_main, model, n)
         if a_la_main:
             bars, rap = eng["refold"](model, a_la_main, AUDIO)
-            neuves = eng["sections_pour_chart"](model, a_la_main, bars=bars)
+            neuves = eng["sections_pour_chart"](model, a_la_main, bars=bars,
+                                                fold_report=rap.get("rapport"))
             if neuves:
                 model["sections"] = neuves
                 model["fold"] = rap.get("rapport") or {}

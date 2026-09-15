@@ -441,6 +441,11 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
         report[letter] = {"period": P, "n_obs": n_obs,
                           "demiton": {},
                           "variants": sorted(set(variants)),
+                          # Les VRAIES rejetées (écart anormal à la pile), à
+                          # part des fins de section gardées hors pile
+                          # exprès : la façade (voir `facade`) remplace les
+                          # premières par le consensus, jamais les secondes.
+                          "rejetees": sorted(set(variants) - set(fins_hors_pile)),
                           "changed": sorted(set(changed)),
                           "cv_skip": sorted(cv_skip),
                           "pos_skip": [],
@@ -743,6 +748,97 @@ def pass_evidence(bars, rng) -> int:
                if not c["nc"] and not c.get("carry"))
 
 
+def rejected_in(rep: dict, rng) -> list[int]:
+    """The bars of pass `rng` the stack rejected as outliers. Section endings
+    kept out of the stack on purpose (`fins_hors_pile`) are NOT outliers and
+    stay the pass's own music."""
+    c0, c1 = rng
+    rej = set(rep.get("rejetees") or [])
+    return [b for b in range(c0, c1 + 1) if b in rej]
+
+
+def pass_rank(bars, rng, rep: dict, ranges) -> tuple:
+    """The pass written ×N for a letter: most real onsets, ties → earliest
+    (Louis's 2026-08-10 law, Stand By Me). ONE key for both renderers.
+
+    Tried and dropped the same day (2026-09-15): « fewest rejected bars
+    first ». It moved Every Breath's A onto a pass whose UNSTACKED positions
+    (cv_skip) were decoded worse (« Db Eb » → « Db~ Ab/Eb ») — the rejected
+    bars are handled by `facade` anyway, so the ranking need not avoid them.
+    `rep` is kept in the signature for a future criterion that would need
+    the stack's verdicts."""
+    rs = [tuple(r) for r in ranges]
+    return (pass_evidence(bars, rng),
+            -rs.index(tuple(rng)) if tuple(rng) in rs else 0)
+
+
+def facade(bars, grid, ranges, rng, rep: dict) -> dict[int, list]:
+    """{bar: chords} for the pass shown ×N: a bar the stack REJECTED shows the
+    consensus its siblings received — the same loop position in the nearest
+    accepted pass, as the template wrote it — retimed onto this bar.
+
+    `bars` itself is untouched: playback, annotation and the other passes
+    keep that bar's own decode. Only the WRITTEN block changes, because a
+    block that stands for N passes must show what the N passes agree on, not
+    what one outlier heard (Louis, 2026-09-15: « la variante ne devrait même
+    pas être utilisée »). Positions the stack refused to squash (cv_skip) or
+    never wrote have no consensus: the bar stays its own.
+    What this does NOT do: show the rejected bar's chord as an alternative.
+    That is the « accord optionnel en petit au-dessus » Louis asked for on
+    Easy On Me — a display feature still to build.
+    """
+    out: dict[int, list] = {}
+    if rep.get("reason"):
+        return out
+    rej = set(rep.get("rejetees") or [])
+    var = set(rep.get("variants") or [])
+    ranges = [tuple(r) for r in ranges]
+    c0, c1 = rng
+    if len(ranges) < 3:
+        # Une passe seule (boucle interne) : ses mesures rejetées sont sa
+        # vraie musique — la fin, le turnaround — et s'ÉCRIVENT (under-fold,
+        # Norah Jones 2026-08-05). À deux passes, « l'autre » n'est pas un
+        # consensus. La façade ne parle qu'à partir de trois.
+        return out
+
+    def _sig(bar):
+        return tuple((c["root"], c["q"], bool(c.get("nc")), bool(c.get("carry")))
+                     for c in bar)
+
+    for b in range(c0, c1 + 1):
+        if b not in rej:
+            continue
+        # LA MÊME MESURE DE LA SECTION dans les autres passes (même décalage
+        # depuis le début de la passe — pas « même position modulo P », qui
+        # irait chercher la pompe deux mesures plus tôt dans la MÊME passe
+        # et effacerait une cadence réelle, Sam Smith « F C » → « F A »).
+        off = b - c0
+        cands = [r0 + off for r0, r1 in ranges
+                 if (r0, r1) != (c0, c1) and r0 + off <= r1
+                 and (r0 + off) not in var and 0 <= r0 + off < len(bars)
+                 and any(c.get("folded") for c in bars[r0 + off])]
+        if len(cands) < 2:
+            continue
+        groups: dict[tuple, list[int]] = {}
+        for bb in cands:
+            groups.setdefault(_sig(bars[bb]), []).append(bb)
+        best = max(groups.values(), key=len)
+        if len(best) < 2:
+            continue                      # les autres passes ne s'accordent pas
+        s = min(best, key=lambda bb: abs(bb - b))
+        sw = max(1e-6, grid[s + 1] - grid[s])
+        bw = grid[b + 1] - grid[b]
+        new = []
+        for c in bars[s]:
+            f0 = (c.get("t0", grid[s]) - grid[s]) / sw
+            f1 = (c.get("t1", grid[s + 1]) - grid[s]) / sw
+            new.append({**c, "bar": b, "facade": s,
+                        "t0": round(grid[b] + f0 * bw, 3),
+                        "t1": round(grid[b] + f1 * bw, 3)})
+        out[b] = new
+    return out
+
+
 def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
     """One ChartModel section per LETTER — the validated minimal folding,
     rendered by the UNCHANGED app_shell (Louis: the folding logic is right,
@@ -809,7 +905,12 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
         # untouched (a letter whose passes agree has equal evidence).
         # `ranges` STAYS chronological — spans/barRanges/the playhead map all
         # depend on it. Only which pass is WRITTEN changes.
-        b0, b1 = max(ranges, key=lambda r: (_evidence(r), -ranges.index(r)))
+        _rep = fold_report.get(L) or {}
+        b0, b1 = max(ranges, key=lambda r: pass_rank(bars, r, _rep, ranges))
+        # LA FAÇADE : les mesures rejetées de la passe écrite montrent le
+        # consensus (voir `facade`) ; `bars` reste intact.
+        vue = facade(bars, grid, ranges, (b0, b1), _rep) \
+            if not _rep.get("reason") else {}
         # Only a fold that was ACCEPTED may drive the display. Every refusal
         # in fold_letter_groups still records the period it was testing
         # ({"period": P, "reason": ...} at the "too few gated members",
@@ -823,8 +924,8 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
         # Under-fold, never over-fold: a refused fold writes its bars out.
         _rep = fold_report.get(L) or {}
         P = None if _rep.get("reason") else _rep.get("period")
-        cell = [bars[b] for b in range(b0, min(b1, b0 + P - 1) + 1)] if P \
-            else [bars[b] for b in range(b0, b1 + 1)]
+        cell = [vue.get(b, bars[b]) for b in range(b0, min(b1, b0 + P - 1) + 1)] if P \
+            else [vue.get(b, bars[b]) for b in range(b0, b1 + 1)]
         ref_tail = [sig(ranges[0][1] - k) for k in (1, 0)]
         div = next(((c0, c1) for c0, c1 in ranges[1:]
                     if [sig(c1 - k) for k in (1, 0)] != ref_tail), None)
@@ -883,7 +984,7 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
             "spans": [[grid[c0], grid[min(len(grid) - 1, c1 + 1)]]
                       for c0, c1 in ranges],
             "barRanges": [[c0, c1] for c0, c1 in ranges],
-            "bars": [bars[b] for b in block_rng],
+            "bars": [vue.get(b, bars[b]) for b in block_rng],
             "barSpans": rows,
         })
     # ── LA FAÇON IREAL : une lettre = un seul bloc écrit ────────────────────

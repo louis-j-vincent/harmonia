@@ -718,7 +718,8 @@ def _bars_par_mesure(chart: dict) -> list:
 
 
 def sections_pour_chart(chart: dict, secs: list[dict],
-                        bars: list | None = None) -> list[dict]:
+                        bars: list | None = None,
+                        fold_report: dict | None = None) -> list[dict]:
     """Les sections du chart, refaites à partir du découpage de la Soudure.
 
     `secs` : [{label, mesure_debut, mesure_fin}] en mesures 1-indexées, fin
@@ -759,14 +760,26 @@ def sections_pour_chart(chart: dict, secs: list[dict],
         # basse-voix, 5 N.C. sur 8 mesures, ×6, alors que ses quatre
         # couplets décodés A A F#m F#m D E A A étaient dans `bars`).
         # `occ` reste chronologique : spans/barRanges/le curseur en dépendent.
-        from harmonia.folding import pass_evidence
-        b0, b1 = max(occ, key=lambda r: (pass_evidence(bars, r), -occ.index(r)))
+        # ET LA FAÇADE (Louis, 2026-09-15, page d'arbitrage) : d'abord la
+        # passe qui a le moins de mesures rejetées par la pile, puis les
+        # mesures rejetées qui restent montrent le consensus des autres
+        # passes (`folding.facade`) — le bloc écrit ×N dit ce que les N
+        # passes ont en commun, pas ce qu'une seule a entendu de travers.
+        # `fold_report` est celui du re-repli sur CE découpage (refold), pas
+        # `chart["fold"]`, qui décrit l'ancien.
+        # La façade ne compare que des passes de MÊME longueur (`occ`), comme
+        # `minimal_fold` : la passe seule d'une autre longueur (A″ de 7
+        # mesures) est sa propre musique, elle s'écrit telle quelle.
+        from harmonia.folding import facade, pass_rank
+        rep = (fold_report or {}).get(lab) or {}
+        b0, b1 = max(occ, key=lambda r: pass_rank(bars, r, rep, occ))
+        vue = facade(bars, grid, occ, (b0, b1), rep) if not rep.get("reason") else {}
         out.append({
             "id": "L" + lab + ("" if vus[lab] == 1 else str(vus[lab])),
             "label": lab, "tag": "", "reps": len(occ),
             "spans": [[grid[a], grid[min(b + 1, n)]] for a, b in occ],
             "barRanges": [[a, b] for a, b in occ],
-            "bars": bars[b0:b1 + 1],
+            "bars": [vue.get(b, bars[b]) for b in range(b0, b1 + 1)],
             "barSpans": [[[grid[b], grid[min(b + 1, n)]]]
                          for b in range(b0, b1 + 1)],
         })
