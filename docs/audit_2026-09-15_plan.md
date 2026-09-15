@@ -248,3 +248,131 @@ morceaux à découpage manuel. Louis arbitre.
 
 Rien de systématique : 39 morceaux sur 46 ont une grille rigide posée avec
 ≥ 85 % de battues dedans, couverture ≥ 95 %.
+
+## C1-bis — Le décodage du GABARIT cherche aussi une latence, et là c'est bien pire. BUG CONFIRMÉ, 18 morceaux.
+
+Le premier rapport d'or avec `DEFAULT_LATENCY_GRID = (0.0,)` a changé
+**18 morceaux sur 44 (239 mesures)** — dont 16 où la latence principale
+était déjà 0. Isolé en trois runs : grille d'origine → 44/44 identiques ;
+`(0.0,)` → 18 diffèrent ; le décodeur lui-même est sans état et rend les
+mêmes segments quelle que soit la grille. La différence est en aval : le
+repli.
+
+`folding._decode_template` re-décode le gabarit empilé d'une lettre (une
+boucle synthétique de 3×P mesures, battues à `i·step`) **avec la même
+recherche de latence**. Sur ce gabarit il n'y a par construction aucune
+latence à compenser — les postérieures y sont empilées mesure par mesure.
+La recherche y est donc pure dégénérescence, et elle sature :
+
+| latence choisie sur le gabarit | décodages (sur 96, 44 morceaux) |
+|---|---|
+| 0 ms | 7 |
+| 40 ms | 15 |
+| 80 ms | 52 |
+| 200–240 ms | 14 |
+| **280 ms (borne)** | **8** |
+
+Résultat : les accords du consensus sont réécrits **un temps trop tôt**
+dans TOUTES les mesures de la lettre. `Urdlvw0SSEc` (6/8) : les quatre
+lettres à 280 ms, chaque accord de Em | Bm posé sur le temps 6 de la mesure
+précédente au lieu du temps 1 — 80 mesures sur 108. Hot N Cold : 69
+mesures. `meta.musx_latency_ms` ne montre que le décodage principal — ce
+bug était invisible dans le chart.
+
+Ces 18 morceaux sont exactement ceux où le gabarit a choisi 200–280 ms, ou
+80 ms sur un tempo assez rapide pour que 80 ms retombe sur le temps
+précédent.
+
+**Correction** : la même — plus de recherche de latence, nulle part. La
+page avant/après couvre les 18 morceaux.
+
+## B2 — Le re-calage harmonique de la phase ne se déclenche JAMAIS. DEAD CODE CONFIRMÉ.
+
+Les quatre morceaux où Louis a posé « Set bar 1 » à la main sont ceux où
+il n'était pas d'accord avec la machine. Sans sa marque, la machine
+(traceur + re-calage) se trompe sur 3 des 4 : Chasing Pavements (d'une
+demi-mesure), Virtual Insanity (d'une demi-mesure), Goodbye Yellow Brick
+Road (d'un temps). Oextk : d'accord.
+
+Instrumenté sur les 44 : `bars._phase_correction` rend 0 partout — **0
+déclenchement sur 44**. Ses deux seuils (consensus ≥ 0,55 ET part du temps
+0 ≤ 0,15) ne sont jamais satisfaits ensemble sur des données réelles. Et
+sur 2 des 3 morceaux corrigés par Louis, **le vote des accords pointait sur
+SA phase** — à 45 % (Chasing Pavements) et 50 % (Virtual Insanity), sous
+la barre des 55 %. Le seul autre morceau avec un vote non nul est Let It Be
+(résidu 2 à 54 %, découpage validé à la main sur la grille actuelle).
+
+Pas de correctif proposé aujourd'hui : baisser le seuil à 0,45 corrigerait
+les deux marques de Louis mais re-calerait Let It Be d'une demi-mesure —
+c'est son oreille qui doit dire si Let It Be est bien calé aujourd'hui.
+Question ouverte, quatre morceaux, page à faire si Louis veut la trancher.
+
+---
+
+# La page avant/après — à arbitrer
+
+**http://100.89.209.63:7772/reports/avant_apres.html** — 22 morceaux, les
+deux versions de chacun sont dans la bibliothèque (« … — AVANT » /
+« … — APRÈS », `python -m tools.avant_apres --clean` pour les retirer).
+
+Deux corrections candidates, en attente de l'arbitrage de Louis, **non
+commitées** (`harmonia/musx.py` : `DEFAULT_LATENCY_GRID = (0.0,)` ;
+`harmonia/folding.py` + `harmonia_min/soudure.py` : `pass_evidence`, une
+loi pour la passe écrite) :
+
+| morceau | mesures | C1 (latence) | C2 (passe) | latence principale | latences des gabarits (prod) | tonalité | sections |
+|---|---|---|---|---|---|---|---|
+| Urdlvw0Ssec | 80 | 80 | 0 | 0 | 280 280 280 280 | B minor → E minor | 7 |
+| Hot N Cold | 69 | 69 | 0 | 0 | 280 280 0 | G major | 8 |
+| Another Day | 25 | 25 | 0 | 280 | 200 200 | Eb major | 10 → 9 |
+| R3B2Xr8Kwq | 19 | 19 | 0 | 0 | 200 | A major → D major | 7 |
+| Sam Smith — I'm Not The Only One | 15 | 15 | 0 | 0 | 0 240 240 40 | F major | 7 |
+| Bobby Hebb — Sunny | 9 | 3 | 6 | 0 | 80 80 | G minor | 6 |
+| Bein Green | 7 | 0 | 7 | 0 | 40 | Bb major | 4 |
+| Goodbye Yellow Brick Road | 7 | 0 | 7 | 0 | — | F major | 9 |
+| Sunny Afternoon | 7 | 7 | 0 | 0 | 80 40 | Eb major → C minor | 6 → 7 |
+| Cry Me A River | 6 | 6 | 0 | 0 | 80 280 80 0 0 | G# minor | 8 |
+| Uw5Olnn7Uvm | 6 | 6 | 0 | 0 | 80 | F minor | 6 |
+| Every Breath You Take | 6 | 0 | 6 | 0 | 80 80 40 80 | Ab major | 7 |
+| Stand By Me | 5 | 0 | 5 | 0 | 80 80 80 80 | A major | 3 |
+| Lost Without U | 4 | 4 | 0 | 0 | 80 | C major | 8 |
+| Let It Be | 3 | 0 | 3 | 0 | 40 40 40 | C major | 6 → 7 |
+| Virtual Insanity | 2 | 2 | 0 | 0 | 80 80 | Eb minor | 7 |
+| Easy On Me | 2 | 2 | 0 | 0 | 80 80 | F major → Bb major | 6 |
+| The Lazy Song | 2 | 0 | 2 | 0 | 80 80 80 80 40 80 80 | E major | 5 |
+| The Walk | 2 | 0 | 2 | 0 | 80 80 80 280 80 80 80 80 | A major | 5 |
+| Grenade | 1 | 0 | 1 | 0 | 80 40 80 40 | D minor | 6 |
+| She Will Be Loved | 1 | 0 | 1 | 0 | 80 80 80 80 80 | Bb major | 7 |
+| Enregistrement du 20/08 (micro) | 1 | 1 | 0 | 120 | — | G# minor → C# minor | 2 |
+
+Vérifié au rendu (Playwright, 390 px) : Stand By Me APRÈS lit
+A A F#m F#m D E A A ; Urdlvw0SSEc AVANT affiche des « BBm » superposés
+(l'accord posé au temps 6 déborde sur la case suivante), APRÈS lit
+Em Bm Em Bm en E minor.
+
+**Ma recommandation** : accepter les deux. C1 corrige un mécanisme (une
+recherche du mauvais côté, qui aliase d'un temps) ; C2 applique une loi
+que Louis a déjà validée sur l'autre chemin. Les trois changements de
+tonalité (Urdlvw0SSEc, R3B2Xr8Kwq, Easy On Me, Sunny Afternoon) suivent
+les accords remis à leur place — à écouter. Les changements de nombre de
+sections (Let It Be B×7 → B×6 + B′, Sunny Afternoon C×4 → C×3 + C′, Another
+Day 10 → 9) sont la cascade iReal qui re-décide sur les nouvelles mesures.
+
+Après acceptation : supprimer la recherche de latence (pas seulement la
+grille), re-geler la baseline, republier la bibliothèque, redémarrer :7772.
+
+## Aussi trouvé en passant
+
+- `tests/test_songformer_sections.py::test_minimal_fold_separe_les_longueurs_dune_meme_lettre`
+  échoue déjà à HEAD (vérifié dans un worktree jetable) : la cascade iReal
+  replie le B de 4 mesures dans le B de 8 comme un préfixe, ce que le test
+  (2026-08-18) interdisait. Un des deux a raison, pas les deux.
+- `sections_pour_chart` n'a jamais été porté : `tools/golden.py` l'importe
+  de `harmonia_min.soudure` même pour le moteur `harmonia`. À faire au
+  sprint 22 avec le reste de `soudure.py`.
+
+## Reste à tester (plan initial)
+
+B3 levées jetées · C3 qualités contre iReal · D1 (réparer
+`tools/sections_bench`) · D2 pile contaminée · E1/E2 tonalité · F1–F3
+plomberie.

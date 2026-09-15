@@ -7,6 +7,36 @@ Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 
 ## Ouvert
 
+### Audit 2026-09-15 — deux corrections candidates, page avant/après publiée, en attente d'arbitrage
+
+Détail et mesures : `docs/audit_2026-09-15_plan.md` (section « Résultats »).
+Page : http://100.89.209.63:7772/reports/avant_apres.html (22 morceaux).
+Code NON commité en attendant Louis : `harmonia/musx.py` (grille de latence
+réduite à `(0.0,)`), `harmonia/folding.py` + `harmonia_min/soudure.py`
+(`pass_evidence`, une seule loi pour la passe écrite).
+
+- **Latence musx cherchée du mauvais côté.** Mesuré sur 46 morceaux : les
+  changements du modèle tombent 23–46 ms AVANT la battue Beat This!, jamais
+  après ; la recherche ne teste que 0…+280 ms. Sur le gabarit du repli,
+  89 décodages sur 96 choisissent une latence non nulle (8 à la borne 280) et
+  réécrivent les accords un temps trop tôt — 18 morceaux, 239 mesures,
+  invisibles dans `meta.musx_latency_ms`. Another Day : alias +280 ≡ −163 ms,
+  78 accords un temps trop tôt.
+- **Passe affichée = `occ[0]` sur le chemin Soudure.** Stand By Me (découpage
+  à la main) affichait sa première A (intro basse-voix, 5 N.C. sur 8) alors
+  que `minimal_fold` choisit la passe la plus riche depuis le 2026-08-10.
+  Deux chemins, deux lois ; 9 morceaux à découpage manuel changent de passe.
+- **Le re-calage harmonique de la phase (`bars._phase_correction`) ne se
+  déclenche sur aucun des 44** (seuils 0,55 / 0,15 jamais satisfaits
+  ensemble). Sur 2 des 3 marques « Set bar 1 » de Louis, le vote des accords
+  pointait sur sa phase à 45–50 %. Pas de correctif proposé : Let It Be
+  (54 %) serait re-calé d'une demi-mesure — son oreille tranche.
+- `test_minimal_fold_separe_les_longueurs_dune_meme_lettre` échoue à HEAD
+  depuis la cascade iReal (le B de 4 replié comme préfixe du B de 8).
+- `sections_pour_chart` vit encore dans `harmonia_min/soudure.py` ; golden
+  l'importe de là pour les deux moteurs. Sprint 22.
+
+
 - **Basse détectée à l'attaque, pas en moyenne sur tout l'accord — 6/11 → 11/11
   sur un morceau, PAS ENCORE branché au pipeline live** (2026-09-15, piste
   ouverte par Louis : « dans le doute entre deux notes basses, si l'une est

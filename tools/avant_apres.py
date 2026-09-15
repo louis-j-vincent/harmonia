@@ -77,6 +77,50 @@ def diff_song(old, new):
     for k in sorted(set(a) & set(b)):
         if a[k] != b[k]:
             rows.append((k, a[k], b[k]))
+    # LA PASSE AFFICHÉE A CHANGÉ (audit 2026-09-15). Un bloc replié ×N n'écrit
+    # qu'UNE passe ; `barSpans` ne porte que la sienne. Si la passe écrite
+    # change (Stand By Me : la 3e au lieu de la 1re), l'ancien texte vit aux
+    # mesures 6-13 et le nouveau aux mesures 30-37 — aucune mesure commune,
+    # zéro ligne ci-dessus, et la page dirait « identique » d'un chart dont
+    # tout le bloc A a changé. On compare donc aussi les blocs eux-mêmes,
+    # lettre par lettre, et on pose chaque ligne à la mesure de la NOUVELLE
+    # passe (c'est là que le nouveau texte est vrai à l'écoute), en disant
+    # d'où venait l'ancien.
+    deja = {k for k, _, _ in rows}
+
+    def _blocs(m):
+        out = {}
+        for sec in m.get("sections") or []:
+            key = (sec.get("label"), tuple(map(tuple, sec.get("barRanges") or [])))
+            out[key] = sec
+        return out
+
+    def _mesure(sec, r, g):
+        spans = sec.get("barSpans") or []
+        sp = spans[r][0] if r < len(spans) and spans[r] else None
+        if not sp:
+            return None
+        lo = None
+        for k in range(max(0, len(g) - 1)):
+            if g[k] <= sp[0] + 1e-4:
+                lo = k
+        return lo
+
+    A, Bm = _blocs(old), _blocs(new)
+    for key in A.keys() & Bm.keys():
+        sa, sb = A[key], Bm[key]
+        for r, (ba, bb) in enumerate(zip(sa.get("bars") or [], sb.get("bars") or [])):
+            ta = " ".join(chord_txt(c) for c in ba) or "·"
+            tb = " ".join(chord_txt(c) for c in bb) or "·"
+            if ta == tb:
+                continue
+            k_new, k_old = _mesure(sb, r, grid), _mesure(sa, r, grid)
+            if k_new is None or k_new in deja:
+                continue
+            deja.add(k_new)
+            src = f" (écrit mes. {k_old + 1})" if k_old is not None and k_old != k_new else ""
+            rows.append((k_new, ta + src, tb))
+    rows.sort()
     return rows, grid
 
 
