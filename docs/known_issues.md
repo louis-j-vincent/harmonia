@@ -177,8 +177,12 @@ trouvaille est vérifiée contre le code vivant et notée ici.
   (2026-09-15, verdicts de Louis sur la page d'arbitrage).** Lazy Song A
   affichait « B Ab- » ×6, Every Breath « Ab » ×7, Yesterday « E- D-/A » ×4 :
   le consensus était juste, la passe affichée portait une mesure rejetée
-  par la pile qui gardait son propre décodage. `folding.facade`, sur les
-  deux chemins de rendu ; `bars` intact ; jamais sur une passe seule.
+  par la pile qui gardait son propre décodage. `folding.facade_view`, une
+  vue d'affichage lue par les deux chemins de rendu (bloc, fins iReal,
+  cascade) ; `bars` intact ; jamais sur une passe seule ni à deux.
+  Conséquence à arbitrer : des fins iReal apparaissent sur Cry Me A River
+  (5 groupes / 8 passes), Hot N Cold, Uw5OLnN7UvM — loi candidate « pas
+  de crochets quand les queues se dispersent ».
 
 - **La tenue qui ouvre une boucle repliée n'était jamais écrite
   (2026-09-15, Louis sur Let It Be : « le premier accord (C) n'est jamais

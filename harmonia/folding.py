@@ -839,6 +839,31 @@ def facade(bars, grid, ranges, rng, rep: dict) -> dict[int, list]:
     return out
 
 
+def facade_view(bars, grid, groups: dict, fold_report: dict | None) -> list:
+    """A DISPLAY copy of `bars`: in every letter written ×N (three or more
+    passes of the same length), each pass's rejected bars show the consensus
+    (see `facade`). The caller's `bars` is untouched — playback, annotation
+    and the raw chart keep every bar's own decode.
+
+    One view for everything the renderers read — the written block, the
+    iReal endings, the cascade — so a rejected bar cannot come back as a
+    « 1. » ending after being corrected in the block (The Lazy Song, first
+    render of the façade: block « B F# », ending « 1. B G#m »).
+    `groups`: {(label, …): [(b0, b1), …]} — the renderer's own grouping by
+    letter and length, whatever its key.
+    """
+    view = list(bars)
+    for key, ranges in groups.items():
+        label = key[0] if isinstance(key, tuple) else key
+        rep = (fold_report or {}).get(label) or {}
+        if rep.get("reason") or len(ranges) < 3:
+            continue
+        for rng in ranges:
+            for b, chords in facade(bars, grid, ranges, tuple(rng), rep).items():
+                view[b] = chords
+    return view
+
+
 def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
     """One ChartModel section per LETTER — the validated minimal folding,
     rendered by the UNCHANGED app_shell (Louis: the folding logic is right,
@@ -854,8 +879,8 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
     shows the sequence — the timeline that fait foi.
     """
     def sig(b):
-        return tuple((c["root"], c["q"], c["nc"]) for c in bars[b]) \
-            if 0 <= b < len(bars) else ()
+        return tuple((c["root"], c["q"], c["nc"]) for c in vue[b]) \
+            if 0 <= b < len(vue) else ()
 
     def t_at(b0, x):                      # grid time at fractional bar b0+x
         i = int(x)
@@ -884,6 +909,15 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
             if k not in by_letter:
                 order.append(k)
             by_letter.setdefault(k, []).append(tuple(r))
+    # LA FAÇADE (Louis, 2026-09-15) : tout ce qui suit lit une VUE de `bars`
+    # où, dans une lettre écrite ×N, les mesures rejetées par la pile
+    # montrent le consensus — le bloc, les fins iReal et la cascade, d'un
+    # seul tenant. La liste de l'appelant n'est pas touchée.
+    # `bars` (brut) sert au CLASSEMENT des passes (`_evidence`) ; `vue` à
+    # tout ce qui s'écrit. Classer sur la vue faisait gagner la passe qui
+    # venait d'être corrigée (elle gagne des attaques), et changeait de
+    # bloc affiché sans raison musicale (Cry Me A River, Uw5OLnN7UvM).
+    vue = facade_view(bars, grid, by_letter, fold_report)
     out = []
     _vus: dict[str, int] = {}
 
@@ -907,10 +941,6 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
         # depend on it. Only which pass is WRITTEN changes.
         _rep = fold_report.get(L) or {}
         b0, b1 = max(ranges, key=lambda r: pass_rank(bars, r, _rep, ranges))
-        # LA FAÇADE : les mesures rejetées de la passe écrite montrent le
-        # consensus (voir `facade`) ; `bars` reste intact.
-        vue = facade(bars, grid, ranges, (b0, b1), _rep) \
-            if not _rep.get("reason") else {}
         # Only a fold that was ACCEPTED may drive the display. Every refusal
         # in fold_letter_groups still records the period it was testing
         # ({"period": P, "reason": ...} at the "too few gated members",
@@ -924,8 +954,8 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
         # Under-fold, never over-fold: a refused fold writes its bars out.
         _rep = fold_report.get(L) or {}
         P = None if _rep.get("reason") else _rep.get("period")
-        cell = [vue.get(b, bars[b]) for b in range(b0, min(b1, b0 + P - 1) + 1)] if P \
-            else [vue.get(b, bars[b]) for b in range(b0, b1 + 1)]
+        cell = [vue[b] for b in range(b0, min(b1, b0 + P - 1) + 1)] if P \
+            else [vue[b] for b in range(b0, b1 + 1)]
         ref_tail = [sig(ranges[0][1] - k) for k in (1, 0)]
         div = next(((c0, c1) for c0, c1 in ranges[1:]
                     if [sig(c1 - k) for k in (1, 0)] != ref_tail), None)
@@ -984,15 +1014,15 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
             "spans": [[grid[c0], grid[min(len(grid) - 1, c1 + 1)]]
                       for c0, c1 in ranges],
             "barRanges": [[c0, c1] for c0, c1 in ranges],
-            "bars": [vue.get(b, bars[b]) for b in block_rng],
+            "bars": [vue[b] for b in block_rng],
             "barSpans": rows,
         })
     # ── LA FAÇON IREAL : une lettre = un seul bloc écrit ────────────────────
     # (Louis, 2026-09-14 : « tu ne peux pas afficher un A deux fois »).
     # Spec complète : docs/spec_affichage_sections.md.
     for blk in out:
-        _ireal_endings(blk, bars, grid)
-    return _ireal_cascade(out, bars, grid, fold_report)
+        _ireal_endings(blk, vue, grid)
+    return _ireal_cascade(out, vue, grid, fold_report)
 
 
 # ── LA FAÇON IREAL ─────────────────────────────────────────────────────────

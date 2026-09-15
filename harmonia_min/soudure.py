@@ -748,6 +748,15 @@ def sections_pour_chart(chart: dict, secs: list[dict],
         if b1 < b0:
             continue
         groupes.setdefault((str(s["label"]), b1 - b0), []).append((b0, b1))
+    # LA FAÇADE (Louis, 2026-09-15), même vue que `minimal_fold` : dans une
+    # lettre écrite ×N, les mesures rejetées par la pile montrent le
+    # consensus — bloc, fins iReal et cascade lisent la même liste. Le
+    # `bars` de l'appelant n'est pas touché. `fold_report` est celui du
+    # re-repli sur CE découpage (refold), pas `chart["fold"]` qui décrit
+    # l'ancien.
+    # `bars` (brut) classe les passes ; `vue` s'écrit — comme minimal_fold.
+    from harmonia.folding import facade_view
+    vue = facade_view(bars, grid, groupes, fold_report)
 
     out, vus = [], {}
     for (lab, _lg), occ in sorted(groupes.items(), key=lambda kv: kv[1][0][0]):
@@ -767,19 +776,15 @@ def sections_pour_chart(chart: dict, secs: list[dict],
         # passes ont en commun, pas ce qu'une seule a entendu de travers.
         # `fold_report` est celui du re-repli sur CE découpage (refold), pas
         # `chart["fold"]`, qui décrit l'ancien.
-        # La façade ne compare que des passes de MÊME longueur (`occ`), comme
-        # `minimal_fold` : la passe seule d'une autre longueur (A″ de 7
-        # mesures) est sa propre musique, elle s'écrit telle quelle.
-        from harmonia.folding import facade, pass_rank
+        from harmonia.folding import pass_rank
         rep = (fold_report or {}).get(lab) or {}
         b0, b1 = max(occ, key=lambda r: pass_rank(bars, r, rep, occ))
-        vue = facade(bars, grid, occ, (b0, b1), rep) if not rep.get("reason") else {}
         out.append({
             "id": "L" + lab + ("" if vus[lab] == 1 else str(vus[lab])),
             "label": lab, "tag": "", "reps": len(occ),
             "spans": [[grid[a], grid[min(b + 1, n)]] for a, b in occ],
             "barRanges": [[a, b] for a, b in occ],
-            "bars": [vue.get(b, bars[b]) for b in range(b0, b1 + 1)],
+            "bars": vue[b0:b1 + 1],
             "barSpans": [[[grid[b], grid[min(b + 1, n)]]]
                          for b in range(b0, b1 + 1)],
         })
@@ -792,8 +797,8 @@ def sections_pour_chart(chart: dict, secs: list[dict],
     # Pas de rapport de repli ici : la règle 3 y retombe sur le test préfixe.
     from harmonia_min.folding import _ireal_cascade, _ireal_endings
     for blk in out:
-        _ireal_endings(blk, bars, grid)
-    return _ireal_cascade(out, bars, grid, None)
+        _ireal_endings(blk, vue, grid)
+    return _ireal_cascade(out, vue, grid, None)
 
 
 def song_du_chart(chart: dict, audio_dir=None) -> dict | None:

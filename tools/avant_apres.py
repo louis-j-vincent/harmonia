@@ -120,8 +120,29 @@ def diff_song(old, new):
             deja.add(k_new)
             src = f" (écrit mes. {k_old + 1})" if k_old is not None and k_old != k_new else ""
             rows.append((k_new, ta + src, tb))
+        # LES FINS iREAL (1./2.) AUSSI (2026-09-15) : une façade qui rend les
+        # passes d'accord sur leur début peut faire apparaître — ou
+        # disparaître — des crochets de fin. Une ligne par bloc, posée à la
+        # dernière mesure de la première passe, texte « fins : … ».
+        fa, fb = _fins(sa), _fins(sb)
+        if fa != fb:
+            c0, c1 = (sb.get("barRanges") or sa.get("barRanges") or [[0, 0]])[0]
+            k = int(c1)
+            if k not in deja:
+                deja.add(k)
+                rows.append((k, "fins : " + (fa or "aucune"), "fins : " + (fb or "aucune")))
     rows.sort()
     return rows, grid
+
+
+def _fins(sec: dict) -> str:
+    e = sec.get("endings") or {}
+    parts = []
+    for v in e.get("variants") or []:
+        parts.append(f"[{','.join(str(p + 1) for p in v.get('passes') or [])}] "
+                     + " | ".join(" ".join(chord_txt(c) for c in bar) or "·"
+                                  for bar in v.get("bars") or []))
+    return " ; ".join(parts)
 
 
 CSS = """

@@ -522,3 +522,35 @@ Ce que ça ne résout PAS :
   chaque position, quels accords les passes minoritaires ont entendus
   (`rejetees` + première passe) ; il manque le champ dans le ChartModel et
   le rendu. À faire en sprint dédié.
+
+### Deuxième version de la façade, le même soir : une VUE, pas une passe
+
+Premier rendu vérifié dans l'app (Lazy Song) : le bloc lisait bien
+« B F# | E », mais le crochet de fin « 1. B G#m » remontait la même mesure
+rejetée — les fins iReal lisaient `bars` brut. La façade est donc devenue
+une vue (`folding.facade_view`) : une copie d'affichage de `bars` où, dans
+chaque lettre ×N, les mesures rejetées de CHAQUE passe montrent le
+consensus ; bloc, fins et cascade lisent cette vue ; le classement des
+passes reste sur le brut (classer sur la vue faisait gagner la passe qu'on
+venait de corriger et déplaçait le bloc de Cry Me A River et Uw5OLnN7UvM
+sans raison musicale).
+
+Rapport d'or contre l'état d'avant la façade : 3 morceaux changent de
+mesures (les trois verdicts, 4 mesures) et **6 blocs changent de fins
+iReal** — c'est la conséquence à arbitrer :
+- Lazy Song A, This Love B, She Will Be Loved C : les fins se simplifient
+  (les mesures rejetées ne divergent plus, seule la vraie dernière mesure
+  reste en crochet ; She Will Be Loved n'en a plus).
+- Cry Me A River D×8, Hot N Cold A×4, Uw5OLnN7UvM A×3 : des fins
+  APPARAISSENT. Avant, une mesure rejetée en DÉBUT de passe cassait
+  l'accord des passes sur leur tronc commun, et `_ireal_endings` (qui exige
+  un tronc ≥ 2 mesures) se taisait ; les dernières mesures divergeaient
+  déjà, personne ne le montrait. Cry Me A River : 5 groupes de fins pour 8
+  passes, sur une mesure gardée hors pile exprès (décodage de première
+  passe, passe par passe). C'est « sur-noter du bruit » (la règle des fins
+  du 2026-09-14) — loi candidate : pas de crochets quand les queues se
+  dispersent (plus de deux groupes, ou aucun groupe majoritaire). À
+  trancher sur la page.
+
+Page : http://100.89.209.63:7772/reports/avant_apres.html (8 morceaux ; les
+lignes « fins : … » sont les crochets).
