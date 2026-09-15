@@ -135,12 +135,32 @@ L'intervalle sépare parfaitement. `F/G`, `Db/Eb`, `E/Gb` sont des **sus** —
 une 9e à la basse est un son courant. Une **b9** à la basse est un frottement,
 et n'est en pratique jamais autre chose qu'une erreur de lecture.
 
-**Intervalles jouables** (depuis la fondamentale) : 0, 2, 3, 4, 5, 7, 10, 11.
-**Impossibles** : 1 (b9), 6 (b5), 8 (b13), 9 (6te).
+**Intervalles jouables** — uniquement ceux que les arbitrages soutiennent :
 
-> À noter : j'avais d'abord classé la 9e (+2) comme douteuse — c'était mon
-> a priori, pas une mesure, et il jetait trois vraies basses. L'oreille de
-> Louis l'a corrigé.
+| intervalle | arbitrages |
+|---|---|
+| **+2** 9e | `F/G`, `Db/Eb`, `E/Gb` → réels 3/3 |
+| **+3** m3 | `Eb-/Gb` → réel |
+| **+4** M3 | `D/Gb`, `G/B` → réels 2/2 |
+| **+7** 5te | `D/A`, `C/G` ×2 → réels |
+
+**Réfutés par l'oreille** : +1 b9 (`F-7/Gb`), +5 4te (`Eb/Ab`),
++11 7M (`E/Eb`, `Bb/A`).
+**Jamais soumis à l'oreille** : +6 b5, +8 b13, +9 6te, +10 b7 — traités comme
+impossibles par défaut.
+
+> **Deux fois le même piège, et la deuxième m'a coûté plus cher.** J'ai
+> d'abord classé la 9e (+2) comme douteuse : mon a priori, jamais mesuré, et
+> il jetait trois vraies basses. Louis l'a corrigé. Puis j'ai livré une table
+> contenant +5, +10 et +11 **sans les confronter aux arbitrages**, alors que
+> ceux-ci en refusaient deux. Résultat : la pipeline a écrit des `D/Db`
+> (7M à la basse), que Louis a vus en ouvrant la page avant/après. **Un
+> intervalle qui n'a pas été entendu ne s'écrit pas** — le défaut est
+> l'accord nu, pas le bénéfice du doute.
+
+Conséquence : la **branche 2 (sus)** est désarmée (`SUS_ENABLED = False`). Son
+seul appui direct, `Eb/Ab` (r10), a été jugé faux, et l'autre (c11) était un
+changement d'accord manqué.
 
 ---
 

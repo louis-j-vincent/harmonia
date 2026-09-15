@@ -28,16 +28,33 @@ from __future__ import annotations
 FLOOR = 30.0
 
 #: Intervalles, en demi-tons AU-DESSUS DE LA FONDAMENTALE DE L'ACCORD, qu'une
-#: vraie basse de slash peut former. Établi au 2e tour : une 9e à la basse
-#: (F/G, Db/Eb, E/Gb) est réelle 3 fois sur 3 — je l'avais classée douteuse,
-#: l'oreille de Louis a corrigé ; une b9 (F-7/Gb) est un frottement et n'est
-#: jamais autre chose qu'une erreur de lecture.
-PLAUSIBLE = frozenset({0, 2, 3, 4, 5, 7, 10, 11})
-#: Le complément : b9, b5, b13, 6te. Une basse à l'un de ces intervalles se
-#: jette, quelle que soit sa confiance — c'est l'intervalle qui décide, pas
-#: la confiance (le seul rejet juste du 2e tour était le PLUS confiant des
+#: vraie basse de slash peut former. UNIQUEMENT ceux que les arbitrages
+#: soutiennent, et rien d'autre :
+#:
+#:   +2  9e      F/G, Db/Eb, E/Gb  -> réels 3 fois sur 3
+#:   +3  m3      Eb-/Gb            -> réel
+#:   +4  M3      D/Gb, G/B         -> réels 2 fois sur 2
+#:   +7  5te     D/A, C/G x2       -> réels 3 fois sur 5
+#:
+#: CORRECTION DU 2026-09-15 AU SOIR. La première version de cette table
+#: contenait +5, +10 et +11, mis là par mon a priori musical et jamais
+#: vérifiés contre les arbitrages. Or ceux-ci les REFUSENT :
+#:   +11 (7M)     E/Eb et Bb/A jugés faux -> c'est ce qui écrivait « D/Db »,
+#:                que Louis a vu tout de suite en ouvrant la page ;
+#:   +5  (4te)    Eb/Ab jugé faux — le seul cas qui testait la famille sus ;
+#:   +10 (b7)     jamais arbitré, donc jamais écrit.
+#: Un intervalle qui n'a pas été entendu ne s'écrit pas : le défaut est
+#: l'accord nu, pas le bénéfice du doute.
+PLAUSIBLE = frozenset({0, 2, 3, 4, 7})
+#: Réfutés par l'oreille : b9 (F-7/Gb), 4te (Eb/Ab), 7M (E/Eb, Bb/A).
+REFUTED = frozenset({1, 5, 11})
+#: Jamais soumis à l'oreille : b5, b13, 6te, b7. Traités comme impossibles
+#: par défaut — à rouvrir si un arbitrage les valide un jour.
+UNTESTED = frozenset({6, 8, 9, 10})
+#: Tout ce qui ne s'écrit pas. C'est l'intervalle qui décide, pas la
+#: confiance (le seul rejet juste du 2e tour était le PLUS confiant des
 #: quatre, 32,4 % ; les trois vraies basses étaient à 24-28 %).
-IMPOSSIBLE = frozenset(range(12)) - PLAUSIBLE
+IMPOSSIBLE = REFUTED | UNTESTED
 
 #: La quinte est ASYMÉTRIQUE (Louis, 2026-09-15). Entre deux lectures de
 #: basse, +7 signifie « la seconde est la quinte de la première » : la
@@ -51,7 +68,14 @@ FUNDAMENTAL_ABOVE = 5
 
 #: Intervalle de la famille sus, au-dessus de la fondamentale de l'accord
 #: (Bb-7/Eb : Bb est la quinte d'Eb, donc Eb porte).
+#:
+#: BRANCHE DÉSARMÉE le 2026-09-15 au soir. Elle reposait sur c11 — qui s'est
+#: révélé être un changement d'accord manqué, pas un slash — et le seul
+#: arbitrage qui l'ait testée directement la refuse (r10, `Eb/Ab` jugé faux).
+#: `SUS_ENABLED = False` la laisse dans le code, lisible et réactivable, mais
+#: hors du chemin : la rallumer demande de nouveaux arbitrages.
 SUS_ABOVE_ROOT = 5
+SUS_ENABLED = False
 
 
 def decide_bass(root_pc: int, beats: list[dict], floor: float = FLOOR) -> tuple[int, str]:
@@ -77,9 +101,10 @@ def decide_bass(root_pc: int, beats: list[dict], floor: float = FLOOR) -> tuple[
     if best.get(root_pc, 0.0) >= floor:
         return root_pc, "fondamentale retrouvée"
 
-    sus_pc = (root_pc + SUS_ABOVE_ROOT) % 12
-    if best.get(sus_pc, 0.0) >= floor:
-        return sus_pc, "quarte (sus)"
+    if SUS_ENABLED:
+        sus_pc = (root_pc + SUS_ABOVE_ROOT) % 12
+        if best.get(sus_pc, 0.0) >= floor:
+            return sus_pc, "quarte (sus)"
 
     onset_pc = int(beats[0]["pc"]) % 12
     if (onset_pc - root_pc) % 12 in PLAUSIBLE:

@@ -13,7 +13,8 @@ import json
 
 import pytest
 
-from harmonia.bass_rules import (FLOOR, IMPOSSIBLE, PLAUSIBLE, decide_bass,
+from harmonia.bass_rules import (FLOOR, IMPOSSIBLE, PLAUSIBLE, REFUTED,
+                                 SUS_ENABLED, UNTESTED, decide_bass,
                                  is_decoration)
 from harmonia.settings import SETTINGS
 
@@ -41,9 +42,26 @@ def test_la_b9_a_la_basse_est_impossible():
     assert 1 in IMPOSSIBLE
 
 
-def test_les_intervalles_de_slash_courants_sont_jouables():
-    for iv in (3, 4, 5, 7, 10, 11):       # m3, M3, 4te/11, 5te, b7, 7M
+def test_seuls_les_intervalles_entendus_sont_jouables():
+    """Ce que les arbitrages soutiennent, et rien de plus : 9, m3, M3, 5te."""
+    for iv in (2, 3, 4, 7):
         assert iv in PLAUSIBLE, iv
+
+
+def test_les_intervalles_refutes_ne_sexecrivent_pas():
+    """+11 (E/Eb, Bb/A), +5 (Eb/Ab) et +1 (F-7/Gb) ont tous été jugés faux.
+    Le +11 est celui qui écrivait « D/Db » — repéré par Louis en ouvrant la
+    page avant/après."""
+    for iv in (1, 5, 11):
+        assert iv in IMPOSSIBLE, iv
+
+
+def test_un_intervalle_jamais_entendu_ne_sexecrit_pas():
+    """b5, b13, 6te, b7 n'ont jamais été soumis à l'oreille. Le défaut est
+    l'accord nu, pas le bénéfice du doute — c'est en donnant ce bénéfice à
+    +10 et +11 que la première table a écrit n'importe quoi."""
+    for iv in (6, 8, 9, 10):
+        assert iv in IMPOSSIBLE, iv
 
 
 def test_plausible_et_impossible_partitionnent_les_douze():
@@ -151,3 +169,18 @@ def test_second_tour(case):
         assert wrote_slash != expected_slash, (
             f"{case['id']} {case['oldLabel']} : Louis a dit que "
             f"{case['newLabel']} était FAUX, la règle l'écrit toujours")
+
+
+def test_la_branche_sus_est_desarmee():
+    """Son seul appui direct (r10, `Eb/Ab`) a été jugé faux, et c11 — l'autre
+    — s'est révélé être un changement d'accord manqué. La rallumer demande de
+    nouveaux arbitrages."""
+    assert SUS_ENABLED is False
+    beats = [{"pc": 0, "share": 10.0}, {"pc": 5, "share": 80.0}]   # C -> F sur un accord de C
+    bass_pc, why = decide_bass(0, beats)
+    assert bass_pc == 0 and "sus" not in why
+
+
+def test_refutes_et_jamais_entendus_sont_disjoints():
+    assert not (REFUTED & UNTESTED)
+    assert REFUTED | UNTESTED == IMPOSSIBLE
