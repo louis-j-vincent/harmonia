@@ -133,6 +133,47 @@ def pool_beats(arr: np.ndarray, times: np.ndarray,
     return out
 
 
+#: Attack window for `bass_pc_onset` (2026-09-15, "Ready" by PJ Morton,
+#: bars 1-8, premise check against the chord written by ear at each span --
+#: see docs/known_issues.md for the full trail). Pooling a chord's WHOLE span
+#: for the sounding bass keeps losing to the bass note's own fifth-harmonic
+#: (root+7 -- e.g. Ab^7 read as Eb, its 5th) and to neighbouring chord tones,
+#: both of which build up as the note rings and the pedal holds: 6/11 spans
+#: correct pooling the whole span, 11/11 reading only the first 150 ms (the
+#: 11th, a "Db" chord, was actually a Db/Eb slash -- Eb was always the right
+#: sounding bass, not a miss). n=1 song -- NOT corpus-validated, and not
+#: wired into the live pipeline yet; `pool_beats` above (whole-beat pooling)
+#: feeds the TRAINED root/quality heads and must stay untouched, since they
+#: were trained on that exact pooling -- swapping their input distribution
+#: would silently degrade them (CLAUDE.md: component swaps change more than
+#: the target metric).
+BASS_ONSET_S = 0.15
+
+
+def bass_pc_onset(arr: np.ndarray, times: np.ndarray, t0: float, t1: float,
+                  window_s: float = BASS_ONSET_S) -> np.ndarray:
+    """(12,) sounding-bass pitch-class distribution read at a span's ATTACK.
+
+    Same C-rolled, sum-normalised bass half as `pool_beats`, but averaged
+    over only the first `window_s` seconds of `[t0, t1)` instead of the whole
+    span -- see `BASS_ONSET_S` for why. Empty window falls back to the
+    nearest frame, same rule as `pool_beats`. Un-L2'd (sums to 1, a genuine
+    proportion of the attack's bass-register energy), unlike `pool_beats`'s
+    L2-normalised halves -- this is meant to be read directly (argmax, or
+    compared to a chord's root), not fed to the trained heads.
+    """
+    t1_eff = min(t1, t0 + window_s)
+    m = (times >= t0) & (times < t1_eff)
+    if not m.any():
+        j = int(np.argmin(np.abs(times - 0.5 * (t0 + t1_eff))))
+        seg = arr[j]
+    else:
+        seg = arr[m].mean(0)
+    bass = np.clip(np.roll(seg[:12], _ROLL_TO_C), 0, None)
+    s = bass.sum()
+    return bass / s if s > 1e-9 else np.full(12, 1 / 12, dtype=np.float32)
+
+
 # ── trained heads (root + quality cascade) ───────────────────────────────────
 
 class NNLS24Heads:

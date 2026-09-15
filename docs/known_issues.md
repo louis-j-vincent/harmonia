@@ -7,6 +7,31 @@ Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 
 ## Ouvert
 
+- **Basse détectée à l'attaque, pas en moyenne sur tout l'accord — 6/11 → 11/11
+  sur un morceau, PAS ENCORE branché au pipeline live** (2026-09-15, piste
+  ouverte par Louis : « dans le doute entre deux notes basses, si l'une est
+  la quinte de l'autre, on prend la fondamentale »). Cette règle-là, testée
+  telle quelle sur les 11 accords des mesures 1-8 de "Ready" (PJ Morton) :
+  6/11 → 4/11, elle casse plus qu'elle ne répare — l'intervalle de quinte
+  seul ne dit pas quel côté fait autorité (Ab^7 confirme l'intuition : Eb est
+  bien un harmonique parasite d'Ab ; mais Bb-7, Eb7, F7 cassent pour la
+  raison inverse, leur « quinte du dessus » est une vraie note jouée, une
+  quarte ascendante). Le vrai signal : le **timing**, pas l'intervalle — ne
+  lire que les 150 premières ms de chaque accord (l'attaque) au lieu de
+  moyenner tout le span : 10/11, et le 11e (un "Db" lu "Eb") était en fait un
+  Db/Eb — Eb était donc la bonne basse SONNANTE depuis le début, 11/11 réel.
+  Mécanisme : la fondamentale domine à l'attaque ; sa propre quinte
+  harmonique et les notes de passage voisines s'accumulent ensuite avec la
+  résonance/pédale.
+  Persisté : `harmonia.nnls_features.bass_pc_onset()` (+ `BASS_ONSET_S=0.15`),
+  testé unitairement (`tests/test_bass_pc_onset.py`, données synthétiques).
+  **Ce que ça NE résout PAS** : mesuré sur UN SEUL morceau (règle #5, CLAUDE.md)
+  — pas de banc corpus encore. Pas câblé dans `infer` ni dans `c["bass"]` du
+  chart live : `pool_beats()` (la version tout-le-span) reste inchangée et
+  continue seule à nourrir les têtes entraînées (root/quality), qui ont été
+  entraînées sur CE pooling précis — leur substituer l'attaque sans
+  réentraînement dégraderait ces têtes en silence (règle #6). Prochaine étape
+  avant tout branchement live : bench corpus (POP909 ou RWC, bass GT connue).
 - **Corrections « Set bar 1 » / Annotate invisibles d'un checkout à l'autre**
   (2026-09-15, investigation demandée par Louis). Pas un bug du code de
   propagation lui-même — vérifié ligne par ligne (`api_bar1` → `jobs.start_job`
