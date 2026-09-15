@@ -143,3 +143,108 @@ par `jobs.bar1_for` au ré-analyse ? (Neuf depuis le sprint 15.)
 Chaque bug confirmé = une page avant/après écoutable, pas un chiffre. Louis
 arbitre. Un chart qui change est le BUT, pas un risque — c'est la correction
 explicite du 2026-09-15.
+
+---
+
+# Résultats (2026-09-15, après-midi) — ce que les tests ont dit
+
+## A1 — Les caches sont VRAIS. L'audit a un sol.
+
+Recalcul à froid (traceur Beat This!, 5 réseaux musx, chroma NNLS) sur
+Stand By Me, This Love, Let It Be, comparé aux caches :
+
+| étage | Stand By Me | This Love | Let It Be |
+|---|---|---|---|
+| battues (347 / 322 / 279) | identiques, médiane 0,0 ms | identiques | identiques |
+| postérieures musx (max \|Δ\|) | 1e-6 | 0,07 sur 0,6 % des trames, **une trame de plus en queue** dans le cache, décalage temporel 0 | 6e-5 |
+| chroma NNLS (max \|Δ\|) | 0,02 sur 4 trames / 3822 | 2e-4 | 2e-4 |
+
+Verdict : aucune erreur de calibration cachée. Le « 44/44 identiques »
+validait du code posé sur des features fidèles.
+
+**A2** (par lecture) : sont en cache la sortie BRUTE du traceur (le
+nettoyage `_clean` s'applique à la lecture — un changement de loi de
+nettoyage n'est PAS masqué), les postérieures musx, le chroma, les sections
+songformer. Tout ce que `settings.py` décide (re-décodage, mesures, repli,
+tonalité) est recalculé à chaque cuisson : aucune constante n'est masquée.
+Seul un changement de code DANS songformer ou dans les réseaux le serait.
+
+## C1 — Latence : le modèle entend EN AVANCE, la recherche cherche en retard. BUG CONFIRMÉ.
+
+Mesure directe, sans décodeur : énergie de changement des postérieures
+(0,5·L1 entre trames voisines) corrélée à la grille de battues exacte du
+décodeur, retards −300…+300 ms, 46 morceaux.
+
+- **45 morceaux sur 46 : le pic est à −23 ou −46 ms** (une à deux trames
+  AVANT la battue), jamais après. Courbe moyenne du corpus : pic à −23 ms
+  (gain ×2,5), déjà retombée à ×1,1 à +70 ms.
+- La recherche de `musx.redecode` ne teste que 0…+280 ms. « 0 gagne
+  partout » n'est pas un bug de départage (H1 rejetée : la courbe est une
+  vraie courbe, monotone) — c'est **une recherche bornée du mauvais côté**,
+  bloquée au bord de sa grille. Le postulat de l'étape (« le modèle entend
+  en retard ») venait d'un autre traceur de battues ; avec Beat This!, il
+  est faux.
+- **Another Day (`dOQXg6rK86I`) : 280 ms choisi = un alias.** Sa courbe de
+  vraisemblance sur une grille symétrique est bimodale : vrai optimum à
+  **−80 ms**, second pic à +280 ms, qui est −163 ms décalé d'une période
+  de battue (443 ms). La recherche, interdite de négatif, a pris l'alias.
+  Conséquence dans le chart : **99 battues sur 404 portent un autre accord
+  qu'à L=0, dont 78 portent l'accord de la battue SUIVANTE** — les accords
+  sont écrits un temps trop tôt sur un quart du morceau. C'est le morceau
+  où Louis « a vu la grille glisser ».
+- `rec_1787243982182` (enregistrement micro, 28 battues) : 120 ms choisi,
+  courbe plate (gain max ×1,19) — du bruit, pas une mesure.
+- Sur This Love et Stand By Me, L=−40 ms et L=0 donnent le MÊME chart
+  (0 battue sur 321 / 346 ne change).
+
+**Correction candidate** : latence fixée à 0, recherche supprimée (7
+Viterbi de moins par morceau, plus d'alias possible). Page avant/après :
+Another Day change, le reste est identique. Louis arbitre.
+
+## C2 — Stand By Me : le N.C. vient du RENDU, pas du modèle. BUG CONFIRMÉ.
+
+Le décodeur (L=0) dit A / A / F#m / F#m / D / E / A / A sur les couplets
+chantés (mesures 30-69, P(accord) 0,8-0,97, P(N.C.) 0,00). Le chart écrit
+N.C. sur 36 mesures sur 86.
+
+Mécanisme : la section A a 6 occurrences (mes. 6-13, 14-21, 30-37, 38-45,
+54-61, 62-69). Les deux premières sont l'intro basse + voix, où musx
+n'entend aucun accord (P(N) 0,5-0,9 — limite du modèle, pas un bug). Le
+repli empile les 4 couplets et réécrit bien le consensus dans LEURS
+mesures. Mais **le bloc affiché pour la lettre est `occ[0]`, la première
+occurrence chronologique** (`harmonia_min/soudure.py::sections_pour_chart`,
+`"bars": bars[b0:b1+1]` avec `b0, b1 = occ[0]`) — celle que la pile a
+elle-même rejetée (mesure 6 = variante). Résultat : 5 N.C. sur 8 mesures
+affichées, ×6.
+
+**Le correctif existe déjà — sur l'autre chemin.** `folding.minimal_fold`
+choisit depuis le 2026-08-10 « la passe qui porte le plus d'attaques
+réelles » (`_evidence`), motivé par CE morceau (« je vois plein d'accords,
+et sur le chart j'ai juste des NC partout »). Mais les morceaux à
+découpage validé à la main (20 sur 44) passent par `sections_pour_chart`,
+qui a gardé l'ancienne loi. Deux chemins, deux lois — l'erreur n° 4 de la
+liste du refactor, encore là. Et `sections_pour_chart` n'a jamais été
+porté : `tools/golden.py` l'importe depuis `harmonia_min` même pour le
+moteur `harmonia` (à régler au sprint 22).
+
+Corpus (46 charts) : **40 sections repliées sur 112 affichent une première
+passe que la pile a rejetée** (au moins une mesure « variante » dedans).
+Stand By Me est le cas extrême (5 N.C.), pas le seul.
+
+**Correction candidate** : une seule loi — `sections_pour_chart` choisit la
+passe par `_evidence` comme `minimal_fold`. Page avant/après sur les 20
+morceaux à découpage manuel. Louis arbitre.
+
+## B1 — La grille : 3 charts à ré-écouter, pas de bug de code trouvé
+
+| morceau | tempo | signe | verdict |
+|---|---|---|---|
+| `autumn_leaves` | 187,5 | 282 mesures, **18 lettres** dont 9 sections de 2 mesures, cohérence des downbeats 52 % | chart cassé ; pas de cache musx (morceau « froid ») — à ré-analyser |
+| `autumn_leaves_easy_jazz_piano…` | 32,3 en 3/4 | 31 battues, 10 mesures, 2,5 accords/mesure | piano rubato : la grille n'a pas de sens ici |
+| `fd02pGJx0s0` | 157,9 | cohérence 65 %, pas de tempo rigide trouvé | octave suspecte (79 ?) — à l'oreille |
+| `Ju8Hr50Ckwk` | 120 en **3/4** | cohérence 76 % | métrique à confirmer à l'oreille |
+| Come Away With Me | 80 en **3/4** | cohérence 100 % | probablement juste, à confirmer |
+| `h_D3VFfhvs4` | 117,7 | refusé par `check_grid` (76 % < 85 %) | connu, exclu du rapport d'or |
+
+Rien de systématique : 39 morceaux sur 46 ont une grille rigide posée avec
+≥ 85 % de battues dedans, couverture ≥ 95 %.
