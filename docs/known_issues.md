@@ -26,6 +26,13 @@ Détail et mesures : `docs/audit_2026-09-15_plan.md`.
   Me : F affiché, D-7 en suggestion). La pile connaît déjà les accords
   minoritaires par position (`rejetees` + première passe) ; il manque le
   champ dans le ChartModel et le rendu. Sprint dédié.
+- **Les crochets de fin 1./2. notent du bruit dès que le tronc s'accorde** :
+  les dernières mesures de chaque passe sont gardées hors pile exprès et
+  décodées passe par passe ; `_ireal_endings` en fait autant de fins que
+  de groupes (vu en lisant les fins sur la vue de façade : Cry Me A River
+  5 fins / 8 passes ; et Lazy Song « 1. B G#m » remonte une mesure
+  rejetée). Loi candidate « pas de crochets quand les queues se
+  dispersent » — page dédiée à faire, pas posée.
 - **Yesterday A : E- écrit, Eo entendu par Louis.** Consensus E- à 0,36
   contre Eo 0,14 — qualité d'accord du modèle, pas du repli. Annotation.
 - `test_minimal_fold_separe_les_longueurs_dune_meme_lettre` échoue à HEAD
@@ -178,11 +185,12 @@ trouvaille est vérifiée contre le code vivant et notée ici.
   affichait « B Ab- » ×6, Every Breath « Ab » ×7, Yesterday « E- D-/A » ×4 :
   le consensus était juste, la passe affichée portait une mesure rejetée
   par la pile qui gardait son propre décodage. `folding.facade_view`, une
-  vue d'affichage lue par les deux chemins de rendu (bloc, fins iReal,
-  cascade) ; `bars` intact ; jamais sur une passe seule ni à deux.
-  Conséquence à arbitrer : des fins iReal apparaissent sur Cry Me A River
-  (5 groupes / 8 passes), Hot N Cold, Uw5OLnN7UvM — loi candidate « pas
-  de crochets quand les queues se dispersent ».
+  vue d'affichage lue par les deux chemins de rendu pour le BLOC écrit ;
+  les fins iReal et la cascade restent sur le brut (lues sur la vue,
+  elles exposaient le bruit des dernières mesures — Louis : « ça a
+  empiré tous les morceaux », retiré le soir même) ; `bars` intact ;
+  jamais sur une passe seule ni à deux. 4 mesures changent, les trois
+  verdicts.
 
 - **La tenue qui ouvre une boucle repliée n'était jamais écrite
   (2026-09-15, Louis sur Let It Be : « le premier accord (C) n'est jamais

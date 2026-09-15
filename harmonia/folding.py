@@ -879,8 +879,8 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
     shows the sequence — the timeline that fait foi.
     """
     def sig(b):
-        return tuple((c["root"], c["q"], c["nc"]) for c in vue[b]) \
-            if 0 <= b < len(vue) else ()
+        return tuple((c["root"], c["q"], c["nc"]) for c in bars[b]) \
+            if 0 <= b < len(bars) else ()
 
     def t_at(b0, x):                      # grid time at fractional bar b0+x
         i = int(x)
@@ -1020,9 +1020,19 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
     # ── LA FAÇON IREAL : une lettre = un seul bloc écrit ────────────────────
     # (Louis, 2026-09-14 : « tu ne peux pas afficher un A deux fois »).
     # Spec complète : docs/spec_affichage_sections.md.
+    # Les fins iReal et la cascade lisent le BRUT, comme avant la façade
+    # (Louis, 2026-09-15, sur la page avant/après : « j'ai l'impression que
+    # ça a empiré tous les morceaux » — lues sur la vue, les fins 1./2.
+    # apparaissaient sur Cry Me A River (5 groupes / 8 passes), Hot N Cold,
+    # Uw5OLnN7UvM : les passes s'accordant enfin sur leur tronc, le
+    # mécanisme des fins exposait le bruit des dernières mesures gardées
+    # hors pile). Ce que ça laisse : une mesure rejetée peut encore
+    # remonter dans un crochet (Lazy Song « 1. B G#m ») — question à part,
+    # avec la loi candidate « pas de crochets quand les queues se
+    # dispersent », dans known_issues.
     for blk in out:
-        _ireal_endings(blk, vue, grid)
-    return _ireal_cascade(out, vue, grid, fold_report)
+        _ireal_endings(blk, bars, grid)
+    return _ireal_cascade(out, bars, grid, fold_report)
 
 
 # ── LA FAÇON IREAL ─────────────────────────────────────────────────────────

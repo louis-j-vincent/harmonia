@@ -796,9 +796,12 @@ def sections_pour_chart(chart: dict, secs: list[dict],
     # peuvent pas avoir deux façons d'écrire les lettres.
     # Pas de rapport de repli ici : la règle 3 y retombe sur le test préfixe.
     from harmonia_min.folding import _ireal_cascade, _ireal_endings
+    # Fins iReal et cascade sur le BRUT, comme minimal_fold (voir le
+    # commentaire là-bas : lues sur la vue, les fins exposaient le bruit
+    # des dernières mesures — Louis, 2026-09-15).
     for blk in out:
-        _ireal_endings(blk, vue, grid)
-    return _ireal_cascade(out, vue, grid, None)
+        _ireal_endings(blk, bars, grid)
+    return _ireal_cascade(out, bars, grid, None)
 
 
 def song_du_chart(chart: dict, audio_dir=None) -> dict | None:

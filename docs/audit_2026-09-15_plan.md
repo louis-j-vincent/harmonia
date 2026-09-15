@@ -554,3 +554,20 @@ iReal** — c'est la conséquence à arbitrer :
 
 Page : http://100.89.209.63:7772/reports/avant_apres.html (8 morceaux ; les
 lignes « fins : … » sont les crochets).
+
+### Troisième version, sur la réaction de Louis : « pas sûr que ce soit une réussite… j'ai l'impression que ça a empiré tous les morceaux »
+
+Ce qu'il voyait : pas les 4 mesures des verdicts, mais les crochets de fin
+1./2. apparus ou changés sur cinq morceaux (Cry Me A River : 5 fins pour 8
+passes). Une conséquence non demandée, qui ressemble à une dégradation à
+l'écran. Retirée : les fins iReal et la cascade relisent le BRUT, comme
+avant ; seule la façade des mesures rejetées reste, dans le bloc écrit.
+Rapport d'or contre l'état d'avant la façade : **4 mesures, 3 morceaux, les
+trois verdicts et rien d'autre** ; aucun crochet ne change.
+
+Ce que ça laisse ouvert, à part : une mesure rejetée peut encore remonter
+dans un crochet (Lazy Song « 1. B G#m » — c'était déjà le cas avant) ; et
+les dernières mesures gardées hors pile, décodées passe par passe, font
+autant de fins que de passes dès que le tronc s'accorde. Loi candidate «
+pas de crochets quand les queues se dispersent » — à poser avec Louis sur
+une page dédiée, pas en passant.
