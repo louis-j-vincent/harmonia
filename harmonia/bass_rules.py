@@ -91,11 +91,19 @@ def is_decoration(onset_pc: int, cand_pc: int, *, returns: bool) -> bool:
     """La seconde lecture décore-t-elle la première, ou porte-t-elle ?
 
     Sert à départager DEUX LECTURES DE BASSE d'un même accord, pas à choisir
-    ce qu'on écrit (c'est `decide_bass`). Le retour de la première note
-    (A-B-A) est un indice de décoration — SAUF sur une quarte, où les
-    arbitrages disent l'inverse 4 fois sur 4 : quand la basse alterne entre
-    une note et sa quinte, la fondamentale porte, qu'elle tombe sur le temps
-    fort ou non.
+    ce qu'on écrit (c'est `decide_bass`, qui n'appelle pas cette fonction).
+
+    ATTENTION, son socle de preuve s'est effondré le 2026-09-15 au soir.
+    L'exception « le retour ne démonte pas une quarte » reposait sur quatre
+    arbitrages (c04, c05, c11, c12) ; trois d'entre eux ont le candidat ÉGAL
+    à la fondamentale de l'accord et sont donc déjà expliqués par
+    `decide_bass` branche 1, et le quatrième (c11) s'est révélé être un
+    changement d'accord manqué, pas une basse de slash (Ready mesure 49 :
+    Bb-7 puis Eb6b9 — voir `state/human/bass_verdicts.json`, resolutions.o2).
+    Rien ne la contredit, mais plus rien ne la soutient seule : l'asymétrie
+    qu'elle encode vient de l'autre sens (voir DECORATIVE_ABOVE ci-dessus),
+    qui lui est solidement mesuré. À re-arbitrer sur des cas neufs avant de
+    s'en servir pour décider quoi que ce soit.
     """
     iv = (int(cand_pc) - int(onset_pc)) % 12
     if iv in (DECORATIVE_ABOVE, DECORATIVE_OCTAVE):

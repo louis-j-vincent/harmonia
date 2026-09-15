@@ -72,17 +72,26 @@ dessus » est une vraie quarte ascendante jouée — un des mouvements de basse
 les plus courants. L'intervalle seul ne distingue pas les deux ; la direction,
 si.
 
-## Règle d'or 2 — le retour ne démonte pas une quarte
+## Règle d'or 2 — le retour ne démonte pas une quarte *(socle effondré)*
 
 Si la basse de départ **revient** après une autre note (A‑B‑A), c'est
 normalement le signe que B décore. **Sauf si B est à une quarte** : 4
-arbitrages sur 4 (c04, c05, c11, c12) disent que c'est B qui porte, même
-quand A retombe sur le temps fort. Une alternation entre une note et sa
-quinte est une seule harmonie, celle de la fondamentale — peu importe
-laquelle tombe sur le temps 1.
+arbitrages (c04, c05, c11, c12) disaient que c'est B qui porte, même quand A
+retombe sur le temps fort.
 
-Mesuré : lever ce veto sur les quartes fait passer la règle de **10/17 à
-14/17** sur le 1er tour.
+> **Révision du 2026-09-15, au soir.** Cette règle n'a plus de preuve
+> propre. Trois de ses quatre appuis (c04, c05, c12) ont le candidat **égal à
+> la fondamentale de l'accord** : la règle d'or 3 les explique déjà, sans rien
+> savoir du retour. Le quatrième, c11, s'est révélé être un **changement
+> d'accord manqué** (voir « Les deux cas ouverts », plus bas). Rien ne
+> contredit la règle 2 — mais plus rien ne la soutient seule, et la procédure
+> livrée ne l'utilise pas (`is_decoration` n'est appelée nulle part).
+> À re-arbitrer sur des cas neufs avant de s'en servir.
+
+Ce qui reste solide, c'est l'asymétrie elle-même, mesurée dans l'autre sens
+(règle d'or 1) : lever le veto de retour sur les quartes faisait passer le
+1er tour de **10/17 à 14/17** — mais ce gain est entièrement repris par la
+règle 3, qui fait 16/17 toute seule.
 
 ## Règle d'or 3 — la fondamentale de l'accord tranche mieux que toutes les mesures
 
@@ -135,6 +144,31 @@ et n'est en pratique jamais autre chose qu'une erreur de lecture.
 
 ---
 
+## Les deux cas ouverts, tranchés — et aucun n'était une question de basse
+
+**Ready, mesure 3** (`o1`, ex-`r10`). Le chart écrit `Eb`, Louis tranche
+**`Ab^7`**. L'étiquette d'accord était fausse, pas la basse : une fois
+l'accord juste, aucun slash n'est nécessaire, et la règle avait raison de
+retirer le `/Ab` sur l'accord qu'on lui donnait.
+→ **La règle de basse ne peut être juste que si l'accord l'est.**
+
+**Ready, mesure 49** (`o2`, ex-`c11`). Le chart écrit un seul `Bb-7` de
+123,553 s à 128,012 s — 4,5 s, **à cheval sur deux mesures**. Louis entend
+**deux accords : `Bb-7` puis `Eb6b9`**. Ce n'était donc pas un slash mais un
+**changement d'accord manqué**. Ce que disent les mesures :
+
+* musx tient `Bb-` de **73 % à 95 %** sur toute la durée et ne voit jamais
+  `Eb` (2,3 % au mieux) — le détecteur d'accords est **aveugle** à ce
+  changement ;
+* la lecture de basse, elle, pose `Eb` sur le **temps 1 de la seconde mesure**
+  (125,48 s, 31,7 %) — c'est le seul signal qui existe.
+
+→ **L'inverse de la règle d'or 3.** Là, c'est la basse qui voit ce que
+l'accord rate. Les deux sens existent, et le règlement ne couvre aujourd'hui
+que le premier.
+
+---
+
 ## Ce que ces règles ne règlent PAS
 
 * **Le corpus est de 6 morceaux.** Les tables tiennent sur 351 accords et 33
@@ -146,14 +180,13 @@ et n'est en pratique jamais autre chose qu'une erreur de lecture.
 * **`pool_beats` reste intact** et nourrit seul les têtes entraînées
   root/quality — leur changer leur pooling d'entrée sans réentraînement les
   dégraderait en silence (CLAUDE.md, règle #6).
-* **Deux arbitrages restent ouverts** : c11 (`Bb-7/Eb`, vraie basse sans être
-  la fondamentale — rattrapée par la branche sus, mais c'est la seule
-  exception connue de la règle d'or 3) et r10, où Louis valide `Eb` nu alors
-  qu'il avait dit ailleurs que cet accord est un `Ab^7` ≈ `Eb/Ab` : c'est
-  probablement l'étiquette d'accord qu'il faut corriger là, pas la basse.
-* **La basse mobile n'est pas traitée.** 16 accords sur 20 ont une basse qui
-  bouge à l'intérieur de l'accord ; on écrit un seul symbole. Découper
-  l'accord là où la basse change franchement reste à faire.
+* **La basse mobile n'est pas traitée, et c'est par là que ça casse.**
+  16 accords sur 20 ont une basse qui bouge à l'intérieur de l'accord ; on
+  écrit un seul symbole. Ready mesure 49 montre le cas limite : ce qu'on
+  prenait pour une alternance de basse était deux accords. Découper l'accord
+  là où la basse change franchement — et se servir de la basse comme
+  détecteur de frontière quand le modèle d'accords n'en voit pas — est la
+  suite directe de ce travail.
 
 ## Comment refaire la mesure
 

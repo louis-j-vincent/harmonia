@@ -58,6 +58,19 @@ Détail et mesures : `docs/audit_2026-09-15_plan.md`.
   intervalle impossible, zéro slash ajouté. **Ne résout pas** : 6 morceaux
   seulement ; rien dans `pipeline.py` ne l'appelle ; la basse mobile
   (16 accords sur 20 en ont une) reste écrite avec un seul symbole.
+  **Révisions du soir même**, après arbitrage des deux cas restés ouverts :
+  la règle (2) a perdu sa preuve propre (3 de ses 4 appuis sont déjà
+  expliqués par la règle (3), le 4e était mal classé) — conservée mais
+  marquée, et non utilisée par la procédure livrée. Et surtout, les deux cas
+  ouverts n'étaient PAS des questions de basse : Ready mesure 3 est une
+  **étiquette d'accord fausse** (Louis : `Ab^7`, pas `Eb`) — la règle de
+  basse ne peut être juste que si l'accord l'est ; Ready mesure 49 est un
+  **changement d'accord manqué** (Louis : `Bb-7` puis `Eb6b9`, un seul accord
+  écrit sur 4,5 s à cheval sur deux mesures). Sur ce dernier, musx tient
+  `Bb-` de 73 % à 95 % et ne voit jamais `Eb` (2,3 % max) : **c'est la
+  lecture de basse qui pose la frontière que le détecteur d'accords rate**,
+  exactement l'inverse de la règle (3). Piste suivante identifiée : se servir
+  de la basse comme détecteur de frontière d'accord.
 - **Basse détectée à l'attaque, pas en moyenne sur tout l'accord — 6/11 → 11/11
   sur un morceau, PAS ENCORE branché au pipeline live** (2026-09-15, piste
   ouverte par Louis : « dans le doute entre deux notes basses, si l'une est

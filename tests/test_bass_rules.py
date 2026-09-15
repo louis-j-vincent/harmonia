@@ -64,9 +64,31 @@ def test_la_quarte_au_dessus_porte():
 
 
 def test_le_retour_ne_demonte_pas_une_quarte():
-    """c04, c05, c11, c12 : 4 arbitrages sur 4 disent que la quarte porte
-    MÊME quand la basse de départ revient après elle."""
+    """Comportement conservé, mais son socle a fondu (2026-09-15 au soir) :
+    voir `test_les_quartes_avec_retour_sont_deja_expliquees_par_la_regle_3`."""
     assert is_decoration(PC["Bb"], PC["Eb"], returns=True) is False
+
+
+def test_les_quartes_avec_retour_sont_deja_expliquees_par_la_regle_3():
+    """Les 4 arbitrages qui fondaient cette exception ne la fondent plus.
+
+    Trois (c04, c05, c12) ont le candidat ÉGAL à la fondamentale de l'accord
+    — la branche 1 de `decide_bass` les explique sans rien savoir du retour.
+    Le quatrième (c11) s'est révélé être un changement d'accord manqué.
+    Ce test le fige : si un futur cas vient VRAIMENT soutenir l'exception,
+    il faudra l'ajouter aux arbitrages, et ce test devra être revu.
+    """
+    d = json.loads(VERDICTS.read_text(encoding="utf-8"))
+    quartes = [c for c in d["round1"]["cases"]
+               if c["interval"] == 5 and c["returns"] and c["verdict"] == "bass"]
+    assert {c["id"] for c in quartes} == {"c04", "c05", "c11", "c12"}
+    for c in quartes:
+        if c["id"] == "c11":
+            assert c.get("reclassified"), "c11 doit rester marqué comme mal segmenté"
+        else:
+            assert c["candIsChordRoot"], (
+                f"{c['id']} ne soutient l'exception que s'il n'est PAS déjà "
+                f"expliqué par la fondamentale de l'accord")
 
 
 def test_le_retour_demonte_le_reste():
@@ -88,7 +110,9 @@ def test_premier_tour(case):
     predicted_bass = cand_is_root and case["meanShare"] >= FLOOR
     truth = case["verdict"] == "bass"
     if case["id"] == "c11":
-        pytest.xfail("Bb-7/Eb : vraie basse sans être la fondamentale (famille sus)")
+        pytest.xfail("Ready mes. 49 : ce n'est pas une basse de slash mais un "
+                     "changement d'accord manqué (Bb-7 puis Eb6b9, Louis "
+                     "2026-09-15) — hors du domaine de cette règle")
     assert predicted_bass == truth, (
         f"{case['id']} {case['chord']} {case['onset']}->{case['cand']} "
         f"part {case['meanShare']}% : la règle dit "

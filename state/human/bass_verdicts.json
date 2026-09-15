@@ -169,7 +169,8 @@
     "meanShare": 24.9,
     "durFrac": 0.29,
     "durVsLongest": 0.41,
-    "verdict": "bass"
+    "verdict": "bass",
+    "reclassified": "changement d'accord manqué (voir resolutions.o2), pas une vraie basse de slash"
    },
    {
     "id": "c12",
@@ -602,5 +603,25 @@
     "verdict": "ok"
    }
   ]
+ },
+ "resolutions": {
+  "_": "Les deux cas restés ouverts, tranchés par Louis le 2026-09-15. Tous deux se sont révélés N'ÊTRE PAS des questions de basse.",
+  "o1": {
+   "sourceCase": "r10",
+   "song": "Ready (PJ Morton)",
+   "bar": 3,
+   "chartWrote": "Eb",
+   "louis": "Ab^7",
+   "lesson": "L'étiquette d'accord était fausse, pas la basse. Une fois l'accord juste (Ab^7), aucun slash n'est nécessaire — la règle avait raison de retirer le /Ab sur l'accord qu'on lui donnait. La règle de basse ne peut être juste que si l'accord l'est."
+  },
+  "o2": {
+   "sourceCase": "c11",
+   "song": "Ready (PJ Morton)",
+   "bar": 49,
+   "chartWrote": "Bb-7 (123.553 -> 128.012 s, à cheval sur deux mesures)",
+   "louis": "deux accords : Bb-7 puis Eb6b9",
+   "splitAt": 125.48,
+   "lesson": "Ce n'était pas un slash mais un CHANGEMENT D'ACCORD manqué. musx tient Bb- de 73 % à 95 % sur toute la durée et ne voit jamais Eb (max 2,3 %) ; c'est la lecture de basse qui pose Eb sur le temps 1 de la seconde mesure (31,7 %). Ici la basse voit ce que le détecteur d'accords rate — l'inverse de la règle d'or 3."
+  }
  }
 }
