@@ -376,3 +376,29 @@ grille), re-geler la baseline, republier la bibliothèque, redémarrer :7772.
 B3 levées jetées · C3 qualités contre iReal · D1 (réparer
 `tools/sections_bench`) · D2 pile contaminée · E1/E2 tonalité · F1–F3
 plomberie.
+
+## B3 · D2 · F1 · F3 — testés, rien de grave
+
+- **B3, levées jetées** : 0 morceau sur 44 ne perd d'accord de levée
+  (`bars: shed … clamped pickup chords` n'apparaît jamais).
+- **D2, consensus contre accord sûr** : sur les 44, **5 mesures** où un
+  accord de première passe à confiance ≥ 0,70 voit sa fondamentale réécrite
+  par le consensus du repli. À écouter, pas de correctif proposé (c'est la
+  loi du repli que Louis a validée, et le cas est rare) :
+  `0DdCoNbbRvQ` B mes. 26 D-7(0,93) → G7 ; Easy On Me B mes. 15 et 36
+  F D-(0,75) → F ; `oIv_Y2RPQ_A` C mes. 44 et 80 Gb(0,87) → (rien, porté).
+- **F1, contrat brut/final** : le générateur mute bien l'objet brut après
+  son `yield` (44/44 — c'est le contrat), et `server/jobs.py:227` sérialise
+  sur disque À CHAQUE yield avant de reprendre : le fichier brut n'a jamais
+  de sections repliées. Seule réserve : `jobs.py:242` garde une référence
+  `raw_model=model` à l'objet qui sera muté — à ne pas lire après la reprise.
+- **F3, marque « Set bar 1 »** : `jobs.bar1_for` ne lit que
+  `state/human/marks/<stem>.json` (jamais le champ `bar1` du chart), et
+  `tools/golden.py` passe par le même dossier. Les 4 marques existantes sont
+  relues (vérifié B2).
+- En passant : `min_autumn_leaves` reste froid parce que SongFormer se fait
+  tuer par l'OS sur ce fichier de 6 min (déjà dans known_issues).
+
+Non testés : C3 (qualités contre iReal — un seul standard dans la
+bibliothèque), D1 (`tools/sections_bench` à réparer d'abord), E1/E2
+(tonalité), F2 (annotations à travers une ré-analyse, chemin vivant).
