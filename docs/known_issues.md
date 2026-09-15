@@ -18,7 +18,10 @@ Détail et mesures : `docs/audit_2026-09-15_plan.md`.
   (54 %) serait re-calé d'une demi-mesure — son oreille tranche.
 - **5 mesures où le consensus du repli réécrit un accord de 1re passe sûr
   (c ≥ 0,70)** : `0DdCoNbbRvQ` B mes. 26 (D-7 → G7), Easy On Me B mes. 15 et
-  36 (F D- → F), `oIv_Y2RPQ_A` C mes. 44 et 80 (Gb → porté). À écouter.
+  36 (F D- → F)… — recalculé contre la bibliothèque servie : **8 mesures**,
+  page d'arbitrage `python -m tools.arbitrage_repli` →
+  http://100.89.209.63:7772/reports/arbitrage_repli.html (entendu ici /
+  écrit / les autres passages, écoute et verdicts copiables).
 - `test_minimal_fold_separe_les_longueurs_dune_meme_lettre` échoue à HEAD
   depuis la cascade iReal (le B de 4 replié comme préfixe du B de 8).
 - `sections_pour_chart` vit encore dans `harmonia_min/soudure.py` ; golden
