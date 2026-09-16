@@ -25,10 +25,31 @@ Détail et mesures : `docs/audit_2026-09-15_plan.md`.
   au doigt tombe à côté. READY, qui a une marque « mesure 1 » posée à la main,
   ne souffre pas de ça — c'est toute la différence entre les deux.
   **Contournement, qui marche** : Outils → « Caler la mesure 1 » sur 42,14 s.
-  **Piste pour l'automatiser, pas encore essayée** : refuser une mesure 1
-  avant que l'énergie du morceau ne se soit installée (ici 42,0 s, mesurable
-  en deux lignes sur l'audio) — le traqueur, lui, n'a aucune raison de savoir
-  qu'un fondu n'est pas le début.
+
+  **Candidate pour l'automatiser, mesurée le 2026-09-16, pas encore une
+  règle** : `tools/debut_page.marche_energie`. La bonne question n'est pas
+  « à quelle seconde » mais « à quelle LIGNE DE MESURE » — les lignes du
+  traqueur sont justes, il ignore seulement laquelle est la première. Pour
+  chaque ligne des 40 premières mesures, le rapport entre l'énergie des
+  4 secondes qui suivent et des 4 secondes qui précèdent ; on retient le
+  maximum. Sur les 45 morceaux de la bibliothèque : 33 gardent la mesure 1
+  du traqueur, 12 la verraient bouger. Le rapport sépare nettement deux
+  populations — Hot N Cold ×43, The Lazy Song ×27,8, Gbo7Qqlixt8 ×8,1,
+  **Sam Smith ×4,0 à 42,14 s (exactement la valeur trouvée à la main)** d'un
+  côté ; Stand By Me ×1,4, Autumn Leaves ×1,5, Chasing Pavements ×1,7,
+  READY ×1,8 de l'autre, tous trouvés au milieu d'un refrain — c'est le
+  groupe qu'une règle ne doit PAS suivre. Le seuil qui les sépare est
+  précisément ce que la page va faire trancher à Louis.
+  **Ce que ça ne résout pas** : une grille dont les lignes sont elles-mêmes
+  mal placées (h_D3VFfhvs4 : trous de 12 et 42 s dans `barGrid`). Aucune
+  ligne n'est alors bonne et le rapport ne le dit pas.
+
+  **La page d'arbitrage** : `python -m tools.debut_page` →
+  `/reports/debut_morceaux.html`. Énergie + lignes de mesure + la mesure 1
+  actuelle + ma proposition ; Louis désigne une ligne du doigt ou au pas de
+  mesure, écoute, et tranche (bonne / ailleurs / aucune ligne ne tombe juste
+  / je ne sais pas). Les verdicts vivent dans `localStorage` et se copient en
+  bloc ; **la page n'écrit jamais dans `state/human/marks/`**.
 - **Le re-calage harmonique de la phase (`bars._phase_correction`) ne se
   déclenche sur aucun des 44** (seuils 0,55 / 0,15 jamais satisfaits
   ensemble). Sur 2 des 3 marques « Set bar 1 » de Louis, le vote des accords
