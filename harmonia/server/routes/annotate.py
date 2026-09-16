@@ -77,10 +77,10 @@ def propagation_retiree(file):
 # cloner.
 
 def _fixkey(bar, beat) -> tuple:
-    """Même clé que `harmonia_min.annotations._key`, dupliquée ici plutôt
-    qu'importée : ce module est en cours de suppression (tâche concurrente,
-    2026-09), autant ne pas dépendre d'un symbole privé qui peut disparaître
-    sans préavis."""
+    """Même clé que `harmonia.annotations._key`, dupliquée ici plutôt
+    qu'importée : c'est un symbole privé d'un autre module, pas une
+    convention partagée — mieux vaut la refaire à l'identique que de
+    dépendre d'un détail interne qui peut changer sans préavis."""
     try:
         return int(bar), round(float(beat or 0), 3)
     except (TypeError, ValueError):
