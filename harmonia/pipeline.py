@@ -209,8 +209,10 @@ def _write_sounding_bass(bars, probs, arr, times) -> int:
     Reste donc UNE regle, et c'est tout : la basse la plus probable sur la
     duree de l'accord, ecrite des qu'elle differe de la fondamentale.
 
-    `bass_rules` reste en place et ses tests aussi : ils gardent la memoire des
-    arbitrages et serviront le jour ou il faudra trancher un litige.
+    `bass_rules` a ete RETIRE le 2026-09-16 (Louis : « plus de bass rules »).
+    La memoire des 33 arbitrages reste, elle, dans `state/human/bass_verdicts.json`
+    (suivi par git, ne pas regenerer) et dans `docs/bass_slash_rules.md` — c'est
+    la qu'il faudra revenir le jour ou on ecrira la regle de litige.
 
     `bass = -1` veut dire « position fondamentale, rien a ecrire ».
 
@@ -743,13 +745,14 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
     from harmonia.nnls_features import extract_bothchroma
     arr, times = extract_bothchroma(audio_path)
 
-    # 7d ── LA BASSE SONNANTE, par les règles arbitrées à l'oreille
-    # (harmonia.bass_rules, 33 arbitrages de Louis le 2026-09-15 —
-    # docs/bass_slash_rules.md). Jusqu'ici `bass` ne venait que de la
-    # notation slash du label décodé par musx, qui n'en écrit presque
-    # jamais ; on la mesure maintenant dans le grave, à l'attaque de chaque
-    # temps, et la règle décide. ICI et pas plus haut : le repli réécrit
-    # `bars` sur place, donc toute basse posée avant serait perdue.
+    # 7d ── LA BASSE SONNANTE, par la tête basse de musx (Louis, 2026-09-16 :
+    # « utilise cette basse a chaque fois »). Jusqu'ici `bass` ne venait que de
+    # la notation slash du label décodé, qui n'en écrit presque jamais ; puis,
+    # du 2026-09-15 au 16, d'une lecture de la chroma NNLS à l'attaque arbitrée
+    # à l'oreille (`bass_rules`, retiré depuis — voir la docstring de
+    # `_write_sounding_bass` pour ce que chaque étape a coûté).
+    # ICI et pas plus haut : le repli réécrit `bars` sur place, donc toute
+    # basse posée avant serait perdue.
     _write_sounding_bass(bars, probs, arr, times)
 
     H = analyze_harmony(arr, times, flat)

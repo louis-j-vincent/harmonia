@@ -267,6 +267,45 @@ inchangée.
 
 ## Résolu récemment
 
+- **La basse sonnante vient de la tête basse de musx, et c'est la règle partout**
+  (2026-09-16, Louis : « ok tete musx meilleure partout », puis « republie,
+  persiste, et switch pour que cette nouvelle basse musx soit la regle PARTOUT,
+  et plus de bass rules »).
+  **La règle entière** : la basse la plus probable selon la tête basse de musx,
+  moyennée sur la durée de l'accord, écrite dès qu'elle diffère de la
+  fondamentale. C'est tout.
+  Trois choses ont été retirées en deux commits, chacune mesurée inutile ou
+  nuisible AVANT de la retirer, jamais par goût de la simplicité :
+  * la **fenêtre d'attaque** de 150 ms — décisive pour la chroma, nuisible pour
+    musx (8/12 contre 11/12 sur tout l'accord). La chroma est de l'énergie
+    brute où l'attaque isole la fondamentale avant la résonance ; la tête de
+    musx est une sortie de modèle déjà lissée que 150 ms rendent bruitée ;
+  * le **plancher de confiance** — la part de la fondamentale sépare les classes
+    sans recouvrement (5,8-42,1 % avec slash, 80,5-97,2 % sans), mais dans les
+    sept cas sans slash l'argmax est déjà la fondamentale : un plancher entre 40
+    et 80 % donne exactement le même résultat que pas de plancher ;
+  * le **filtre d'intervalle** — les quatre intervalles écartés à l'oreille
+    l'avaient été sur des erreurs de LECTURE de la chroma, et aux quatre mêmes
+    endroits musx donne la fondamentale à 80-97 % sans écrire de slash. Le
+    filtre refusait au passage tous les 3es renversements de septième
+    (`Am7/G`, `C7/Bb`, `Fmaj7/E`).
+  `harmonia/bass_rules.py` et `tests/test_bass_rules.py` sont **supprimés**.
+  La mémoire des 33 arbitrages reste dans `state/human/bass_verdicts.json`
+  (suivi par git, ne pas régénérer) et `docs/bass_slash_rules.md` : c'est là
+  qu'il faudra revenir pour écrire la règle de litige.
+  Bibliothèque **republiée** (45 charts), sauvegarde dans
+  `state/cache/charts.bak_20260916_2251_avant_basse_musx`, référence d'or
+  re-gelée et vérifiée (45/45 identiques, 0 mesure changée), paires AVANT/APRÈS
+  nettoyées. Garde-fou : `tests/test_basse_musx.py` (9 tests) fige la lecture
+  des colonnes de la tête basse — la 0 est « pas de basse », les 1 à 12 sont
+  les hauteurs à partir de DO, et se tromper d'origine décale d'un triton.
+  **Ce que ça ne règle pas** : `Eb-/Gb` (Ready mes. 4), le seul cas que musx
+  rate et que la chroma trouvait ; les 4 `Bb7/B` de Virtual Insanity (voir
+  ci-dessus) ; et un accord dont la basse bouge reste écrit avec un seul
+  symbole.
+
+
+
 - **Ajouter un accord sur un temps TENU remplaçait l'accord existant
   (2026-09-16, Louis : « quand je clique pour créer un nouvel accord et que je
   valide, ça remplace l'ancien accord existant, donc pas sûr que ça fasse bien

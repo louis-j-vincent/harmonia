@@ -248,13 +248,16 @@ SUG_FLOOR = 0.02
 #: sur 12 classes de hauteur, l'uniforme vaut 1/12 = 8,3 %, et on demande une
 #: fois et demie l'uniforme.
 #:
-#: CE N'EST PAS `bass_rules.FLOOR` (30 %), et la confusion des deux serait
-#: exactement l'erreur de calibration silencieuse que CLAUDE.md décrit
-#: (règle #1). Les deux seuils ne répondent pas à la même question :
-#:   * `bass_rules.FLOOR` = 30 % : « est-ce que j'ÉCRIS un slash ? » — une
-#:     décision qui change le chart, arbitrée à l'oreille sur 33 cas ;
-#:   * `BASS_SUG_FLOOR` = 12,5 % : « est-ce que je MONTRE cette lecture ? » —
-#:     un affichage qui ne change rien au chart et n'engage personne.
+#: CE SEUIL NE DÉCIDE RIEN DU CHART : « est-ce que je MONTRE cette lecture ? »
+#: et non « est-ce que j'ÉCRIS un slash ? ». Il gouverne un affichage de
+#: l'écran d'annotation, pas le contenu du chart.
+#: Il a longtemps cohabité avec `bass_rules.FLOOR` (30 %), qui décidait
+#: l'écriture — les confondre aurait été l'erreur de calibration silencieuse
+#: de CLAUDE.md (règle #1), l'un étant une part et l'autre des pourcents.
+#: `bass_rules` a été retiré le 2026-09-16 : l'écriture d'un slash n'a plus
+#: de plancher du tout, c'est l'argmax de la tête basse de musx sur la durée
+#: de l'accord (`pipeline._write_sounding_bass`). Ce seuil-ci reste, seul, et
+#: garde son échelle : une PART entre 0 et 1.
 #: À 30 %, 84-90 % des accords n'afficheraient qu'une seule note : la demande
 #: de Louis (voir la ligne de basse) serait vide de sens. À 12,5 %, mesuré :
 #: 2,2 notes par accord en moyenne, un tiers des accords en montrent 3.
@@ -423,7 +426,8 @@ def bass_suggestions(arr: np.ndarray, times: np.ndarray, chords: list[dict],
 
     CE QUE ÇA NE FAIT PAS — et c'est le point important. Ceci n'ÉCRIT aucune
     basse : le champ ``bass`` de l'accord n'est pas touché, aucun slash
-    n'apparaît dans le chart, ``bass_rules.decide_bass`` n'est pas appelé.
+    n'apparaît dans le chart, et ``pipeline._write_sounding_bass`` — qui, lui,
+    écrit — n'est pas appelé d'ici.
     C'est un AFFICHAGE de ce que la mesure voit, pas une décision. La
     distinction est ce qui permet de le brancher aujourd'hui : `known_issues`
     (2026-09-15) exige un banc corpus avant tout branchement live de la basse

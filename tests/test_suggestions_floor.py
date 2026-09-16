@@ -182,14 +182,20 @@ def test_montrer_une_basse_nest_pas_lecrire():
     assert chords[0]["root"] == 0 and chords[0]["q"] == ""
 
 
-def test_les_deux_planchers_de_basse_restent_distincts():
-    """Garde-fou contre l'erreur de calibration silencieuse (CLAUDE.md #1) :
-    `bass_rules.FLOOR` (30 %, en POURCENTS, décide d'écrire un slash) et
-    `BASS_SUG_FLOOR` (0,125, en PART, décide d'afficher une lecture) ne sont
-    ni la même échelle ni la même question. Si un jour quelqu'un les aligne,
-    ce test doit rougir avant l'affichage."""
-    from harmonia.bass_rules import FLOOR as DECISION_FLOOR
-    assert DECISION_FLOOR == 30.0                     # pourcents
-    assert 0.0 < BASS_SUG_FLOOR < 1.0                 # part
-    assert BASS_SUG_FLOOR * 100 < DECISION_FLOOR      # montrer < écrire
-    assert BASS_SUG_FLOOR > 1 / 12                    # et > l'uniforme
+def test_le_plancher_daffichage_reste_une_part():
+    """Garde-fou contre l'erreur de calibration silencieuse (CLAUDE.md #1).
+
+    Ce test gardait une paire : `bass_rules.FLOOR` (30 %, en POURCENTS, décidait
+    d'écrire un slash) contre `BASS_SUG_FLOOR` (en PART, décide d'AFFICHER une
+    lecture dans l'écran d'annotation). Les deux n'étaient ni la même échelle ni
+    la même question, et les aligner aurait été silencieux.
+
+    `bass_rules` a été retiré le 2026-09-16 (Louis : « plus de bass rules ») —
+    l'écriture d'un slash n'a plus aucun plancher, c'est l'argmax de la tête
+    basse de musx. Il ne reste donc qu'un seul plancher dans le système, et ce
+    qu'il faut encore garder c'est son ÉCHELLE : une part entre 0 et 1, jamais
+    des pourcents. Le jour où quelqu'un y écrit 12,5 au lieu de 0,125, plus rien
+    ne s'affiche et ce test doit le dire.
+    """
+    assert 0.0 < BASS_SUG_FLOOR < 1.0                 # une part, pas des pourcents
+    assert BASS_SUG_FLOOR > 1 / 12                    # et au-dessus de l'uniforme
