@@ -23,10 +23,14 @@ Louis, c'est sa marque qui a disparu.
 Le contrat épinglé ici :
 * le modèle porte la marque, en secondes, telle qu'elle a été posée ;
 * `analyze()` la prend et la transmet ;
-* la cuisson (`tools.golden.cuire`, moteur `harmonia_min` — ce que
-  `scripts/rebake_library.py` faisait avant d'être remplacé par
-  `tools.golden --publish` au sprint 20) relit la marque du chart existant et
-  la repasse.
+* la cuisson (`tools.golden.cuire` — ce que `scripts/rebake_library.py`
+  faisait avant d'être remplacé par `tools.golden --publish` au sprint 20)
+  relit la marque et la repasse.
+
+Sprint 22 (2026-09-16) : le test visait le moteur `harmonia_min`, qui lisait
+la marque dans le champ `bar1` du chart. Ce moteur n'existe plus ; le contrat
+est donc épinglé sur le seul moteur restant, `harmonia`, à SA source de
+vérité — `state/human/marks/<stem>.json` (sprint 15, `jobs.bar1_for`).
 """
 from __future__ import annotations
 
@@ -35,7 +39,7 @@ import json
 
 import harmonia.pipeline as _pipeline_impl
 import tools.golden as golden
-from harmonia_min import pipeline
+from harmonia import pipeline
 
 
 def test_analyze_accepte_la_marque():
@@ -50,13 +54,9 @@ def test_analyze_accepte_la_marque():
 def test_le_modele_porte_la_marque(monkeypatch):
     """Le ChartModel doit écrire `bar1`, sinon rien ne peut la relire.
 
-    `pipeline.analyze` (le pont `harmonia_min.pipeline`) est le MÊME objet
-    fonction que `harmonia.pipeline.analyze` — mais son corps résout
-    `analyze_steps` dans les globals du module où il est DÉFINI
-    (`harmonia.pipeline`), pas dans ceux du pont. Patcher
-    `harmonia_min.pipeline.analyze_steps` ne serait donc jamais vu par
-    `analyze()` depuis le refactor (sprint 10, `pipeline.py` a déménagé sous
-    `harmonia/`) — le patch vise le module réel.
+    `analyze()` résout `analyze_steps` dans les globals du module où elle est
+    DÉFINIE (`harmonia.pipeline`) : le patch vise ce module-là, jamais un
+    alias d'import.
     """
     vu = {}
 
@@ -71,12 +71,13 @@ def test_le_modele_porte_la_marque(monkeypatch):
 
 
 def test_le_golden_cuire_repasse_la_marque(tmp_path, monkeypatch):
-    """La cuisson (moteur `harmonia_min`) doit relire la marque du chart
-    existant et la repasser.
+    """La cuisson doit relire la marque de Louis et la repasser à la pipeline.
 
     C'est le chemin qui efface réellement : `/ship` prescrit `tools.golden
     --publish` dès qu'une loi de repli change, et il recuit toute la
-    bibliothèque."""
+    bibliothèque. Depuis le sprint 15 la marque vit dans
+    `state/human/marks/<stem>.json`, pas dans le chart — c'est donc CE
+    dossier que la cuisson doit relire."""
     recu = {}
 
     def faux_analyze(audio, **kw):
@@ -85,7 +86,7 @@ def test_le_golden_cuire_repasse_la_marque(tmp_path, monkeypatch):
                 "nBars": 1, "barGrid": [0.0, 2.0],
                 "sections": [{"label": "A"}], "fold": {}}
 
-    monkeypatch.setattr("harmonia_min.pipeline.analyze", faux_analyze)
+    monkeypatch.setattr("harmonia.pipeline.analyze", faux_analyze)
     # Le rapport d'or refuse de lancer un modèle sur un cache froid — hors
     # sujet ici, on épingle seulement le passage de la marque.
     monkeypatch.setattr(golden, "caches_manquants", lambda eng, stem, audio: [])
@@ -93,15 +94,20 @@ def test_le_golden_cuire_repasse_la_marque(tmp_path, monkeypatch):
 
     (tmp_path / "charts").mkdir()
     (tmp_path / "audio").mkdir()
+    (tmp_path / "marks").mkdir()
     (tmp_path / "audio" / "bar1_persistence_stem.m4a").write_bytes(b"\0")
     (tmp_path / "charts" / "min_bar1_persistence_stem.json").write_text(json.dumps(
         {"file": "min_bar1_persistence_stem", "title": "T",
-         "audio_url": "/audio/bar1_persistence_stem.m4a", "bar1": 7.25}),
+         "audio_url": "/audio/bar1_persistence_stem.m4a"}),
         encoding="utf-8")
+    # La marque de Louis, là où elle vit vraiment depuis le sprint 15.
+    (tmp_path / "marks" / "bar1_persistence_stem.json").write_text(
+        json.dumps({"bar1": 7.25}), encoding="utf-8")
     out = tmp_path / "out"
     out.mkdir()
 
-    eng = golden.charger_moteur("harmonia_min")
+    eng = golden.charger_moteur("harmonia")
+    eng["marks"] = tmp_path / "marks"
     r = golden.cuire(eng, "min_bar1_persistence_stem", tmp_path / "charts", out)
     assert r["status"] == "ok", r
     assert recu.get("bar1_time") == 7.25, (

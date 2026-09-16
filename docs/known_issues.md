@@ -37,8 +37,6 @@ Détail et mesures : `docs/audit_2026-09-15_plan.md`.
   contre Eo 0,14 — qualité d'accord du modèle, pas du repli. Annotation.
 - `test_minimal_fold_separe_les_longueurs_dune_meme_lettre` échoue à HEAD
   depuis la cascade iReal (le B de 4 replié comme préfixe du B de 8).
-- `sections_pour_chart` vit encore dans `harmonia_min/soudure.py` ; golden
-  l'importe de là pour les deux moteurs. Sprint 22.
 
 
 - **RÈGLES D'OR de la basse — arbitrées à l'oreille, écrites, testées, PAS
@@ -158,7 +156,12 @@ Détail et mesures : `docs/audit_2026-09-15_plan.md`.
   etc.), pas pour un chemin de fichier. Marqué en tête du fichier.
 - **La recherche qualité-des-sections reprend après la bascule prod**
   (décision de Louis, `docs/refactor_2026-09/plan.md`). Le banc de recherche
-  (`tools/sections_bench/`) importe proprement mais `bench.py --quick` ne
+  (`tools/sections_bench/`) n'importe PAS proprement — corrigé le 2026-09-16,
+  cette ligne disait le contraire : une douzaine de ses scripts importent
+  `harmonia_min.harmonic_sections`, `harmonia_min.voice_sections` et
+  `harmonia_min.sections`, trois modules supprimés au sprint 9, bien avant la
+  disparition de `harmonia_min` au sprint 22. Panne antérieure à ce sprint,
+  jamais causée par lui. Et `bench.py --quick` ne
   tourne pas encore de bout en bout : `ssm_zoo.capture()` espionne
   `harmonia.sections.detect_sections`, dont la signature a changé au
   sprint 9 (elle ne reçoit plus les tableaux NNLS/musx pré-calculés que
@@ -208,7 +211,47 @@ trouvaille est vérifiée contre le code vivant et notée ici.
   écarté comme exception (le contrôle de cohérence existant), ou fausse-t-il
   la moyenne en silence ? Pas vérifié ; même piste de recherche.
 
+## À faire au moment de fusionner le sprint 22
+
+- **Re-geler la baseline du rapport d'or.** Le champ `meta.engine` du chart
+  dit maintenant `harmonia` et non plus `harmonia_min` ; la baseline gelée,
+  elle, date d'avant. Tant que les deux ne sont pas alignés, le rapport
+  annonce « 44/44 DIFFÈRE · 0 mesure changée » — un faux positif, pas une
+  régression. Le run vérifié est déjà sur le disque, il suffit de le copier :
+
+      cp state/cache/golden/baseline_sprint22_2026-09-16/*.json \
+         state/cache/golden/baseline/
+
+  Ça n'a PAS été fait pendant le sprint exprès : `state/cache/` n'est pas
+  suivi par git, c'est de l'état partagé entre le checkout principal et tous
+  les worktrees. Écraser la baseline depuis une branche non fusionnée aurait
+  fait mentir le rapport d'or de toutes les autres sessions en cours.
+
 ## Résolu récemment
+
+- **`harmonia_min` supprimé (sprint 22, 2026-09-16).** Le paquet n'était plus
+  qu'un décor : sur ses 20 modules, 12 étaient des PONTS de 2 à 7 lignes
+  (`from harmonia.X import *`) qui réexportaient `harmonia` — la dépendance
+  était inversée depuis les sprints 2-10. Seuls 7 fichiers portaient du code
+  que `harmonia/` n'avait pas ; ils sont déplacés tels quels (`git mv`, 97 à
+  100 % de similarité détectée par git) à plat dans `harmonia/` : `soudure.py`,
+  `ssm_page.py`, `section_tool.py`, `jam.py`, `phrases4.py`, `titles.py`,
+  `annotations.py`. Les 22 sites d'import de `harmonia/` visent maintenant le
+  module réel ; aucun `import *` n'a été ajouté (c'est ce que faisaient les
+  ponts, et ils sautaient les noms à underscore — un ajout concurrent,
+  `_ireal_cascade`, avait déjà cassé là-dessus le 2026-09-14).
+  Vérifié champ par champ, pas seulement « 0 mesure changée » : le run frais
+  contre la baseline gelée donne **un seul chemin JSON différent,
+  `.meta.engine`, sur 44 morceaux sur 44**. Écrans Soudure, /ssm et éditeur de
+  sections ouverts à 390×667 sur un serveur jetable (:7775) — zéro erreur
+  console, contenu réel affiché. Tests : 267 passés, 1 rouge (le rouge hérité
+  ci-dessus, seul et inchangé).
+  **Ce que ça ne résout PAS** : (a) `harmonia_min/` existe toujours, réduit à
+  son `__init__.py` + `chord_lm/` — recherche en cours d'une autre session,
+  intouchée ; (b) `HARMONIA_MIN_PORT` reste lu par `settings.py`,
+  volontairement : c'est le nom qu'emploient les serveurs de worktree pour ne
+  PAS se poser sur :7772, le retirer les ferait tomber sur l'app vivante ;
+  (c) la baseline n'est pas re-gelée (voir juste au-dessus).
 
 - **Un temps en trop à 0,28 fois le temps décale toutes les barres après lui
   (2026-09-15, Louis sur Ready de PJ Morton).** Son diagnostic : « entre la

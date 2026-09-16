@@ -1,4 +1,4 @@
-"""harmonia_min/section_tool.py — le moteur de l'outil sections du chart brut.
+"""harmonia/section_tool.py — le moteur de l'outil sections du chart brut.
 
 Louis, 2026-08-09 : « un petit outil sections, où on clique sur une section,
 on sélectionne A B C intro verse bridge, on passe le doigt le long des
@@ -136,7 +136,7 @@ def substrates(grid, triad, audio=None, melody: bool = False):
     appelait `voice_sections._scripts()`, un hack `sys.path` important
     `scripts/{vocal_anchor,vocal_melody,melody_ssm,blocks8}.py` (2 138 lignes
     de recherche demucs + pyin) pour séparer la voix et suivre sa hauteur.
-    `grep -n melody harmonia_min/server.py harmonia_min/app_shell.html`
+    `grep -n melody harmonia/server/routes/*.py harmonia/static/**/*.js`
     montre que l'app ne l'a JAMAIS déclenchée : la seule route qui lisait un
     drapeau `melody` (`/api/section-repeats`) a été remplacée le 2026-08-17
     par `/api/sections/inferer` (voir le commentaire de

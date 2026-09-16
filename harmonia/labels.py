@@ -70,7 +70,7 @@ def to_chord(label: str) -> dict | None:
     root_s, _, qual = label.partition(":")
     root = parse_root(root_s)
     if qual not in _QUAL:
-        raise ValueError(f"harmonia_min.labels: unknown musx quality {label!r}")
+        raise ValueError(f"harmonia.labels: unknown musx quality {label!r}")
     tail, bass_iv = _QUAL[qual]
     return {"root": root,
             "q": tail,

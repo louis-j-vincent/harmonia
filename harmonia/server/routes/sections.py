@@ -9,8 +9,8 @@ c'est la vérité terrain des sections écrite à la main).
 
 Ce que ce module ne fait PAS : détecter des sections tout seul (le moteur de
 prod est `harmonia.sections`, sprint 9) ; savoir empiler des accords (voir
-`harmonia_min.refold`/`harmonia_min.soudure.sections_pour_chart`, importés
-tels quels).
+`harmonia.refold`/`harmonia.soudure.sections_pour_chart`, importés tels
+quels — portés depuis `harmonia_min` au sprint 22).
 """
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ def soudure(file):
     `scripts/soudure_pages.py` pour les morceaux du banc. Un seul fichier, une
     seule page — pas de copie du moteur ici.
     """
-    from harmonia_min.soudure import song_du_chart
+    from harmonia.soudure import song_du_chart
     p = CHARTS_DIR / f"{Path(file).stem}.json"
     if not p.exists():
         return jsonify({"error": "no such chart"}), 404
@@ -95,7 +95,7 @@ def page_ssm(file):
     Louis, 2026-08-16 : « je veux une matrice ssm avec playhead cliquable »,
     puis « branche-le moi en direct sur chaque chanson ».
 
-    Le moteur est `harmonia_min/ssm_page.py` — le MÊME que celui qui écrit les
+    Le moteur est `harmonia/ssm_page.py` — le MÊME que celui qui écrit les
     pages statiques de `docs/plots/ssm_*.html` (`scripts/ssm_playhead.py`).
     Une seule fabrique : deux copies de la page divergeraient, et c'est celle
     du serveur qu'il ouvrira depuis le chart.
@@ -104,7 +104,7 @@ def page_ssm(file):
     disque (clé = stem), donc ~1 s. `base_url` reste vide — la page est servie
     par ce serveur, ses liens relatifs tombent déjà sur les bonnes routes.
     """
-    from harmonia_min.ssm_page import page_html
+    from harmonia.ssm_page import page_html
     p = CHARTS_DIR / f"{Path(file).stem}.json"
     if not p.exists():
         return jsonify({"error": "no such chart"}), 404
@@ -141,11 +141,11 @@ def phrases4():
     donc la page de recherche sous /plots s'en sert aussi bien que l'app.
 
     L'algorithme est celui de `scripts/quatre_mots.py`, importé de
-    `harmonia_min.phrases4` — pas une seconde version. Ses soudures à lui
+    `harmonia.phrases4` — pas une seconde version. Ses soudures à lui
     entrent comme point de DÉPART : l'agglomération les prolonge, elle ne peut
     pas les défaire.
     """
-    from harmonia_min.phrases4 import phrases
+    from harmonia.phrases4 import phrases
     d = request.get_json(silent=True) or {}
     jetons = d.get("jetons") or []
     bornes = d.get("bornes") or []
@@ -184,7 +184,7 @@ def soudure_valider(file):
     d'écrire un découpage qui ne couvre pas le morceau — un chart à trous
     serait pire que l'ancien.
     """
-    from harmonia_min.soudure import sections_pour_chart
+    from harmonia.soudure import sections_pour_chart
     p = CHARTS_DIR / f"{Path(file).stem}.json"
     if not p.exists():
         return jsonify({"error": "no such chart"}), 404
@@ -210,7 +210,7 @@ def soudure_valider(file):
     # que le repli d'avant n'a pas touchée — et on ré-empile selon le nouveau
     # découpage. Garder l'ancien empilement ferait dire à sa structure ce qu'a
     # dit la précédente ; le jeter lui rendrait un chart moins bon qu'avant.
-    from harmonia_min.refold import refold
+    from harmonia.refold import refold
     bars, rap = refold(chart, secs, AUDIO_DIR)
     neuves = sections_pour_chart(chart, secs, bars=bars,
                                  fold_report=rap.get("rapport"))
@@ -259,8 +259,8 @@ def sections_inferer(file):
     parmi celles qu'il n'a pas déjà utilisées, pour qu'un B de l'algo ne
     puisse jamais être confondu avec un B de sa main.
     """
-    from harmonia_min.phrases4 import LETTERS, phrases
-    from harmonia_min.soudure import song_du_chart
+    from harmonia.phrases4 import LETTERS, phrases
+    from harmonia.soudure import song_du_chart
     p = CHARTS_DIR / f"{Path(file).stem}.json"
     if not p.exists():
         return jsonify({"error": "no such chart"}), 404
@@ -392,8 +392,8 @@ def api_section_repeats(file):
         Path(file).stem.removeprefix("min_")
     audio = AUDIO_DIR / f"{stem}.m4a"
     try:
-        from harmonia_min import musx as _musx
-        from harmonia_min import section_tool as st
+        from harmonia import musx as _musx
+        from harmonia import section_tool as st
         triad = _musx.frame_posteriors(audio)[0]
         out = st.find_repeats(
             model["barGrid"], triad, b0, b1,
@@ -548,7 +548,7 @@ def api_section_marks(file):
     marks = body.get("marks")
     if marks is not None and not isinstance(marks, list):
         return jsonify({"error": "marks doit être une liste"}), 400
-    from harmonia_min import section_tool as st
+    from harmonia import section_tool as st
     sections = st.sections_from_marks(marks or [], n_bars)
     keep = [{"label": s["label"], "b0": s["b0"], "b1": s["b1"]}
             for s in sections if not s.get("pending")]

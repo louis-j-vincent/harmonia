@@ -16,7 +16,7 @@ Deux situations, deux traitements, et la différence compte :
   vide. Un artiste faux se propage dans toute la bibliothèque ; un champ vide se
   corrige d'un tap dans l'app.
 
-Écrit dans `harmonia_min/state/chart_meta.json`, le sidecar que `/api/library`
+Écrit dans `state/human/chart_meta.json`, le sidecar que `/api/library`
 ressert déjà et que l'éditeur artiste/titre de l'app écrit. **Les charts
 eux-mêmes ne sont pas touchés** — le modèle reste ce que le pipeline a produit.
 
@@ -37,12 +37,17 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from harmonia_min.titles import (pretty_from_slug, slugify,  # noqa: E402
+from harmonia.titles import (pretty_from_slug, slugify,  # noqa: E402
                                  split, strip_junk)
 
-CHARTS = REPO / "harmonia_min" / "state" / "charts"
-META = REPO / "harmonia_min" / "state" / "chart_meta.json"
-CACHE = REPO / "data" / "cache" / "yt_meta"
+# Sprint 22 (2026-09-16) : `harmonia_min/state/` n'existe plus — les chemins
+# viennent de SETTINGS, la seule source du projet (CLAUDE.md : « never assume
+# __file__-relative paths »). L'outil visait un dossier mort depuis le sprint 15.
+from harmonia.settings import SETTINGS                       # noqa: E402
+
+CHARTS = SETTINGS.charts_dir
+META = SETTINGS.chart_meta_path
+CACHE = SETTINGS.data_cache / "yt_meta"
 YTDLP = Path(sys.executable).parent / "yt-dlp"
 FIELDS = "%(id)s\t%(title)s\t%(artist)s\t%(track)s\t%(uploader)s"
 IS_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")

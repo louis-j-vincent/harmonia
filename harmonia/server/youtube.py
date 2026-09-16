@@ -30,7 +30,7 @@ SEARCH_PER_PAGE = 12
 
 
 def _local_matches(words):
-    from harmonia_min import titles as _titles
+    from harmonia import titles as _titles
     out = []
     for p in sorted(AUDIO_DIR.glob("*.m4a")):
         hay = p.stem.lower()
@@ -92,7 +92,7 @@ def _meta_from_print(stdout: str) -> tuple[str, str]:
     """La ligne `_META_PRINT` → (artiste, titre). Une seule fabrique : elle est
     lue à deux endroits (pendant le téléchargement, et sur un fichier déjà là)
     et deux analyseurs divergeraient."""
-    from harmonia_min import titles as _titles
+    from harmonia import titles as _titles
     line = next((x for x in stdout.splitlines() if "\t" in x), "")
     if not line:
         return "", ""

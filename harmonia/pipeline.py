@@ -511,10 +511,14 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
             "sections": sections,
             "prompter": prompter,
             "meta": {"bpm": bd["bpm"], "n_segments": len(segments),
-                     # Littéral gardé tel quel : le rapport d'or compare le
-                     # JSON octet par octet, et bascule sur "harmonia" au
-                     # sprint 22 (suppression de harmonia_min) — pas avant.
-                     "engine": "harmonia_min",
+                     # Sprint 22 (2026-09-16) : bascule faite. Le littéral
+                     # disait encore "harmonia_min" pour que le rapport d'or
+                     # compare le JSON octet par octet pendant tout le
+                     # refactor ; `harmonia_min` étant supprimé, il nomme
+                     # enfin le moteur qui a réellement écrit le chart. Seul
+                     # champ changé par ce sprint : baseline re-gelée le même
+                     # jour, 44/44 morceaux identiques par ailleurs.
+                     "engine": "harmonia",
                      "raw": bool(pending), "pending": list(pending)},
         }
 

@@ -26,7 +26,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from harmonia_min import folding, musx
+from harmonia import folding, musx
 
 
 FOLD_FORMULA = {round(min(0.97, 0.5 + 0.08 * k), 3) for k in range(1, 30)}

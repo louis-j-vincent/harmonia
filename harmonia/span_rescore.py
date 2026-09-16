@@ -135,7 +135,7 @@ def pool_span_musx(
     back to the single nearest frame, the same empty-interval rule used
     elsewhere in this project for beat pooling.
     """
-    from harmonia_min.musx import FRAME_DT
+    from harmonia.musx import FRAME_DT
 
     triad, s7 = probs[0], probs[2]
     n_frame = triad.shape[0]

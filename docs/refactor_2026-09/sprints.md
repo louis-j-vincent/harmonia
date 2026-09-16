@@ -546,3 +546,87 @@ vérifiés à l'œil (This Love, capture Playwright 390 px — la cascade de fin
 
 **Reste.** L'oreille de Louis sur les cinq morceaux de la décision 12, 24 h de
 vie normale, puis le sprint 22 : supprimer `harmonia_min` et ses ponts.
+
+## Sprint 22 — 2026-09-16 · `harmonia_min` supprimé, le champ `engine` dit vrai
+
+**Fait.** Le dernier sprint du plan : enlever `harmonia_min` une fois que plus
+rien de vivant ne l'importe.
+
+**Ce que le brief annonçait, et ce qui était vrai.** Le brief parlait de « au
+moins trois appelants vivants », tous autour de `soudure.py`. Le grep complet
+en a trouvé vingt-deux, sur onze modules — de quoi croire à un chantier trois
+fois plus gros. En réalité c'était l'inverse : sur les vingt modules de
+`harmonia_min`, **douze n'étaient que des ponts de 2 à 7 lignes**
+(`from harmonia.X import *`) posés aux sprints 2-10, qui réexportaient déjà
+`harmonia`. La dépendance était inversée depuis longtemps. Il ne restait
+**sept fichiers** portant du code que `harmonia/` n'avait pas.
+
+Compter avant de porter a changé la nature de la tâche : pas une réécriture,
+un déménagement.
+
+**Les sept, déplacés tels quels** (`git mv` ; git détecte 97 à 100 % de
+similarité, c'est-à-dire zéro ligne de logique touchée) :
+
+    soudure.py  ssm_page.py  section_tool.py  jam.py
+    phrases4.py  titles.py  annotations.py
+
+À plat, au premier étage de `harmonia/`, pas sous `sections/` : `sections/`
+est le substrat partagé que Soudure et l'outil sections CONSOMMENT
+(`docs/STATE.md`), pas leur maison. Le sens des dépendances de
+`sections_pour_chart` est conservé — elle importe `facade_view`, `pass_rank`
+et `_ireal_cascade` depuis `harmonia.folding`, qui les possède déjà depuis le
+sprint 7 ; rien n'est dupliqué.
+
+**Aucun pont de remplacement.** Les douze ponts sont supprimés et chaque
+importateur vise le module réel. On n'a pas posé un `harmonia/soudure.py` qui
+ferait `from harmonia_min.soudure import *` : c'est exactement ce que
+faisaient les ponts, et `import *` saute les noms à underscore — il fallait
+les lister à la main, et un ajout concurrent (`_ireal_cascade`, 2026-09-14)
+avait déjà cassé là-dessus.
+
+**Le champ `meta.engine`** passe de `"harmonia_min"` à `"harmonia"`. Il était
+gelé exprès depuis le sprint 10 pour que le rapport d'or compare le JSON octet
+par octet pendant tout le refactor. Vérifié : personne ne LIT ce champ, ni en
+Python ni dans le frontend — il est écrit, jamais comparé.
+
+**La vérification.** « 0 mesure changée » ne suffisait pas : `comparer()` ne
+regarde que les mesures, et un port peut déplacer un champ ailleurs. Diff
+champ par champ de chaque chart contre la baseline gelée → **un seul chemin
+JSON différent, `.meta.engine`, sur 44 morceaux sur 44.** Aucun accord, aucune
+section, aucune tonalité, aucune barre. 45 cuits, 2 froids (les deux habituels,
+sans cache songformer), 0 erreur. Le 45e cuit, `min_191P7nIeECo`, n'a pas
+d'entrée dans la baseline : il a rejoint la bibliothèque après le dernier gel,
+antérieur à ce sprint.
+
+Serveur jetable sur :7775 (jamais :7772, resté vivant sous son PID d'origine) :
+Soudure, /ssm et l'éditeur de sections ouverts à 390×667 — zéro erreur console,
+zéro débordement, et du contenu réel à l'écran (This Love : « 80 mesures ·
+40 entités », les lettres, « a + b, 8 fois dans la chanson »). Les quatre
+modules portés répondent aussi en direct par HTTP. pytest : 267 passés, 1 rouge
+— le rouge hérité connu, seul et inchangé.
+
+**Ce qui n'est PAS fait, et pourquoi.**
+
+- **`harmonia_min/chord_lm/` est intact**, avec le `__init__.py` qui le garde
+  importable : c'est la recherche en cours d'une session concurrente. La
+  suppression totale du dossier était donc impossible ; c'est le repli prévu
+  par la consigne, pas un oubli.
+- **La baseline n'est pas re-gelée.** `state/cache/` n'est pas suivi par git :
+  c'est de l'état partagé entre le checkout principal et tous les worktrees.
+  Écraser la baseline depuis une branche non fusionnée aurait fait dire
+  « 44/44 DIFFÈRE » au rapport d'or de toutes les autres sessions en cours,
+  pour un champ que personne n'entend. Le run vérifié est déposé à côté, sans
+  rien écraser, dans `state/cache/golden/baseline_sprint22_2026-09-16/` ; le
+  re-gel tient en un `cp` au moment de fusionner (voir `known_issues.md`).
+- **`HARMONIA_MIN_PORT` reste lu par `settings.py`**, volontairement : c'est le
+  nom qu'emploient les serveurs de worktree pour ne PAS se poser sur :7772
+  (plus haut dans ce journal). Le retirer les ferait retomber sur l'app
+  vivante — exactement l'incident qu'on évite.
+- **`tools/sections_bench/` reste cassé** : une douzaine de ses scripts
+  importent `harmonia_min.harmonic_sections`, `voice_sections` et `sections`,
+  supprimés au sprint 9. Panne antérieure à ce sprint ; `known_issues.md`
+  prétendait qu'il « importe proprement », c'est corrigé.
+
+**Au passage.** Deux outils visaient `harmonia_min/state/`, un dossier mort
+depuis le sprint 15 : `tools/backfill_titles.py` et `tools/ssm_playhead.py`
+passent par `SETTINGS`.

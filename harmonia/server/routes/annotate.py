@@ -5,7 +5,7 @@ Porté verbatim depuis `harmonia_min/server.py` (sprints 11-14).
 
 Ce que ce module ne fait PAS : appliquer les corrections au ChartModel servi
 (voir `library.chart_model`, qui appelle `annotations.overlay`) ; savoir ce
-qu'un chart contient (`harmonia_min.annotations` seul connaît le schéma du
+qu'un chart contient (`harmonia.annotations` seul connaît le schéma du
 sidecar).
 """
 from __future__ import annotations
@@ -14,7 +14,7 @@ import logging
 
 from flask import Blueprint, jsonify, request
 
-from harmonia_min import annotations
+from harmonia import annotations
 
 log = logging.getLogger("harmonia.server.routes.annotate")
 

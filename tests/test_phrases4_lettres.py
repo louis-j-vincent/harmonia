@@ -21,7 +21,7 @@ de recherche du 2026-08-12 le portent aussi.
 """
 from __future__ import annotations
 
-from harmonia_min.phrases4 import grouper_restes, merges4, nommer, phrases
+from harmonia.phrases4 import grouper_restes, merges4, nommer, phrases
 
 # le mot de Lost Without U, tel que l'app le calcule
 MOT = "ababababababacbabababdbabababacbabababababababa"

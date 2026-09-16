@@ -29,7 +29,7 @@ const root = document.getElementById("app");
   // Dès qu'on valide, l'outil repère automatiquement les autres repeats. »
   //
   // Le geste : choisir une lettre → glisser le long des mesures → Valider.
-  // Le serveur cherche les reprises (harmonia_min/section_tool.py, ancré sur
+  // Le serveur cherche les reprises (harmonia/section_tool.py, ancré sur
   // LA sélection) et elles s'allument dans la couleur de la lettre. Une
   // reprise proposée est en pointillés tant qu'on ne l'a pas gardée : la
   // toucher l'enlève. Mesuré sur les 18 morceaux annotés à la main : 86 %

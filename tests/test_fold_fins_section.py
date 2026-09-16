@@ -9,7 +9,7 @@ termine par `A♭ G` : avec P=2, la mesure 8 tombait dans la pile des mesures
 import numpy as np
 import pytest
 
-from harmonia_min import folding
+from harmonia import folding
 
 
 def _sections(n_occ, longueur, depart=0):

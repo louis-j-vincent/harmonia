@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from harmonia_min.beats import (drop_duplicate_beats, drop_inserted_beats)
+from harmonia.beats import (drop_duplicate_beats, drop_inserted_beats)
 
 PER = 0.44          # 136,4 BPM, le tempo d'Another Day
 
@@ -73,7 +73,7 @@ def test_les_downbeats_suivent():
 #     dernières ; si elles ont toutes le même BPM, tu relies tout ensemble et
 #     tu me fais une longue grille continue »
 
-from harmonia_min.beats import grille_rigide           # noqa: E402
+from harmonia.beats import grille_rigide           # noqa: E402
 
 
 def test_un_morceau_metronomique_se_rigidifie():
@@ -125,7 +125,7 @@ def test_une_grille_qui_ne_colle_pas_est_refusee():
 #     au milieu du morceau... dans tous les cas trouve-moi un algo rigide pour
 #     inférer le bpm »
 
-from harmonia_min.beats import bpm_rigide                # noqa: E402
+from harmonia.beats import bpm_rigide                # noqa: E402
 
 
 def test_le_tempo_dun_morceau_regulier():

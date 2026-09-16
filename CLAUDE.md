@@ -25,6 +25,12 @@ and listen to (see `docs/STATE.md` — "the golden report").
   leaf stages (`beats.py`, `musx.py`, `nnls_features.py`, `folding.py`,
   `harmonic_key.py`, `span_rescore.py`), `sections/` (songformer + shared
   similarity), `server/` (Flask app factory, jobs, routes as blueprints).
+  Sprint 22 (2026-09-16) moved seven more leaves in from the deleted
+  `harmonia_min`: `soudure.py` (the song's "word" + `sections_pour_chart`),
+  `section_tool.py`, `phrases4.py`, `ssm_page.py`, `jam.py`, `titles.py`,
+  `annotations.py`. **`harmonia_min/` is no longer the app** — only
+  `harmonia_min/chord_lm/` survives (separate, in-progress research; leave it
+  alone). Nothing in `harmonia/` imports `harmonia_min` any more.
 - `third_party/musx_ismir2019/` is a vendored clone (MIT) — executed via
   `chdir`, not just read; its weights (`cache_data/*.sdict`) are tracked.
 - `archive/scripts/` holds one-off/superseded scripts kept for history, not

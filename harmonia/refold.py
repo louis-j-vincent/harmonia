@@ -73,7 +73,7 @@ def refold(chart: dict, secs: list[dict], audio_dir) -> tuple[list, dict]:
     ne peuvent plus donner deux résultats différents, il n'y a plus de
     variable d'environnement à faire diverger.
     """
-    from harmonia_min.soudure import accords_par_mesure
+    from harmonia.soudure import accords_par_mesure
     bars = accords_par_mesure(chart)
     grid = chart.get("barGrid") or []
     n_bars = chart.get("nBars") or (len(grid) - 1)
