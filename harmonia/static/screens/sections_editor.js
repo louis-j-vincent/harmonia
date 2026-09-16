@@ -357,7 +357,7 @@ export function buildSectionTool(){
     // morceau entier à chaque trait : le reste se renommait entre deux
     // gestes, et poser trois sections coûtait trois inférences complètes.
     const nHumain=st.marks.reduce(
-      (n,mk)=>n+(mk.occurrences||[]).filter(o=>o.source!=="algo").length, 0);
+      (n,mk)=>n+(mk.occurrences||[]).filter(estDeLui).length, 0);
     if(nHumain) row.appendChild(kitButton(
       st.busy?"Inférence…":"Valider les sections",
       ()=>{ if(!st.busy) validateSectionSelection(); },
@@ -515,13 +515,24 @@ export function commitSectionSelection(){
      APPELÉE PAR UN SEUL BOUTON depuis le 2026-08-17 — « Valider les
      sections », une fois qu'il a fini de marquer. Elle envoie TOUTES ses
      plages d'un coup ; le geste du doigt, lui, ne parle plus au serveur. */
+/* CE QUI VIENT DE LUI, et qui peut donc REDEVENIR une contrainte au tour
+   suivant. « humain » = son trait. « propage » = la machine a reconnu le
+   contenu EXACTEMENT identique à l'une de ses plages : c'est son geste
+   prolongé, pas une opinion.
+   « ressemble » (2026-09-16) n'en est PAS : c'est une ressemblance de SSM
+   au-dessus d'un seuil, donc une PROPOSITION. La refiger comme contrainte
+   ferait passer une supposition de la machine pour une affirmation de Louis
+   — et au tour suivant l'algorithme ne pourrait même plus la corriger. */
+const SIENNES = new Set(["humain", "propage"]);
+function estDeLui(o){ return SIENNES.has(o && o.source); }
+
 export async function validateSectionSelection(){
     const st=S.sectTool, m=S.model;
     if(!st) return;
     st.busy=true; st.note=""; go("chart");
     const humain=[];
     st.marks.forEach(mk=>(mk.occurrences||[]).forEach(o=>{
-      if(o.source!=="algo") humain.push({label:mk.label,
+      if(estDeLui(o)) humain.push({label:mk.label,
                                          mesure_debut:o.b0+1, mesure_fin:o.b1+1});
     }));
     if(st.sel) humain.push({label:st.label,
@@ -542,9 +553,11 @@ export async function validateSectionSelection(){
       st.sel=null; st.busy=false;
       const nT=(r.sections||[]).filter(x=>x.source==="humain").length;
       const nP=(r.sections||[]).filter(x=>x.source==="propage").length;
+      const nRes=(r.sections||[]).filter(x=>x.source==="ressemble").length;
       const nA=(r.sections||[]).filter(x=>x.source==="algo").length;
       const nR=(r.sections||[]).filter(x=>x.reste).length;
       st.note=nT+" de toi · "+nP+" retrouvée"+(nP>1?"s":"")+" sous ton nom · "
+              +(nRes?nRes+" par ressemblance · ":"")
               +nA+" nommée"+(nA>1?"s":"")+" par l'algo"
               +(nR?" · "+nR+" queue"+(nR>1?"s":"")+" (trop court pour une section)":"")
               +" — glisse pour corriger";
@@ -818,7 +831,7 @@ export function paintSectionTool(){
           // portait sur une source `"selection"` que plus personne n'écrit
           // depuis que la validation passe par le serveur : TOUT sortait en
           // pointillés, y compris ses propres traits.
-          dashed=(o.source==="algo" || o.source==="propage");
+          dashed=(o.source!=="humain");   // « ressemble » compris (2026-09-16)
           if(sb.indexOf(o.b0)>=0){ tag=mk.label+(o.rot?" ↗":""); tagOcc=o; }
         }
       }));
