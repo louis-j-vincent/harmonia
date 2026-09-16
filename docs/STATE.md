@@ -31,6 +31,13 @@ Chaque ligne est un fichier, en une phrase.
 | `folding.py`, `refold.py` | Le repli : une section jouée plusieurs fois s'écrit UNE fois, en empilant les probabilités des répétitions. |
 | `harmonic_key.py` | La tonalité et les couleurs de la grille. |
 | `span_rescore.py` | Les accords alternatifs proposés dans l'écran Annotate. |
+| `soudure.py` | Le « mot » d'un morceau (une lettre par mesure) et le jeu de Soudure : c'est lui qui réécrit les sections d'un chart quand Louis a découpé à la main (`sections_pour_chart`). |
+| `section_tool.py` | « Je passe le doigt sur ces mesures : où ça se rejoue ? » — le moteur de l'éditeur de sections. |
+| `phrases4.py` | L'algo des phrases à quatre mots : il nomme les sections (A, B, queue…) à partir du mot. |
+| `ssm_page.py` | La page `/ssm` : la matrice de ressemblance d'un morceau, cliquable, avec tête de lecture. |
+| `jam.py` | Le mode Jam en direct (Beat This! + musx sur le micro). |
+| `titles.py` | Artiste + titre depuis un titre YouTube. Sans état ni chemin. |
+| `annotations.py` | Le schéma des annotations d'accords de Louis (le sidecar), et comment on les repose sur un chart. |
 | `labels.py`, `key_profiles.py` | Tables de conversion, sans état ni chemin. |
 | `integrations/` | iReal Pro (recherche + export) et Ultimate Guitar (recherche de tablatures) — le seul code de l'ancien paquet legacy à avoir survécu. |
 | `server/app.py` | Construit l'app Flask. |
@@ -43,6 +50,12 @@ Chaque ligne est un fichier, en une phrase.
 `third_party/musx_ismir2019/` est un clone d'un dépôt de recherche externe
 (licence MIT) : le modèle `musx.py` l'exécute directement (pas juste une
 lecture), donc il reste dans le dépôt tel quel.
+
+**`harmonia_min/` n'est plus l'app** (sprint 22, 2026-09-16). Le paquet a été
+supprimé ; il n'en reste que `harmonia_min/chord_lm/`, une recherche en cours
+qui ne fait pas partie de l'application, plus le `__init__.py` qui la garde
+importable. Rien dans `harmonia/` n'importe plus `harmonia_min`. Pour
+retrouver l'ancien paquet entier : tag `pre-refactor-2026-09-14`.
 
 ## Où vivent les fichiers (`state/`)
 
