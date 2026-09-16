@@ -27,6 +27,7 @@ from pathlib import Path
 from harmonia.settings import SETTINGS
 
 TRACE = SETTINGS.repo / "scratchpad" / "trace_chords.json"
+HEAT = SETTINGS.repo / "scratchpad" / "heatmap.json"
 OUT = SETTINGS.reports_dir / "decisions" / "accords.html"
 NAMES = "C Db D Eb E F Gb G Ab A Bb B".split()
 
@@ -186,6 +187,17 @@ def e(x):
 def page(tr: dict) -> str:
     ac = tr["accords"]
     audio_js = json.dumps("/audio/" + tr["key"] + ".m4a")
+    H = tr.get("heat") or {}
+    heat_json = json.dumps(H, ensure_ascii=False, separators=(",", ":"))
+    heat_n = len(H.get("lignes", [{}])[0].get("p", [])) if H.get("lignes") else 0
+    heat_k = len(H.get("lignes") or [])
+    heat_reste = 73 - heat_k
+    heat_pct = f"{(H.get('reste_moyen') or 0) * 100:.0f} %"
+    heat_t0 = H.get("t0", 0.0)
+    heat_t1 = H.get("t1", 0.0)
+    heat_b2 = (H.get("barres") or [0, 0, 0])[0]
+    heat_b3 = (H.get("barres") or [0, 0, 0])[1]
+    heat_b3plus = heat_b3 + 0.9
     n_prov = {k: 0 for k in PROV}
     for _, _, cs in CHAINE:
         for c in cs:
@@ -323,6 +335,12 @@ def page(tr: dict) -> str:
  .pr .g{{color:var(--ink-dim)}} .pr .fl{{color:var(--ink-faint)}}
  .pr .d{{color:var(--accent-ink);font-weight:600}}
  .acts.ill{{border-bottom:none;padding-bottom:0;margin-bottom:0}}
+ .hwrap{{overflow-x:auto;-webkit-overflow-scrolling:touch}}
+ #heat{{display:block;min-width:660px;width:100%;height:auto;border-radius:6px;
+  border:1px solid var(--rule);touch-action:pan-x}}
+ .hlab{{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink-dim);
+  margin:7px 0 9px;min-height:1.4em}}
+ .hlab b{{color:var(--ink)}}
 
  .tr{{border:1px solid var(--rule);border-radius:10px;background:var(--surface);
   padding:11px 13px;margin-bottom:7px}}
@@ -399,6 +417,41 @@ Voici lesquelles, et d'où vient chaque nombre.</p>
 <p class="sub">{e(tr['titre'] or tr['key'])} &middot; {e(tr['tonalite'])} &middot;
 les {len(ac)} accords des 16 premières mesures, rejoués par la chaîne réelle.</p>
 {"".join(trace_carte(r) for r in ac)}
+
+<h2>Les probabilités, image par image</h2>
+<p class="sub">Mesures 2 et 3 &middot; {heat_n} images à 23&nbsp;ms &middot;
+les {heat_k} accords qui dépassent 4&nbsp;% une fois ; les {heat_reste} autres pèsent
+{heat_pct} en moyenne.</p>
+
+<div class="card">
+  <div class="hwrap"><canvas id="heat"></canvas></div>
+  <div class="hlab" id="hread">survole ou touche la carte</div>
+  <div class="acts" style="border-bottom:none;padding-bottom:0">
+    <button class="pl" data-t0="{heat_t0:.3f}" data-t1="{heat_t1:.3f}" type="button">&#9658; les deux mesures</button>
+    <button class="pl" data-t0="{heat_b2:.3f}" data-t1="{heat_b3:.3f}" type="button">&#9658; mesure 2</button>
+    <button class="pl" data-t0="{heat_b3:.3f}" data-t1="{heat_t1:.3f}" type="button">&#9658; mesure 3</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="ith">Ce que la carte montre, et ce qu'elle ne peut pas montrer</div>
+  <p class="itx">Mesure 2, le modèle hésite : <b>D♭ 33 %</b> contre <b>B♭m 30 %</b> sur le
+  premier créneau. Mesure 3, il ne doute plus du tout : <b>E♭ 80 %</b>.</p>
+  <p class="itx">Sauf que sur cette mesure 3, tu as tranché <b>A♭^7</b> à l'oreille &mdash;
+  et <code>Ab</code> n'est qu'à 7,5&nbsp;%. Le modèle n'a pas tort de peu : un
+  <b>A♭^9 sans tierce, c'est un triton E♭ posé sur un A♭</b>. Ce qui sonne au-dessus
+  est littéralement un accord de E♭. <b>Aucune quantité de probabilités d'accord ne
+  peut les distinguer</b> &mdash; seule la basse le peut.</p>
+  <p class="itx">Et la basse le dit : à l'attaque de cette mesure, la lecture donne
+  <b>A♭ à 47&nbsp;%</b>, plus fort que E♭. Mais la règle de basse cherche d'abord la
+  fondamentale de l'accord ÉCRIT, trouve E♭ au-dessus du plancher, et conclut
+  « pas de slash ». <b>La règle de basse ne peut être juste que si l'accord l'est</b> :
+  ici l'étiquette fausse a fait taire le seul témoin qui savait.</p>
+  <div class="acts ill">
+    <button class="pl" data-t0="{heat_b3:.3f}" data-t1="{heat_b3plus:.3f}" type="button">&#9658; l'attaque de la mesure 3</button>
+    <button class="pl" data-t0="{heat_b3:.3f}" data-t1="{heat_t1:.3f}" type="button">&#9658; la mesure 3 entière</button>
+  </div>
+</div>
 
 <h2>La chaîne, étage par étage</h2>
 <p class="sub" style="margin-bottom:12px">Pour chaque nombre : d'où il vient.</p>
@@ -494,6 +547,98 @@ function jouer(btn){{
   etat.textContent = t0.toFixed(2).replace('.', ',') + ' s \u2192 ' + t1.toFixed(2).replace('.', ',') + ' s';
 }}
 document.querySelectorAll('button.pl').forEach(b => b.addEventListener('click', () => jouer(b)));
+
+// ── la carte de chaleur ────────────────────────────────────────────────────
+// Rampe SÉQUENTIELLE à teinte unique, clair -> foncé : une probabilité est une
+// magnitude, pas une catégorie — donc jamais d'arc-en-ciel. Deux jeux d'arrêts,
+// un par thème, choisis sur le fond réellement peint.
+const H = {heat_json};
+(function(){{
+  const cv = document.getElementById('heat'), read = document.getElementById('hread');
+  if (!cv || !H.lignes || !H.lignes.length) return;
+  const sombre = () => {{
+    const t = document.documentElement.getAttribute('data-theme');
+    if (t === 'dark') return true;
+    if (t === 'light') return false;
+    return matchMedia('(prefers-color-scheme: dark)').matches;
+  }};
+  const STOPS_CLAIR = [[251,247,238],[239,223,197],[222,146,81],[180,99,42],[90,51,21]];
+  const STOPS_SOMBRE = [[27,24,18],[59,44,27],[180,99,42],[222,146,81],[243,210,172]];
+  const LIGNES = H.lignes.length, COLS = H.lignes[0].p.length;
+  const LAB_W = 62, TOP = 16, ROW = 17, PAD_B = 18;
+
+  function couleur(v, stops){{
+    const x = Math.max(0, Math.min(1, Math.pow(v, 0.55)));   // gamma : les petites
+    const n = stops.length - 1, i = Math.min(n - 1, Math.floor(x * n));
+    const f = x * n - i, a = stops[i], b = stops[i + 1];
+    return `rgb(${{Math.round(a[0]+(b[0]-a[0])*f)}},${{Math.round(a[1]+(b[1]-a[1])*f)}},${{Math.round(a[2]+(b[2]-a[2])*f)}})`;
+  }}
+
+  let cellW = 0;
+  function dessine(){{
+    const dark = sombre();
+    const stops = dark ? STOPS_SOMBRE : STOPS_CLAIR;
+    const encre = dark ? '#A89D89' : '#6F6555';
+    const trait = dark ? '#4A4130' : '#C9BE9F';
+    const dispW = Math.max(660, cv.parentNode.clientWidth);
+    const W = dispW, Hh = TOP + LIGNES * ROW + PAD_B;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = W * dpr; cv.height = Hh * dpr;
+    cv.style.width = W + 'px'; cv.style.height = Hh + 'px';
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, W, Hh);
+    cellW = (W - LAB_W - 6) / COLS;
+
+    g.font = '10px "IBM Plex Mono", monospace';
+    g.textBaseline = 'middle';
+    H.lignes.forEach((l, r) => {{
+      const y = TOP + r * ROW;
+      for (let c = 0; c < COLS; c++) {{
+        g.fillStyle = couleur(l.p[c], stops);
+        g.fillRect(LAB_W + c * cellW, y, Math.ceil(cellW) + 0.5, ROW - 1.5);
+      }}
+      g.fillStyle = encre; g.textAlign = 'right';
+      g.fillText(l.lab, LAB_W - 7, y + (ROW - 1.5) / 2);
+    }});
+
+    // les barres de mesure, et les frontières d'accord écrites
+    const x = t => LAB_W + (t - H.t0) / H.dt * cellW;
+    g.textAlign = 'center';
+    (H.barres || []).forEach((t, i) => {{
+      g.strokeStyle = trait; g.lineWidth = 2; g.beginPath();
+      g.moveTo(x(t), TOP - 3); g.lineTo(x(t), TOP + LIGNES * ROW); g.stroke();
+      g.fillStyle = encre;
+      g.fillText('mes. ' + (i + 2), Math.min(W - 24, x(t) + 24), TOP - 8);
+    }});
+    (H.ecrits || []).forEach(c => {{
+      g.strokeStyle = dark ? '#E1837B' : '#B23A33'; g.lineWidth = 1.5;
+      g.setLineDash([3, 3]); g.beginPath();
+      g.moveTo(x(c.t0), TOP); g.lineTo(x(c.t0), TOP + LIGNES * ROW); g.stroke();
+      g.setLineDash([]);
+      g.fillStyle = dark ? '#E1837B' : '#B23A33';
+      g.textAlign = 'left';
+      g.fillText(c.lab, x(c.t0) + 4, TOP + LIGNES * ROW + 9);
+    }});
+  }}
+
+  function lire(ev){{
+    const rect = cv.getBoundingClientRect();
+    const px = (ev.touches ? ev.touches[0].clientX : ev.clientX) - rect.left;
+    const py = (ev.touches ? ev.touches[0].clientY : ev.clientY) - rect.top;
+    const c = Math.floor((px - LAB_W) / cellW), r = Math.floor((py - TOP) / ROW);
+    if (c < 0 || c >= COLS || r < 0 || r >= LIGNES) {{ read.textContent = 'survole ou touche la carte'; return; }}
+    const t = H.t0 + c * H.dt, v = H.lignes[r].p[c];
+    read.innerHTML = `<b>${{H.lignes[r].lab}}</b> &middot; ${{(v*100).toFixed(1)}} % &middot; ${{t.toFixed(2).replace('.', ',')}} s`;
+  }}
+  cv.addEventListener('mousemove', lire);
+  cv.addEventListener('touchstart', e => {{ lire(e); }}, {{passive: true}});
+  cv.addEventListener('touchmove', e => {{ lire(e); }}, {{passive: true}});
+  cv.addEventListener('mouseleave', () => read.textContent = 'survole ou touche la carte');
+  dessine();
+  addEventListener('resize', dessine);
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', dessine);
+}})();
 document.getElementById('stop').addEventListener('click', () => {{
   if (!audio) return;
   audio.pause(); if (playing) playing.classList.remove('playing');
@@ -508,6 +653,7 @@ document.getElementById('slow').addEventListener('change', e => {{
 
 def main() -> int:
     tr = json.loads(TRACE.read_text(encoding="utf-8"))
+    tr["heat"] = json.loads(HEAT.read_text(encoding="utf-8")) if HEAT.exists() else None
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(page(tr), encoding="utf-8")
     print(f"→ {OUT}  ({len(tr['accords'])} accords tracés)")
