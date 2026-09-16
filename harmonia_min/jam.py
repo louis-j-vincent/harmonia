@@ -154,10 +154,14 @@ def decode_buffer(wav_path: Path) -> "dict | None":
             _b = int(round(float(np.median(np.diff(downbeats)))
                            / float(np.median(np.diff(beat_times)))))
             bpb = _b if 2 <= _b <= 7 else 4
-        segments, _lat = _musx.redecode(beat_times, probs,
-                                        downbeat_times=downbeats,
-                                        beats_per_bar=bpb,
-                                        quarter_beats="all")
+        # `redecode` rendait `(segments, latence)` ; la recherche de latence a
+        # été retirée le 2026-09-15 (ea539de) et elle rend une simple liste.
+        # `pipeline.py` et `folding.py` ont suivi le jour même, pas ce
+        # troisième appel — le Jam levait donc un ValueError à chaque passe.
+        segments = _musx.redecode(beat_times, probs,
+                                  downbeat_times=downbeats,
+                                  beats_per_bar=bpb,
+                                  quarter_beats="all")
     if not segments:
         return None
 
