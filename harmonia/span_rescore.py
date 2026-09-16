@@ -220,9 +220,55 @@ def ireal_q_to_q5(q: str | None) -> int:
     return 0
 
 
+#: Sous ce niveau, un candidat d'accord ne s'affiche pas (2026-09-16, demande
+#: de Louis : « top 5 accords si relevant » — le « si relevant » est ce
+#: plancher, pas un remplissage jusqu'à 5).
+#:
+#: LA LOI, en une phrase : un candidat ne s'affiche que s'il est plus probable
+#: que le pur hasard sur son propre jeu de candidats. musx répartit sa masse
+#: sur 60 cases (12 racines × 5 familles) ; l'uniforme vaut donc 1/60 = 1,67 %,
+#: et 2 % est ce seuil arrondi vers le haut.
+#:
+#: Mesuré sur les deux morceaux ambigus du jour (Yesterday 19 accords,
+#: Lost Without U 74 accords), échelle des postérieures au rang 5 :
+#: médiane 0,017-0,025 — le plancher tombe donc pile là où le 5e candidat
+#: cesse d'être informatif. Ce qu'il donne : 3,8 candidats par accord en
+#: moyenne (médiane 4-5), 4-10 % des accords n'en gardent qu'UN (les très
+#: sûrs, qui doivent continuer à ressembler à aujourd'hui). À 5 % on
+#: retomberait à 2,4-2,9, c'est-à-dire l'ancien top-3 : rien n'aurait changé.
+#:
+#: CE QUE ÇA NE RÉSOUT PAS : le plancher est le même pour tous les morceaux et
+#: n'a pas été arbitré à l'oreille — il est calibré sur la FORME de l'échelle
+#: (où le 5e rang décroche), pas sur « ce candidat-là était juste ». Deux
+#: morceaux seulement (règle #5, CLAUDE.md) ; à rouvrir si Louis trouve la
+#: liste trop longue ou trop courte.
+SUG_FLOOR = 0.02
+
+#: Même loi, pour la basse : la lecture de `bass_pc_onset` répartit sa masse
+#: sur 12 classes de hauteur, l'uniforme vaut 1/12 = 8,3 %, et on demande une
+#: fois et demie l'uniforme.
+#:
+#: CE N'EST PAS `bass_rules.FLOOR` (30 %), et la confusion des deux serait
+#: exactement l'erreur de calibration silencieuse que CLAUDE.md décrit
+#: (règle #1). Les deux seuils ne répondent pas à la même question :
+#:   * `bass_rules.FLOOR` = 30 % : « est-ce que j'ÉCRIS un slash ? » — une
+#:     décision qui change le chart, arbitrée à l'oreille sur 33 cas ;
+#:   * `BASS_SUG_FLOOR` = 12,5 % : « est-ce que je MONTRE cette lecture ? » —
+#:     un affichage qui ne change rien au chart et n'engage personne.
+#: À 30 %, 84-90 % des accords n'afficheraient qu'une seule note : la demande
+#: de Louis (voir la ligne de basse) serait vide de sens. À 12,5 %, mesuré :
+#: 2,2 notes par accord en moyenne, un tiers des accords en montrent 3.
+BASS_SUG_FLOOR = 0.125
+
+
 def musx_suggestions(probs: list[np.ndarray], chords: list[dict],
-                     *, top_k: int = 3) -> int:
+                     *, top_k: int = 5, floor: float = SUG_FLOOR) -> int:
     """Attach musx's own top-``top_k`` candidates to each chord as ``c["sug"]``.
+
+    Candidates below ``floor`` are dropped — but the top one is ALWAYS kept,
+    so a chord musx is certain about still opens the editor on something
+    rather than on nothing (see ``SUG_FLOOR``). ``top_k`` went 3 → 5 on
+    2026-09-16 at Louis's request.
 
     This is what the annotation editor's Compass/Guide renders as "candidates
     the model considered" — and since 2026-08-07 (Louis's report) it must BE
@@ -267,10 +313,67 @@ def musx_suggestions(probs: list[np.ndarray], chords: list[dict],
     for (c, root), p in zip(kept, post):
         own = idx_of(root, ireal_q_to_q5(c.get("q")))
         sug = []
-        for i in np.argsort(p)[::-1][:top_k]:
+        for rank, i in enumerate(np.argsort(p)[::-1][:top_k]):
+            if rank and float(p[i]) < floor:
+                break          # l'échelle décroît : le reste est sous le plancher
             r, q5 = token_of(int(i))
             sug.append({"root": int(r),
                         "q": c.get("q", "") if int(i) == own else Q5_TAIL[q5],
                         "c": round(float(p[i]), 3)})
         c["sug"] = sug
     return len(kept)
+
+
+def bass_suggestions(arr: np.ndarray, times: np.ndarray, chords: list[dict],
+                     *, top_k: int = 3, floor: float = BASS_SUG_FLOOR) -> int:
+    """Attach the top-``top_k`` sounding-bass readings to each chord (``c["sugBass"]``).
+
+    Demandé par Louis le 2026-09-16 : « les suggestions sur la ligne de basse
+    en faisant des petits cercles autour des lettres du cercle pour montrer
+    les basses qui sont détectées ». C'est le pendant de ``musx_suggestions``
+    pour la basse, et il vit ici pour la même raison : les deux champs que
+    l'éditeur d'annotation affiche comme « candidats » (``sug`` et
+    ``sugBass``) se décident au même endroit.
+
+    ``arr``/``times`` sont la sortie de ``nnls_features.extract_bothchroma``
+    — déjà en cache et déjà lue par ``pipeline.py`` à cette étape, donc ceci
+    ne coûte aucune extraction. Chaque accord est lu à son ATTAQUE
+    (``bass_pc_onset``, 150 premières ms), pas en moyenne sur tout le span :
+    c'est la mesure du 2026-09-15 (6/11 → 11/11 sur "Ready"), voir
+    ``nnls_features.BASS_ONSET_S``.
+
+    Chaque entrée est ``{"pc": 0..11, "c": part de l'énergie grave à
+    l'attaque, 0..1}``, triée par ``c`` décroissant. La première est toujours
+    gardée ; les suivantes doivent passer ``floor``. Mêmes exclusions que
+    ``musx_suggestions`` (N.C. et entrées malformées sautées, les ``carry``
+    sont laissés à l'appelant). Mute en place, rend le nombre d'accords
+    annotés.
+
+    CE QUE ÇA NE FAIT PAS — et c'est le point important. Ceci n'ÉCRIT aucune
+    basse : le champ ``bass`` de l'accord n'est pas touché, aucun slash
+    n'apparaît dans le chart, ``bass_rules.decide_bass`` n'est pas appelé.
+    C'est un AFFICHAGE de ce que la mesure voit, pas une décision. La
+    distinction est ce qui permet de le brancher aujourd'hui : `known_issues`
+    (2026-09-15) exige un banc corpus avant tout branchement live de la basse
+    — cette exigence porte sur la DÉCISION d'écrire un slash, qui reste
+    intouchée, pas sur le fait de montrer la lecture à Louis.
+    """
+    from harmonia.nnls_features import bass_pc_onset
+
+    n = 0
+    for c in chords:
+        if c.get("nc") or c.get("carry"):
+            continue
+        try:
+            t0, t1 = float(c["t0"]), float(c["t1"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        share = bass_pc_onset(arr, times, t0, t1)
+        sug = []
+        for rank, pc in enumerate(np.argsort(share)[::-1][:top_k]):
+            if rank and float(share[pc]) < floor:
+                break
+            sug.append({"pc": int(pc), "c": round(float(share[pc]), 3)})
+        c["sugBass"] = sug
+        n += 1
+    return n
