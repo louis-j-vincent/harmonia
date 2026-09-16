@@ -88,6 +88,9 @@ def page(D: dict) -> str:
  #read{{margin-left:auto;font-size:11.5px;color:var(--ink-faint)}}
  #read b{{color:var(--ink)}}
 
+ .vues{{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin:0 0 14px}}
+ button.vue.on{{background:var(--accent);border-color:var(--accent);color:var(--surface);font-weight:600}}
+ .vexp{{font-size:11.5px;color:var(--ink-faint);flex:1;min-width:180px}}
  .bande{{margin-bottom:16px}}
  .bl{{font-family:'IBM Plex Mono',monospace;font-size:10.5px;text-transform:uppercase;
   letter-spacing:.05em;color:var(--ink-faint);margin-bottom:5px}}
@@ -123,6 +126,13 @@ En pointillé rouge, l'accord qui a été écrit.</p>
   <span id="read">survole la carte</span>
 </div>
 
+<div class="vues">
+  <button class="vue on" data-v="p" type="button">les accords</button>
+  <button class="vue" data-v="bn" type="button">la basse (chroma)</button>
+  <button class="vue" data-v="bm" type="button">la basse (musx)</button>
+  <span id="vexp" class="vexp"></span>
+</div>
+
 {bandes}
 
 <div class="card">
@@ -131,7 +141,16 @@ En pointillé rouge, l'accord qui a été écrit.</p>
   pleins sont les barres de mesure, les pointillés rouges les accords écrits.</p>
   <div class="ech"><span>0&nbsp;%</span><canvas id="ramp" class="ramp"></canvas><span>100&nbsp;%</span>
     <span style="margin-left:10px">échelle à teinte unique, non linéaire (le bas est ouvert)</span></div>
-  <p style="margin-top:12px"><b>Ce qu'elle ne peut pas montrer.</b> Un
+  <p style="margin-top:12px"><b>Les deux vues de basse.</b> « chroma » est la moitié
+  grave de la chroma NNLS, normalisée image par image — c'est exactement le signal
+  que <code>decide_bass</code> lit, à une nuance près qui compte&nbsp;: la règle ne
+  regarde que les <b>150 premières millisecondes de chaque temps</b>, pas toute la
+  durée affichée ici. C'est pour ça qu'un accord peut montrer une basse moyenne et
+  s'en voir attribuer une autre&nbsp;: à l'attaque la fondamentale domine, ensuite
+  la résonance et les notes de passage s'accumulent. « musx » est la tête basse du
+  modèle, calculée mais <b>jamais utilisée par nos règles</b> — elle est là pour
+  comparer.</p>
+  <p><b>Ce qu'elle ne peut pas montrer.</b> Un
   <code>A♭^9</code> sans tierce est un accord de <code>E♭</code> posé sur un
   <code>A♭</code>&nbsp;: au-dessus, c'est la même chose. Aucune ligne de cette
   carte ne les sépare — c'est la basse qui le fait, un étage plus bas.</p>
@@ -147,8 +166,21 @@ En pointillé rouge, l'accord qui a été écrit.</p>
 const D = {json.dumps(D, ensure_ascii=False, separators=(',', ':'))};
 const AUDIO = {json.dumps('../audio/' + D['key'] + '.m4a')};
 const LAB_W = 52, TOP = 15, ROW = 15, BAS = 15;
-const NL = D.lignes.length;
-const HH = TOP + NL * ROW + BAS;
+// Trois vues sur la MÊME grille d'images, donc le curseur désigne le même
+// instant de l'une à l'autre. Les deux vues de basse sont rangées
+// chromatiquement : une ligne de basse se lit comme un mouvement.
+const VUES = {{
+  p:  {{cle: 'p',  lignes: D.lignes,
+        exp: "ce que le détecteur d'accords donne, image par image"}},
+  bn: {{cle: 'bn', lignes: D.lignes_bn,
+        exp: "la chroma NNLS — c'est CELLE-CI que la règle de basse lit"}},
+  bm: {{cle: 'bm', lignes: D.lignes_bm,
+        exp: "la tête basse de musx, jamais utilisée par nos règles"}},
+}};
+let VUE = 'p';
+const lignesCourantes = () => VUES[VUE].lignes;
+const NLmax = Math.max(...Object.values(VUES).map(v => v.lignes.length));
+const HH = TOP + NLmax * ROW + BAS;
 
 const sombre = () => {{
   const t = document.documentElement.getAttribute('data-theme');
@@ -183,19 +215,21 @@ function dessine(){{
     const g = cv.getContext('2d');
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, W, HH);
-    const COLS = b.p[0].length;
+    const M = b[VUES[VUE].cle];
+    const LB = lignesCourantes(), NL = LB.length;
+    const COLS = M[0].length;
     const cw = (W - LAB_W - 4) / COLS;
     cellW[i] = cw;
     g.font = '9.5px "IBM Plex Mono", monospace';
     g.textBaseline = 'middle';
     for (let r = 0; r < NL; r++){{
-      const y = TOP + r * ROW, row = b.p[r];
+      const y = TOP + r * ROW, row = M[r];
       for (let c = 0; c < COLS; c++){{
         g.fillStyle = couleur(row[c], st);
         g.fillRect(LAB_W + c * cw, y, Math.ceil(cw) + 0.5, ROW - 1.5);
       }}
       g.fillStyle = encre; g.textAlign = 'right';
-      g.fillText(D.lignes[r], LAB_W - 6, y + (ROW - 1.5) / 2);
+      g.fillText(LB[r], LAB_W - 6, y + (ROW - 1.5) / 2);
     }}
     const x = t => LAB_W + (t - b.t0) / D.dt * cw;
     g.textAlign = 'center';
@@ -289,8 +323,10 @@ cvs.forEach((cv, i) => {{
   }};
   cv.addEventListener('mousemove', ev => {{
     const {{c, r}} = pos(ev), b = D.bandes[i];
-    if (c < 0 || c >= b.p[0].length || r < 0 || r >= NL){{ read.textContent = 'survole la carte'; return; }}
-    read.innerHTML = `<b>${{D.lignes[r]}}</b> · ${{(b.p[r][c]*100).toFixed(1)}} %`;
+    const M = b[VUES[VUE].cle], LB = lignesCourantes();
+    if (c < 0 || c >= M[0].length || r < 0 || r >= LB.length){{
+      read.textContent = 'survole la carte'; return; }}
+    read.innerHTML = `<b>${{LB[r]}}</b> · ${{(M[r][c]*100).toFixed(1)}} %`;
   }});
   cv.addEventListener('mouseleave', () => read.textContent = 'survole la carte');
   cv.addEventListener('click', ev => {{
@@ -301,7 +337,17 @@ cvs.forEach((cv, i) => {{
   }});
 }});
 
-dessine();
+function majVue(){{
+  document.querySelectorAll('button.vue').forEach(b => b.classList.toggle('on', b.dataset.v === VUE));
+  document.getElementById('vexp').textContent = VUES[VUE].exp;
+  document.querySelector('h1').textContent =
+    VUE === 'p' ? 'Ce que le modèle entend' : 'La basse, image par image';
+  dessine(); tick();
+}}
+document.querySelectorAll('button.vue').forEach(b =>
+  b.addEventListener('click', () => {{ VUE = b.dataset.v; majVue(); }}));
+
+majVue();
 addEventListener('resize', () => {{ dessine(); tick(); }});
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', dessine);
 </script>
