@@ -245,6 +245,63 @@ def soudure_valider(file):
                     "url": "/?open=" + Path(file).stem})
 
 
+#: Ressemblance minimale pour oser donner à un bloc une lettre de LOUIS plutôt
+#: qu'une lettre neuve. Mesuré le 2026-09-16 sur ses 16 découpages validés
+#: (108 blocs à nommer) :
+#:
+#:   seuil   blocs nommés   dont justes   gestes épargnés   noms faux
+#:   aucun        108           54 %            58             50
+#:   0,75          88           65 %            57             31
+#:   0,85          72           74 %            53             19
+#:
+#: Le critère n'est pas la précision seule : dans son usage, un bloc laissé
+#: sans nom coûte LE MÊME geste de correction qu'un bloc mal nommé (il faut le
+#: renommer dans les deux cas). Ce qu'on maximise, c'est donc le nombre de
+#: blocs justes — et 0,75 en épargne presque autant que l'absence de seuil
+#: (57 contre 58) avec deux fois moins de noms faux (31 contre 50).
+RESSEMBLE_MIN = 0.75
+
+#: Les sections qui, par définition, ne se rejouent PAS ailleurs dans le
+#: morceau — donc jamais proposées comme gabarit de ressemblance.
+#:
+#: Louis, 2026-09-16 : « déjà une intro ne se rejoue pas plus tard ».
+#: Vérifié sur ses 20 découpages validés : « intro » est unique dans les 15
+#: morceaux qui en ont une, « outro » dans les 8 — zéro répétition, jamais.
+#: C'est ce qui réparait Chain of Fools, où son « intro » d'UNE mesure
+#: ressemblait à tout et raflait les dix blocs du morceau (92 % → 0 %).
+#:
+#: « bridge » (répétée dans 1 morceau sur 5) et « queue » (2 sur 4) ne sont PAS
+#: dans cette liste : elles sont le plus souvent uniques, mais pas toujours, et
+#: une règle dure s'y tromperait.
+JAMAIS_REJOUEES = {"intro", "outro"}
+
+
+def _plus_proche(ressemblance, b0: int, longueur: int) -> str | None:
+    """La lettre de Louis dont la plage ressemble le plus à ce bloc, ou None.
+
+    `ressemblance` = (SSM mesure×mesure, {lettre: (début, longueur)}). La
+    comparaison est la diagonale bloc-à-bloc de la SSM (`_diag`), la même que
+    l'outil de sections emploie pour chercher une reprise.
+    """
+    S, gabarits = ressemblance
+    if longueur <= 0:
+        return None
+    from harmonia.sections.similarity import _diag
+    # ESSAYÉ ET RETIRÉ le même jour : départager les ressemblances proches par
+    # la LONGUEUR du gabarit (un bloc de 8 mesures est un A de 8 plutôt qu'un B
+    # de 10). Motivé par Chain of Fools, où toutes les lettres sont fausses
+    # alors que la structure est juste — mais mesuré, ça ne le réparait pas
+    # (les deux scores n'y sont pas à égalité) et ça coûtait Easy On Me
+    # (100 % → 90 % de paires bien groupées). Un réglage qui ne gagne rien ne
+    # reste pas.
+    best, score = None, RESSEMBLE_MIN
+    for lab, (t0, tl) in gabarits.items():
+        sc = _diag(S, t0, b0, max(1, min(longueur, tl)))
+        if sc > score:
+            best, score = lab, sc
+    return best
+
+
 @bp.post("/api/sections/inferer/<file>")
 def sections_inferer(file):
     """Ce que Louis a surligné + ce que l'algo des quatre mots en déduit.
@@ -264,8 +321,8 @@ def sections_inferer(file):
     p = CHARTS_DIR / f"{Path(file).stem}.json"
     if not p.exists():
         return jsonify({"error": "no such chart"}), 404
-    song = song_du_chart(json.loads(p.read_text(encoding="utf-8")),
-                         audio_dir=AUDIO_DIR)
+    chart = json.loads(p.read_text(encoding="utf-8"))
+    song = song_du_chart(chart, audio_dir=AUDIO_DIR)
     if not song:
         return jsonify({"error": "chart trop court"}), 400
     mot, bornes = song["mot"], song["jetons"]
@@ -321,11 +378,59 @@ def sections_inferer(file):
     libres = [c for c in LETTERS if c not in siens]
     renom, k = {}, 0
     out = []
+    # SES BRIQUES SERVENT AUSSI À NOMMER CE QUI NE LEUR EST PAS IDENTIQUE
+    # (Louis, 2026-09-16 : « les sections suivantes devraient automatiquement
+    # être complétées en cherchant le même pattern plusieurs fois dans la
+    # chanson via les matrices ssm », puis « on lui ajoute l'info de quelles
+    # sont les vraies briques des sections »).
+    #
+    # Le nommage ci-dessus ne propage que sur une égalité EXACTE du mot : un
+    # refrain dont un seul jeton diffère repartait sous une lettre de machine.
+    # En second recours seulement, on compare le bloc aux plages que Louis a
+    # tracées, par la SSM chord-tone (`sections.similarity`, la même que la
+    # détection) : s'il ressemble assez à l'une d'elles, il prend SA lettre.
+    #
+    # MESURÉ sur ses 16 découpages validés, en simulant son geste (il marque la
+    # 1re occurrence de chaque lettre, puis valide) : l'accord lettre-par-mesure
+    # sur ce qu'il n'a PAS marqué passe de 36 % à 55 %. Le seuil vient du genou
+    # de la courbe précision/couverture (0,85 : 74 % des blocs nommés sont
+    # justes, contre 54 % sans seuil ; au-delà la précision plafonne). Une
+    # lettre FAUSSE est pire qu'une lettre neuve — elle a l'air d'une
+    # affirmation de sa part — donc on préfère la précision à la couverture.
+    #
+    # CE QUE ÇA NE RÉSOUT PAS : la vérité terrain est son propre découpage, que
+    # lui-même dit imparfait ; ces 55 % mesurent l'accord avec lui, pas la
+    # justesse musicale. Et la SSM est HARMONIQUE : deux sections qui tournent
+    # sur la même boucle (couplet/refrain de soul ou de funk) restent
+    # indiscernables ici — c'est la limite prouvée ce jour-là, la voie mélodie
+    # ayant été supprimée au refactor (voir `section_tool.substrates`).
+    ressemblance = None
+    if par_contenu:
+        try:
+            from harmonia import musx as _musx
+            from harmonia.sections.similarity import ssm
+            stem_a = Path(chart.get("audio_url") or "").stem
+            audio_a = AUDIO_DIR / f"{stem_a}.m4a"
+            if stem_a and audio_a.exists():
+                ressemblance = (
+                    ssm(_musx.frame_posteriors(audio_a)[0], chart["barGrid"]),
+                    {lab: (bornes[j0], bornes[j1 + 1] - bornes[j0])
+                     for j0, j1, lab in fixes
+                     if lab.strip().lower() not in JAMAIS_REJOUEES})
+        except Exception:                                    # noqa: BLE001
+            # Jamais muet : sans ressemblance on retombe sur les lettres
+            # neuves, ce qui est l'ancien comportement — mais on veut savoir.
+            log.exception("nommage par ressemblance indisponible")
+            ressemblance = None
     for s in secs:
         t = s["type"]
         if t in par_contenu:
             lab = par_contenu[t]
             source = "humain" if (s["j0"], s["j1"] - 1) in tracees else "propage"
+        elif ressemblance and (proche := _plus_proche(
+                ressemblance, bornes[s["j0"]],
+                bornes[s["j1"]] - bornes[s["j0"]])):
+            lab, source = proche, "ressemble"
         else:
             if s["label"] not in renom:
                 renom[s["label"]] = libres[k % len(libres)] if libres else s["label"]

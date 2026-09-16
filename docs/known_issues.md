@@ -267,6 +267,62 @@ inchangée.
 
 ## Résolu récemment
 
+- **« Valider les sections » complète le reste avec les BRIQUES de Louis
+  (2026-09-16).** Sa demande : « une fois qu'on a acté les premières sections
+  au doigt et cliqué sur valider, les sections suivantes devraient
+  automatiquement être complétées en cherchant le même pattern plusieurs fois
+  dans la chanson via les matrices ssm », puis « on lui ajoute l'info de
+  quelles sont les vraies briques des sections ».
+  **Ce qui existait déjà, et ce qui manquait.** La validation appelait déjà
+  `/api/sections/inferer` (algo des quatre mots) qui découpe TOUT le morceau et
+  propage ses lettres — mais seulement sur une égalité EXACTE du mot : un
+  refrain dont un seul jeton diffère repartait sous une lettre de machine. La
+  SSM entre en SECOND RECOURS : un bloc non expliqué est comparé aux plages
+  que Louis a tracées (`sections.similarity._diag`, la SSM chord-tone de la
+  détection) et prend SA lettre si la ressemblance dépasse `RESSEMBLE_MIN`
+  (0,75, choisi sur la courbe précision/couverture — voir la constante).
+  Nouvelle source `ressemble`, distincte de `propage` : l'écran doit pouvoir
+  dire d'où vient un nom.
+  **La règle de Louis, vérifiée.** « Déjà une intro ne se rejoue pas plus
+  tard » : intro et outro ne sont jamais proposées comme gabarit
+  (`JAMAIS_REJOUEES`). Vérifié sur ses 20 découpages — « intro » est unique
+  dans les 15 morceaux qui en ont une, « outro » dans les 8, zéro répétition.
+  Sans cette règle, son intro d'UNE mesure sur Chain of Fools ressemblait à
+  tout et raflait les dix blocs du morceau.
+  **Mesuré** en simulant son geste (il marque la 1re occurrence de chaque
+  lettre, puis valide), sur ses 16 découpages validés exploitables :
+
+  | | accord lettre-par-mesure | paires groupées comme lui |
+  |---|---|---|
+  | quatre mots seuls | 37 % | 70 % |
+  | + ressemblance SSM | **44 %** | **73 %** |
+
+  **Deux choses apprises en mesurant, qui valent plus que les chiffres :**
+  (a) un décalage d'UNE mesure met 0 % à un découpage parfait — sur Chain of
+  Fools la machine trouve exactement ses blocs de 8 mesures, décalés d'un
+  cran, et le premier mètre annonçait 0 % ; d'où la seconde colonne,
+  invariante au nom et au décalage, qui dit la vraie qualité (73 %) ;
+  (b) l'harmonie ne peut pas séparer deux sections qui vampent sur la même
+  boucle — sur Chain of Fools la structure est juste à 92 % mais toutes les
+  lettres sont fausses (ses A sont nommés B), et aucun réglage n'y changera
+  rien : la voie mélodie, qui le pourrait, a été supprimée au refactor
+  (`section_tool.substrates`).
+  **Essayés et retirés** le même jour, mesure à l'appui : chercher les
+  reprises du bloc sélectionné (`find_repeats`, ce que la demande décrivait
+  littéralement) — 19 %, car au niveau de cellule qu'il choisit le même motif
+  de 4 mesures se retrouve dans TOUTES les sections ; pénaliser les gabarits
+  courts (répare Chain of Fools mais coûte Grenade 72 → 46) ; départager les
+  ressemblances proches par la longueur (72 % contre 73 %).
+  **Ce que ça ne résout pas** : (a) la vérité terrain est son propre
+  découpage, qu'il dit imparfait — ces chiffres mesurent l'accord avec lui,
+  pas la justesse musicale ; (b) deux de ses sections au contenu harmonique
+  IDENTIQUE se confondent dans `par_contenu` (dict clé=contenu) : sur This
+  Love son « intro » ressort en « A », bug préexistant à cette entrée ;
+  (c) Bora Bora, The Walk et Sunny restent sous 60 % de paires groupées.
+  Page à regarder : `python -m tools.sections_completion_page` →
+  `/reports/sections_completion.html` (5 morceaux, chaque bloc écoutable).
+  Code : `harmonia/server/routes/sections.py`.
+
 - **La basse sonnante vient de la tête basse de musx, et c'est la règle partout**
   (2026-09-16, Louis : « ok tete musx meilleure partout », puis « republie,
   persiste, et switch pour que cette nouvelle basse musx soit la regle PARTOUT,
