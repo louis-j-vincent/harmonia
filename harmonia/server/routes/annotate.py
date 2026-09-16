@@ -10,15 +10,21 @@ Ce que ce module ne fait PAS : appliquer les corrections au ChartModel servi
 """
 from __future__ import annotations
 
+import json
 import logging
+from pathlib import Path
 
 from flask import Blueprint, jsonify, request
 
 from harmonia import annotations
+from harmonia.server.jobs import CHARTS_DIR
+from harmonia.settings import SETTINGS
 
 log = logging.getLogger("harmonia.server.routes.annotate")
 
 bp = Blueprint("annotate", __name__)
+
+AUDIO_DIR = SETTINGS.audio_dir
 
 
 @bp.post("/api/annotations/<file>")
@@ -46,6 +52,56 @@ def save_annotations(file):
 @bp.get("/api/annotations/<file>")
 def get_annotations(file):
     return jsonify(annotations.load_annotation(file))
+
+
+@bp.post("/api/chord-candidates/<file>")
+def chord_candidates(file):
+    """Les candidats d'un créneau qu'on vient d'AJOUTER, classés par le delta.
+
+    Louis, 2026-09-16 : « dans l'option editing quand on clique pour créer un
+    nouvel accord, dans les suggestions on prend celles du delta prior ».
+
+    Un accord qu'on invente n'a pas de `sug` : ce créneau-là n'existait pas
+    quand le chart a été cuit, personne n'a classé ses candidats. On les
+    calcule ici, sur les postérieures musx déjà en cache, et on les classe par
+    ce qu'ils GAGNENT sur le créneau précédent — voir
+    `span_rescore.delta_candidates` pour le pourquoi (la pédale) et pour ce
+    que ça ne résout pas (c'est une hypothèse mesurée sur 2 accords).
+
+    Corps : `{"t0","t1"}` du nouveau créneau, `{"prev_t0","prev_t1"}` de
+    l'accord qui précède (absents = premier accord du morceau, on rend alors
+    le classement brut en le disant). Le client les connaît mieux que nous :
+    c'est lui qui vient de poser le brouillon.
+    """
+    from harmonia import musx as _musx
+    from harmonia.span_rescore import delta_candidates
+    p = CHARTS_DIR / f"{Path(file).stem}.json"
+    if not p.exists():
+        return jsonify({"error": "no such chart"}), 404
+    d = request.get_json(silent=True) or {}
+    try:
+        span = (float(d["t0"]), float(d["t1"]))
+    except (KeyError, TypeError, ValueError):
+        return jsonify({"error": "t0 et t1 requis"}), 400
+    prev = None
+    if d.get("prev_t0") is not None and d.get("prev_t1") is not None:
+        try:
+            prev = (float(d["prev_t0"]), float(d["prev_t1"]))
+        except (TypeError, ValueError):
+            prev = None
+    chart = json.loads(p.read_text(encoding="utf-8"))
+    stem = Path(chart.get("audio_url") or "").stem
+    audio = AUDIO_DIR / f"{stem}.m4a"
+    if not stem or not audio.exists():
+        # Pas de repli muet : sans audio il n'y a rien à classer, et l'éditeur
+        # doit pouvoir dire « pas de classement » plutôt qu'en inventer un.
+        return jsonify({"error": "pas d'audio pour ce chart", "sug": []}), 404
+    try:
+        probs = _musx.frame_posteriors(audio)      # cache disque, pas d'inférence
+    except Exception as exc:                        # noqa: BLE001
+        log.warning("candidats: postérieures indisponibles pour %s (%s)", stem, exc)
+        return jsonify({"error": "postérieures musx indisponibles", "sug": []}), 503
+    return jsonify(delta_candidates(probs, span, prev))
 
 
 @bp.route("/api/context_rescore/<file>", methods=["POST"])

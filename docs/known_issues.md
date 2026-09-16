@@ -250,6 +250,50 @@ inchangée.
 
 ## Résolu récemment
 
+- **Les candidats d'un accord AJOUTÉ sont classés par le delta, pas par la
+  probabilité brute (2026-09-16).** Louis : « dans l'option editing quand on
+  clique pour créer un nouvel accord, dans les suggestions on prend celles du
+  delta prior qu'on avait testé avant […] au lieu de les classer par leur
+  probabilité sur ce créneau, on les classe par ce qu'ils ont gagné depuis le
+  créneau précédent. L'idée étant que la résonance et la pédale font que
+  l'accord d'avant continue de bien scorer — le delta l'annule, puisqu'il
+  était déjà haut. »
+  Un créneau qu'on vient de créer n'a pas de `sug` : il n'existait pas à la
+  cuisson, personne n'a classé ses candidats, et l'éditeur s'ouvrait donc sur
+  « By hand », sans rien à proposer. `span_rescore.delta_candidates` les
+  calcule à la demande sur les postérieures musx en cache — MÊME pooling que
+  `musx_suggestions` (`pool_span_musx` + `acoustic_logp_musx`, mêmes 60
+  cases), SEUL le classement change. Route `POST /api/chord-candidates/<file>`
+  (span courant + span précédent, que le client seul connaît puisqu'il vient
+  de poser le brouillon) ; `openNewChord` la lit APRÈS avoir ouvert la
+  feuille, qui se redessine et passe au compas quand la réponse arrive.
+  L'en-tête dit quel classement on regarde (« what comes IN here — ranked by
+  what each gains »), et `c` reste la probabilité DU CRÉNEAU, jamais le gain.
+  **Reproduit les deux mesures de Louis au dixième près**, sur Ready (PJ
+  Morton), avec la convention span de l'accord ÉCRIT (pas la mesure) :
+  Ab^7 mes. 3, #3 à 6,7 % → **#2** ; Gb maj mes. 4, #6 à 6,9 % → **#4**.
+  Effet concret sur le second : à 6e il était HORS du top 5 affiché, à 4e il
+  devient visible dans le compas.
+  **Un écart assumé par rapport à la description**, à confirmer par Louis : le
+  plancher (`SUG_FLOOR`, 2 %) s'applique AVANT le classement. Un candidat qui
+  passe de 0,1 % à 2 % a « gagné » plus qu'un vrai accord qui passe de 30 % à
+  31 % et sortirait devant lui sur le delta seul. Sur les deux cas mesurés le
+  plancher ne change rien (6,7 % et 6,9 %, très au-dessus).
+  **CE QUE ÇA NE RÉSOUT PAS, et Louis le dit lui-même** : c'est une
+  HYPOTHÈSE, pas un résultat. 2 accords, UN morceau (règle #5). **Aucun des
+  deux n'atteint #1** — `Eb` reste en tête des deux classements, la pédale
+  n'est pas complètement annulée. Ce qui manque pour trancher, c'est de la
+  vérité terrain sur l'IDENTITÉ des accords : 13 accords annotés en tout sur
+  5 morceaux, les GT de brick0 condamnées à l'oreille, pas de GuitarSet sur le
+  disque. La piste ouverte est le banc par les TABLATURES (16 en cache, très
+  notées, transposables) — il faut les aligner sur nos créneaux ; ce banc
+  appartient à la session concurrente, qui l'a proposé le même jour.
+  N'est branché QUE sur le chemin « nouvel accord », là où il n'y avait aucun
+  classement du tout : il ne peut donc pas dégrader un classement existant.
+  Code : `harmonia/span_rescore.py` (`delta_candidates`),
+  `harmonia/server/routes/annotate.py`, `harmonia/static/screens/annotate.js`.
+  Tests : `tests/test_delta_candidates.py`.
+
 - **`DEFAULT_PENALTY = 40` est INERTE sur le corps d'un morceau** (2026-09-16,
   trouvé en cherchant à illustrer ce que chaque étage change). De 5 à 200,
   Ready rend exactement les mêmes 86 accords. Cause structurelle : le décodeur

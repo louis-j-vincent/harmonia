@@ -261,6 +261,78 @@ SUG_FLOOR = 0.02
 BASS_SUG_FLOOR = 0.125
 
 
+def delta_candidates(probs: list[np.ndarray], span: tuple[float, float],
+                     prev_span: tuple[float, float] | None,
+                     *, top_k: int = 5, floor: float = SUG_FLOOR) -> dict:
+    """Les candidats d'un créneau, classés par ce qu'ils GAGNENT sur le
+    précédent — au lieu de leur probabilité brute.
+
+    Louis, 2026-09-16 : « le delta dans l'espace des postérieures de musx […]
+    pour chaque créneau, on prend les 60 candidats, et au lieu de les classer
+    par leur probabilité sur ce créneau, on les classe par ce qu'ils ont gagné
+    depuis le créneau précédent. L'idée étant que la résonance et la pédale
+    font que l'accord d'avant continue de bien scorer — le delta l'annule,
+    puisqu'il était déjà haut. »
+
+    Le pooling est celui de `musx_suggestions`, au caractère près (mêmes
+    `pool_span_musx` + `acoustic_logp_musx`, même espace de 60) : SEUL le
+    classement change. Deux façons de mettre en commun les postérieures
+    seraient deux lois pour une décision.
+
+    Rend `{"sug": [{root, q, c, gain}], "source": "delta"|"posterior"}` —
+    `c` reste la probabilité SUR CE CRÉNEAU (ce que vaut le candidat), `gain`
+    est ce qu'il a pris depuis le précédent (ce qui l'a classé). `source`
+    dit laquelle des deux lois a servi, pour que l'écran ne puisse pas
+    laisser croire à un classement qu'il n'a pas appliqué.
+
+    SANS créneau précédent (le tout premier accord d'un morceau), il n'y a
+    pas de delta à calculer : on rend le classement brut, et `source` le dit.
+    Pas de repli muet.
+
+    UN ÉCART ASSUMÉ par rapport à la description de Louis, à confirmer : le
+    plancher s'applique AVANT le classement, pas après. Un candidat qui passe
+    de 0,1 % à 2 % a « gagné » plus qu'un vrai accord qui passe de 30 % à
+    31 %, et sortirait devant lui sur le delta seul. On ne classe donc par
+    gain que les candidats qui valent déjà quelque chose sur ce créneau
+    (`floor`, le même que les suggestions acoustiques). Sur le cas mesuré par
+    Louis — Ab^7 à 6,7 % — le plancher ne change rien, il est très au-dessus.
+
+    CE QUE ÇA NE RÉSOUT PAS, et il faut le dire : c'est une HYPOTHÈSE, pas un
+    résultat. Mesurée sur 2 accords d'UN morceau (Ready, PJ Morton, mes. 3 et
+    4, corrigés à l'oreille par Louis) : le delta les remonte de #3 à #2 et de
+    #6 à #4 — dans le bon sens les deux fois, mais **aucun des deux n'atteint
+    #1**, la pédale n'est pas complètement annulée. Règle #5 de CLAUDE.md :
+    une trouvaille sur un morceau est une hypothèse. Ce qui manque pour en
+    faire un résultat, c'est de la vérité terrain sur l'IDENTITÉ des accords
+    (13 accords annotés en tout ; les GT de brick0 sont condamnées à
+    l'oreille) — le banc par les tablatures est la piste ouverte, et il
+    appartient à l'autre session.
+    """
+    cur_pool = pool_span_musx(probs, [span])
+    p_cur = np.exp(acoustic_logp_musx(*cur_pool)[0][0])
+    plancher = [i for i in range(N_CANDIDATES) if float(p_cur[i]) >= floor]
+    if not plancher:                      # créneau sans aucun candidat crédible
+        plancher = [int(np.argmax(p_cur))]
+    if prev_span is None:
+        ordre = sorted(plancher, key=lambda i: -float(p_cur[i]))
+        gains = {i: None for i in plancher}
+        source = "posterior"
+    else:
+        prev_pool = pool_span_musx(probs, [prev_span])
+        p_prev = np.exp(acoustic_logp_musx(*prev_pool)[0][0])
+        gains = {i: float(p_cur[i]) - float(p_prev[i]) for i in plancher}
+        ordre = sorted(plancher, key=lambda i: -gains[i])
+        source = "delta"
+    sug = []
+    for i in ordre[:top_k]:
+        r, q5 = token_of(int(i))
+        e = {"root": int(r), "q": Q5_TAIL[q5], "c": round(float(p_cur[i]), 3)}
+        if gains[i] is not None:
+            e["gain"] = round(gains[i], 3)
+        sug.append(e)
+    return {"sug": sug, "source": source}
+
+
 def musx_suggestions(probs: list[np.ndarray], chords: list[dict],
                      *, top_k: int = 5, floor: float = SUG_FLOOR) -> int:
     """Attach musx's own top-``top_k`` candidates to each chord as ``c["sug"]``.

@@ -159,7 +159,17 @@ export function openEditor(idx,opts){
     cancel.onclick=()=>{ if(opts.onCancel) opts.onCancel(); closeOverlay(back); }; foot.appendChild(cancel);
     sheet.appendChild(foot);
     back.appendChild(sheet); root.appendChild(back);
-    S._closeEditor=()=>closeOverlay(back);
+    S._closeEditor=()=>{ S._editorRefresh=null; closeOverlay(back); };
+    // Redessiner la feuille quand ses candidats arrivent APRÈS son ouverture
+    // (`openNewChord` : un créneau qu'on vient de créer n'a pas de `sug`, le
+    // serveur les calcule pendant que la feuille est déjà à l'écran). Elle
+    // s'ouvre alors sur By hand faute de classement ; dès qu'il y en a un, on
+    // passe au compas, puisque c'est là que le classement se lit.
+    S._editorRefresh=()=>{
+      if(!root.contains(back)) return;            // feuille déjà fermée
+      if(editTab==="hand" && candList(idx).length) editTab="compass";
+      renderPane();
+    };
   }
   // The model's own alternates (P.chords[i].sug, musx's top-3 pooled over the
   // chord's span — span_rescore.musx_suggestions). NOTHING when the chart
@@ -289,10 +299,36 @@ export function openNewChord(bi,k){
     const newIdx=S.chords.length-1;
     bar.idxs.push(newIdx);
     bar.idxs.sort((a,b)=>(S.chords[a].beat||0)-(S.chords[b].beat||0));
-    openEditor(newIdx,{isNew:true, onCancel:()=>{
+    const cancel=()=>{
       const p=bar.idxs.indexOf(newIdx); if(p>=0) bar.idxs.splice(p,1);
       if(S.chords[S.chords.length-1]===draft) S.chords.pop();
-    }});
+    };
+    openEditor(newIdx,{isNew:true, onCancel:cancel});
+    // LES CANDIDATS DU CRÉNEAU QU'ON VIENT DE CRÉER (Louis, 2026-09-16 :
+    // « quand on clique pour créer un nouvel accord, dans les suggestions on
+    // prend celles du delta prior »). Ce créneau n'existait pas à la cuisson
+    // du chart : il n'a pas de `sug`, et l'éditeur s'ouvrirait donc sur By
+    // hand, sans rien à proposer. Le serveur les calcule sur les postérieures
+    // musx en cache et les classe par ce qu'ils GAGNENT sur l'accord d'avant
+    // — la pédale maintient le précédent en tête, le delta l'annule (voir
+    // `span_rescore.delta_candidates`, et ce que ça ne résout pas).
+    //
+    // APRÈS l'ouverture, pas avant : la feuille doit apparaître au doigt,
+    // tout de suite, pas après un aller-retour réseau. Elle se redessine
+    // quand la réponse arrive (`S._editorRefresh`), et si l'appel échoue on
+    // reste exactement sur ce qu'on a aujourd'hui — By hand, sans rien
+    // inventer.
+    const file=S.model && S.model.file;
+    if(file){
+      api.post(`/api/chord-candidates/${encodeURIComponent(file)}`,{
+        t0, t1, prev_t0: seed?seed.t0:null, prev_t1: seed?seed.t1:null,
+      }).then(r=>{
+        if(S.chords[newIdx]!==draft) return;     // annulé entre-temps
+        draft.sug=(r&&r.sug)||[];
+        draft.sugFrom=(r&&r.source)||null;       // « delta » ou « posterior »
+        if(S._editorRefresh) S._editorRefresh();
+      }).catch(()=>{});                          // silence assumé : cf. ci-dessus
+    }
   }
 
 export function openBarExpanded(bi){
@@ -493,7 +529,14 @@ export function buildCompass(idx,onPick){
     wrap.appendChild(svg); wrap.appendChild(layer);
     const box=el("div","");
     box.appendChild(el("div",`text-align:center;font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:8px;`,
-      sure?`the model is sure — ${Math.round(all[0].c*100)}% on this chord`:"candidates the model considered"));
+      // DIRE QUEL CLASSEMENT ON REGARDE (2026-09-16). Sur un créneau qu'on
+      // vient de créer, les candidats sont classés par ce qu'ils GAGNENT sur
+      // l'accord d'avant, pas par leur probabilité brute (`sugFrom`) : c'est
+      // un autre ordre, et le laisser passer pour l'ordinaire ferait lire de
+      // travers un chiffre qui, lui, reste la probabilité du créneau.
+      sure?`the model is sure — ${Math.round(all[0].c*100)}% on this chord`
+        :(chord.sugFrom==="delta"?"what comes IN here — ranked by what each gains"
+                                 :"candidates the model considered")));
     // AU-DESSUS de la roue, pas sous elle. La légende historique (taille /
     // couleur / angle) vit sous la roue, donc SOUS LA LIGNE DE FLOTTAISON du
     // panneau, qui scrolle : acceptable pour une convention que Louis connaît
