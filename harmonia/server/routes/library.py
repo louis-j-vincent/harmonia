@@ -21,6 +21,7 @@ from flask import Blueprint, jsonify, request
 
 from harmonia import annotations, titles as _titles
 from harmonia.server.jobs import CHARTS_DIR, META_PATH, _load_chart_meta
+from harmonia.server.routes.annotate import fill_empty_bars
 from harmonia.server.routes.sections import _safe_stem
 from harmonia.settings import SETTINGS
 
@@ -77,7 +78,13 @@ def chart_model(file):
     # Rehydrate server-side: the shell POSTs annotations but never GETs
     # them, so the overlay has to happen here or every lock dies on reload.
     model = json.loads(p.read_text(encoding="utf-8"))
-    return jsonify(annotations.overlay(model, annotations.load_annotation(file)))
+    ann = annotations.load_annotation(file)
+    model = annotations.overlay(model, ann)
+    # overlay() can insert a new chord into a bar that already has one (it
+    # clones that chord as a template); it silently drops a fix that targets
+    # a bar with NONE (a fully-held "%" bar) — fill_empty_bars covers just
+    # that case (see its docstring).
+    return jsonify(fill_empty_bars(model, ann))
 
 
 # ── artiste / titre éditables (delta2 §8) ────────────────────────────────────

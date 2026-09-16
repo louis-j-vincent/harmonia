@@ -163,6 +163,29 @@ Détail et mesures : `docs/audit_2026-09-15_plan.md`.
   sprint 9 (elle ne reçoit plus les tableaux NNLS/musx pré-calculés que
   l'ancien dispatcher passait) — à réécrire pour lire ces features
   directement via `harmonia.nnls_features`/`harmonia.musx`.
+- **`confirmed` protège l'AFFICHAGE, pas le calcul du repli** (trouvé
+  2026-09-16 en vérifiant qu'un accord ajouté à la main survit à Souder).
+  `library.chart_model` réapplique `annotations.overlay` à CHAQUE lecture, donc
+  un accord verrouillé se réaffiche correctement même après un Souder qui a
+  tout recalculé — vérifié : verrouillé un accord d'une mesure vide (l'outro
+  de `min_Ju8Hr50Ckwk`), relancé Souder sur les mêmes sections (mesures
+  réécrites), l'accord verrouillé était toujours là à la relecture. Mais rien
+  n'alimente jamais `confirmed` dans les mesures BRUTES avant que
+  `folding.fold_letter_groups`/`harmonia_min.folding` ne les empile — son
+  garde-fou « `if any(c.get("confirmed") ...)` » (`harmonia/folding.py:587`,
+  testé par `tests/test_fold_respecte_annotations.py`) ne se déclenche donc
+  jamais en pratique : rien dans `pipeline.py`, `refold.py` ni
+  `harmonia_min/soudure.py` ne lit le sidecar (`state/human/annotations/`)
+  avant le repli. Conséquence concrète : une mesure verrouillée continue de
+  fournir sa valeur D'AVANT verrouillage quand le repli MOYENNE les
+  occurrences d'une même lettre — l'affichage de CETTE mesure reste juste
+  (l'overlay la corrige après coup), mais elle peut fausser en silence la
+  moyenne des mesures VOISINES de la même lettre. Pas de correctif proposé :
+  il faudrait faire lire le sidecar à `accords_par_mesure`/aux étapes du
+  pipeline avant le repli, une piste distincte. `harmonia/server/routes/
+  annotate.py::fill_empty_bars` (2026-09-16) est un correctif plus étroit,
+  sans rapport : il comble seulement le cas où `overlay` n'a même pas
+  d'accord-hôte à modifier (une mesure entièrement tenue, `bars == []`).
 
 ## Trois trouvailles récupérées d'un arbre non commité, auditées le 2026-09-15
 
