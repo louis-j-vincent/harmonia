@@ -49,13 +49,16 @@ CHAINE = [
     ]),
     ("Quel accord sur quel temps", "LE CŒUR — où les accords changent", [
         ("DEFAULT_PENALTY", "40,0", "posé",
-         "le nombre qui touche le plus d'accords du système. Le commentaire annonce "
-         "« pooled optimum 40, LOSO-stable sur 7 morceaux » : aucune trace de cette "
-         "étude nulle part, corpus non nommé. Le décodeur vendu a 30,0 par défaut — "
-         "on l'a surchargé sur une mesure invérifiable."),
+         "INERTE, mesuré le 2026-09-16 : de 5 à 200, le morceau rend exactement les "
+         "mêmes 86 accords. Le décodeur ne la lit que sur les images hors de la "
+         "grille de temps (avant le premier temps, après le dernier) ; sur le corps "
+         "du morceau, ce sont les coûts par temps qui s'appliquent. Son commentaire "
+         "annonce « pooled optimum 40, LOSO-stable sur 7 morceaux » — aucune trace "
+         "de cette étude, et elle porterait de toute façon sur un curseur mort."),
         ("coût de changement", "15 / 45 / 100", "arbitré",
-         "temps fort / mi-mesure / autre temps. Forme arbitrée (This Love, 2026-07-31) ; "
-         "les trois nombres sont posés"),
+         "temps fort / mi-mesure / autre temps. LE VRAI CURSEUR : 5/15/30 donne 92 "
+         "accords, 40/80/200 en donne 78. La forme est arbitrée (This Love, "
+         "2026-07-31) ; les trois nombres, eux, sont posés."),
         ("granularité", "tout temps", "arbitré",
          "Louis 2026-08-07 : « on ne met plus de restrictions sur la granularité »"),
     ]),
@@ -103,6 +106,74 @@ CHAINE = [
          "jamais soumis à l'oreille — posé dans le bon sens (défaut = accord nu)"),
     ]),
 ]
+
+
+# ── une illustration par étage : un cas RÉEL, mesuré, pas un dessin ─────────
+# Toutes prises sur Ready (PJ Morton), le morceau tracé plus haut, pour qu'on
+# puisse écouter la même musique d'un étage à l'autre.
+# (titre, ce que l'étage change ici, [(gauche, droite)], [(libellé, t0, t1)])
+ILLUS = {
+ 1: ("Un temps parasite déplaçait toutes les barres",
+     "Beat This! avait posé deux marques à 180 ms d'écart à 13,9 s. Le filtre à "
+     "jumeaux coupait juste au-dessus. Un temps de trop dans la liste, et toutes "
+     "les barres suivantes tombaient un temps trop tôt.",
+     [("mesure 9 à 20,900 s", "mesure 9 à 21,520 s"),
+      ("mesure 10 à 23,540 s", "mesure 10 à 24,100 s")],
+     [("la couture, comme c'était", 19.4, 23.2), ("le vrai départ de la mesure 9", 21.52, 24.10)]),
+ 2: ("Deux accords à deux points d'écart",
+     "Le modèle ne rend pas un accord mais une probabilité par accord, toutes les "
+     "23 ms. À la mesure 2, D♭ et B♭m se tiennent à deux points — c'est l'étage "
+     "suivant qui tranche, pas celui-ci.",
+     [("D♭ · 33 %", "B♭m · 31 %"), ("puis E♭7 · 12 %", "et le reste sous 5 %")],
+     [("la mesure 2, où ça hésite", 3.90, 6.42), ("la mesure 3, où c'est net (E♭ 80 %)", 6.42, 9.06)]),
+ 3: ("La constante la plus documentée du système ne fait rien",
+     "On fait varier ce qu'on croyait être le curseur principal, la pénalité de "
+     "changement : de 5 à 200, le morceau rend exactement 86 accords. Elle ne "
+     "s'applique qu'aux images HORS de la grille de temps — la seconde avant le "
+     "premier temps et après le dernier. Ce sont les trois coûts par temps qui "
+     "décident tout.",
+     [("pénalité 5 → 86 accords", "pénalité 200 → 86 accords"),
+      ("coûts 5/15/30 → 92 accords", "coûts 40/80/200 → 78 accords")],
+     [("les 4 premières mesures", 1.38, 11.56)]),
+ 4: ("La phase des barres est UN nombre pour tout le morceau",
+     "Les temps forts du traceur votent, et la marque « Set bar 1 » les surclasse. "
+     "Un morceau qui gagnerait vraiment un temps au milieu reste inécrivable : "
+     "c'est ce qui a rendu le bug de l'étage 1 si visible.",
+     [("phase donnée par ta marque", "mesure 1 à 1,355 s"),
+      ("un seul résidu, tout le morceau", "aucun changement de phase possible")],
+     [("mesure 1, la marque", 1.38, 3.90), ("mesure 9, huit mesures plus loin", 21.52, 24.10)]),
+ 5: ("Une section devient six",
+     "Avant cet étage, le chart brut est une seule section d'un bloc. SongFormer "
+     "écoute le son et nomme les parties — c'est ce qui rend le chart lisible et "
+     "ce qui rend le repli possible.",
+     [("brut : 1 section", "final : intro · A · B · A′ · B′ · B″"),
+      ("aucune répétition vue", "A revient en A′, B en B′ et B″")],
+     [("intro", 1.38, 5.0), ("A", 21.52, 25.1), ("B", 52.28, 55.9),
+      ("A′", 82.8, 86.4), ("B′", 102.86, 106.5), ("B″", 126.14, 129.7)]),
+ 6: ("82 accords écrits deviennent 74",
+     "Une section jouée plusieurs fois n'est écrite qu'une fois, et ses passages "
+     "sont empilés pour se mettre d'accord. C'est le levier le plus violent du "
+     "chart : au-dessus du seuil de cohérence, TOUTES les mesures de la lettre "
+     "sont réécrites par le gabarit commun.",
+     [("brut : 82 accords écrits", "final : 74"),
+      ("A écrite 1 fois", "jouée en A et A′")],
+     [("A, mesure 9", 21.52, 26.66), ("A′, le même endroit", 82.8, 87.9)]),
+ 7: ("« A# minor » devient « B♭ minor »",
+     "L'analyse harmonique nomme la tonalité, et ce nom décide l'orthographe de "
+     "TOUT le chart : les mêmes notes s'écrivent en bémols ou en dièses. C'est "
+     "exactement l'erreur que tu m'as signalée sur la page d'arbitrage.",
+     [("brut : A# minor", "final : B♭ minor"),
+      ("un G♭^7 en la# mineur", "s'écrirait F#maj7")],
+     [("l'accord de tonique", 1.38, 3.90), ("le G♭^7 de la mesure 8", 18.96, 21.52)]),
+ 8: ("Le slash qu'on écrit, et la lecture à 25 % qui le pose",
+     "La basse est lue à l'ATTAQUE de chaque temps, pas en moyenne. Ici la "
+     "fondamentale D♭ n'est pas retrouvée au-dessus du plancher, donc la lecture "
+     "du temps 1 est gardée — E♭, à 25 %. Tes verdicts r16/r17/r19 disent que "
+     "c'est juste : un slash faible peut être vrai.",
+     [("sans la règle : D♭", "avec : D♭/E♭"),
+      ("lecture du temps 1 : E♭ 25 %", "intervalle +2, une 9e — jouable")],
+     [("l'attaque, ce que la règle lit", 3.90, 4.80), ("la mesure entière", 3.90, 6.42)]),
+}
 
 PROV = {"arbitré": ("mark", "arbitré par toi"), "mesuré": ("acc", "mesuré"),
         "hérité": ("dim", "hérité"), "posé": ("warn", "posé sans justification")}
@@ -159,12 +230,31 @@ def page(tr: dict) -> str:
 
     def etage(i, nom, quoi, cs):
         badges = "".join(
-            f"<tr><td class='cst'>{e(c[0])}</td><td class='val'>{e(c[1])}</td>"
-            f"<td><span class='b b-{PROV[c[2]][0]}'>{e(c[2])}</span></td>"
-            f"<td class='note'>{e(c[3])}</td></tr>" for c in cs)
+            f"<tr class='r1'><td class='cst'>{e(c[0])}</td><td class='val'>{e(c[1])}</td>"
+            f"<td class='bx'><span class='b b-{PROV[c[2]][0]}'>{e(c[2])}</span></td></tr>"
+            f"<tr class='r2'><td class='note' colspan='3'>{e(c[3])}</td></tr>" for c in cs)
+        il = ILLUS.get(i)
+        bloc = ""
+        if il:
+            titre, texte, paires, ecoutes = il
+            pp = "".join(
+                f"<div class='pr'><span class='g'>{e(a)}</span>"
+                f"<span class='fl'>&rarr;</span><span class='d'>{e(b)}</span></div>"
+                for a, b in paires)
+            bb = "".join(
+                f"<button class='pl' data-t0='{t0:.3f}' data-t1='{t1:.3f}' "
+                f"type='button'>&#9658; {e(lab)}</button>" for lab, t0, t1 in ecoutes)
+            bloc = f"""
+  <div class="illus">
+    <div class="ith">{e(titre)}</div>
+    <p class="itx">{e(texte)}</p>
+    <div class="prs">{pp}</div>
+    <div class="acts ill">{bb}</div>
+  </div>"""
         return f"""
 <div class="etage">
   <div class="eh"><span class="num">{i}</span><b>{e(nom)}</b><span class="quoi">{e(quoi)}</span></div>
+  {bloc}
   <div class="wrap"><table>{badges}</table></div>
 </div>"""
 
@@ -199,7 +289,9 @@ def page(tr: dict) -> str:
  td:first-child{{padding-left:0}} td:last-child{{padding-right:0}}
  .cst{{font-family:'IBM Plex Mono',monospace;font-weight:500;white-space:nowrap}}
  .val{{font-family:'IBM Plex Mono',monospace;color:var(--ink-dim);white-space:nowrap}}
- .note{{color:var(--ink-dim);font-size:12px;min-width:180px}}
+ .note{{color:var(--ink-dim);font-size:12px;padding-top:0;padding-bottom:9px}}
+ tr.r1 td{{border-bottom:none;padding-bottom:2px}}
+ td.bx{{text-align:right;white-space:nowrap}}
  .b{{font-family:'IBM Plex Mono',monospace;font-size:10px;padding:2px 6px;border-radius:4px;white-space:nowrap}}
  .b-mark{{background:var(--mark-soft);color:var(--mark)}}
  .b-warn{{background:var(--warn-soft);color:var(--warn);font-weight:600}}
@@ -221,6 +313,16 @@ def page(tr: dict) -> str:
  .num{{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent-ink);
   background:var(--accent-soft);border-radius:4px;padding:1px 7px}}
  .quoi{{color:var(--ink-dim);font-size:12.5px}}
+ .illus{{background:var(--surface-2);border:1px solid var(--rule);border-left:3px solid var(--accent);
+  border-radius:8px;padding:11px 13px;margin:8px 0 11px}}
+ .ith{{font-weight:600;font-size:13.5px;margin-bottom:5px}}
+ .itx{{font-size:12.5px;color:var(--ink-dim);margin:0 0 9px}}
+ .prs{{display:flex;flex-direction:column;gap:5px;margin-bottom:9px}}
+ .pr{{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;
+  font-family:'IBM Plex Mono',monospace;font-size:12px}}
+ .pr .g{{color:var(--ink-dim)}} .pr .fl{{color:var(--ink-faint)}}
+ .pr .d{{color:var(--accent-ink);font-weight:600}}
+ .acts.ill{{border-bottom:none;padding-bottom:0;margin-bottom:0}}
 
  .tr{{border:1px solid var(--rule);border-radius:10px;background:var(--surface);
   padding:11px 13px;margin-bottom:7px}}

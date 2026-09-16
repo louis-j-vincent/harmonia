@@ -48,8 +48,23 @@ FRAME_DT = MUSX_HOP / MUSX_SR          # 0.023219954648526078 s  (43.07 fps)
 MODEL_NAMES = ['joint_chord_net_ismir_naive_v1.0_reweight(0.0,10.0)_s%d.best' % i
                for i in range(5)]
 
-#: Viterbi change penalty on the beat grid.  Pooled optimum 40; LOSO-stable
-#: (per-fold picks were 40 on 6/7 songs, 55 on the seventh).
+#: Viterbi change penalty — **INERTE sur le corps d'un morceau** (mesuré le
+#: 2026-09-16, en cherchant à illustrer ce qu'elle fait). De 5 a 200, Ready rend
+#: exactement les memes 86 accords.
+#:
+#: Pourquoi : le decodeur vendu n'applique `diff_trans_penalty` que la ou
+#: `beat_arr[t] == 1` (`xhmm_ismir.py:120`), et `make_beat_arr` ci-dessous ne
+#: laisse la valeur 1 que sur les images HORS de la grille de temps — avant le
+#: premier temps et apres le dernier, 49 images sur 6671 pour Ready. Partout
+#: ailleurs c'est 0 (aucun changement permis) ou 2/3/4, donc
+#: `beat_trans_penalty`. Le vrai curseur de densite d'accords, c'est ce
+#: triplet-la : 5/15/30 donne 92 accords, 40/80/200 en donne 78.
+#:
+#: Le commentaire d'origine annoncait « pooled optimum 40 ; LOSO-stable (40 sur
+#: 6/7 morceaux, 55 sur le septieme) ». Aucune trace de cette etude dans docs/
+#: ni archive/, corpus non nomme — et elle porterait de toute facon sur un
+#: curseur qui ne bouge rien. Valeur gardee telle quelle : la changer ne peut
+#: rien casser, mais rien ne justifie de la bouger non plus.
 DEFAULT_PENALTY = 40.0
 
 #: Bridge for callers that still want the raw folder (e.g. `span_rescore`

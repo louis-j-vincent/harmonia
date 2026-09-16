@@ -250,6 +250,26 @@ inchangée.
 
 ## Résolu récemment
 
+- **`DEFAULT_PENALTY = 40` est INERTE sur le corps d'un morceau** (2026-09-16,
+  trouvé en cherchant à illustrer ce que chaque étage change). De 5 à 200,
+  Ready rend exactement les mêmes 86 accords. Cause structurelle : le décodeur
+  vendu n'applique `diff_trans_penalty` que là où `beat_arr[t] == 1`
+  (`xhmm_ismir.py:120`), et `musx.make_beat_arr` ne laisse la valeur 1 que sur
+  les images HORS de la grille de temps — 49 images sur 6671 pour Ready, avant
+  le premier temps et après le dernier. Le vrai curseur de densité d'accords
+  est `beat_trans_penalty` : 5/15/30 donne 92 accords, 15/45/100 en donne 86,
+  40/80/200 en donne 78. La docstring d'origine annonçait « pooled optimum 40,
+  LOSO-stable sur 7 morceaux » ; aucune trace de cette étude dans `docs/` ni
+  `archive/`, et elle aurait de toute façon mesuré un curseur mort. Valeur
+  gardée telle quelle (la changer ne peut rien casser), docstring corrigée,
+  garde-fou `tests/test_penalite_inerte.py` : si `make_beat_arr` repose un jour
+  des 1 au milieu d'un morceau, le test rougit au lieu de laisser un curseur
+  ressusciter en silence. **Ce que ça ne règle pas** : les trois nombres
+  15/45/100 restent posés — leur FORME est arbitrée (This Love, 2026-07-31),
+  pas leurs valeurs.
+
+
+
 - **`harmonia_min` supprimé (sprint 22, 2026-09-16).** Le paquet n'était plus
   qu'un décor : sur ses 20 modules, 12 étaient des PONTS de 2 à 7 lignes
   (`from harmonia.X import *`) qui réexportaient `harmonia` — la dépendance
