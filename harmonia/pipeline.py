@@ -25,7 +25,22 @@ app_shell.html actually reads): {file,title,video_id,audio_url,key,keyName,
 bpb,nBars,barGrid,beatTimes,form,sections:[{id,label,tag,reps,spans,barRanges,
 bars,barSpans}]}, Bar=[Chord×0..bpb] (granularity unrestricted 2026-08-07;
 typesetting already handles crammed 3-4 chord bars),
-Chord={root,q,c,bass,nc,bar,beat,t0,t1}.
+Chord={root,q,c,bass,nc,bar,beat,t0,t1}. Optional per-chord fields: `sug`
+([{root,q,c}, …], the model's own ranked candidates on THIS chord's span —
+travels from the raw yield, see `musx_suggestions` below); `var`
+({root,q,bass,c,n}, 2026-09-16, `harmonia.folding._bar_variant`) — the
+"optional chord, small above" a folded position writes when ≥1 of its
+stacked passes' own first-pass decode heard a real onset (confidence ≥
+`folding.VAR_MIN_CONF`) that the averaged consensus smoothed away (Easy On
+Me B: "F" written, "D-7" heard as a passing chord on 3 of 6 stacked bars) —
+`n` counts how many stacked passes support it. `sug` is the model's ranking
+of alternates for the WRITTEN chord's own span (within-bar uncertainty);
+`var` is a DIFFERENT chord a minority of OTHER passes actually played at
+this position (cross-pass disagreement) — distinct semantics, distinct
+fields, on purpose. Rendered by `harmonia/static/screens/chart.js` (the
+`ch.var` glyph, small, above the main chord — a field the renderer already
+expected since 2026-08-17 for "the other reading of this cell on a folded
+chart", never fed by the server until this date).
 barSpans[r]=[[t0,t1]] is the playhead's map (server-built, one pass each).
 
 Ce que ce module ne fait PAS : aucun algorithme n'est ici — détection de

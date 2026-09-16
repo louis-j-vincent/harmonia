@@ -1379,11 +1379,20 @@ export function buildIReal(){
         // chart replié qui la porte : c'est l'autre lecture que le morceau
         // donne à cette case, quand les tours repliés ne s'accordent pas et
         // qu'aucun pattern n'explique l'écart. Elle ne remplace jamais
-        // l'accord, elle le commente.
-        if(ch.var) item.appendChild(el("span",
-          `position:absolute;top:-6px;right:-4px;font:600 ${narrow?9:10}px ${SERIF};`+
-          `color:${T.accent};opacity:.85;white-space:nowrap;pointer-events:none;`,
-          ch.var));
+        // l'accord, elle le commente. Posée côté serveur depuis le
+        // 2026-09-16 (`harmonia.folding._bar_variant`, Easy On Me : « j'aimerais
+        // avoir juste F affiché et le D-7 en optionnel en petit au-dessus en
+        // suggestion, comme iReal fait ») — un objet {root,q,bass,c,n}, pas
+        // une chaîne déjà mise en forme : on la dessine avec le MÊME `glyph()`
+        // que l'accord principal, en plus petit, pour hériter gratuitement de
+        // son orthographe correcte selon le ton (`noteEl`/`setSpelling`,
+        // 2026-09-16) au lieu de la réinventer ici.
+        if(ch.var) {
+          const vw=el("span","position:absolute;top:-7px;right:-4px;opacity:.85;pointer-events:none;line-height:1;");
+          vw.appendChild(glyph(ch.var.root,dispQ(ch.var.q),narrow?9:10,"exact",T.accent,
+            (ch.var.bass==null?-1:ch.var.bass)));
+          item.appendChild(vw);
+        }
         if(S.learn&&(dq!==ch.q||bassHidden)) item.appendChild(el("span",`font:600 8px ${UI};color:${T.amber};`,"simpler"));
         // LA RANGÉE DE MARQUE (T4, 2026-08-19). Une seule rangée sous le
         // glyphe, 5 px, TOUJOURS présente en Annotate même vide : réservée, elle

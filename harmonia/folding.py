@@ -69,6 +69,7 @@ import numpy as np
 
 from harmonia import musx as _musx
 from harmonia.labels import to_chord
+from harmonia.roles import family as _role_family
 from harmonia.settings import SETTINGS
 
 logger = logging.getLogger(__name__)
@@ -225,6 +226,115 @@ def _resample(mat: np.ndarray, n_out: int) -> np.ndarray:
     hi = np.minimum(lo + 1, T - 1)
     w = (xs - lo)[:, None]
     return (1 - w) * mat[lo] + w * mat[hi]
+
+
+#: Confiance minimale, sur la PREMIÈRE passe d'une occurrence empilée, pour
+#: qu'un accord qu'elle seule joue mérite d'être montré comme variante « en
+#: petit au-dessus », à la iReal (Louis, 2026-09-16, Easy On Me section B :
+#: « c'est un F puis la basse descend sur D (donc ça donne un D-7) avant
+#: d'atterrir sur le C, sur les passes suivantes des fois la basse fait
+#: quelque chose de plus complexe, donc difficile à dire, typiquement le
+#: genre de cas où j'aimerais avoir juste F affiché et le D-7 en optionnel en
+#: petit au-dessus en suggestion, comme iReal fait »). Mesuré sur ce morceau :
+#: à la position qui écrit F, 3 des 6 passes empilées décodent F PUIS D-(7)
+#: sur le 4e temps, à 0,70/0,70/0,72 de confiance ; les 3 autres ne tiennent
+#: qu'un F. Le seuil est mis sous ce plancher pour garder ces trois occurrences,
+#: largement au-dessus du bruit des candidats `sug` jamais écrits (souvent
+#: < 0,15 dans ces mêmes mesures). HYPOTHÈSE sur un seul morceau (règle #5,
+#: CLAUDE.md) — à vérifier corpus entier avant de resserrer ou d'assouplir.
+VAR_MIN_CONF = 0.5
+
+
+def _bar_variant(members_raw: list[list[dict]], written: list[dict]) -> dict | None:
+    """La meilleure lecture minoritaire qu'une pile de passes porte à une
+    position, et que le gabarit moyenné (`written`, ce qui va s'écrire sur
+    CHAQUE passe empilée à cette position) a fait disparaître.
+
+    `members_raw` : le décodage de première passe de chaque passe empilée à
+    cette position, PRIS AVANT que `_write_position` ne les réécrive toutes
+    au gabarit — la seule fenêtre où cette information existe encore (elle
+    n'est jamais recalculée après coup : une passe rejetée par la pile garde
+    son propre décodage, `rejetees`, mais une passe GARDÉE le perd dès que le
+    gabarit s'écrit).
+
+    Une occurrence du groupe est une variante quand elle joue, à un temps où
+    le gabarit N'ATTAQUE PAS (il tient l'accord précédent), un accord réel
+    (confiance ≥ VAR_MIN_CONF) d'une famille différente de ce que le gabarit
+    tient là. Les occurrences sont regroupées par (temps, fondamentale,
+    famille) — `harmonia.roles.family` absorbe « D- » et « D-7 » dans le même
+    groupe, la même lecture à l'oreille dite avec plus ou moins de septième —
+    et le groupe le plus soutenu (le plus de passes, puis la plus haute
+    confiance) l'emporte ; c'est SA propre meilleure occurrence qui donne la
+    couleur affichée, jamais un mélange qu'aucune passe n'a réellement joué.
+
+    NE RÉSOUT PAS (règle #4, CLAUDE.md) : une seule variante par position, à
+    l'image du champ `var` du chart (voir `_attach_variant`) — si deux temps
+    portaient chacun leur propre variante minoritaire, seul le plus soutenu
+    des deux survivrait. Non rencontré sur le corpus mesuré à ce jour.
+    Ne regarde que les passes GARDÉES (`gated`, l'appelant) : une passe déjà
+    rejetée par la pile (`rejetees`) affiche déjà son propre décodage, elle
+    n'a besoin d'aucune annotation en plus.
+    """
+    written_onsets = sorted((e["beat"], e) for e in written if not e.get("carry"))
+    if not written_onsets:
+        return None
+    written_beats = {wb for wb, _ in written_onsets}
+
+    def _sounding_at(beat):
+        cur = None
+        for wb, e in written_onsets:
+            if wb <= beat:
+                cur = e
+        return cur
+
+    groups: dict[tuple, dict] = {}
+    for bar in members_raw:
+        for e in bar:
+            if e.get("nc") or e.get("carry"):
+                continue
+            beat = e.get("beat", 0)
+            if beat in written_beats:
+                continue                      # le gabarit ATTAQUE déjà ici
+            conf = float(e.get("c", 0.0))
+            if conf < VAR_MIN_CONF:
+                continue
+            held = _sounding_at(beat)
+            if held is not None and held["root"] == e["root"] and \
+                    _role_family(held.get("q") or "") == _role_family(e.get("q") or ""):
+                continue                      # même lecture que ce qui est tenu
+            key = (beat, int(e["root"]) % 12, _role_family(e.get("q") or ""))
+            slot = groups.setdefault(key, {"root": int(e["root"]) % 12,
+                                           "q": e.get("q", ""),
+                                           "bass": e.get("bass", -1),
+                                           "beat": beat, "c": 0.0, "n": 0})
+            slot["n"] += 1
+            if conf > slot["c"]:
+                slot["c"] = round(conf, 3)
+                slot["q"] = e.get("q", "")
+                slot["bass"] = e.get("bass", -1)
+    if not groups:
+        return None
+    return max(groups.values(), key=lambda g: (g["n"], g["c"]))
+
+
+def _attach_variant(chords_k: list[dict], variant: dict) -> None:
+    """Pose `variant` (voir `_bar_variant`) sur l'accord de `chords_k` qui
+    sonne à son temps — le champ `var` du chart, déjà lu par
+    `harmonia/static/screens/chart.js` (posé le 2026-08-17 pour « l'autre
+    lecture de cette case, sur un chart replié », jamais alimenté côté
+    serveur avant ce jour) : un objet {root,q,bass,c,n}, pas une chaîne déjà
+    mise en forme — l'orthographe (dièse/bémol selon le ton) reste la
+    responsabilité du rendu (`kit.js::noteEl`/`setSpelling`, 2026-09-16),
+    comme pour l'accord principal.
+    """
+    beat = variant["beat"]
+    target = chords_k[0]
+    for e in chords_k:
+        if e["beat"] <= beat:
+            target = e
+        else:
+            break
+    target["var"] = {k: v for k, v in variant.items() if k != "beat"}
 
 
 def fold_letter_groups(sections, bars, grid, probs, bpb: int,
@@ -429,6 +539,13 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
         for k in range(P):
             if not pos_chords[k] or k in cv_skip:
                 continue                          # empty or CV-refused
+            # L'ACCORD OPTIONNEL « EN PETIT AU-DESSUS » (Easy On Me, voir
+            # `_bar_variant`) : lu sur le décodage de première passe des
+            # membres GARDÉS de CETTE position, avant que la ligne du dessous
+            # ne les réécrive tous au même gabarit.
+            variant = _bar_variant([bars[b] for b in gated[k]], pos_chords[k])
+            if variant:
+                _attach_variant(pos_chords[k], variant)
             for b in gated[k]:
                 if _write_position(bars, grid, b, pos_chords[k], bpb, n_obs[k]):
                     changed.append(b)
@@ -599,6 +716,10 @@ def _write_position(bars, grid, b, chords_k, bpb, n_obs):
                     "beat": e["beat"], "bar": b,
                     "c": float(e.get("c", 0.5)), "n_obs": n_obs,
                     "folded": True,
+                    # L'accord optionnel « en petit au-dessus » (`_bar_variant`,
+                    # Easy On Me 2026-09-16) : posé par l'appelant sur `e` avant
+                    # cet appel, jamais recalculé ici.
+                    **({"var": e["var"]} if e.get("var") else {}),
                     "t0": round(t0, 3), "t1": round(grid[b] + nxt, 3)})
     changed = [(c["root"], c["q"], c.get("carry", False)) for c in bars[b]] \
         != [(c["root"], c["q"], c.get("carry", False)) for c in new]

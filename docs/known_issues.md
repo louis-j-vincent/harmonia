@@ -22,10 +22,6 @@ Détail et mesures : `docs/audit_2026-09-15_plan.md`.
   empile la 26 (D-7, vraie) avec les G7 des autres passes. Loi candidate :
   « une mesure de silence dans une boucle n'est pas une position » —
   contre-cas : un break qui fait partie de la boucle. Pas posée.
-- **L'accord optionnel « en petit au-dessus », comme iReal** (Louis, Easy On
-  Me : F affiché, D-7 en suggestion). La pile connaît déjà les accords
-  minoritaires par position (`rejetees` + première passe) ; il manque le
-  champ dans le ChartModel et le rendu. Sprint dédié.
 - **Les crochets de fin 1./2. notent du bruit dès que le tronc s'accorde** :
   les dernières mesures de chaque passe sont gardées hors pile exprès et
   décodées passe par passe ; `_ireal_endings` en fait autant de fins que
@@ -209,6 +205,45 @@ trouvaille est vérifiée contre le code vivant et notée ici.
   la moyenne en silence ? Pas vérifié ; même piste de recherche.
 
 ## Résolu récemment
+
+- **L'accord optionnel « en petit au-dessus », comme iReal (2026-09-16).**
+  Louis, sur Easy On Me section B : « c'est un F puis la basse descend sur D
+  (donc ça donne un D-7) avant d'atterrir sur le C … typiquement le genre de
+  cas où j'aimerais avoir juste F affiché et le D-7 en optionnel en petit
+  au-dessus en suggestion, comme iReal fait. » `harmonia.folding._bar_variant`
+  lit, à chaque position d'un gabarit replié, le décodage de première passe
+  de chaque passe GARDÉE avant que le gabarit ne les réécrive toutes — la
+  seule fenêtre où cette information existe encore — et retient l'accord
+  minoritaire (confiance ≥ `VAR_MIN_CONF = 0.5`) le plus soutenu, groupé par
+  fondamentale + famille (`harmonia.roles.family`, pour que « D- » et « D-7 »
+  comptent comme la même lecture). Posé comme champ `var` sur l'accord écrit
+  — un champ que le rendu (`harmonia/static/screens/chart.js`) attendait déjà
+  depuis le 2026-08-17 (« l'autre lecture de cette case, sur un chart replié
+  ») sans qu'aucun code serveur ne l'alimente ; distinct de `sug` (le
+  classement du modèle sur le span de l'accord ÉCRIT, une question d'
+  incertitude intra-mesure — `var` est un accord RÉELLEMENT joué par une
+  minorité d'AUTRES passes, une question de désaccord inter-passes).
+  Mesuré sur Easy On Me (`min_X-yIEMduRXk`, section B position 0) : F écrit,
+  3 des 6 passes empilées jouent F puis D- au 4e temps (0,749/0,698/0,722 de
+  confiance) — `var: {root: D, q: "-", c: 0.749, n: 3}`. Rapport d'or sur 45
+  morceaux cuits : 6 changent (`identique: false`, dont Easy On Me), tous à
+  **0 mesure changée** — vérifié en retirant `var` de chaque chart, byte-
+  identique à la baseline dans les 6 cas : aucune régression racine/qualité/
+  basse, uniquement l'apparition du nouveau champ.
+  **Ce que ça ne résout pas** (à confirmer par Louis) : (1) l'orthographe
+  affichée est celle de la passe la PLUS confiante du groupe (ici « D- »,
+  pas « D-7 » bien que 1 des 3 passes ait décodé la septième) — pas un
+  mélange inventé, mais peut-être pas ce que Louis préfère voir ; (2) une
+  seule variante par position (si deux temps différents portaient chacun
+  leur propre lecture minoritaire, seule la plus soutenue survivrait) ;
+  (3) seuil `VAR_MIN_CONF = 0.5` mesuré sur UN SEUL morceau (règle #5,
+  CLAUDE.md) — à vérifier corpus entier ; (4) ne couvre que le chemin
+  `fold_letter_groups` (sections auto-détectées) — le chemin `soudure.
+  sections_pour_chart` (découpage à la main, `harmonia_min`, sprint 22) n'a
+  pas son propre calcul de variante.
+  `harmonia/folding.py` (`_bar_variant`, `_attach_variant`, `VAR_MIN_CONF`),
+  `harmonia/pipeline.py` (docstring ChartModel), `harmonia/static/screens/
+  chart.js`, `tests/test_folding_variant.py`.
 
 - **Un temps en trop à 0,28 fois le temps décale toutes les barres après lui
   (2026-09-15, Louis sur Ready de PJ Morton).** Son diagnostic : « entre la
