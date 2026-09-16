@@ -189,9 +189,28 @@ def _write_sounding_bass(bars, probs, arr, times) -> int:
     plutot que de garder un nombre qui ne decide rien — la lecon de
     `DEFAULT_PENALTY`, le meme jour.
 
+    PLUS DE FILTRE D'INTERVALLE NON PLUS (Louis, 2026-09-16 : « maintenant
+    qu'on a un detecteur de basse trustworthy, utilise cette basse a chaque
+    fois, en cas de litige il faudra trouver comment trancher intelligemment »).
+
+    La table `bass_rules.PLAUSIBLE` gardait cinq intervalles sur douze. Verifie
+    avant de la retirer : les QUATRE intervalles que Louis avait ecartes
+    l'avaient ete sur des erreurs de LECTURE de la chroma, pas sur une
+    impossibilite musicale — et aux quatre memes endroits musx donne la
+    fondamentale a 80, 95, 90 et 97 %, donc n'ecrit aucun slash. Il ne commet
+    pas ces erreurs-la. Le filtre etait une prothese pour le bruit de l'ancien
+    detecteur.
+
+    Et il coutait cher : il refusait TOUS les troisiemes renversements de
+    septieme — `Am7/G`, `C7/Bb`, `Fmaj7/E`, `Dm7/C` sont a +10 ou +11 — alors
+    que la tab de Let It Be la mieux notee d'Ultimate Guitar (4,81 etoiles,
+    14 126 votes) ecrit litteralement `Am/G`.
+
     Reste donc UNE regle, et c'est tout : la basse la plus probable sur la
-    duree de l'accord, ecrite si elle differe de la fondamentale et si son
-    intervalle est dans `bass_rules.PLAUSIBLE` (les cinq que Louis a entendus).
+    duree de l'accord, ecrite des qu'elle differe de la fondamentale.
+
+    `bass_rules` reste en place et ses tests aussi : ils gardent la memoire des
+    arbitrages et serviront le jour ou il faudra trancher un litige.
 
     `bass = -1` veut dire « position fondamentale, rien a ecrire ».
 
@@ -202,8 +221,6 @@ def _write_sounding_bass(bars, probs, arr, times) -> int:
     arbitrages. Ne decoupe toujours pas un accord dont la basse bouge.
     """
     import numpy as np
-
-    from harmonia.bass_rules import PLAUSIBLE
 
     # colonne 0 = « pas de basse », colonnes 1..12 = les douze hauteurs a
     # partir de DO (`complex_chord.NUM_TO_ABS_SCALE`, verifie dans le clone :
@@ -227,9 +244,8 @@ def _write_sounding_bass(bars, probs, arr, times) -> int:
             p12 = seg.mean(axis=0)[1:13]
             root_pc = int(c["root"]) % 12
             cand = int(np.argmax(p12))
-            garde = cand != root_pc and (cand - root_pc) % 12 in PLAUSIBLE
-            c["bass"] = cand if garde else -1
-            n_slash += garde
+            c["bass"] = cand if cand != root_pc else -1
+            n_slash += cand != root_pc
     logger.info("basse sonnante (tete musx) : %d accords recoivent un slash", n_slash)
     return n_slash
 

@@ -33,7 +33,6 @@ from __future__ import annotations
 
 import numpy as np
 
-from harmonia.bass_rules import PLAUSIBLE
 from harmonia.pipeline import _write_sounding_bass
 
 NAMES = "C Db D Eb E F Gb G Ab A Bb B".split()
@@ -83,12 +82,28 @@ def test_un_intervalle_jouable_donne_un_slash():
     assert bars[0][0]["bass"] == 7
 
 
-def test_un_intervalle_ecarte_ne_sexecrit_pas():
-    """+1, la b9 : refusée à l'oreille le 2026-09-15. Défaut = accord nu."""
-    assert 1 not in PLAUSIBLE
-    bars = _bar(0)
-    _write_sounding_bass(bars, _probs(90, {1: 0.9}), None, None)
-    assert bars[0][0]["bass"] == -1
+def test_aucun_filtre_dintervalle():
+    """Louis, 2026-09-16 : « utilise cette basse a chaque fois ».
+
+    La table `PLAUSIBLE` gardait cinq intervalles sur douze. Vérifié avant de
+    la retirer : les quatre intervalles qu'il avait écartés l'avaient été sur
+    des erreurs de LECTURE de la chroma, et aux quatre mêmes endroits musx
+    donne la fondamentale à 80-97 %, donc n'écrit rien. Le filtre protégeait
+    d'un bruit qui n'existe plus, et il refusait au passage TOUS les troisièmes
+    renversements de septième.
+    """
+    for iv in (1, 5, 6, 8, 9, 10, 11):          # tout ce que la table écartait
+        bars = _bar(0)
+        _write_sounding_bass(bars, _probs(90, {iv: 0.9}), None, None)
+        assert bars[0][0]["bass"] == iv, f"l'intervalle +{iv} est encore filtré"
+
+
+def test_les_troisiemes_renversements_de_septieme_sexecrivent():
+    """`Am7/G` (+10) est ce que la tab de Let It Be la mieux notée d'Ultimate
+    Guitar écrit — 4,81 étoiles, 14 126 votes. L'ancien filtre le refusait."""
+    bars = _bar(9)                               # LA
+    _write_sounding_bass(bars, _probs(90, {7: 0.8}), None, None)   # basse SOL
+    assert bars[0][0]["bass"] == 7               # +10 : le SOL, septième du Am7
 
 
 def test_aucun_plancher_de_confiance():

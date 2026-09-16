@@ -250,33 +250,20 @@ inchangée.
 
 ## Ouvert — à arbitrer
 
-- **Faut-il changer de source de basse ? (2026-09-16, Louis : « il faut
-  utiliser la tete de basse de musx qui est parfaite enfaite »).** Page :
-  `/reports/basse_source/avant_apres.html`. Rien n'est commité, la
-  bibliothèque n'a pas bougé.
-  **D'abord une correction de ma part** : mon premier chiffre (« chroma 6/16,
-  musx 11/16 ») comparait les SIGNAUX BRUTS — l'argmax de chaque source prise
-  telle quelle — et non les RÈGLES. `decide_bass` ne prend pas l'argmax de la
-  chroma : elle cherche la fondamentale sur TOUS les temps de l'accord et ne
-  retombe sur la lecture du temps 1 que si elle ne la trouve pas. Elle
-  compense donc le bruit du signal. Erreur n°7 du projet (vérifier ce qu'une
-  chose FAIT avant d'expliquer pourquoi elle marche).
-  Refait règle contre règle sur les 12 verdicts localisables :
-  **ancienne 12/12, nouvelle 11/12**. Mais 12/12 n'est pas un score —
-  `decide_bass` a été fabriquée sur ces douze cas, c'est de l'apprentissage ;
-  le 11/12 de musx est hors échantillon. Les deux nombres ne sont pas
-  comparables et **rien ne tranche sur cette preuve**.
-  Ce que la re-dérivation a quand même établi, et qui vaut indépendamment :
-  la part de la fondamentale selon musx sépare les deux classes **sans
-  recouvrement** (5,8–42,1 % avec slash, 80,5–97,2 % sans), mais dans les sept
-  cas sans slash l'argmax de musx EST déjà la fondamentale — donc un plancher
-  entre 40 et 80 % donne exactement le même résultat que pas de plancher.
-  La règle musx n'en a pas : une seule branche, pas de fenêtre d'attaque.
-  Portée si on bascule : **76 mesures sur 19 morceaux**, dont 65 slashes
-  retirés, 12 ajoutés, 2 basses changées — et la perte de `Eb-/Gb` (Ready
-  mes. 4), le seul cas que musx rate et que la chroma trouve. Les deux
-  sources se complètent là-dessus ; aucune règle de fusion n'est posée.
-  Versions gardées côte à côte dans le scratchpad de la session.
+- **Les 4 slashes en b9 de Virtual Insanity** (2026-09-16). En retirant le
+  filtre d'intervalle (Louis : « utilise cette basse a chaque fois »), 47
+  slashes apparaissent sur 9 morceaux. Quarante-trois sont des renversements
+  ordinaires — `Bb7/Ab` (b7, 3e renversement d'un dominante), `D-7/G` (une
+  quarte, c'est-à-dire un G7sus4), `C/A` (une sixte, c'est-à-dire un A-7). Les
+  quatre derniers sont des **b9** dans un seul morceau : `Bb7/B` sur Virtual
+  Insanity, un si naturel sous un si bémol. C'est l'intervalle que Louis avait
+  écarté à l'oreille le 2026-09-15, et le même morceau porte aussi six `Dh7/B`.
+  Un si tenu à la basse sur tout le passage : pédale réelle, ou artefact de la
+  tête basse sur ce timbre ? À écouter. Page :
+  `/reports/basse_libre/avant_apres.html`.
+  C'est le premier « litige » au sens où Louis l'entendait — rien ne le
+  tranche automatiquement aujourd'hui, et `bass_rules` garde la mémoire des
+  arbitrages pour le jour où on écrira cette règle-là.
 
 ## Résolu récemment
 
