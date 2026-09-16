@@ -650,8 +650,15 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
             # below, for every chord (Louis, 2026-08-07: the annotation
             # editor must show the chords musx predicted).
             c["flag"] = H["challenges"][i]["kind"]
-    from harmonia.span_rescore import musx_suggestions
+    from harmonia.span_rescore import bass_suggestions, musx_suggestions
     musx_suggestions(probs, flat)
+    # La ligne de basse LUE, à côté des accords proposés (Louis, 2026-09-16).
+    # `arr`/`times` sont déjà là (extract_bothchroma ci-dessus, en cache) :
+    # c'est une lecture de 150 ms par accord dans une matrice en mémoire, pas
+    # une extraction. N'écrit AUCUN slash — voir la docstring de
+    # `bass_suggestions` pour pourquoi ça ne bute pas sur le banc corpus que
+    # `known_issues` exige avant de DÉCIDER une basse.
+    bass_suggestions(arr, times, flat)
     key_segments = H["segments"]
     main = max(H["segments"], key=lambda s: s["t1"] - s["t0"])
     key = {"tonic": main["tonic"], "mode": main["mode"]}

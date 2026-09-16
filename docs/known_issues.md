@@ -255,6 +255,75 @@ inchangée.
   PAS se poser sur :7772, le retirer les ferait tomber sur l'app vivante ;
   (c) la baseline n'est pas re-gelée (voir juste au-dessus).
 
+- **Compass et Guide montrent jusqu'à cinq accords et la basse entendue
+  (2026-09-16, demande de Louis).** « Je veux qu'il apparaisse les autres
+  suggestions que juste le top 2, plus les suggestions sur la ligne de basse
+  en faisant des petits cercles autour des lettres du cercle […] toujours la
+  taille du cercle proportionnelle à la proba d'être détectée, top 3 basses,
+  top 5 accords si relevant. »
+  Les deux vues partagent déjà leur source (`candList`, un seul endroit), donc
+  la liste d'accords s'allonge une fois pour les deux. Le « si relevant » est
+  un PLANCHER, jamais un remplissage, et c'est la même loi pour les deux
+  listes : **un candidat ne s'affiche que s'il bat le pur hasard sur son
+  propre jeu de candidats**. musx répartit sa masse sur 60 cases (12 racines ×
+  5 familles), l'uniforme vaut 1,67 %, plancher **2 %** (`SUG_FLOOR`) ; la
+  basse répartit la sienne sur 12 classes de hauteur, l'uniforme vaut 8,3 %,
+  plancher **12,5 %** (`BASS_SUG_FLOOR`, une fois et demie l'uniforme). Le
+  premier candidat passe toujours : un accord très sûr ouvre l'éditeur sur lui
+  seul, comme avant, jamais sur du vide.
+  Le plancher a été choisi AVANT d'écrire le rendu, en mesurant l'échelle des
+  postérieures sur les deux morceaux les plus ambigus du banc (Yesterday,
+  19 accords ; Lost Without U, 74) : au rang 5 la médiane vaut 0,017–0,025,
+  donc 2 % tombe pile où le 5e candidat cesse de dire quelque chose. Effet
+  mesuré : **3,7 candidats par accord** en moyenne contre 3 figés avant, 12/19
+  et 47/74 accords en montrent ≥ 4. À 5 % on retomberait à 2,4–2,9, c'est-à-dire
+  l'ancien top-3 : rien n'aurait bougé.
+  La basse est lue à l'ATTAQUE de chaque accord (`bass_pc_onset`, 150 ms — la
+  mesure du 2026-09-15, 6/11 → 11/11 sur « Ready »), sur le `bothchroma` que
+  `pipeline.py` a déjà en mémoire à cette étape : aucune extraction en plus.
+  Rendu : un anneau bleu autour de la LETTRE de la roue (une lettre de la roue
+  est une classe de hauteur — exactement ce qu'une basse nomme), aire ∝
+  probabilité comme les orbes d'accord depuis le 2026-08-08. Bleu et pas la
+  teinte de quintes de l'orbe : la basse est une autre VOIX, pas un autre
+  accord.
+  Code : `harmonia/span_rescore.py` (`SUG_FLOOR`, `BASS_SUG_FLOOR`,
+  `bass_suggestions`), `harmonia/pipeline.py`, `harmonia/static/screens/
+  annotate.js` (`candList`, `bassList`, `byArea`, `bassStrip`),
+  `chart.js` + `prefs.js` (la liste blanche des champs, et la transposition).
+  Tests : `tests/test_suggestions_floor.py`.
+  **Régression trouvée et corrigée en route — le plancher vide la roue sur les
+  accords les PLUS sûrs.** Le compas retire l'accord écrit avant de placer ses
+  orbes (2026-08-08 : le redessiner sur la jante ne disait rien et volait un
+  rayon). Avec un top-3 figé, en retirer un en laissait toujours deux. Avec le
+  plancher, un accord que musx tient à 95 % ne garde que SA propre case : la
+  roue se vidait, et `noCandBox` annonçait « written without the model's
+  ranking » — l'exact contraire de la vérité, précisément là où le modèle est
+  le plus sûr (2 accords sur 23 dans Yesterday, 2 sur 86 dans Lost Without U).
+  `buildCompass` distingue maintenant deux silences : aucun classement du tout
+  (→ `noCandBox`, inchangé) versus le modèle est sûr (→ la roue reste, avec
+  son moyeu, ses anneaux de basse, et l'en-tête « the model is sure — 95 % on
+  this chord »). Gelé côté Python par
+  `test_un_accord_tres_sur_ne_garde_que_sa_propre_case`.
+  **CE QUE ÇA N'ÉCRIT PAS, et c'est ce qui permet de le brancher aujourd'hui** :
+  aucun slash n'apparaît dans le chart. Le champ `bass` de l'accord n'est pas
+  touché, `bass_rules.decide_bass` n'est pas appelé. Le banc corpus qu'exige
+  l'entrée « Basse détectée à l'attaque » ci-dessus porte sur la DÉCISION
+  d'écrire une basse, pas sur le fait de MONTRER la lecture. Les deux
+  planchers de basse qui cohabitent désormais (`bass_rules.FLOOR` = 30 %, en
+  pourcents, décide ; `BASS_SUG_FLOOR` = 0,125, en part, affiche) sont gardés
+  distincts par un test exprès — les confondre serait l'erreur de calibration
+  silencieuse de CLAUDE.md #1.
+  **Ce que ça ne résout pas** : (a) le plancher est calibré sur la FORME de
+  l'échelle (où le 5e rang décroche), il n'a pas été arbitré à l'oreille, et
+  sur deux morceaux seulement (règle #5) — à rouvrir si la liste paraît trop
+  longue ou trop courte ; (b) les anneaux de basse ne sont pas tapables, donc
+  on voit une basse sans pouvoir la choisir — décision à confirmer par Louis,
+  la rendre tapable voudrait dire écrire un slash, ce que (ci-dessus) on
+  refuse tant qu'il n'y a pas de banc ; (c) la basse MOBILE (une note par
+  temps) reste résumée par une seule lecture à l'attaque de l'accord ; (d) les
+  charts d'avant le 2026-09-16 n'ont ni 5 candidats ni `sugBass` tant qu'ils
+  ne sont pas recuits — l'affichage marche sans, il montre juste ce qu'il a.
+
 - **Un temps en trop à 0,28 fois le temps décale toutes les barres après lui
   (2026-09-15, Louis sur Ready de PJ Morton).** Son diagnostic : « entre la
   mesure 8 et la mesure 9 il y a un petit temps de pause qui devrait être

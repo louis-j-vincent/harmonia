@@ -340,7 +340,11 @@ export function loadModel(m, opts){
             // model's ranked alternates) are what the annotation editor states
             // out loud — both must travel with the chord or the editor invents
             // its own (see playedLabel / candList, 2026-08-17).
-            bar:c.bar, beat:c.beat, sug:c.sug||null, n:(c.n==null?0:c.n|0),
+            // `sugBass` = la ligne de basse LUE à l'attaque de l'accord
+            // (2026-09-16). Même règle que `sug` : cette liste est blanche,
+            // un champ qu'on n'y recopie pas n'arrive jamais dans l'éditeur.
+            bar:c.bar, beat:c.beat, sug:c.sug||null, sugBass:c.sugBass||null,
+            n:(c.n==null?0:c.n|0),
             var:c.var||null,   // l'autre lecture de cette case, sur un chart replié
             sec:s.label, secId:s.id, secIdx:si, reps:s.reps,
             barFirst: ci===0, secFirst: !!meta.secFirst && ci===0,
