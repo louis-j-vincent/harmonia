@@ -150,9 +150,39 @@ def collect() -> list[dict]:
                 "capo_ok": (t or {}).get("accord_rotation_capo"),
             })
     out.sort(key=lambda r: (RANG.get(r["verdict"], 6), r["title"], r["bar"]))
-    for i, r in enumerate(out, 1):
-        r["id"] = f"b{i:02d}"
-    return out
+    return grouper(out)
+
+
+def grouper(lignes: list[dict]) -> list[dict]:
+    """Un cas = un accord, pas une mesure (Louis : « jvais pas répondre à 200 trucs »).
+
+    `F-7/E♭ -> F-7` revient neuf fois dans Just The Two Of Us, toujours le même
+    accord au même endroit de la boucle : le demander neuf fois n'apporte rien
+    et décourage. On regroupe par (morceau, avant, après) et on garde toutes
+    les mesures pour pouvoir les écouter — 85 lignes deviennent 46 cas.
+
+    L'IDENTIFIANT EST CELUI DU CONTENU, pas un rang : une réponse déjà donnée
+    survit à un changement d'ordre, de tri, ou à l'ajout d'un morceau. C'est ce
+    qui manquait à la première version — le moindre reclassement aurait
+    recollé ses réponses sur les mauvaises lignes.
+    """
+    import hashlib
+
+    par_cas: dict[tuple, dict] = {}
+    for r in lignes:
+        cle = (r["song"], r["avant"], r["apres"])
+        cas = par_cas.get(cle)
+        if cas is None:
+            cas = dict(r)
+            cas["mesures"] = []
+            cas["id"] = "c" + hashlib.sha1(
+                "".join(cle).encode("utf-8")).hexdigest()[:8]
+            par_cas[cle] = cas
+        cas["mesures"].append({"bar": r["bar"], "t0": r["t0"], "t1": r["t1"]})
+    cas = list(par_cas.values())
+    cas.sort(key=lambda r: (RANG.get(r["verdict"], 6), -len(r["mesures"]),
+                            r["title"], r["mesures"][0]["bar"]))
+    return cas
 
 
 NOM_IV = {0: "la fondamentale", 2: "la 9e", 3: "la 3ce mineure", 4: "la 3ce majeure",
@@ -215,23 +245,30 @@ def render(rows: list[dict]) -> str:
             preuve = "<div class='tab t-faint'>la tab n'écrit jamais de basse — elle ne dit rien ici.</div>"
         else:
             preuve = "<div class='tab t-faint'>cet accord n'est pas dans la tab.</div>"
+        ms = r["mesures"]
+        # au plus quatre écoutes : c'est le même accord, entendre la 9e
+        # occurrence n'apprend rien de plus que la 4e.
+        ecoutes = "".join(
+            f"""<button class="pl" data-a="{e(r['audio'])}" data-t0="{m['t0']}"
+            data-t1="{m['t1'] if m['t1'] is not None else ''}" type="button"
+            >&#9658; mes.&nbsp;{m['bar']}</button>"""
+            for m in ms[:4] if m["t0"] is not None)
+        combien = (f"<span class='n'>×{len(ms)}</span>" if len(ms) > 1 else "")
+        ou = ("mes. " + ", ".join(str(m["bar"]) for m in ms[:10])
+              + ("…" if len(ms) > 10 else ""))
         return f"""
 <div class="row" id="r-{r['id']}" data-v="{e(r['verdict'] or '')}">
   <div class="head">
-    <span class="song">{e(r['title'])}</span>
-    <span class="bar">mes. {r['bar']}</span>
+    <span class="song">{e(r['title'])}</span>{combien}
     <span class="chip c-{col}">{e(r['verdict'] or 'pas de tab')}</span>
   </div>
   <div class="pair">
     <span class="av">{av}</span><span class="arr">&rarr;</span><span class="ap">{ap}</span>
   </div>
+  <div class="ou">{e(ou)}</div>
   {preuve}
+  <div class="acts listen">{ecoutes}</div>
   <div class="acts">
-    <button class="pl" data-a="{e(r['audio'])}" data-t0="{r['t0'] if r['t0'] is not None else ''}"
-            data-t1="{r['t1'] if r['t1'] is not None else ''}" type="button">&#9658; écouter la mesure</button>
-    <button class="pl" data-a="{e(r['audio'])}" data-t0="{r['t0'] if r['t0'] is not None else ''}"
-            data-t1="{(r['t0'] + 0.9) if r['t0'] is not None else ''}" type="button">&#9658; l'attaque</button>
-    <span class="sp"></span>
     <button class="v" data-id="{r['id']}" data-v="avant" type="button">{av}</button>
     <button class="v" data-id="{r['id']}" data-v="apres" type="button">{ap}</button>
     <button class="v" data-id="{r['id']}" data-v="autre" type="button">ni l'un ni l'autre</button>
@@ -270,6 +307,13 @@ def render(rows: list[dict]) -> str:
  .prog b{{color:var(--ink)}}
  .bar2{{flex:1;min-width:90px;height:6px;background:var(--surface-2);border:1px solid var(--rule);border-radius:3px;overflow:hidden}}
  .bar2 i{{display:block;height:100%;background:var(--mark);width:0}}
+ .petit{{font-size:11.5px;color:var(--ink-faint)}}
+ .etat{{font-size:11.5px;color:var(--ink-faint);margin-left:auto}}
+ .etat.ok{{color:var(--mark)}} .etat.ko{{color:var(--warn)}}
+ .n{{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--accent-ink);
+  background:var(--accent-soft);border-radius:4px;padding:1px 6px}}
+ .ou{{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--ink-faint);margin-bottom:7px}}
+ .acts.listen{{margin-bottom:8px;padding-bottom:8px;border-bottom:1px dashed var(--rule)}}
  .row{{border:1px solid var(--rule);border-radius:11px;background:var(--surface);padding:12px 14px;margin-bottom:8px}}
  .row.done{{border-color:var(--rule-strong);background:var(--surface-2)}}
  .head{{display:flex;gap:9px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px}}
@@ -331,11 +375,16 @@ def render(rows: list[dict]) -> str:
 </div>
 
 <div class="prog">
-  <span><b id="n">0</b>/{len(rows)}</span>
+  <span><b id="n">0</b>/{len(rows)} cas</span>
   <span class="bar2"><i id="pb"></i></span>
-  <button id="copy" type="button">copier mes réponses</button>
+  <span class="petit"><b id="nb">0</b> mesures couvertes</span>
   <button id="only" type="button">seulement les non répondues</button>
+  <span id="etat" class="etat">&hellip;</span>
 </div>
+
+<p class="sub" style="margin:0 0 14px">Tes réponses partent au serveur à chaque clic \u2014
+rien à copier, rien à finir : je lis ce que tu as fait, même à trois réponses.
+Un cas répété ({max(len(r["mesures"]) for r in rows)} fois au plus) ne se répond qu'une seule fois.</p>
 
 <h2>D'abord celles où la tab dit quelque chose</h2>
 {cartes}
@@ -347,11 +396,60 @@ def render(rows: list[dict]) -> str:
 </footer>
 
 <script>
-const rows = {json.dumps([{k: r[k] for k in ("id", "song", "title", "bar", "avant", "apres", "verdict")} for r in rows], ensure_ascii=False)};
-const KEY = 'basses_verdicts_v1';
+const rows = {json.dumps([{k: r[k] for k in ("id", "song", "title", "avant", "apres", "verdict")}
+                          | {"n": len(r["mesures"]), "bars": [m["bar"] for m in r["mesures"]]}
+                          for r in rows], ensure_ascii=False)};
+const NOM = 'basses_slash';                  // le fichier côté serveur
+const KEY = 'basses_verdicts_v2';            // la copie locale, filet de secours
+const NBARS = rows.reduce((s, r) => s + r.n, 0);
 let V = {{}};
 try {{ V = JSON.parse(localStorage.getItem(KEY) || '{{}}'); }} catch (e) {{}}
 
+// ── remontée automatique ────────────────────────────────────────────────────
+// Chaque clic est POSTé. Le localStorage reste, mais comme filet : si le
+// serveur ne répond pas (hors Tailscale, app redémarrée), rien n'est perdu et
+// la prochaine réponse renvoie tout le document.
+const etat = document.getElementById('etat');
+let enVol = null, enAttente = false;
+function dire(txt, cls){{ etat.textContent = txt; etat.className = 'etat ' + (cls || ''); }}
+async function pousser(){{
+  if (enVol) {{ enAttente = true; return; }}
+  enVol = (async () => {{
+    try {{
+      const r = await fetch('/api/verdicts/' + NOM, {{
+        method: 'POST', headers: {{'Content-Type': 'application/json'}},
+        body: JSON.stringify({{page: location.pathname, reponses: V,
+          contexte: Object.fromEntries(rows.map(r => [r.id,
+            `${{r.title}} · ${{r.avant}} -> ${{r.apres}} · ×${{r.n}} (mes. ${{r.bars.join(',')}})`]))}}),
+      }});
+      if (!r.ok) throw new Error(r.status);
+      const j = await r.json();
+      dire('remonté \u2713 (' + j.n + ')', 'ok');
+    }} catch (e) {{
+      dire("hors ligne \u2014 gardé sur l'appareil", "ko");
+    }}
+  }})();
+  await enVol; enVol = null;
+  if (enAttente) {{ enAttente = false; pousser(); }}
+}}
+
+// au chargement : ce que le serveur a déjà gagne sur la copie locale, pour
+// qu'un arbitrage commencé sur l'iPhone se retrouve sur le Mac.
+(async () => {{
+  try {{
+    const r = await fetch('/api/verdicts/' + NOM);
+    if (!r.ok) throw new Error(r.status);
+    const j = await r.json();
+    if (j && j.reponses && Object.keys(j.reponses).length >= Object.keys(V).length) {{
+      V = j.reponses;
+      try {{ localStorage.setItem(KEY, JSON.stringify(V)); }} catch (e) {{}}
+    }}
+    paint();
+    dire(Object.keys(V).length ? 'repris du serveur (' + Object.keys(V).length + ')' : 'prêt', 'ok');
+  }} catch (e) {{ dire("hors ligne \u2014 gardé sur l'appareil", "ko"); }}
+}})();
+
+// ── écoute ──────────────────────────────────────────────────────────────────
 let audio = null, playing = null, stopAt = null;
 function play(btn){{
   const a = btn.dataset.a, t0 = parseFloat(btn.dataset.t0), t1 = parseFloat(btn.dataset.t1);
@@ -374,16 +472,17 @@ function play(btn){{
 }}
 document.querySelectorAll('button.pl').forEach(b => b.addEventListener('click', () => play(b)));
 
+// ── réponses ────────────────────────────────────────────────────────────────
 function paint(){{
-  let n = 0;
+  let n = 0, bars = 0;
   rows.forEach(r => {{
-    const el = document.getElementById('r-' + r.id);
-    const v = V[r.id];
-    if (v) n++;
+    const el = document.getElementById('r-' + r.id), v = V[r.id];
+    if (v) {{ n++; bars += r.n; }}
     el.classList.toggle('done', !!v);
     el.querySelectorAll('button.v').forEach(b => b.classList.toggle('on', b.dataset.v === v));
   }});
   document.getElementById('n').textContent = n;
+  document.getElementById('nb').textContent = bars;
   document.getElementById('pb').style.width = (n / rows.length * 100) + '%';
 }}
 document.querySelectorAll('button.v').forEach(b => b.addEventListener('click', () => {{
@@ -391,23 +490,14 @@ document.querySelectorAll('button.v').forEach(b => b.addEventListener('click', (
   V[id] = (V[id] === b.dataset.v) ? undefined : b.dataset.v;
   if (!V[id]) delete V[id];
   try {{ localStorage.setItem(KEY, JSON.stringify(V)); }} catch (e) {{}}
-  paint();
+  paint(); pousser();
 }}));
-document.getElementById('copy').addEventListener('click', async () => {{
-  const txt = rows.filter(r => V[r.id])
-    .map(r => `${{r.id}} ${{r.title}} mes.${{r.bar}} : ${{r.avant}} -> ${{r.apres}} = ${{V[r.id]}}`).join('\\n');
-  const btn = document.getElementById('copy');
-  try {{ await navigator.clipboard.writeText(txt || '(rien)'); btn.textContent = 'copi\\u00e9 \\u2713'; }}
-  catch (e) {{ btn.textContent = 'copie refus\\u00e9e'; }}
-  setTimeout(() => btn.textContent = 'copier mes r\\u00e9ponses', 1600);
-}});
 let filt = false;
 document.getElementById('only').addEventListener('click', e => {{
   filt = !filt;
   e.currentTarget.classList.toggle('playing', filt);
   rows.forEach(r => {{ document.getElementById('r-' + r.id).hidden = filt && !!V[r.id]; }});
 }});
-paint();
 </script>
 """
 

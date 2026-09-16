@@ -174,7 +174,8 @@ def create_app() -> Flask:
         to tell us which layer dies."""
         return AUDIOTEST_HTML
 
-    from harmonia.server.routes import analyze, annotate, irealb, jam, library, sections
+    from harmonia.server.routes import (analyze, annotate, irealb, jam, library,
+                                        sections, verdicts)
 
     app.register_blueprint(library.bp)
     app.register_blueprint(analyze.bp)
@@ -182,6 +183,7 @@ def create_app() -> Flask:
     app.register_blueprint(sections.bp)
     app.register_blueprint(jam.bp)
     app.register_blueprint(irealb.bp)
+    app.register_blueprint(verdicts.bp)
 
     # ── everything else: honest 404s the UI degrades on ─────────────────────
     @app.route("/api/<path:rest>", methods=["GET", "POST", "DELETE"])
