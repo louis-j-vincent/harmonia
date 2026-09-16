@@ -1,4 +1,4 @@
-"""harmonia_min/ssm_page.py — la matrice SSM d'un morceau, avec tête de lecture.
+"""harmonia/ssm_page.py — la matrice SSM d'un morceau, avec tête de lecture.
 
 Louis, 2026-08-16 : « je veux une matrice ssm avec playhead cliquable ».
 
@@ -120,7 +120,7 @@ def donnees(chart: dict, audio_dir=None) -> dict | None:
     clique.
     """
     from harmonia.sections import similarity as HS
-    from harmonia_min import musx as _musx
+    from harmonia import musx as _musx
 
     grid = chart.get("barGrid") or []
     if len(grid) < 5:

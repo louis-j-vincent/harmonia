@@ -1,11 +1,13 @@
-"""Red-first tests for harmonia_min annotation persistence (handoff P1).
+"""Red-first tests for annotation persistence (handoff P1).
 
 The shell POSTs /api/annotations/<file> on every chord lock and swallows the
 404 silently, so every confirmed chord is lost on reload. These tests pin the
-contract the server must honour, using REAL charts from state/charts/ as
-fixtures (handoff: prefer real charts over synthetic JSON).
+contract the server must honour, using a REAL chart from the library as a
+fixture (handoff: prefer real charts over synthetic JSON) — le test se saute
+quand la bibliothèque n'est pas là (worktree frais : `state/cache/` n'est pas
+suivi par git).
 
-The payload the shell actually sends (app_shell.html saveAnnotations) is
+The payload the shell actually sends (static/screens/annotate.js) is
     {annotator:"", chords:[{bar,beat,root,bass:-1,q,t0,t1}], merges:[]}
 and `bass` is HARDCODED to -1 there — hence test_overlay_keeps_slash_bass:
 following the old app's "fix wins if not None" rule would silently destroy
@@ -19,10 +21,21 @@ from pathlib import Path
 
 import pytest
 
-from harmonia_min import annotations as an
+from harmonia.settings import SETTINGS
 
-CHARTS = Path(__file__).resolve().parent.parent / "harmonia_min" / "state" / "charts"
+from harmonia import annotations as an
+
+# Sprint 22 : la bibliothèque a déménagé dans `state/cache/charts/`
+# (sprint 15), et `harmonia_min/state/` n'existe plus.
+CHARTS = SETTINGS.charts_dir
 THIS_LOVE = CHARTS / "min_maroon_5_this_love.json"
+
+# `state/cache/` n'est pas suivi par git : un worktree frais n'a pas la
+# bibliothèque. On saute plutôt que de rougir pour une raison qui n'a rien
+# à voir avec le contrat épinglé ici.
+pytestmark = pytest.mark.skipif(
+    not THIS_LOVE.exists(),
+    reason=f"bibliothèque absente de ce checkout ({THIS_LOVE})")
 
 
 @pytest.fixture(autouse=True)
@@ -182,7 +195,7 @@ def test_overlay_is_a_noop_without_annotations():
 # ── routes ──────────────────────────────────────────────────────────────────
 
 def test_post_annotations_then_chart_model_rehydrates():
-    from harmonia_min import server as srv
+    from harmonia.server import app as srv
 
     client = srv.app.test_client()
     model = _model()
@@ -202,7 +215,7 @@ def test_post_annotations_then_chart_model_rehydrates():
 
 
 def test_delete_chart_removes_its_sidecar():
-    from harmonia_min import server as srv
+    from harmonia.server import app as srv
 
     an.save_annotation("min_ghost", {"chords": [], "merges": []})
     assert an._path("min_ghost").exists()

@@ -25,7 +25,7 @@ détecteur n'a pas ce statut).
 """
 from __future__ import annotations
 
-from harmonia_min.soudure import _jetons, _mesure1, _tete, mot_du_chart
+from harmonia.soudure import _jetons, _mesure1, _tete, mot_du_chart
 
 
 def _chart(n_mesures: int, bar1=None) -> dict:

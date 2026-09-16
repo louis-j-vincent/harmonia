@@ -1,4 +1,4 @@
-"""Annotation sidecars for harmonia_min — persist confirmed chords (P1).
+"""Annotation sidecars — persist confirmed chords (P1).
 
 The shell POSTs every chord lock to ``/api/annotations/<file>`` and never
 GETs them back, so rehydration must happen server-side inside
@@ -16,7 +16,7 @@ payload wins:
 * it **hardcodes ``bass:-1``**, so ``-1`` here means "no opinion, keep the
   model's bass", NOT "no bass". Treating it as an assertion would delete
   the ``/B`` from every slash chord the moment a user confirms it (This
-  Love bar 0 is G/B) — see tests/test_harmonia_min_annotations.py.
+  Love bar 0 is G/B) — see tests/test_annotations.py.
 
 What this does NOT solve:
 

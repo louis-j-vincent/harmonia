@@ -59,11 +59,11 @@ from tools.sections_bench import order_bundle                                   
 from tools.sections_bench import order_lab as OL                                # noqa: E402
 
 OUTDIR = HERE / "docs" / "plots"
-# Les trois fonctions pures de l'algo vivent dans `harmonia_min.phrases4`
+# Les trois fonctions pures de l'algo vivent dans `harmonia.phrases4`
 # depuis le 2026-08-14 : le serveur en a besoin pour le bouble « Appliquer »
 # de l'outil Soudure, et ce fichier-ci tire ssm_zoo/order_bundle/matplotlib
 # rien qu'a l'import. Une seule implementation, importee des deux cotes.
-from harmonia_min.phrases4 import (            # noqa: E402
+from harmonia.phrases4 import (            # noqa: E402
     CIBLE, CIBLES, LETTERS, grouper_restes, merges4, nommer)
 
 

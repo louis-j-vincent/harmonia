@@ -1,4 +1,4 @@
-"""harmonia_min.titles — artiste + titre depuis un titre YouTube.
+"""harmonia.titles — artiste + titre depuis un titre YouTube.
 
 Les cas sont pris sur les VRAIS morceaux de la bibliothèque de Louis (les titres
 réels, relevés par yt-dlp le 2026-08-09), pas inventés.
@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from harmonia_min.titles import (pretty_from_slug, slugify, split, strip_junk)
+from harmonia.titles import (pretty_from_slug, slugify, split, strip_junk)
 
 
 # ── le nettoyage ────────────────────────────────────────────────────────────

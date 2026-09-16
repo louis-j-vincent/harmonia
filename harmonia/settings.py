@@ -59,8 +59,13 @@ class Settings:
     musx_dir: Path = Path(_env("HARMONIA_MUSX_DIR",
                                str(REPO / "third_party" / "musx_ismir2019")))
     musx_device: str = _env("HARMONIA_MUSX_DEVICE", "auto")
-    #: `HARMONIA_MIN_PORT` reste accepté jusqu'à la disparition de
-    #: harmonia_min (sprint 22) : c'est le nom que le worktree utilise.
+    #: `HARMONIA_MIN_PORT` survit VOLONTAIREMENT au sprint 22 (2026-09-16),
+    #: alors que `harmonia_min` disparaît : c'est le nom qu'emploient les
+    #: serveurs de worktree pour ne PAS se poser sur :7772
+    #: (`docs/refactor_2026-09/sprints.md`, « serveur du worktree sur :7773 »).
+    #: Le retirer ferait retomber ces serveurs sur 7772 par défaut, c'est-à-dire
+    #: sur l'app vivante — exactement l'incident qu'on évite. À retirer le jour
+    #: où les worktrees passeront à `HARMONIA_PORT`, pas avant.
     port: int = int(_env("HARMONIA_PORT", _env("HARMONIA_MIN_PORT", "7772")))
 
     # ── Choix d'algorithme : des constantes, pas des réglages ──────────────

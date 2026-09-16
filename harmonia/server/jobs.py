@@ -84,10 +84,10 @@ def _resolve_audio(url: str) -> tuple[Path, str, str]:
 
     L'artiste peut être vide : un slug de fichier a perdu le tiret qui séparait
     l'artiste du titre, et inventer la coupe serait pire que le champ vide (voir
-    `harmonia_min.titles`). `scripts/backfill_titles.py` rattrape ces cas-là en
+    `harmonia.titles`). `scripts/backfill_titles.py` rattrape ces cas-là en
     retrouvant la vidéo d'origine.
     """
-    from harmonia_min import titles as _titles
+    from harmonia import titles as _titles
 
     m = re.search(r"local:([\w\-]+)", url)
     if m:

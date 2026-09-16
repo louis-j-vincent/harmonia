@@ -9,7 +9,7 @@
 
 Louis, 2026-08-16 : « je veux une matrice ssm avec playhead cliquable ».
 
-Le moteur est `harmonia_min/ssm_page.py` — le même que celui qu'une route du
+Le moteur est `harmonia/ssm_page.py` — le même que celui qu'une route du
 serveur pourrait servir en direct. Ce script ne fait qu'écrire des pages
 statiques dans `docs/plots/`, servies par `/plots/<nom>` : c'est la même voie
 que `ssm_zoo.py` et `soudure_pages.py`, et elle ne touche pas à `server.py`.
@@ -27,12 +27,17 @@ from pathlib import Path
 HERE = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, str(HERE))
 
-from harmonia_min.ssm_page import page_html            # noqa: E402
+from harmonia.ssm_page import page_html            # noqa: E402
 
-CHARTS = HERE / "harmonia_min" / "state" / "charts"
-AUDIO = HERE / "docs" / "audio"
-ANNOTES = HERE / "harmonia_min" / "state" / "sections"
-SORTIE = HERE / "docs" / "plots"
+# Sprint 22 (2026-09-16) : `harmonia_min/state/` n'existe plus — les chemins
+# viennent de SETTINGS, la seule source du projet. L'outil visait un dossier
+# mort depuis le sprint 15 (état scindé human/cache).
+from harmonia.settings import SETTINGS                 # noqa: E402
+
+CHARTS = SETTINGS.charts_dir
+AUDIO = SETTINGS.audio_dir
+ANNOTES = SETTINGS.sections_dir
+SORTIE = SETTINGS.repo / "docs" / "plots"
 
 #: Les liens doivent être cliquables depuis son téléphone : `file://` ne marche
 #: pas pour lui (2026-08-07), tout passe par le serveur en Tailscale.

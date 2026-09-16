@@ -1,4 +1,4 @@
-"""harmonia_min.beats.check_grid — the metre guard after the waltz opening.
+"""harmonia.beats.check_grid — the metre guard after the waltz opening.
 
 2026-08-07 (Louis: quart ET tiers de barre affichables) : a detected metre of
 3 is a legitimate waltz and passes; 2 stays refused — it is the half-tempo /
@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from harmonia_min.beats import (BeatTrackingError, check_grid, repair_grid)
+from harmonia.beats import (BeatTrackingError, check_grid, repair_grid)
 
 
 # ── 2026-08-07 second pass: the guard was refusing the MEASURE ───────────────

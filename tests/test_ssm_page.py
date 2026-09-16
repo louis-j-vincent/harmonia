@@ -13,7 +13,7 @@ import base64
 import numpy as np
 import pytest
 
-from harmonia_min import ssm_page as SP
+from harmonia import ssm_page as SP
 
 
 def test_demi_mesures_coupe_chaque_mesure_en_deux():
@@ -49,7 +49,7 @@ def test_charge_utile_coherente(monkeypatch, tmp_path):
 
     fake = np.zeros((400, 36), dtype=float)     # postérieurs musx bidon
     fake[:, 0] = 1.0
-    import harmonia_min.musx as MX
+    import harmonia.musx as MX
     monkeypatch.setattr(MX, "frame_posteriors", lambda *a, **k: (fake,))
 
     d = SP.donnees(chart, audio_dir=tmp_path)
@@ -75,7 +75,7 @@ def test_page_est_autonome(monkeypatch, tmp_path):
     (tmp_path / "x.m4a").write_bytes(b"x")
     monkeypatch.setattr(SP, "SECTIONS_DIR", tmp_path / "vide")
     fake = np.zeros((400, 36), dtype=float); fake[:, 0] = 1.0
-    import harmonia_min.musx as MX
+    import harmonia.musx as MX
     monkeypatch.setattr(MX, "frame_posteriors", lambda *a, **k: (fake,))
 
     html = SP.page_html(chart, audio_dir=tmp_path, base_url="http://h:7772")
@@ -95,7 +95,7 @@ def test_marque_illisible_ne_casse_rien(monkeypatch, tmp_path, mauvais):
     (tmp_path / "x.m4a").write_bytes(b"x")
     monkeypatch.setattr(SP, "SECTIONS_DIR", tmp_path / "vide")
     fake = np.zeros((400, 36), dtype=float); fake[:, 0] = 1.0
-    import harmonia_min.musx as MX
+    import harmonia.musx as MX
     monkeypatch.setattr(MX, "frame_posteriors", lambda *a, **k: (fake,))
     d = SP.donnees(chart, audio_dir=tmp_path)
     assert d is not None and d["mesure1"] in (None, 0)

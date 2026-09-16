@@ -6,7 +6,7 @@ silence, et nommer. C'est là que sont les hypothèses porteuses.
 """
 import pytest
 
-from harmonia_min import songformer as SF
+from harmonia.sections import songformer as SF
 
 
 def grille(n, pas=2.0):
@@ -113,7 +113,7 @@ def test_minimal_fold_separe_les_longueurs_dune_meme_lettre():
     représentant — la lecture d'Another Day se décalait d'une barre à chaque
     reprise. Les deux blocs gardent le nom B, chacun à sa longueur.
     """
-    from harmonia_min.folding import minimal_fold
+    from harmonia.folding import minimal_fold
 
     def bar(root):
         return [{"root": root, "q": "", "nc": False, "bass": root,

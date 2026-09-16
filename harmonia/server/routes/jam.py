@@ -1,7 +1,7 @@
 """Jam Mode : le tampon micro grandit, la boucle se cherche dessus.
 
 Porté verbatim depuis `harmonia_min/server.py` (sprints 11-14). Le moteur est
-`harmonia_min.jam.JamSession` (Beat This! + musx, jamais librosa — voir sa
+`harmonia.jam.JamSession` (Beat This! + musx, jamais librosa — voir sa
 docstring) ; `_ffmpeg` vient de `analyze.py`, seule fabrique de transcodage.
 
 CE QUI DÉBLOQUE LE MICRO : voir `app.py` (contexte sûr, Tailscale HTTPS).
@@ -32,7 +32,7 @@ _jam_lock = threading.Lock()
 
 @bp.post("/api/jam/start")
 def api_jam_start():
-    from harmonia_min.jam import JamSession
+    from harmonia.jam import JamSession
     sid = f"jam_{int(time.time() * 1000)}"
     with _jam_lock:
         _jam_sessions[sid] = JamSession(sr=44100)

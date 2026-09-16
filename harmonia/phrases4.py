@@ -1,4 +1,4 @@
-"""harmonia_min/phrases4.py — l'algo des phrases à quatre mots, en pur.
+"""harmonia/phrases4.py — l'algo des phrases à quatre mots, en pur.
 
 Ces trois fonctions VIENNENT de `scripts/quatre_mots.py` et y sont restées
 jusqu'au 2026-08-14. Elles déménagent ici sans changer d'une ligne, pour une

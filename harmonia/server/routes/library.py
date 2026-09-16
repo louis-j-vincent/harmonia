@@ -19,7 +19,7 @@ from pathlib import Path
 
 from flask import Blueprint, jsonify, request
 
-from harmonia_min import annotations, titles as _titles
+from harmonia import annotations, titles as _titles
 from harmonia.server.jobs import CHARTS_DIR, META_PATH, _load_chart_meta
 from harmonia.server.routes.sections import _safe_stem
 from harmonia.settings import SETTINGS
@@ -33,7 +33,7 @@ FOLDERS_PATH = SETTINGS.folders_path
 
 def _pretty_title(stem: str) -> str:
     """Un stem de fichier rendu lisible, mentions de production enlevées.
-    Délègue à `harmonia_min.titles` — même règle partout, testée là-bas."""
+    Délègue à `harmonia.titles` — même règle partout, testée là-bas."""
     return _titles.pretty_from_slug(stem)
 
 

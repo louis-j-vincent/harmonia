@@ -21,7 +21,7 @@ Le chart ci-dessous est le squelette exact de ce cas.
 """
 from __future__ import annotations
 
-from harmonia_min.soudure import accords_par_mesure
+from harmonia.soudure import accords_par_mesure
 
 BPB = 4
 GRID = [round(i * 4.0, 3) for i in range(9)]      # 8 mesures de 4 s

@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from harmonia_min.span_rescore import Q5_TAIL, musx_suggestions
+from harmonia.span_rescore import Q5_TAIL, musx_suggestions
 
 T = 100  # frames (~2.3 s)
 

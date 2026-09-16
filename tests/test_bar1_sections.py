@@ -14,7 +14,7 @@ Contract pinned here:
 """
 from __future__ import annotations
 
-from harmonia_min.pipeline import _force_bar1_sections
+from harmonia.pipeline import _force_bar1_sections
 
 
 def test_postmark_intro_tail_merges_into_next_letter():

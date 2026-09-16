@@ -37,8 +37,8 @@ import logging
 
 import numpy as np
 
-from harmonia_min.key_profiles import infer_key
-from harmonia_min.labels import _TAIL_PCS, _TRIAD_PCS
+from harmonia.key_profiles import infer_key
+from harmonia.labels import _TAIL_PCS, _TRIAD_PCS
 
 logger = logging.getLogger(__name__)
 

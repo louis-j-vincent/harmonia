@@ -14,8 +14,8 @@ supprimés — songformer est désormais le seul détecteur de sections
 (`harmonia/sections/songformer.py`). Mais trois consommateurs GARDÉS
 empruntaient leurs briques de CALCUL, jamais leur décision de découpage :
 l'outil sections (finger-swipe + « find repeats »,
-`harmonia_min/section_tool.py`), Soudure (`harmonia_min/soudure.py`) et la
-page `/ssm` (`harmonia_min/ssm_page.py`). Ce module est leur seule source pour
+`harmonia/section_tool.py`), Soudure (`harmonia/soudure.py`) et la
+page `/ssm` (`harmonia/ssm_page.py`). Ce module est leur seule source pour
 ces briques désormais — c'est tout ce qui a survécu de trois fichiers :
 
   * de `harmonic_sections.py` : `TRIAD_TONES`, `chord_tone_matrix`, `_unit`,

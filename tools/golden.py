@@ -21,8 +21,8 @@ qui dépendrait d'un modèle relancé ne serait pas comparable d'un sprint à
 l'autre (et musx sur MPS n'est pas bit-à-bit reproductible).
 
 Usage, depuis la racine du worktree :
-    python -m tools.golden --engine harmonia_min --out harmonia_min/state/golden/A
-    python -m tools.golden --engine harmonia_min --out …/B --baseline …/A
+    python -m tools.golden --engine harmonia --out …/A
+    python -m tools.golden --engine harmonia --out …/B --baseline …/A
     python -m tools.golden --engine harmonia --out …/sprint07 --baseline …/baseline
 
 Sortie : `<out>/<clé>.json` par morceau, `<out>/_report.json`, `<out>/_golden.log`.
@@ -72,27 +72,29 @@ log = logging.getLogger("golden")
 def charger_moteur(nom: str) -> dict:
     """Les choses dont le rapport a besoin d'un moteur, et rien d'autre.
 
-    `marks`/`new_cache` distinguent les deux mondes du sprint 15 : `harmonia`
-    lit sa marque « Set bar 1 » dans `state/human/marks/` (la nouvelle source
-    de vérité, voir `jobs.bar1_for`) et vérifie ses caches via
-    `harmonia.cache` (clé neuve + repli historique) ; `harmonia_min` reste
-    l'ancien monde, gelé, qui relit encore le champ `bar1` du chart et ses
-    caches à l'ancien chemin — il ne bouge pas avant le sprint 22.
+    `marks`/`new_cache` datent du sprint 15 : `harmonia` lit sa marque
+    « Set bar 1 » dans `state/human/marks/` (la source de vérité, voir
+    `jobs.bar1_for`) et vérifie ses caches via `harmonia.cache` (clé neuve +
+    repli historique).
+
+    Sprint 22 (2026-09-16) : il n'y a PLUS qu'un moteur. La branche
+    `harmonia_min` est retirée plutôt que gardée morte — le paquet est
+    supprimé, donc la garder ne produirait qu'un ImportError obscur au
+    premier appel. La baseline du rapport d'or ne dépend pas d'elle : c'est
+    du JSON gelé sur le disque (`state/cache/golden/baseline/`), pas un
+    chart recuit par l'ancien code. Un vieux `--engine harmonia_min` doit
+    donc échouer en DISANT pourquoi, pas planter à l'import.
     """
     if nom == "harmonia_min":
-        from harmonia_min.pipeline import analyze
-        from harmonia_min.refold import refold
-        from harmonia_min.soudure import sections_pour_chart
-        state = SETTINGS.repo / "harmonia_min" / "state"
-        return {"analyze": analyze, "refold": refold,
-                "sections_pour_chart": sections_pour_chart,
-                "charts": state / "charts", "sections": state / "sections",
-                "beats": state / "beats", "songformer": state / "songformer",
-                "marks": None, "new_cache": False}
+        raise SystemExit(
+            "moteur « harmonia_min » supprimé au sprint 22 (2026-09-16) : le "
+            "paquet n'existe plus. La baseline reste comparable — elle est "
+            "gelée en JSON dans state/cache/golden/baseline/. "
+            "Utilisez --engine harmonia.")
     if nom == "harmonia":
         from harmonia.pipeline import analyze
         from harmonia.refold import refold
-        from harmonia_min.soudure import sections_pour_chart
+        from harmonia.soudure import sections_pour_chart
         s = SETTINGS
         return {"analyze": analyze, "refold": refold,
                 "sections_pour_chart": sections_pour_chart,
@@ -198,11 +200,11 @@ def cuire(eng: dict, key: str, charts: Path, out: Path) -> dict:
     if froid:
         return {"status": "froid", "manque": froid, "stem": stem}
     t0 = time.time()
-    # Sprint 15 : la marque « Set bar 1 » se lit dans `state/human/marks/`
-    # pour le moteur `harmonia` — jamais dans `old.get("bar1")`, qui ne serait
-    # que le champ d'un chart régénérable (voir `jobs.bar1_for`). Le moteur
-    # `harmonia_min`, lui, n'a pas de dossier de marques : il garde l'ancien
-    # comportement.
+    # Sprint 15 : la marque « Set bar 1 » se lit dans `state/human/marks/` —
+    # jamais dans `old.get("bar1")`, qui ne serait que le champ d'un chart
+    # régénérable (voir `jobs.bar1_for`). Le repli sur `old["bar1"]` reste
+    # pour un moteur sans dossier de marques ; depuis le sprint 22 il n'y en
+    # a plus, mais la mécanique ne coûte rien et documente la différence.
     if eng.get("marks") is not None:
         try:
             bar1 = json.loads((eng["marks"] / f"{stem}.json")
@@ -264,7 +266,11 @@ def comparer(new: dict, base: dict) -> dict:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--engine", required=True, choices=["harmonia_min", "harmonia"])
+    # Sprint 22 : un seul moteur. `harmonia_min` reste ACCEPTÉ par le parseur
+    # pour que `charger_moteur` puisse expliquer sa disparition, au lieu du
+    # « invalid choice » d'argparse qui n'apprend rien à qui rejoue une
+    # vieille ligne de commande.
+    ap.add_argument("--engine", required=True, choices=["harmonia", "harmonia_min"])
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--baseline", type=Path)
     ap.add_argument("--charts", type=Path, help="dossier source des min_*.json "

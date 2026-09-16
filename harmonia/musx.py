@@ -9,7 +9,7 @@ rebuild) with three changes only:
     now resolves from ``harmonia.settings``/``harmonia.cache``, never from
     the module's own file location (checklist item 9).
   * the old pipeline's env-flag helpers (``enabled``/``latency_grid_from_env``)
-    dropped — harmonia_min's orchestration decides, not env vars.
+    dropped — the pipeline's orchestration decides, not env vars.
 
 The science: beat-grid re-decode, boundaries land exactly on OUR beats (see
 the original module's header for the measurement record, +2.20 pp
@@ -75,7 +75,7 @@ def make_beat_arr(n_frame: int, beat_times, downbeat_times=None,
       iterable of beat INDICES (into ``beat_times``) -> only those beats keep
       grade 4 — the targeted mode, fed by a more-chords-here detector.
 
-    NOTE: ``downbeat_times`` is REQUIRED in harmonia_min (2026-07-31). The old
+    NOTE: ``downbeat_times`` is REQUIRED (2026-07-31). The old
     accuracy study measured graded ≈ flat on label overlap (0.6627 vs 0.6644),
     but placement is what the chart lives on: with a flat penalty, last-beat
     and next-downbeat cost the same, and at phrase turns (ambiguous frames)
@@ -148,7 +148,7 @@ def _musx_dir() -> Path:
     if (d / "chord_recognition.py").exists() and \
        list((d / "cache_data").glob("*.sdict")):
         return d
-    raise RuntimeError("harmonia_min.musx: music-x-lab clone not found "
+    raise RuntimeError("harmonia.musx: music-x-lab clone not found "
                        f"(tried {d})")
 
 
@@ -414,7 +414,7 @@ def label_confidence(triad: np.ndarray, t0: float, t1: float,
         fam = TRIAD_FAMILY.get(qual)
         if fam is None:
             return 0.5
-        from harmonia_min.labels import parse_root
+        from harmonia.labels import parse_root
         col = 1 + (fam - 1) * 12 + parse_root(root_s)
     return float(triad[a:b, col].mean())
 

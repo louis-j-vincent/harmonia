@@ -19,7 +19,7 @@ trait est une section ENTIÈRE : elle ne se prolonge pas, elle se garde.
 """
 from __future__ import annotations
 
-from harmonia_min.phrases4 import merges4, phrases
+from harmonia.phrases4 import merges4, phrases
 
 # quatre mots, puis deux, répétés : la forme couplet/refrain la plus banale.
 MOT = "abcdefabcdefabcdef"

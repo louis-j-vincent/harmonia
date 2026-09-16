@@ -1,4 +1,4 @@
-"""harmonia_min/jam.py — Jam Mode sur la pile de l'app : Beat This! + musx.
+"""harmonia/jam.py — Jam Mode sur la pile de l'app : Beat This! + musx.
 
 Une session = un tampon micro qui grandit. À chaque morceau de ~8 s uploadé,
 on redécode TOUT le tampon et on cherche la boucle : la période (en temps) qui
@@ -37,9 +37,9 @@ from pathlib import Path
 
 import numpy as np
 
-from harmonia_min import beats as _beats
-from harmonia_min import musx as _musx
-from harmonia_min.labels import to_chord
+from harmonia import beats as _beats
+from harmonia import musx as _musx
+from harmonia.labels import to_chord
 
 logger = logging.getLogger(__name__)
 

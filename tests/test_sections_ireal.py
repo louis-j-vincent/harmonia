@@ -5,7 +5,7 @@ affichait deux « A » : « tu ne peux pas afficher un A deux fois ».
 """
 from __future__ import annotations
 
-from harmonia_min.folding import _ireal_cascade, _ireal_endings
+from harmonia.folding import _ireal_cascade, _ireal_endings
 
 GRID = [float(i) for i in range(200)]
 

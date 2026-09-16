@@ -1,6 +1,6 @@
-"""harmonia_min.musx.make_beat_arr — the quarter-bar gate (feat/quarter-bar).
+"""harmonia.musx.make_beat_arr — the quarter-bar gate (feat/quarter-bar).
 
-The shipped harmonia_min behaviour is HALF-BAR ONLY (Louis, 2026-08-01): every
+The shipped behaviour is HALF-BAR ONLY (Louis, 2026-08-01): every
 beat that is neither a downbeat nor the mid-bar beat is zeroed (no transition).
 `quarter_beats` opens that level back up, globally ("all") or only at listed
 beat indices (the targeted, detector-fed mode). These tests pin all three modes
@@ -14,7 +14,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from harmonia_min import musx as mm
+from harmonia import musx as mm
 
 
 def _grid(n_beats: int = 16, spb: float = 0.5):

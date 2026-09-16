@@ -3,11 +3,9 @@ pwa, reports, plots, la page de triage audio) et l'enregistrement de chaque
 groupe de routes API (`routes/`). `app = create_app()` au niveau module, pour
 que `flask run` / les tests / `__main__.py` trouvent tous le même objet.
 
-Porté depuis `harmonia_min/server.py` (sprints 11-14) : le shell est encore
-servi octet pour octet depuis `harmonia_min/app_shell.html` (le sprint 16
-frontend le déplace) — c'est la seule référence à `harmonia_min` que ce
-module porte, et elle est un CHEMIN DE DONNÉES (SETTINGS.repo / …), jamais
-un chemin construit sur le dossier de CE fichier-ci.
+Porté depuis `harmonia_min/server.py` (sprints 11-14). Le shell est servi
+depuis `harmonia/static/index.html` (sprint 16) ; tout chemin ici part de
+`SETTINGS.repo`, jamais du dossier de CE fichier-ci.
 
 Ce que ce module ne fait PAS : construire les routes elles-mêmes (voir
 `routes/*.py`) ; lire une variable d'environnement (tout passe par
@@ -102,12 +100,12 @@ def create_app() -> Flask:
 
     @app.get("/")
     def index():
-        # Sprint 16 : le shell est maintenant le host statique
+        # Sprint 16 : le shell est le host statique
         # `harmonia/static/index.html` (le même <head>/<style>/markup que
-        # `harmonia_min/app_shell.html`, moins le <script> inline — voir
-        # /static/main.js). `harmonia_min/app_shell.html` reste sur place,
-        # intact, pour que `python -m harmonia_min.server` (:7772/:7773 avant
-        # le swap du sprint 21) continue de servir l'ancien fichier.
+        # l'ancien `harmonia_min/app_shell.html`, moins le <script> inline —
+        # voir /static/main.js). Le fichier d'origine est parti avec
+        # `harmonia_min` au sprint 22 ; le tag `pre-refactor-2026-09-14` le
+        # garde pour comparaison.
         return send_file(SETTINGS.repo / "harmonia" / "static" / "index.html")
 
     @app.get("/static/<path:name>")

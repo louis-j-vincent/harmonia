@@ -5,7 +5,7 @@ inférences ». `confirmed` n'apparaissait alors nulle part dans `folding` ni
 dans `refold` : une mesure corrigée à la main repassait sous le gabarit au
 recuit suivant, sans un mot.
 """
-from harmonia_min.folding import _write_position
+from harmonia.folding import _write_position
 
 BPB = 4
 GRID = [0.0, 2.0, 4.0, 6.0]
