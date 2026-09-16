@@ -114,6 +114,7 @@ def e(x):
 
 def page(tr: dict) -> str:
     ac = tr["accords"]
+    audio_js = json.dumps("/audio/" + tr["key"] + ".m4a")
     n_prov = {k: 0 for k in PROV}
     for _, _, cs in CHAINE:
         for c in cs:
@@ -130,10 +131,23 @@ def page(tr: dict) -> str:
         why = r["basse_decision"]["pourquoi"]
         sous = (r["bass"] >= 0 and r["basse_lue"]
                 and r["basse_lue"][0]["share"] < tr["constantes"]["plancher_basse"])
+        t0, t1 = r["t0"], r["t1"]
+        # Trois écoutes, chacune répondant à une question différente :
+        # le contexte dit si l'accord tombe au bon endroit ; l'accord seul dit
+        # si l'étiquette est juste ; l'attaque est LITTÉRALEMENT ce que la règle
+        # de basse lit (les 150 premières ms), étirée à ce que l'oreille peut
+        # saisir.
+        ec = (f"<button class='pl' data-t0='{max(0, t0 - 1.6):.3f}' data-t1='{t1:.3f}'"
+              f" type='button'>&#9658; en contexte</button>"
+              f"<button class='pl' data-t0='{t0:.3f}' data-t1='{t1:.3f}'"
+              f" type='button'>&#9658; l'accord</button>"
+              f"<button class='pl' data-t0='{t0:.3f}' data-t1='{t0 + 0.9:.3f}'"
+              f" type='button'>&#9658; l'attaque</button>")
         return f"""
 <div class="tr">
   <div class="trh"><b>{e(r['label'])}</b><span class="mes">mes. {r['bar']}.{r['beat']}</span>
     <span class="sec">{e(r['section'])}</span><span class="t">{r['t0']:.2f}s</span></div>
+  <div class="acts">{ec}</div>
   <div class="tl"><span class="k">le modèle entend</span>{top}</div>
   <div class="tl"><span class="k">le changement coûte</span>
     <span class="cout c{cout}">{cout} &middot; {cname}</span></div>
@@ -229,6 +243,18 @@ def page(tr: dict) -> str:
  .why{{font-size:12.5px;color:var(--ink)}}
  .flag{{font-family:'IBM Plex Mono',monospace;font-size:10.5px;background:var(--warn-soft);
   color:var(--warn);border-radius:4px;padding:1px 7px}}
+ .acts{{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 9px;padding-bottom:9px;
+  border-bottom:1px dashed var(--rule)}}
+ button{{font-family:'IBM Plex Mono',monospace;font-size:11.5px;border-radius:6px;padding:5px 10px;
+  cursor:pointer;border:1px solid var(--rule);background:var(--surface-2);color:var(--ink-dim)}}
+ button:hover{{border-color:var(--accent);color:var(--accent-ink);background:var(--accent-soft)}}
+ button:focus-visible{{outline:2px solid var(--accent);outline-offset:2px}}
+ button.playing{{background:var(--accent);border-color:var(--accent);color:var(--surface)}}
+ .bandeau{{position:sticky;top:0;z-index:20;background:var(--surface);border:1px solid var(--rule);
+  border-radius:10px;padding:8px 12px;margin:14px 0;display:flex;gap:12px;flex-wrap:wrap;
+  align-items:center;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-dim)}}
+ .opt{{display:inline-flex;align-items:center;gap:5px;cursor:pointer}}
+ .opt input{{accent-color:var(--accent);width:14px;height:14px}}
  footer{{margin-top:32px;padding-top:12px;border-top:1px solid var(--rule);font-size:11.5px;
   color:var(--ink-faint);font-family:'IBM Plex Mono',monospace;line-height:1.8}}
 </style>
@@ -262,6 +288,12 @@ Voici lesquelles, et d'où vient chaque nombre.</p>
 </div>
 
 <h2>Un vrai morceau, accord par accord</h2>
+<div class="bandeau">
+  <button id="stop" type="button">&#9632; stop</button>
+  <label class="opt"><input type="checkbox" id="slow"> ralenti 60&nbsp;%</label>
+  <label class="opt"><input type="checkbox" id="loop"> boucle</label>
+  <span id="etat">chargement de l'audio&hellip;</span>
+</div>
 <p class="sub">{e(tr['titre'] or tr['key'])} &middot; {e(tr['tonalite'])} &middot;
 les {len(ac)} accords des 16 premières mesures, rejoués par la chaîne réelle.</p>
 {"".join(trace_carte(r) for r in ac)}
@@ -323,6 +355,52 @@ les {len(ac)} accords des 16 premières mesures, rejoués par la chaîne réelle
   plancher basse {tr['constantes']['plancher_basse']:.0f} % &middot;
   intervalles jouables {tr['constantes']['intervalles_jouables']}
 </footer>
+
+<script>
+// Le fichier est chargé en entier avant de jouer : le lecteur média de Safari
+// ne bufferise pas les extraits servis en 206 (piège iOS connu du projet).
+// Pas de boucle rAF non plus — sur iOS elle empêche le moteur audio de démarrer.
+const AUDIO = {audio_js};
+let audio = null, playing = null, stopAt = null;
+const etat = document.getElementById('etat');
+fetch(AUDIO).then(r => r.blob()).then(b => {{
+  audio = new Audio(URL.createObjectURL(b));
+  audio.preservesPitch = true;
+  audio.addEventListener('timeupdate', () => {{
+    if (stopAt == null) return;
+    if (audio.currentTime >= stopAt) {{
+      if (document.getElementById('loop').checked && playing) {{
+        audio.currentTime = parseFloat(playing.dataset.t0); return;
+      }}
+      audio.pause(); if (playing) playing.classList.remove('playing');
+      playing = null; stopAt = null;
+    }}
+  }});
+  etat.textContent = 'audio prêt';
+}}).catch(() => {{ etat.textContent = 'audio indisponible'; }});
+
+function jouer(btn){{
+  if (!audio) return;
+  const t0 = parseFloat(btn.dataset.t0), t1 = parseFloat(btn.dataset.t1);
+  if (playing) playing.classList.remove('playing');
+  if (playing === btn) {{ audio.pause(); playing = null; stopAt = null; return; }}
+  audio.playbackRate = document.getElementById('slow').checked ? 0.6 : 1;
+  stopAt = t1;
+  audio.currentTime = Math.max(0, t0);
+  audio.play().catch(() => {{}});
+  btn.classList.add('playing'); playing = btn;
+  etat.textContent = t0.toFixed(2).replace('.', ',') + ' s \u2192 ' + t1.toFixed(2).replace('.', ',') + ' s';
+}}
+document.querySelectorAll('button.pl').forEach(b => b.addEventListener('click', () => jouer(b)));
+document.getElementById('stop').addEventListener('click', () => {{
+  if (!audio) return;
+  audio.pause(); if (playing) playing.classList.remove('playing');
+  playing = null; stopAt = null; etat.textContent = 'audio prêt';
+}});
+document.getElementById('slow').addEventListener('change', e => {{
+  if (audio) audio.playbackRate = e.target.checked ? 0.6 : 1;
+}});
+</script>
 """
 
 
