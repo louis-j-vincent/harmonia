@@ -211,21 +211,23 @@ trouvaille est vérifiée contre le code vivant et notée ici.
   écarté comme exception (le contrôle de cohérence existant), ou fausse-t-il
   la moyenne en silence ? Pas vérifié ; même piste de recherche.
 
-## À faire au moment de fusionner le sprint 22
+## Sprint 22 — fusionné (2026-09-16)
 
-- **Re-geler la baseline du rapport d'or.** Le champ `meta.engine` du chart
-  dit maintenant `harmonia` et non plus `harmonia_min` ; la baseline gelée,
-  elle, date d'avant. Tant que les deux ne sont pas alignés, le rapport
-  annonce « 44/44 DIFFÈRE · 0 mesure changée » — un faux positif, pas une
-  régression. Le run vérifié est déjà sur le disque, il suffit de le copier :
-
-      cp state/cache/golden/baseline_sprint22_2026-09-16/*.json \
-         state/cache/golden/baseline/
-
-  Ça n'a PAS été fait pendant le sprint exprès : `state/cache/` n'est pas
-  suivi par git, c'est de l'état partagé entre le checkout principal et tous
-  les worktrees. Écraser la baseline depuis une branche non fusionnée aurait
-  fait mentir le rapport d'or de toutes les autres sessions en cours.
+Fusionné dans `feat/section-criteres` (`3715466`). Vérifié indépendamment
+après fusion, à part du merge lui-même : `harmonia_min/pipeline.py` avait
+disparu, donc le rapport d'or a été relancé avec `--engine harmonia` contre
+l'ancienne baseline, comparaison champ par champ (pas seulement « mesures
+changées ») — **0 différence en dehors de `meta.engine`** sur les 44
+morceaux communs. La baseline est re-gelée depuis le run PROPRE de l'agent
+(`state/cache/golden/baseline_sprint22_2026-09-16/`, fait dans son worktree
+isolé, donc jamais mélangé au travail de basse en cours dans l'arbre
+partagé) — jamais depuis un run local, qui aurait mélangé les deux
+chantiers. `pytest` : un test sentinelle ajouté le jour même par une autre
+session (`test_jam_redecode.py::test_les_trois_appelants_existent_toujours`)
+listait encore `harmonia_min/jam.py` en dur ; mis à jour vers
+`harmonia/jam.py`, où le fichier vit maintenant — c'est exactement ce que ce
+test est censé attraper. Suite complète : 303 verts, la seule rouge connue
+inchangée.
 
 ## Résolu récemment
 

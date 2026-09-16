@@ -6,7 +6,8 @@ Trouvé le 2026-09-16 en inventoriant les décisions de la chaîne d'accords.
 existait. Elle a été retirée le 2026-09-15 (`ea539de`) et la fonction rend
 depuis une simple liste. Les deux appels de la chaîne d'analyse ont été mis à
 jour le jour même — `pipeline.py` et `folding.py` — mais le TROISIÈME, celui du
-Jam (`harmonia_min/jam.py`, que la route `/api/jam` de l'app vivante importe),
+Jam (`harmonia_min/jam.py` à l'époque, déménagé en `harmonia/jam.py` au sprint 22
+du 2026-09-16 ; la route `/api/jam` de l'app vivante l'importe),
 ne l'a pas été : il dépaquetait encore deux valeurs.
 
 Conséquence : `ValueError: too many values to unpack` à chaque passe de
@@ -31,7 +32,7 @@ from harmonia import musx as musx_neuf
 APPELANTS = [
     Path("harmonia/pipeline.py"),
     Path("harmonia/folding.py"),
-    Path("harmonia_min/jam.py"),
+    Path("harmonia/jam.py"),  # déménagé de harmonia_min/ au sprint 22 (2026-09-16)
 ]
 
 
