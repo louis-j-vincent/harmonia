@@ -63,7 +63,14 @@ export function openAnnotateTools(){
 
   // ── EDITOR (Compass + Guide + By hand) ──────────────────────────────────
 export let editTab="compass", handTab="cylinder";
-export function openEditor(idx){
+  // `opts.isNew` (2026-09-16, bar-expanded add-a-chord): the sheet opens on a
+  // freshly pushed, UNCONFIRMED draft chord (see annotate.js openNewChord) —
+  // same shell, same tabs, same lockBtn/splitBtn wiring, just: no split (you
+  // cannot split a chord that doesn't exist yet), a caption that says "new"
+  // instead of guessing at doubt, and `opts.onCancel` to undo the draft push
+  // if the user backs out without locking anything.
+export function openEditor(idx,opts){
+    opts=opts||{};
     // Always open on Compass, regardless of which tab was last selected for a
     // previous chord — editTab is otherwise sticky across opens (only its
     // module-level initializer sets "compass", so after a user picks Guide or
@@ -72,20 +79,31 @@ export function openEditor(idx){
     // are both empty then, so the editor opens straight on the tab that works.
     editTab=candList(idx).length?"compass":"hand";
     const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
+    // overlay()'s own backdrop-tap-to-close bypasses onCancel — a tap outside
+    // the sheet is just as much a "back out" as the Cancel button below, and
+    // a new-chord draft must not survive either.
+    if(opts.onCancel) back.onclick=e=>{ if(e.target===back){ opts.onCancel(); closeOverlay(back); } };
     const ch=S.chords[idx];
     const hd=el("div","flex:0 0 auto;display:flex;align-items:center;gap:12px;margin-bottom:12px;");
     hd.appendChild(glyph(ch.root,ch.q,32,"exact",ch.confirmed?T.ink:confColor(ch.c)));
     const meta=el("div","");
-    // Say the OBSERVABLE, not a percentage: "played once in this song" is both
-    // the reason the chord is doubtful and something the reader can check by
-    // eye. The percentage it replaces was uninformative (see buildIReal).
-    const played=ch.confirmed?"locked by you":playedLabel(ch);
-    if(played) meta.appendChild(el("div",`font:600 12px ${UI};color:${ch.confirmed?T.green:confColor(ch.c)};`, played));
-    // The "never plays again" line is a claim about the COUNT, so it needs the
-    // count: it used to fire on low confidence alone, which on a chart with no
-    // `n` meant it fired on chords the song plays throughout.
-    meta.appendChild(el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:2px;`,
-      (ch.c<.42 && (ch.n|0)===1)?"a chord the song never plays again is usually wrong":"choose a reading, or fix it by hand"));
+    if(opts.isNew){
+      meta.appendChild(el("div",`font:600 12px ${UI};color:${T.accent};`,"new chord"));
+      meta.appendChild(el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:2px;`,
+        "pick a reading, or set it by hand"));
+    } else {
+      // Say the OBSERVABLE, not a percentage: "played once in this song" is
+      // both the reason the chord is doubtful and something the reader can
+      // check by eye. The percentage it replaces was uninformative (see
+      // buildIReal).
+      const played=ch.confirmed?"locked by you":playedLabel(ch);
+      if(played) meta.appendChild(el("div",`font:600 12px ${UI};color:${ch.confirmed?T.green:confColor(ch.c)};`, played));
+      // The "never plays again" line is a claim about the COUNT, so it needs
+      // the count: it used to fire on low confidence alone, which on a chart
+      // with no `n` meant it fired on chords the song plays throughout.
+      meta.appendChild(el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:2px;`,
+        (ch.c<.42 && (ch.n|0)===1)?"a chord the song never plays again is usually wrong":"choose a reading, or fix it by hand"));
+    }
     hd.appendChild(meta); sheet.appendChild(hd);
     const tabs=el("div",`flex:0 0 auto;display:inline-flex;background:${T.line};border-radius:10px;padding:3px;gap:2px;margin-bottom:12px;align-self:flex-start;`);
     [["compass","Compass"],["guide","Guide"],["hand","By hand"]].forEach(([k,lbl])=>{
@@ -109,7 +127,7 @@ export function openEditor(idx){
     // ONE chord — a bar already split into 2 has nowhere to add a third
     // (chart_model's own "≤2 chords per bar, never more" rule).
     const _splitBi = S.bars.findIndex(b=>b.idxs.length===1 && b.idxs[0]===idx);
-    const canSplit = _splitBi>=0;
+    const canSplit = !opts.isNew && _splitBi>=0;
     const splitBtn=el("button",`width:100%;margin-top:8px;border:1.5px solid ${T.rule};border-radius:12px;padding:12px;font:600 13px ${UI};cursor:pointer;background:transparent;color:${T.faint};pointer-events:none;opacity:.5;transition:all .15s;`,"Split into two — pick the 2nd half");
     function onPick(cand, btn){
       picked=cand; play(cand.root,cand.q); haptic(6);
@@ -138,7 +156,7 @@ export function openEditor(idx){
     foot.appendChild(preview); foot.appendChild(lockBtn);
     if(canSplit) foot.appendChild(splitBtn);
     const cancel=el("button",`width:100%;margin-top:6px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:44px;cursor:pointer;`,"Cancel");
-    cancel.onclick=()=>closeOverlay(back); foot.appendChild(cancel);
+    cancel.onclick=()=>{ if(opts.onCancel) opts.onCancel(); closeOverlay(back); }; foot.appendChild(cancel);
     sheet.appendChild(foot);
     back.appendChild(sheet); root.appendChild(back);
     S._closeEditor=()=>closeOverlay(back);
@@ -157,6 +175,168 @@ export function openEditor(idx){
   // musx's real top-3 there is Cm .73 / G .05 / Fm .03. A silent fallback gets
   // deleted, not repaired — the editor now says it has nothing and sends you
   // to By hand.
+  // ── BAR EXPANDED (2026-09-16, Louis: « quand je clique sur un endroit vide
+  // de la barre je peux ajouter un accord dessus : ça ouvre d'abord la barre
+  // en grand, puis ça met un point sous chacun des 4 temps de la barre, et je
+  // clique sur la partie que je veux pour soit modifier un accord existant
+  // soit en ajouter un nouveau »). A bar that is not fully written (fewer
+  // onsets than `bpb`, INCLUDING zero — a held "%" bar) opens this sheet
+  // instead of jumping straight to the editor (chart.js's buildIReal decides
+  // when: see `roomToAdd`). A FULL bar (one onset per beat already) keeps the
+  // old one-tap-on-the-glyph flow untouched — there is no empty beat to route
+  // to here.
+  //
+  // The dot row is the whole feature: one dot per BEAT OF THE BAR
+  // (`S.model.bpb`, never hardcoded 4 — Ju8Hr50Ckwk is 3/4, Urdlvw0SSEc is
+  // 6/8). A dot a chord already covers opens THAT chord's normal editor
+  // (openEditor, unchanged); an uncovered dot opens the same editor on a
+  // fresh draft (openNewChord).
+
+  // The chord sounding at beat k of `bar` (the latest onset at-or-before k),
+  // or null if nothing in this bar has started yet by k.
+function _activeChordAt(bar,k){
+    let found=null, foundBeat=-Infinity;
+    bar.idxs.forEach(idxx=>{
+      const beat=S.chords[idxx].beat||0;
+      if(beat<=k+1e-6 && beat>=foundBeat){ found=idxx; foundBeat=beat; }
+    });
+    return found;
+  }
+  // The next onset strictly after beat k in `bar`, or null — bounds a new
+  // chord's default duration ("until the next existing onset, or the bar's
+  // end").
+function _nextOnsetAfter(bar,k){
+    let best=null;
+    bar.idxs.forEach(idxx=>{
+      const beat=S.chords[idxx].beat||0;
+      if(beat>k+1e-6 && (best===null||beat<best)) best=beat;
+    });
+    return best;
+  }
+  // The model's bar NUMBER for S.bars[bi] — trivial when the bar already has
+  // a chord (every chord carries its own `.bar`), open only for a fully-held
+  // bar, which has no chord of its own to ask. Solved by ARITHMETIC on the
+  // section's `barRanges` (server truth, preserved on `S.sections` by
+  // loadModel): position-within-the-section's-own-bars + the first
+  // occurrence's start bar. Verified against a real chart
+  // (min_Ju8Hr50Ckwk.json's one-bar "outro", barRanges [[128,128]]) — see
+  // harmonia/server/routes/annotate.py::_locate_empty_prefix_bar, the
+  // server-side mirror of this same arithmetic.
+  // What this does NOT solve: a fully-held bar inside a 1st/2nd-ending TAIL
+  // is numbered by a different span (chart.js's passSpan) and falls back to
+  // its ending-group neighbour instead of barRanges — rarer (no ending tail
+  // in the library is fully held at 2026-09-16) and not proven correct.
+function _inferBarNo(bi){
+    const bar=S.bars[bi];
+    if(bar.idxs.length) return S.chords[bar.idxs[0]].bar;
+    if(!bar.ending){
+      let pos=0;
+      for(let j=bi-1;j>=0;j--){
+        const bj=S.bars[j];
+        if(bj.secId!==bar.secId || bj.ending) break;
+        pos++;
+      }
+      const sec=S.sections.find(s=>s.id===bar.secId);
+      if(sec && sec.barRanges && sec.barRanges.length) return sec.barRanges[0][0]+pos;
+    } else {
+      for(let j=bi-1;j>=0;j--){
+        const bj=S.bars[j];
+        if(bj.secId!==bar.secId || bj.ending!==bar.ending) break;
+        if(bj.idxs.length) return S.chords[bj.idxs[0]].bar+(bi-j);
+      }
+      for(let j=bi+1;j<S.bars.length;j++){
+        const bj=S.bars[j];
+        if(bj.secId!==bar.secId || bj.ending!==bar.ending) break;
+        if(bj.idxs.length) return S.chords[bj.idxs[0]].bar-(j-bi);
+      }
+    }
+    return bi;  // best-effort — should not happen on a real chart
+  }
+
+  // Push a fresh, UNCONFIRMED chord at beat `k` of bar `bi` and open it in
+  // the normal editor's "new" mode. Mirrors splitBar's own convention
+  // (append-only, never insert in the middle — every other idx stays valid),
+  // with one addition splitBar doesn't need: if the user backs out without
+  // locking anything, the draft is popped back off (see openEditor's
+  // opts.onCancel) so an abandoned add leaves no trace.
+export function openNewChord(bi,k){
+    const bar=S.bars[bi]; if(!bar) return;
+    const bpb=(S.model && S.model.bpb) || 4;
+    const dur=(bar.t1-bar.t0)/bpb;
+    const t0=bar.t0+k*dur;
+    const nb=_nextOnsetAfter(bar,k);
+    const t1=(nb!=null)?bar.t0+nb*dur:bar.t1;
+    // Seed root/quality from whatever is sounding right before this beat (the
+    // bar's own earlier onset, else the previous bar's last chord, else the
+    // song's key) so the sheet opens on something musically plausible rather
+    // than a hardcoded C — purely a starting point, By Hand/Compass/Guide all
+    // still change it freely before Lock.
+    let seed=null;
+    for(let j=bi;j>=0 && !seed;j--){
+      const idxs=S.bars[j].idxs;
+      const cand=idxs.filter(ix=> j<bi || (S.chords[ix].beat||0)<k);
+      if(cand.length) seed=S.chords[cand[cand.length-1]];
+    }
+    const draft={
+      root: seed?seed.root:S.key, q: seed?seed.q:"",
+      c:0, confirmed:false, nc:false, n:0, sug:null, bass:-1,
+      bar:_inferBarNo(bi), beat:k,
+      sec:bar.sec, secId:bar.secId, reps:bar.reps,
+      barFirst:false, secFirst:false,
+      t0, t1, spans:[[t0,t1]],
+    };
+    S.chords.push(draft);
+    const newIdx=S.chords.length-1;
+    bar.idxs.push(newIdx);
+    bar.idxs.sort((a,b)=>(S.chords[a].beat||0)-(S.chords[b].beat||0));
+    openEditor(newIdx,{isNew:true, onCancel:()=>{
+      const p=bar.idxs.indexOf(newIdx); if(p>=0) bar.idxs.splice(p,1);
+      if(S.chords[S.chords.length-1]===draft) S.chords.pop();
+    }});
+  }
+
+export function openBarExpanded(bi){
+    const bar=S.bars[bi]; if(!bar) return;
+    const bpb=(S.model && S.model.bpb) || 4;
+    const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
+    const close=()=>closeOverlay(back);
+    sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`, bar.sec||"Bar"));
+    sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:14px;`,
+      "tap a beat to fix or add a chord"));
+    const row=el("div",`flex:0 0 auto;display:grid;grid-template-columns:repeat(${bpb},minmax(0,1fr));align-items:end;column-gap:6px;min-height:64px;margin-bottom:10px;`);
+    const dots=el("div",`flex:0 0 auto;display:grid;grid-template-columns:repeat(${bpb},minmax(0,1fr));column-gap:6px;margin-bottom:16px;`);
+    for(let k=0;k<bpb;k++){
+      const cidx=_activeChordAt(bar,k);
+      const onset = cidx!=null && Math.round(S.chords[cidx].beat||0)===k;
+      const cell=el("div","display:flex;align-items:flex-end;justify-content:center;min-height:64px;");
+      if(onset){
+        const c=S.chords[cidx];
+        // Match the main grid's own N.C. treatment (buildIReal) — a faint
+        // "N.C." reads as "the model heard silence here", not an invented
+        // root; the dot below is still covered (tap it to override, same as
+        // an N.C. glyph in the normal grid).
+        if(c.nc) cell.appendChild(el("div",`font:italic 600 20px ${SERIF};color:${T.faint};opacity:.55;`,"N.C."));
+        else cell.appendChild(glyph(c.root,c.q,28,"exact",c.confirmed?T.ink:confColor(c.c)));
+      } else if(cidx==null){
+        cell.appendChild(el("div",`font:600 20px ${UI};color:${T.faint};opacity:.4;`,"+"));
+      }
+      row.appendChild(cell);
+      const covered=cidx!=null;
+      const dotBtn=el("button",`display:flex;align-items:center;justify-content:center;min-height:44px;border:none;background:transparent;cursor:pointer;-webkit-tap-highlight-color:transparent;`);
+      dotBtn.appendChild(el("div",`width:${covered?9:7}px;height:${covered?9:7}px;border-radius:50%;background:${covered?T.ink:"transparent"};border:${covered?"none":`1.5px solid ${T.faint}`};box-sizing:border-box;`));
+      dotBtn.dataset.beat=String(k); dotBtn.dataset.covered=String(covered);
+      dotBtn.onclick=()=>{ haptic(); close(); if(cidx!=null) openEditor(cidx); else openNewChord(bi,k); };
+      dots.appendChild(dotBtn);
+    }
+    sheet.appendChild(row); sheet.appendChild(dots);
+    sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:italic 11.5px ${SERIF};color:${T.faint};margin-bottom:6px;`,
+      "filled dot = an existing chord · ring = empty, tap to add one"));
+    const cancel=el("button",`flex:0 0 auto;width:100%;margin-top:6px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:${SZ.control}px;cursor:pointer;`,"Close");
+    cancel.onclick=close;
+    sheet.appendChild(cancel);
+    back.appendChild(sheet); root.appendChild(back);
+  }
+
 export function candList(idx){
     const ch=S.chords[idx];
     return (ch.sug && ch.sug.length) ? ch.sug.slice(0,3) : [];

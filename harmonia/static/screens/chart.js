@@ -8,7 +8,7 @@ import { api } from "../api.js";
 import { PLAYHEAD_LEAD_S, hitAtTime, loopEngineDispose, loopEngineStart, loopEngineToggle, nowTime, seekFrac, seekToBar, setPlayBtn, syncTransport, togglePlay, totalDur } from "../audio.js";
 import { go, screenWrap } from "../router.js";
 import { applyRefinement } from "../screens/analyse.js";
-import { candList, openAnnotateTools, openEditor } from "../screens/annotate.js";
+import { candList, openAnnotateTools, openBarExpanded, openEditor } from "../screens/annotate.js";
 import { openChordSheet, openPrefsSheet, openRotor, transposeTo } from "../screens/prefs.js";
 import { attachSectionDrag, buildSectionTool, paintSectionTool, sectToolOn, setPlayhead, spanTime } from "../screens/sections_editor.js";
 import { S } from "../state.js";
@@ -1265,6 +1265,13 @@ export function buildIReal(){
       const inSecGapRow = secGapRows.has(row);
       const gridStart = b.secFirst ? 1 : (skipToCol!=null ? skipToCol+1 : (endingOwnRow?1:null));
       const bpbQ=S.model.bpb||4;
+      // Bar-expanded add-a-chord (2026-09-16): a bar with fewer onsets than
+      // beats — including zero, a held "%" bar — has room to add one. Such a
+      // bar routes EVERY tap (glyph or empty space alike) to the zoomed
+      // dotted view instead of straight to the editor; a FULLY written bar
+      // (one onset per beat already) keeps today's direct tap-to-edit
+      // untouched below — there is nowhere to add.
+      const roomToAdd = b.chords.length<bpbQ;
       // §7 (delta2 / design 4a): en écriture compacte, dès 2 accords la barre
       // les EMPILE À GAUCHE avec un écart fixe (flex) au lieu de les répartir
       // sur les temps. C'est le changement de layout qui fait tenir 4 accords
@@ -1363,7 +1370,11 @@ export function buildIReal(){
         // * CHORDS / NO-CHORD. Still clickable in annotate mode to override.
         if(ch.nc){
           item.appendChild(el("div",`font:italic 600 ${narrow?15:18}px ${SERIF};color:${T.faint};opacity:.55;`,"N.C."));
-          if(S.mode==="annotate") item.onclick=()=>openEditor(idx);
+          // A bar with room to add (roomToAdd) routes ANY tap — glyph or empty
+        // space alike — to the bar-expanded dotted view instead (see the
+        // cell-level handler below): the direct tap-to-edit stays only for a
+        // fully written bar, where there is no empty beat to route to.
+        if(S.mode==="annotate" && !roomToAdd) item.onclick=()=>openEditor(idx);
           cell.appendChild(item);
           return;
         }
@@ -1417,7 +1428,11 @@ export function buildIReal(){
             `font:italic 600 ${narrow?9:10.5}px ${SERIF};color:${ok?T.faint:T.accent};opacity:${ok?.75:1};margin-top:1px;white-space:nowrap;`,
             "GT "+gt.text+(gt.extra?"…":"")));
         }
-        if(S.mode==="annotate") item.onclick=()=>openEditor(idx);
+        // A bar with room to add (roomToAdd) routes ANY tap — glyph or empty
+        // space alike — to the bar-expanded dotted view instead (see the
+        // cell-level handler below): the direct tap-to-edit stays only for a
+        // fully written bar, where there is no empty beat to route to.
+        if(S.mode==="annotate" && !roomToAdd) item.onclick=()=>openEditor(idx);
         // Read/Analyse à l'arrêt: tap → la grande feuille (piano + voicings —
         // c'est là qu'on édite). En LECTURE Read (§6 delta2): "tap" fait
         // monter la carte de voicing par-dessus la grille sans couper
@@ -1462,6 +1477,7 @@ export function buildIReal(){
       // feuille Aa agit tout de suite, sans re-rendre la grille sous une
       // feuille ouverte.
       if(S.mode!=="annotate" && !sectToolOn()) cell.onclick=()=>{ if(S.tapSeek) seekToBar(bi); };
+      else if(S.mode==="annotate" && !sectToolOn() && roomToAdd) cell.onclick=()=>openBarExpanded(bi);
       S._cells.push({el:cell, bar:bi, idxs:b.chords.map(x=>x.idx), ph, sel});
       grid.appendChild(cell);
       rowCells.push(cell);
