@@ -11,6 +11,24 @@ Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 
 Détail et mesures : `docs/audit_2026-09-15_plan.md`.
 
+- **La mesure 1 tombe dans le fondu d'entrée quand le fichier contient
+  l'intro du CLIP** (2026-09-16, Louis sur Sam Smith : « ça a mal détecté le
+  début du morceau, et ça cause un décalage tout le long »). Mesuré sur
+  `sam_smith_i_m_not_the_only_one_official_music_video` : le fichier dure
+  4 min 40 et ses **40 premières secondes sont l'intro parlée du clip**, pas
+  de la musique. Beat This! ne trouve sa première battue qu'à 37,1 s — il a
+  raison — mais la grille démarre alors à 39,22 s, en plein fondu, alors que
+  le groupe entre à 42,0 s (énergie lissée ×3) sur un downbeat du traqueur à
+  42,14 s. La mesure 1 du chart est donc UNE mesure trop tôt, et tout le
+  morceau est décalé derrière : l'outil de sections cale ses jetons sur la
+  mesure 1 (`soudure._mesure1` → `grille_et_mot(depart=…)`), donc chaque trait
+  au doigt tombe à côté. READY, qui a une marque « mesure 1 » posée à la main,
+  ne souffre pas de ça — c'est toute la différence entre les deux.
+  **Contournement, qui marche** : Outils → « Caler la mesure 1 » sur 42,14 s.
+  **Piste pour l'automatiser, pas encore essayée** : refuser une mesure 1
+  avant que l'énergie du morceau ne se soit installée (ici 42,0 s, mesurable
+  en deux lignes sur l'audio) — le traqueur, lui, n'a aucune raison de savoir
+  qu'un fondu n'est pas le début.
 - **Le re-calage harmonique de la phase (`bars._phase_correction`) ne se
   déclenche sur aucun des 44** (seuils 0,55 / 0,15 jamais satisfaits
   ensemble). Sur 2 des 3 marques « Set bar 1 » de Louis, le vote des accords
