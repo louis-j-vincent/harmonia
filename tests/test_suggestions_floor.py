@@ -89,6 +89,30 @@ def test_le_top_1_survit_toujours_au_plancher():
     assert len(chords[0]["sug"]) == 1
 
 
+def test_un_accord_tres_sur_ne_garde_que_sa_propre_case():
+    """La conséquence que le rendu doit savoir gérer. Avant le plancher, `sug`
+    portait toujours trois entrées, donc le compas — qui RETIRE l'accord écrit
+    avant de placer ses orbes — en gardait au moins deux. Depuis le plancher,
+    un accord que musx tient à 95 % ne laisse que SA case, et la roue se
+    vide : c'est « le modèle est sûr », jamais « ce chart n'a pas de
+    classement ». Mesuré sur les charts réels : 2 accords sur 23 (Yesterday),
+    2 sur 86 (Lost Without U). `buildCompass` distingue les deux silences ;
+    ce test gèle la situation qui l'y oblige."""
+    triad = np.full((T, 73), 0.001 / 70)
+    triad[:, 0] = 0.001
+    triad[:, 1] = 0.998                       # C maj, écrasant
+    s7 = np.tile([1.0, 0.0, 0.0, 0.0], (T, 1))
+    dummy = np.zeros((T, 3))
+    probs = [triad, np.zeros((T, 13)), s7, np.zeros((T, 4)), dummy, dummy]
+    chords = [{"root": 0, "q": "", "nc": False, "t0": 0.0, "t1": 2.0}]
+    musx_suggestions(probs, chords)
+    sug = chords[0]["sug"]
+    assert len(sug) == 1
+    assert (sug[0]["root"], sug[0]["q"]) == (0, "")     # sa propre case
+    others = [s for s in sug if not (s["root"] == 0 and s["q"] == "")]
+    assert others == []                                 # le compas n'a rien à orbiter
+
+
 def test_le_defaut_est_cinq_pas_trois():
     """Le top_k par défaut a bougé le 2026-09-16 ; c'est le défaut qui compte,
     puisque `pipeline.py` appelle sans argument."""

@@ -157,10 +157,30 @@ export function openEditor(idx){
   // musx's real top-3 there is Cm .73 / G .05 / Fm .03. A silent fallback gets
   // deleted, not repaired — the editor now says it has nothing and sends you
   // to By hand.
+  // Jusqu'à CINQ candidats, plus trois (Louis, 2026-09-16). Le « si relevant »
+  // de sa demande est un plancher, et il est appliqué UNE seule fois, côté
+  // Python (`span_rescore.SUG_FLOOR`, 2 % — juste au-dessus de l'uniforme sur
+  // les 60 cases de musx) : le chart arrive déjà élagué, ici on ne fait que
+  // le rendre. Dupliquer la constante en JS, c'est deux lois pour une
+  // décision, exactement ce que le projet refuse. Le `slice` ne reste que
+  // comme garde-fou pour les charts d'avant, qui en portent trois.
 export function candList(idx){
     const ch=S.chords[idx];
-    return (ch.sug && ch.sug.length) ? ch.sug.slice(0,3) : [];
+    return (ch.sug && ch.sug.length) ? ch.sug.slice(0,5) : [];
   }
+  // La ligne de basse LUE sous cet accord — `{pc, c}`, déjà triée et élaguée
+  // par `span_rescore.bass_suggestions` (plancher 12,5 %). Vide sur tout
+  // chart écrit avant le 2026-09-16 : l'affichage doit donc marcher sans.
+export function bassList(idx){
+    const ch=S.chords[idx];
+    return (ch.sugBass && ch.sugBass.length) ? ch.sugBass.slice(0,3) : [];
+  }
+  //: rayon d'un disque dont l'AIRE est proportionnelle à la probabilité —
+  //: la convention déjà posée pour les orbes du compas le 2026-08-08
+  //: (« radius spans the full band by √proba, area ∝ proba, the honest
+  //: encoding »). Les cercles de basse la reprennent telle quelle, pour que
+  //: « plus gros = plus sûr » veuille dire la même chose partout dans l'écran.
+function byArea(p, rMin, rMax){ return rMin + Math.sqrt(Math.max(0,Math.min(1,p)))*(rMax-rMin); }
   // Shown by Compass and Guide when the chart carries no model ranking. It
   // names the reason (this chart, not this chord) so it doesn't read as "the
   // model was unsure here", and points at the tab that still works.
@@ -176,15 +196,49 @@ export function buildCompass(idx,onPick){
     // said nothing and stole a spoke (its stack collision is what shrank every
     // orb; Louis, 2026-08-08). Only true ALTERNATIVES orbit.
     const chord=S.chords[idx];
-    const sug=candList(idx).filter(s=>!(s.root===chord.root&&s.q===chord.q));
-    if(!sug.length) return noCandBox();
+    const all=candList(idx);
+    const sug=all.filter(s=>!(s.root===chord.root&&s.q===chord.q));
+    // DEUX SILENCES DIFFÉRENTS, et les confondre serait mentir (2026-09-16).
+    // Avant le plancher, `sug` portait toujours trois entrées, donc en retirer
+    // l'accord écrit en laissait au moins deux : « rien à orbiter » ne pouvait
+    // vouloir dire qu'une chose, ce chart n'a pas de classement. Depuis le
+    // plancher, un accord que musx tient à 95 % n'a plus qu'un candidat — le
+    // sien — et la roue se vide. `noCandBox` dirait alors « écrit sans le
+    // classement du modèle » : l'exact contraire de la vérité, sur les
+    // accords les PLUS sûrs du morceau (2 accords sur 23 dans Yesterday,
+    // 2 sur 86 dans Lost Without U).
+    //   * `all` vide           -> pas de classement du tout : noCandBox.
+    //   * `all` plein, `sug` vide -> le modèle est sûr : on garde la roue (le
+    //     moyeu, et surtout les anneaux de basse, qui eux ont à dire), et on
+    //     l'écrit.
+    if(!all.length) return noCandBox();
+    const sure=!sug.length;
     const Sz=Math.min(286, (root.clientWidth||360)-92), cx=Sz/2, cy=Sz/2, R=Sz*0.4;
     const svg=sv("svg",{width:Sz,height:Sz,viewBox:`0 0 ${Sz} ${Sz}`,style:"display:block;overflow:visible"});
     svg.appendChild(sv("circle",{cx,cy,r:R,fill:"none",stroke:T.line,"stroke-width":1.5}));
+    // LA BASSE ENTENDUE, autour des lettres de la roue (Louis, 2026-09-16 :
+    // « des petits cercles autour des lettres du cercle pour montrer les
+    // basses qui sont détectées »). Une lettre de la roue est une CLASSE DE
+    // HAUTEUR, pas un accord : c'est exactement ce qu'une basse nomme, donc
+    // elle se pose là sans rien inventer, et sans voler de place aux orbes,
+    // qui vivent à l'intérieur du cercle.
+    // Bleu, et pas la teinte de l'orbe correspondante : la basse est une
+    // AUTRE voix, pas un autre accord — si les deux partageaient la couleur
+    // de quintes, un cercle de basse se lirait comme une suggestion d'accord.
+    const bass=bassList(idx);
+    const bassBy={}; bass.forEach((b,i)=>{ bassBy[b.pc]={b, isTop:i===0}; });
+    const bMin=Sz*0.030, bMax=Sz*0.056;
     for(let i=0;i<12;i++){ const a=(-90+i*30)*Math.PI/180; const pc=mod(i*7,12); const isHome=pc===S.key;
       const tx=cx+(R+Sz*0.05)*Math.cos(a), ty=cy+(R+Sz*0.05)*Math.sin(a);
       svg.appendChild(sv("circle",{cx:cx+R*Math.cos(a),cy:cy+R*Math.sin(a),r:2,fill:T.rule}));
-      const lbl=sv("text",{x:tx,y:ty,"text-anchor":"middle","dominant-baseline":"central","font-family":UI,"font-size":Sz*0.042,"font-weight":isHome?700:500,fill:isHome?T.accent:T.faint}); lbl.textContent=note(pc); svg.appendChild(lbl);
+      // AVANT la lettre : en SVG le dernier peint gagne, et un disque posé
+      // par-dessus rendrait la note illisible — or c'est la note qu'on vient
+      // lire.
+      const hit=bassBy[pc];
+      if(hit){ const br=byArea(hit.b.c, bMin, bMax);
+        svg.appendChild(sv("circle",{cx:tx,cy:ty,r:br,fill:T.blue,"fill-opacity":0.13,
+          stroke:T.blue,"stroke-width":hit.isTop?2:1.25,"stroke-opacity":hit.isTop?0.95:0.6})); }
+      const lbl=sv("text",{x:tx,y:ty,"text-anchor":"middle","dominant-baseline":"central","font-family":UI,"font-size":Sz*0.042,"font-weight":(isHome||hit)?700:500,fill:isHome?T.accent:(hit?T.blue:T.faint)}); lbl.textContent=note(pc); svg.appendChild(lbl);
       if(isHome) svg.appendChild(sv("circle",{cx:cx+R*Math.cos(a),cy:cy+R*Math.sin(a),r:5,fill:"none",stroke:T.accent,"stroke-width":1.5}));
     }
     const top=sug.reduce((a,b)=>b.c>a.c?b:a,sug[0]);
@@ -258,11 +312,57 @@ export function buildCompass(idx,onPick){
     layer.appendChild(hub);
     wrap.appendChild(svg); wrap.appendChild(layer);
     const box=el("div","");
-    box.appendChild(el("div",`text-align:center;font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:8px;`,"candidates the model considered"));
+    box.appendChild(el("div",`text-align:center;font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:8px;`,
+      sure?`the model is sure — ${Math.round(all[0].c*100)}% on this chord`:"candidates the model considered"));
+    // AU-DESSUS de la roue, pas sous elle. La légende historique (taille /
+    // couleur / angle) vit sous la roue, donc SOUS LA LIGNE DE FLOTTAISON du
+    // panneau, qui scrolle : acceptable pour une convention que Louis connaît
+    // par cœur, pas pour des ronds bleus qui apparaissent aujourd'hui. Une
+    // marque nouvelle s'explique là où on la voit.
+    if(bass.length){
+      const bl=el("div",`text-align:center;font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.blue};margin:-4px 0 8px;`);
+      bl.textContent="bass heard: "+bass.map(b=>`${note(b.pc)} ${Math.round(b.c*100)}%`).join(" · ");
+      box.appendChild(bl);
+    }
     box.appendChild(wrap);
     const cap=el("div",`text-align:center;font:italic 12px ${SERIF};color:${T.faint};margin-top:10px;line-height:1.5;`);
-    cap.innerHTML="<b>size</b> = how sure · <b>colour</b> = its key on the circle of fifths · <b>angle</b> groups related keys";
-    box.appendChild(cap); return box;
+    cap.innerHTML=sure
+      ? "nothing else cleared the floor — <b>By hand</b> still sets any chord you want"
+      : "<b>size</b> = how sure · <b>colour</b> = its key on the circle of fifths · <b>angle</b> groups related keys";
+    box.appendChild(cap);
+    // La phrase complète reste sous la roue, avec l'autre légende : elle dit
+    // ce que la ligne courte au-dessus ne peut pas dire — d'OÙ vient la
+    // mesure, et qu'elle n'écrit rien dans le chart.
+    if(bass.length){
+      const bcap=el("div",`text-align:center;font:italic 12px ${SERIF};color:${T.blue};margin-top:6px;line-height:1.5;`);
+      bcap.innerHTML="<b>blue rings</b> = the bass we hear at this chord's attack — shown, never written into the chart";
+      box.appendChild(bcap);
+    }
+    return box;
+  }
+  // La même basse que le compas, sans la roue : le Guide est une LISTE, il
+  // n'a pas de lettres autour desquelles dessiner. Les cercles gardent la
+  // loi de taille (aire ∝ probabilité) et la couleur bleue, pour qu'on
+  // reconnaisse la même information d'un onglet à l'autre.
+function bassStrip(idx){
+    const bass=bassList(idx);
+    if(!bass.length) return null;
+    const box=el("div",`display:flex;align-items:center;gap:10px;background:${T.card};border:1.5px solid ${T.line};border-radius:12px;padding:10px 13px;`);
+    const cap=el("div","min-width:0;flex:1 1 auto;");
+    cap.appendChild(el("div",`font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};`,"the bass we hear"));
+    cap.appendChild(el("div",`font:italic 11.5px ${SERIF};color:${T.faint};margin-top:3px;`,"read at this chord's attack — not written into the chart"));
+    box.appendChild(cap);
+    const row=el("div","display:flex;align-items:center;gap:7px;flex:0 0 auto;");
+    const rMin=11, rMax=19;
+    bass.forEach((b,i)=>{
+      const r=byArea(b.c, rMin, rMax);
+      const d=el("div",`width:${r*2}px;height:${r*2}px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:${T.blue}22;border:${i?1.25:2}px solid ${T.blue}${i?"99":""};flex:0 0 auto;`);
+      d.appendChild(el("span",`font:700 ${Math.max(10,Math.round(r*0.78))}px ${UI};color:${T.blue};`,note(b.pc)));
+      d.title=`${note(b.pc)} — ${Math.round(b.c*100)}% of the bass energy at the attack`;
+      row.appendChild(d);
+    });
+    box.appendChild(row);
+    return box;
   }
 export function buildGuide(idx,onPick){
     const sug=candList(idx);
@@ -270,6 +370,8 @@ export function buildGuide(idx,onPick){
     const next=S.chords[idx+1]?{root:S.chords[idx+1].root,q:S.chords[idx+1].q}:null;
     const top=sug.reduce((a,b)=>b.c>a.c?b:a,sug[0]);
     const list=el("div","display:flex;flex-direction:column;gap:8px;");
+    const strip=bassStrip(idx);
+    if(strip) list.appendChild(strip);
     sug.forEach((s,i)=>{ const role=roleOf(S.key,s.root,s.q,next);
       const card=el("button",`display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;text-align:left;background:${T.card};border:1.5px solid ${s===top?T.accent:T.line};border-radius:12px;padding:11px 13px;cursor:pointer;animation:ap-in .32s ${i*0.05}s both;`);
       const swatch=el("div",`width:38px;height:38px;border-radius:10px;background:${petalFill(s.root,s.c)};border:1.5px solid ${petalEdge(s.root,s.c)};display:flex;align-items:center;justify-content:center;`);

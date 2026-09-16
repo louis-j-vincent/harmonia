@@ -356,5 +356,9 @@ export function openRotor(){
   }
   // Display-only transposition: it rotates what you READ, it does not re-decode
   // the audio, so the playhead and any re-infer still address the real track.
-export function transposeTo(pc){ const d=mod(pc-S.key,12); S.chords.forEach(c=>{ c.root=mod(c.root+d,12); if(c.sug) c.sug.forEach(s=>{ s.root=mod(s.root+d,12); }); }); S.key=pc; go("chart"); }
+// `sugBass` tourne avec le reste (2026-09-16) : ses classes de hauteur sont
+// lues dans l'enregistrement, donc transposer l'AFFICHAGE doit les déplacer
+// comme les racines, sinon les cercles de basse du compas désignent des
+// lettres qui ne veulent plus rien dire.
+export function transposeTo(pc){ const d=mod(pc-S.key,12); S.chords.forEach(c=>{ c.root=mod(c.root+d,12); if(c.sug) c.sug.forEach(s=>{ s.root=mod(s.root+d,12); }); if(c.sugBass) c.sugBass.forEach(b=>{ b.pc=mod(b.pc+d,12); }); }); S.key=pc; go("chart"); }
 
