@@ -129,13 +129,42 @@ export function openEditor(idx,opts){
     const _splitBi = S.bars.findIndex(b=>b.idxs.length===1 && b.idxs[0]===idx);
     const canSplit = !opts.isNew && _splitBi>=0;
     const splitBtn=el("button",`width:100%;margin-top:8px;border:1.5px solid ${T.rule};border-radius:12px;padding:12px;font:600 13px ${UI};cursor:pointer;background:transparent;color:${T.faint};pointer-events:none;opacity:.5;transition:all .15s;`,"Split into two — pick the 2nd half");
+    // LA BASSE SE CHOISIT SÉPARÉMENT DE L'ACCORD (Louis, 2026-09-16). `null`
+    // = Louis n'a rien dit, on garde la basse du modèle (c'est aussi ce que
+    // `-1` veut dire côté serveur : « pas d'avis », pas « pas de basse »).
+    // Retoucher la basse déjà choisie l'annule — on revient à « pas d'avis ».
+    // CE QUE ÇA NE PERMET PAS : retirer un slash que le modèle a écrit. Ça
+    // demanderait une troisième valeur côté serveur (« j'affirme la position
+    // fondamentale »), que la convention actuelle de `-1` ne distingue pas.
+    let pickedBass=null;
+    function armerLock(){
+      const r=picked?picked.root:ch.root, q=picked?picked.q:ch.q;
+      lockBtn.style.background=T.accent; lockBtn.style.color="#fff"; lockBtn.style.pointerEvents="auto";
+      lockBtn.textContent="Lock "+note(r)+(TOK[q]!=null?TOK[q]:q)
+        +(pickedBass!=null?"/"+note(pickedBass):"");
+    }
+    function onPickBass(pc){
+      const r0=picked?picked.root:ch.root;
+      // La basse ÉGALE à la fondamentale, ce n'est pas un slash : c'est la
+      // position fondamentale. On ne l'écrit donc pas « G7/G » — on annule la
+      // sélection, ce qui est le sens le plus proche que la convention
+      // actuelle sache porter (`-1` = pas d'avis).
+      pickedBass=(pickedBass===pc || pc===r0)?null:pc; haptic(6);
+      const r=picked?picked.root:ch.root, q=picked?picked.q:ch.q;
+      play(r,q);
+      clear(preview);
+      preview.appendChild(el("span","","▶ previewing"));
+      preview.appendChild(glyph(r,q,20,"exact",T.ink,pickedBass!=null?pickedBass:-1));
+      armerLock();
+      renderPane();                     // redessiner l'anneau choisi
+    }
     function onPick(cand, btn){
       picked=cand; play(cand.root,cand.q); haptic(6);
       if(selBtn){ selBtn.style.outline=""; selBtn.style.outlineOffset=""; }
       if(btn){ btn.style.outline=`2.5px solid ${T.accent}`; btn.style.outlineOffset="2px"; selBtn=btn; }
-      clear(preview); preview.appendChild(el("span","","▶ previewing")); preview.appendChild(glyph(cand.root,cand.q,20,"exact",T.ink));
-      lockBtn.style.background=T.accent; lockBtn.style.color="#fff"; lockBtn.style.pointerEvents="auto";
-      lockBtn.textContent="Lock "+note(cand.root)+(TOK[cand.q]!=null?TOK[cand.q]:cand.q);
+      clear(preview); preview.appendChild(el("span","","▶ previewing"));
+      preview.appendChild(glyph(cand.root,cand.q,20,"exact",T.ink,pickedBass!=null?pickedBass:-1));
+      armerLock();
       if(canSplit){
         splitBtn.style.pointerEvents="auto"; splitBtn.style.opacity="1";
         splitBtn.style.borderColor=T.accent; splitBtn.style.color=T.accent;
@@ -146,12 +175,17 @@ export function openEditor(idx,opts){
       clear(pane); selBtn=null;
       [...tabs.children].forEach((b,j)=>{ const k=["compass","guide","hand"][j]; const on=editTab===k;
         b.style.background=on?T.card:"transparent"; b.style.color=on?T.ink:T.faint; b.style.boxShadow=on?"0 1px 2px rgba(0,0,0,.12)":"none"; });
-      if(editTab==="compass") pane.appendChild(buildCompass(idx,onPick));
-      else if(editTab==="guide") pane.appendChild(buildGuide(idx,onPick));
+      const bassOpts={onPickBass, picked:pickedBass};
+      if(editTab==="compass") pane.appendChild(buildCompass(idx,onPick,bassOpts));
+      else if(editTab==="guide") pane.appendChild(buildGuide(idx,onPick,bassOpts));
       else pane.appendChild(buildHand(idx,onPick,renderPane));
     }
     renderPane();
-    lockBtn.onclick=()=>{ if(picked) confirmChord(idx,picked.root,picked.q); };
+    // Verrouiller marche aussi quand SEULE la basse a changé : l'accord
+    // reste celui qui est écrit, et c'est la basse qui devient une
+    // affirmation de Louis.
+    lockBtn.onclick=()=>{ if(picked||pickedBass!=null)
+      confirmChord(idx,(picked||ch).root,(picked||ch).q,pickedBass); };
     splitBtn.onclick=()=>{ if(picked && canSplit) splitBar(idx,picked); };
     foot.appendChild(preview); foot.appendChild(lockBtn);
     if(canSplit) foot.appendChild(splitBtn);
@@ -407,7 +441,8 @@ export function noCandBox(){
       "It was written without the model's ranking, so there is nothing honest to show here. By hand sets any chord you want."));
     return box;
   }
-export function buildCompass(idx,onPick){
+export function buildCompass(idx,onPick,bassOpts){
+    bassOpts=bassOpts||{};
     // The current chord lives in the hub — re-drawing it as an orb on the rim
     // said nothing and stole a spoke (its stack collision is what shrank every
     // orb; Louis, 2026-08-08). Only true ALTERNATIVES orbit.
@@ -429,7 +464,11 @@ export function buildCompass(idx,onPick){
     //     l'écrit.
     if(!all.length) return noCandBox();
     const sure=!sug.length;
-    const Sz=Math.min(286, (root.clientWidth||360)-92), cx=Sz/2, cy=Sz/2, R=Sz*0.4;
+    // LA ROUE PREND LA PLACE QU'IL Y A (2026-09-16). Le plafond de 286 px
+    // datait d'une feuille plus étroite ; sur un téléphone de 390 px il
+    // laissait 92 px de marge pour rien, et c'est cette place qui manquait
+    // aux orbes pour grandir sans se chevaucher (règle de Louis, 2026-08-08).
+    const Sz=Math.min(318, (root.clientWidth||360)-64), cx=Sz/2, cy=Sz/2, R=Sz*0.4;
     const svg=sv("svg",{width:Sz,height:Sz,viewBox:`0 0 ${Sz} ${Sz}`,style:"display:block;overflow:visible"});
     svg.appendChild(sv("circle",{cx,cy,r:R,fill:"none",stroke:T.line,"stroke-width":1.5}));
     // LA BASSE ENTENDUE, autour des lettres de la roue (Louis, 2026-09-16 :
@@ -443,17 +482,33 @@ export function buildCompass(idx,onPick){
     // de quintes, un cercle de basse se lirait comme une suggestion d'accord.
     const bass=bassList(idx);
     const bassBy={}; bass.forEach((b,i)=>{ bassBy[b.pc]={b, isTop:i===0}; });
-    const bMin=Sz*0.030, bMax=Sz*0.056;
+    // LA BASSE SE CHOISIT, À PART DE L'ACCORD (Louis, 2026-09-16 : « les
+    // basses sont sélectionnées à part, en cercles pareil »). Jusqu'ici les
+    // anneaux ne faisaient que MONTRER la lecture ; ils se touchent
+    // maintenant, et ce que Louis touche devient une affirmation de SA part
+    // — ce qui est exactement le rôle de l'éditeur d'annotation. Ça ne
+    // contredit pas le banc corpus qu'exige `known_issues` : celui-ci porte
+    // sur la DÉCISION AUTOMATIQUE d'écrire un slash (`bass_rules`), pas sur
+    // le droit de Louis de poser la sienne à l'oreille.
+    const bMin=Sz*0.042, bMax=Sz*0.082;
+    const bassHits=[];
     for(let i=0;i<12;i++){ const a=(-90+i*30)*Math.PI/180; const pc=mod(i*7,12); const isHome=pc===S.key;
-      const tx=cx+(R+Sz*0.05)*Math.cos(a), ty=cy+(R+Sz*0.05)*Math.sin(a);
+      // Les lettres (et donc les anneaux de basse) sortent plus loin que la
+      // jante depuis que les orbes peuvent s'en approcher : sans ça un gros
+      // orbe et un gros anneau se recouvraient sur le même rayon.
+      const tx=cx+(R+Sz*0.085)*Math.cos(a), ty=cy+(R+Sz*0.085)*Math.sin(a);
       svg.appendChild(sv("circle",{cx:cx+R*Math.cos(a),cy:cy+R*Math.sin(a),r:2,fill:T.rule}));
       // AVANT la lettre : en SVG le dernier peint gagne, et un disque posé
       // par-dessus rendrait la note illisible — or c'est la note qu'on vient
       // lire.
       const hit=bassBy[pc];
       if(hit){ const br=byArea(hit.b.c, bMin, bMax);
-        svg.appendChild(sv("circle",{cx:tx,cy:ty,r:br,fill:T.blue,"fill-opacity":0.13,
-          stroke:T.blue,"stroke-width":hit.isTop?2:1.25,"stroke-opacity":hit.isTop?0.95:0.6})); }
+        const choisie=bassOpts.picked===pc;
+        svg.appendChild(sv("circle",{cx:tx,cy:ty,r:br,fill:T.blue,
+          "fill-opacity":choisie?0.42:0.13,
+          stroke:T.blue,"stroke-width":choisie?3:(hit.isTop?2:1.25),
+          "stroke-opacity":choisie?1:(hit.isTop?0.95:0.6)}));
+        bassHits.push({pc, tx, ty, br, isTop:hit.isTop, c:hit.b.c}); }
       const lbl=sv("text",{x:tx,y:ty,"text-anchor":"middle","dominant-baseline":"central","font-family":UI,"font-size":Sz*0.042,"font-weight":(isHome||hit)?700:500,fill:isHome?T.accent:(hit?T.blue:T.faint)}); lbl.textContent=note(pc); svg.appendChild(lbl);
       if(isHome) svg.appendChild(sv("circle",{cx:cx+R*Math.cos(a),cy:cy+R*Math.sin(a),r:5,fill:"none",stroke:T.accent,"stroke-width":1.5}));
     }
@@ -471,13 +526,29 @@ export function buildCompass(idx,onPick){
     // hugs the hub's visual radius (Sz*0.12) + a hair, the rim itself is the
     // outer limit — the whole hub→rim band belongs to the orbs, and the
     // collision loop below still shrinks them when spokes crowd.
-    const centerClear=Sz*0.125, gap=Sz*0.022, Rmax=R;
-    const prMax=Math.max(Sz*0.045, (Rmax-centerClear-gap)/2);   // keep [minD, maxD] non-empty
+    // `centerClear` doit laisser un VRAI interstice avec le moyeu (Louis,
+    // 2026-08-08 : « il faut laisser un tout petit interstice ») : le moyeu
+    // est dessiné à Sz*0.12, donc 0.125 ne laissait qu'un cheveu et les
+    // deux disques se touchaient à l'écran.
+    const centerClear=Sz*0.155, gap=Sz*0.022, Rmax=R;
+    // PLUS GRANDS, ET VRAIMENT PROPORTIONNELS (Louis, 2026-09-16 : « je veux
+    // que les cercles soient plus grands, ils devraient être proportionnels à
+    // leur proba de suggestion »). Ce qui clochait n'était pas la loi — l'aire
+    // suit déjà √proba — mais la BANDE : de 27 à 36 px de rayon, un candidat à
+    // 2 % faisait 75 % de la taille d'un candidat à 90 %, donc la proportion
+    // ne se voyait pas. La bande va maintenant de 22 px (le minimum tapable,
+    // 44 px de diamètre — la règle de l'app) à Sz*0.19, soit un rapport de 1
+    // à 2,5 sur le rayon et de 1 à 6 sur l'aire. Un orbe peut dépasser la
+    // jante : le SVG est en `overflow:visible` et les orbes vivent dans un
+    // calque au-dessus, donc rien n'est coupé.
+    const prMax=Sz*0.15;
     // Radius spans the full [prMin, prMax] band by √proba (area ∝ proba, the
     // honest encoding) instead of the old additive formula whose cap bound
     // from c≈0.5 — a 2% candidate still reads as a tappable orb, a likely one
-    // fills the band.
-    const prMin=Sz*0.095;
+    // fills the band. Le plancher est le seuil TACTILE (22 px de rayon = 44 px
+    // de diamètre), pas une valeur de style : au-dessous, un candidat faible
+    // deviendrait plus petit mais on ne pourrait plus le toucher.
+    const prMin=22;
     const nodes=sug.map(s=>{
       const k=fifthsIndex(s.root);
       const pr=prMin+Math.sqrt(s.c)*(prMax-prMin);
@@ -493,19 +564,45 @@ export function buildCompass(idx,onPick){
     // apart inside a 115px ring is geometry, not a choice.
     const Rout=R+Sz*0.03, gapO=Sz*0.008, NEAR=Math.PI/4+1e-6;
     const angDiff=(a,b)=>{ const d=Math.abs(a-b); return d>Math.PI?2*Math.PI-d:d; };
-    function place(){
+    function place(liste){
+      const L=liste||nodes;
       const mid=(centerClear+Rmax)/2;
-      nodes.forEach(n=>{ n.near=nodes.some(m=>m!==n && angDiff(n.a,m.a)<NEAR); });
+      L.forEach(n=>{ n.near=L.some(m=>m!==n && angDiff(n.a,m.a)<NEAR); });
       let flip=false;
-      nodes.slice().sort((a,b)=>b.pr-a.pr).forEach(n=>{
+      L.slice().sort((a,b)=>b.pr-a.pr).forEach(n=>{
         if(!n.near){ n.r=Math.min(Math.max(mid, centerClear+n.pr), Rmax-n.pr); return; }
         n.r = flip ? Rout-n.pr : centerClear+n.pr; flip=!flip;
       });
-      return nodes.every(n=>nodes.every(m=>m===n ||
+      return L.every(n=>L.every(m=>m===n ||
         Math.hypot(n.r*Math.cos(n.a)-m.r*Math.cos(m.a),
                    n.r*Math.sin(n.a)-m.r*Math.sin(m.a)) >= n.pr+m.pr+gapO-1e-6));
     }
-    for(let t=0; t<14 && !place(); t++) nodes.forEach(n=>{ n.pr*=0.93; });
+    // QUAND ÇA NE RENTRE PAS, ON MONTRE MOINS — PAS PLUS PETIT (Louis,
+    // 2026-09-16 : « je veux que les cercles soient plus grands »).
+    // La boucle de rétrécissement gardait les cinq candidats en les écrasant
+    // TOUS : sur un morceau où ils tombent sur des rayons voisins (ici C, G,
+    // G, D — des quintes consécutives, le cas le plus fréquent), ils
+    // finissaient à 8 px de rayon, plus petits que le seuil tactile et
+    // illisibles. La géométrie ne se discute pas : deux orbes à 30° l'un de
+    // l'autre dans un anneau de 136 px ne peuvent pas être gros tous les deux
+    // sans se chevaucher, et ne jamais se chevaucher est la règle de Louis du
+    // 2026-08-08. Donc : on rétrécit un peu, et si le plancher tactile est
+    // franchi on RETIRE le candidat le moins probable et on recommence. Ce
+    // qui reste est grand et se touche ; ce qui disparaît est ce que le
+    // modèle croyait le moins.
+    const TAP=22;
+    let montres=nodes.slice();
+    const ajuster=()=>{
+      montres.forEach(n=>{ n.pr=n.pr0; });
+      for(let t=0; t<10 && !place(montres); t++) montres.forEach(n=>{ n.pr*=0.95; });
+      return montres.every(n=>n.pr>=TAP);
+    };
+    nodes.forEach(n=>{ n.pr0=n.pr; });
+    while(!ajuster() && montres.length>1){
+      const faible=montres.reduce((a,b)=>b.s.c<a.s.c?b:a, montres[0]);
+      montres=montres.filter(n=>n!==faible);
+    }
+    nodes.length=0; montres.forEach(n=>nodes.push(n));
     nodes.forEach(n=>{ n.x=cx+n.r*Math.cos(n.a); n.y=cy+n.r*Math.sin(n.a); });
     nodes.forEach(n=>{ svg.appendChild(sv("line",{x1:cx,y1:cy,x2:n.x,y2:n.y,stroke:petalEdge(n.s.root,n.s.c),"stroke-width":1,"stroke-opacity":0.4})); });
     svg.appendChild(sv("circle",{cx,cy,r:Sz*0.12,fill:keyTint(chord.root),stroke:T.accent,"stroke-width":2}));
@@ -518,6 +615,17 @@ export function buildCompass(idx,onPick){
       if(n.isTop) b.appendChild(el("span",`position:absolute;inset:-6px;border-radius:50%;border:2px solid ${T.accent};opacity:.4;animation:ap-pulse 2s ease-in-out infinite;`));
       b.onclick=()=>onPick({root:n.s.root,q:n.s.q}, b);
       layer.appendChild(b);
+    });
+    // Les anneaux de basse, tapables. Le disque bleu dessiné dans le SVG reste
+    // le VISUEL (sa taille dit la probabilité) ; ce bouton n'est que sa zone
+    // de contact, portée au minimum tactile de 44 px même quand l'anneau est
+    // plus petit — une lecture à 13 % doit rester atteignable au doigt.
+    if(bassOpts.onPickBass) bassHits.forEach(h=>{
+      const d=Math.max(44, h.br*2);
+      const bb=el("button",`position:absolute;left:${h.tx}px;top:${h.ty}px;transform:translate(-50%,-50%);width:${d}px;height:${d}px;border-radius:50%;border:none;background:transparent;cursor:pointer;pointer-events:auto;padding:0;`);
+      bb.title=`${note(h.pc)} — ${Math.round(h.c*100)} % de l'énergie grave à l'attaque`;
+      bb.onclick=()=>bassOpts.onPickBass(h.pc);
+      layer.appendChild(bb);
     });
     // The hub IS the current chord — tapping it selects it (Louis, 2026-08-08),
     // same onPick flow as an orb: preview plays, "Lock A7" arms, outline lands
@@ -547,11 +655,29 @@ export function buildCompass(idx,onPick){
       bl.textContent="bass heard: "+bass.map(b=>`${note(b.pc)} ${Math.round(b.c*100)}%`).join(" · ");
       box.appendChild(bl);
     }
+    // Ce que la roue n'a pas pu montrer, EN HAUT : les orbes ne se chevauchent
+    // jamais (règle de Louis, 2026-08-08), donc quand les candidats tombent sur
+    // des rayons voisins les plus faibles sortent au lieu que tout le monde
+    // rétrécisse. Le dire au-dessus de la roue, pas dessous : la légende du bas
+    // demande de faire défiler depuis que la roue a grandi.
+    const retires=sug.length-nodes.length;
+    if(retires>0){
+      const nr=el("div",`font:italic 11.5px ${SERIF};color:${T.faint};text-align:center;margin:-2px 0 6px;`);
+      nr.textContent=(retires===1?"1 candidat plus faible ne tient pas dans la roue"
+                                 :`${retires} candidats plus faibles ne tiennent pas dans la roue`)
+                     +" — Guide les montre tous";
+      box.appendChild(nr);
+    }
     box.appendChild(wrap);
     const cap=el("div",`text-align:center;font:italic 12px ${SERIF};color:${T.faint};margin-top:10px;line-height:1.5;`);
     cap.innerHTML=sure
       ? "nothing else cleared the floor — <b>By hand</b> still sets any chord you want"
       : "<b>size</b> = how sure · <b>colour</b> = its key on the circle of fifths · <b>angle</b> groups related keys";
+    // Ce que la roue n'a pas pu montrer. Les orbes ne se chevauchent jamais
+    // (règle de Louis) : quand les candidats tombent sur des rayons voisins,
+    // les plus faibles sortent plutôt que tout le monde rétrécisse. Le dire,
+    // sinon la roue passe pour la liste complète — le Guide, lui, les a
+    // tous.
     box.appendChild(cap);
     // La phrase complète reste sous la roue, avec l'autre légende : elle dit
     // ce que la ligne courte au-dessus ne peut pas dire — d'OÙ vient la
@@ -567,33 +693,42 @@ export function buildCompass(idx,onPick){
   // n'a pas de lettres autour desquelles dessiner. Les cercles gardent la
   // loi de taille (aire ∝ probabilité) et la couleur bleue, pour qu'on
   // reconnaisse la même information d'un onglet à l'autre.
-function bassStrip(idx){
+function bassStrip(idx,bassOpts){
+    bassOpts=bassOpts||{};
     const bass=bassList(idx);
     if(!bass.length) return null;
     const box=el("div",`display:flex;align-items:center;gap:10px;background:${T.card};border:1.5px solid ${T.line};border-radius:12px;padding:10px 13px;`);
     const cap=el("div","min-width:0;flex:1 1 auto;");
     cap.appendChild(el("div",`font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};`,"the bass we hear"));
-    cap.appendChild(el("div",`font:italic 11.5px ${SERIF};color:${T.faint};margin-top:3px;`,"read at this chord's attack — not written into the chart"));
+    cap.appendChild(el("div",`font:italic 11.5px ${SERIF};color:${T.faint};margin-top:3px;`,
+      bassOpts.onPickBass?"read at this chord's attack — tap one to write it"
+                         :"read at this chord's attack — not written into the chart"));
     box.appendChild(cap);
     const row=el("div","display:flex;align-items:center;gap:7px;flex:0 0 auto;");
-    const rMin=11, rMax=19;
+    // Mêmes cercles que le compas, mêmes tailles proportionnelles, et tapables
+    // aux mêmes conditions (Louis, 2026-09-16 : « en cercles pareil »).
+    const rMin=16, rMax=26;
     bass.forEach((b,i)=>{
       const r=byArea(b.c, rMin, rMax);
-      const d=el("div",`width:${r*2}px;height:${r*2}px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:${T.blue}22;border:${i?1.25:2}px solid ${T.blue}${i?"99":""};flex:0 0 auto;`);
-      d.appendChild(el("span",`font:700 ${Math.max(10,Math.round(r*0.78))}px ${UI};color:${T.blue};`,note(b.pc)));
+      const choisie=bassOpts.picked===b.pc;
+      const tag=bassOpts.onPickBass?"button":"div";
+      const d=el(tag,`width:${Math.max(44,r*2)}px;height:${Math.max(44,r*2)}px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:${T.blue}${choisie?"55":"22"};border:${choisie?3:(i?1.25:2)}px solid ${T.blue}${choisie?"":(i?"99":"")};flex:0 0 auto;padding:0;${bassOpts.onPickBass?"cursor:pointer;":""}`);
+      d.appendChild(el("span",`font:700 ${Math.max(11,Math.round(r*0.78))}px ${UI};color:${T.blue};`,note(b.pc)));
       d.title=`${note(b.pc)} — ${Math.round(b.c*100)}% of the bass energy at the attack`;
+      if(bassOpts.onPickBass) d.onclick=()=>bassOpts.onPickBass(b.pc);
       row.appendChild(d);
     });
     box.appendChild(row);
     return box;
   }
-export function buildGuide(idx,onPick){
+export function buildGuide(idx,onPick,bassOpts){
+    bassOpts=bassOpts||{};
     const sug=candList(idx);
     if(!sug.length) return noCandBox();
     const next=S.chords[idx+1]?{root:S.chords[idx+1].root,q:S.chords[idx+1].q}:null;
     const top=sug.reduce((a,b)=>b.c>a.c?b:a,sug[0]);
     const list=el("div","display:flex;flex-direction:column;gap:8px;");
-    const strip=bassStrip(idx);
+    const strip=bassStrip(idx,bassOpts);
     if(strip) list.appendChild(strip);
     sug.forEach((s,i)=>{ const role=roleOf(S.key,s.root,s.q,next);
       const card=el("button",`display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;text-align:left;background:${T.card};border:1.5px solid ${s===top?T.accent:T.line};border-radius:12px;padding:11px 13px;cursor:pointer;animation:ap-in .32s ${i*0.05}s both;`);
@@ -758,8 +893,14 @@ export function buildChipGrid(idx,onPick){
     box.appendChild(el("div",`text-align:center;font:italic 11.5px ${SERIF};color:${T.faint};`,"pick a root & quality — hear it, then lock below"));
     refresh(); return box;
   }
-export function confirmChord(idx,root,q){
+export function confirmChord(idx,root,q,bass){
     const ch=S.chords[idx]; ch.root=root; ch.q=q; ch.confirmed=true; ch.c=1;
+    // La basse que Louis a choisie dans le compas (2026-09-16). `bassPicked`
+    // distingue « Louis l'affirme » de « le modèle l'a devinée » : sans ce
+    // drapeau, verrouiller un accord promouvrait en affirmation humaine la
+    // basse que le modèle avait inférée, ce qui est précisément la confusion
+    // que `annotations.py` refuse (« -1 = pas d'avis, PAS pas de basse »).
+    if(bass!=null && bass>=0){ ch.bass=bass; ch.bassPicked=true; }
     S._vlBump=(S._vlBump||0)+1;   // the cascade depends on this chord's quality
     if(S.pending.indexOf(idx)<0) S.pending.push(idx);
     if(S._closeEditor) S._closeEditor();
@@ -810,7 +951,13 @@ export async function saveAnnotations(){
     // the sidecar — but a SPLIT's new second-half chord has no matching raw
     // entry to inherit t0/t1 from, so to_chart_model synthesizes it straight
     // from what's saved here.
-    const chords=S.chords.filter(c=>c.confirmed).map(c=>({bar:c.bar, beat:c.beat, root:c.root, bass:-1, q:c.q, t0:c.t0, t1:c.t1}));
+    // `bass` n'est envoyé QUE si Louis l'a choisie lui-même (`bassPicked`,
+    // 2026-09-16). Sinon on garde le `-1` historique, qui côté serveur veut
+    // dire « pas d'avis, garde celle du modèle » et non « pas de basse » —
+    // envoyer `c.bass` tel quel transformerait chaque inférence en
+    // affirmation humaine au premier verrouillage venu.
+    const chords=S.chords.filter(c=>c.confirmed).map(c=>({bar:c.bar, beat:c.beat, root:c.root,
+      bass:(c.bassPicked && c.bass>=0)?c.bass:-1, q:c.q, t0:c.t0, t1:c.t1}));
     const merges=S.model.merges||[];
     try{ await api.post("/api/annotations/"+S.model.file, {annotator:"", chords, merges}); }catch(e){}
   }

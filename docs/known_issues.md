@@ -280,6 +280,44 @@ inchangée.
 
 ## Résolu récemment
 
+- **Le compas : orbes plus grands et vraiment proportionnels, basses
+  SÉLECTIONNABLES (2026-09-16).** Louis : « je veux que les cercles soient
+  plus grands, ils devraient être proportionnels à leur proba de suggestion,
+  et les basses sont sélectionnées à part, en cercles pareil ».
+  **La taille.** La loi était déjà l'aire ∝ probabilité ; le problème était la
+  BANDE — de 27 à 36 px de rayon, un candidat à 2 % faisait 75 % de la taille
+  d'un candidat à 90 %, donc la proportion ne se voyait pas. Bande élargie
+  (22 px, le seuil tactile, à Sz×0,15) et roue agrandie (plafond 286 → 318 px :
+  il restait 92 px de marge inutile sur un téléphone de 390).
+  **Ce que la géométrie impose, et l'arbitrage qui en découle.** Deux orbes à
+  30° l'un de l'autre dans un anneau de 127 px ne peuvent pas être gros tous
+  les deux sans se chevaucher — et ne jamais se chevaucher est la règle de
+  Louis du 2026-08-08. La boucle de rétrécissement gardait les cinq candidats
+  en les écrasant TOUS (jusqu'à 8 px de rayon, sous le seuil tactile).
+  Désormais : on rétrécit un peu, et si le plancher tactile est franchi on
+  RETIRE le candidat le moins probable et on recommence. Une ligne au-dessus
+  de la roue dit combien sont sortis et renvoie au Guide, qui les montre tous.
+  Mesuré sur Lost Without U (G7, 4 candidats sur des quintes consécutives) :
+  2 orbes affichés, D-7 à 47 % visiblement plus gros que G à 11 %.
+  **La basse.** Les anneaux se touchent maintenant, et ce que Louis touche
+  devient SA basse : `Lock G7/D`. Re-taper annule ; taper la fondamentale
+  elle-même annule aussi (ce n'est pas un slash, c'est la position
+  fondamentale). Le serveur savait déjà recevoir une basse affirmée
+  (`annotations.overlay` : « un bass explicite est une assertion ») — c'était
+  le client qui envoyait `-1` en dur faute d'interface. Le drapeau
+  `bassPicked` distingue « Louis l'affirme » de « le modèle l'a devinée » :
+  sans lui, verrouiller un accord promouvrait en affirmation humaine la basse
+  que le modèle avait inférée.
+  **Ça ne contredit pas le banc corpus** qu'exige l'entrée « Basse détectée à
+  l'attaque » : celui-ci porte sur la DÉCISION AUTOMATIQUE d'écrire un slash
+  (`bass_rules`), pas sur le droit de Louis de poser la sienne à l'oreille.
+  **Ce que ça ne résout pas** : (a) on ne peut pas RETIRER un slash que le
+  modèle a écrit — il faudrait une troisième valeur côté serveur (« j'affirme
+  la position fondamentale »), que la convention actuelle de `-1` (« pas
+  d'avis ») ne distingue pas ; (b) la légende du bas (taille/couleur/angle)
+  demande maintenant de faire défiler, la roue ayant grandi.
+  `harmonia/static/screens/annotate.js`.
+
 - **Les candidats d'un accord AJOUTÉ sont classés par le delta, pas par la
   probabilité brute (2026-09-16).** Louis : « dans l'option editing quand on
   clique pour créer un nouvel accord, dans les suggestions on prend celles du
@@ -429,10 +467,9 @@ inchangée.
   **Ce que ça ne résout pas** : (a) le plancher est calibré sur la FORME de
   l'échelle (où le 5e rang décroche), il n'a pas été arbitré à l'oreille, et
   sur deux morceaux seulement (règle #5) — à rouvrir si la liste paraît trop
-  longue ou trop courte ; (b) les anneaux de basse ne sont pas tapables, donc
-  on voit une basse sans pouvoir la choisir — décision à confirmer par Louis,
-  la rendre tapable voudrait dire écrire un slash, ce que (ci-dessus) on
-  refuse tant qu'il n'y a pas de banc ; (c) la basse MOBILE (une note par
+  longue ou trop courte ; (b) ~~les anneaux de basse ne sont pas tapables~~
+  **TRANCHÉ le 2026-09-16 : ils le sont** (Louis : « les basses sont
+  sélectionnées à part, en cercles pareil ») — voir l'entrée suivante ; (c) la basse MOBILE (une note par
   temps) reste résumée par une seule lecture à l'attaque de l'accord ; (d) les
   charts d'avant le 2026-09-16 n'ont ni 5 candidats ni `sugBass` tant qu'ils
   ne sont pas recuits — l'affichage marche sans, il montre juste ce qu'il a.
