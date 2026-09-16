@@ -39,6 +39,13 @@ MATCH = SETTINGS.reports_dir / "tabmatch" / "tabmatch.json"
 _META_P = SETTINGS.repo / "state" / "human" / "chart_meta.json"
 _META = json.loads(_META_P.read_text(encoding="utf-8")) if _META_P.exists() else {}
 
+#: toutes les orthographes qu'on sait LIRE (l'écriture, elle, suit le ton)
+_PCS = {n: i for i, n in enumerate(
+    ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"])}
+_PCS.update({"C#": 1, "D#": 3, "F#": 6, "G#": 8, "A#": 10,
+             "D♭": 1, "E♭": 3, "G♭": 6, "A♭": 8, "B♭": 10,
+             "C♯": 1, "D♯": 3, "F♯": 6, "G♯": 8, "A♯": 10})
+
 
 AFTER = SETTINGS.repo / "state" / "cache" / "golden" / "jumeau_large"
 OUT = SETTINGS.reports_dir / "basses" / "arbitrage.html"
@@ -49,6 +56,54 @@ def joli_titre(key: str, brut: str) -> str:
     if m.get("title"):
         return f"{m['title']} — {m['artist']}" if m.get("artist") else m["title"]
     return brut
+
+
+# ── l'orthographe des notes (Louis, 2026-09-16 : « tu me les as écrits dans la
+# mauvaise tona donc je peux pas ») ─────────────────────────────────────────
+#
+# J'écrivais tout en bémols, donc « A/D♭ » dans un morceau en la majeur, où
+# cette note est un DO DIÈSE. Un accord mal orthographié n'est pas un détail
+# cosmétique : il devient illisible, et Louis ne peut pas l'arbitrer.
+#
+# La règle est déjà dans l'app (`harmonia/static/ui/kit.js::setSpelling`, posée
+# le 2026-07-19 sur un « G♭m7 affiché en mi majeur ») : les tons majeurs à
+# bémols sont C D♭ E♭ F G♭ A♭ B♭, les autres s'écrivent en dièses, et un ton
+# mineur suit son relatif majeur. On la reprend telle quelle, pour que la page
+# d'arbitrage et le chart de l'app nomment la même note pareil.
+FLAT = ["C", "D♭", "D", "E♭", "E", "F", "G♭", "G", "A♭", "A", "B♭", "B"]
+SHARP = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"]
+FLAT_MAJ = {0, 1, 3, 5, 6, 8, 10}
+
+
+def table_du_morceau(model: dict) -> list[str]:
+    k = model.get("key") or {}
+    tonic = int(k.get("tonic") or 0)
+    maj = (tonic + 3) % 12 if k.get("mode") == "minor" else tonic % 12
+    return FLAT if maj in FLAT_MAJ else SHARP
+
+
+def respell(token: str, table: list[str]) -> str:
+    """« Bb-7/Db » -> « B♭-7/C♯ » dans un ton à dièses. Parenthèses gardées."""
+    t = token
+    ouvre, ferme = ("(", ")") if t.startswith("(") and t.endswith(")") else ("", "")
+    t = t.strip("()")
+    if not t or t == "·":
+        return token
+
+    def _note(x: str) -> tuple[str, str]:
+        """(nom réécrit, reste) — None-safe : rend (x, '') si illisible."""
+        n = x[:2] if len(x) >= 2 and x[:2] in _PCS else (x[:1] if x[:1] in _PCS else None)
+        if n is None:
+            return x, ""
+        return table[_PCS[n]], x[len(n):]
+
+    if "/" in t:
+        haut, bas = t.split("/", 1)
+        r, q = _note(haut)
+        b, _ = _note(bas)
+        return f"{ouvre}{r}{q}/{b}{ferme}"
+    r, q = _note(t)
+    return f"{ouvre}{r}{q}{ferme}"
 
 #: du plus parlant au moins parlant — c'est l'ordre de la page.
 RANG = {"autre basse": 0, "la tab met un slash": 1, "soutient le slash": 2,
@@ -67,6 +122,7 @@ def collect() -> list[dict]:
         audio = model.get("audio_url") or ""
         stem = Path(audio).name or (s["song"].removeprefix("min_") + ".m4a")
         t = s.get("tab")
+        table = table_du_morceau(model)
         for ln in (s.get("lignes") or []):
             k = int(ln["bar"])
             t0 = grid[k] if 0 <= k < len(grid) else None
@@ -77,7 +133,8 @@ def collect() -> list[dict]:
                 "title": joli_titre(s["song"], s.get("title") or s["song"]),
                 "audio": "/audio/" + stem,
                 "bar": k + 1, "t0": t0, "t1": t1,
-                "avant": ln["avant"], "apres": ln["apres"],
+                "avant": respell(ln["avant"], table),
+                "apres": respell(ln["apres"], table),
                 "basse_avant": ln.get("basse_avant"), "basse_apres": ln.get("basse_apres"),
                 "verdict": v,
                 "tab_avant": (ln.get("tab_avant") or {}).get("verdict"),
@@ -101,8 +158,6 @@ def collect() -> list[dict]:
 NOM_IV = {0: "la fondamentale", 2: "la 9e", 3: "la 3ce mineure", 4: "la 3ce majeure",
           5: "la 4te", 7: "la quinte", 1: "la b9", 6: "la b5", 8: "la b13",
           9: "la 6te", 10: "la b7", 11: "la 7M"}
-_PCS = {n: i for i, n in enumerate(
-    ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"])}
 
 
 def intervalle(token: str) -> int | None:
