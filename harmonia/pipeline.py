@@ -160,6 +160,80 @@ def _force_bar1_sections(segs: list[dict], bar1_bar: int) -> list[dict]:
     return out
 
 
+def _write_sounding_bass(bars, probs, arr, times) -> int:
+    """Pose `c["bass"]` sur chaque accord écrit, depuis la TÊTE BASSE de musx.
+
+    Louis, 2026-09-16, en regardant `/plots/probas16.html` : « il faut utiliser
+    la tete de basse de musx qui est parfaite enfaite ».
+
+    Mesuré avant de le croire, sur ses 16 arbitrages du 2026-09-15
+    (`state/human/bass_verdicts.json`, 12 localisables avec certitude) :
+
+        chroma NNLS, attaque de 150 ms (l'ancienne source)  ...  6/12
+        tete basse musx, meme attaque de 150 ms             ...  8/12
+        tete basse musx, moyennee sur TOUT l'accord         ... 11/12
+
+    La fenetre d'attaque, qui etait decisive pour la chroma, NUIT a musx — et
+    c'est mecanique : la chroma est de l'energie brute, ou l'attaque isole la
+    fondamentale avant que la resonance et les notes de passage s'accumulent ;
+    la tete de musx est une sortie de modele deja lissee, que 150 ms rendent
+    seulement bruitee. Le meme geste n'a donc pas le meme sens sur les deux
+    signaux, et `bass_pc_onset` reste le bon outil pour la chroma.
+
+    PLUS DE PLANCHER DE CONFIANCE. Re-derive sur ces memes verdicts : la part
+    de la fondamentale separe les deux classes sans recouvrement — 5,8 a 42,1 %
+    quand la basse est un slash, 80,5 a 97,2 % quand il n'y en a pas. Mais dans
+    les SEPT cas sans slash, l'argmax de musx EST deja la fondamentale : un
+    plancher place n'importe ou entre 40 et 80 % donne exactement le meme
+    resultat que pas de plancher du tout (11/12 partout). On le retire donc
+    plutot que de garder un nombre qui ne decide rien — la lecon de
+    `DEFAULT_PENALTY`, le meme jour.
+
+    Reste donc UNE regle, et c'est tout : la basse la plus probable sur la
+    duree de l'accord, ecrite si elle differe de la fondamentale et si son
+    intervalle est dans `bass_rules.PLAUSIBLE` (les cinq que Louis a entendus).
+
+    `bass = -1` veut dire « position fondamentale, rien a ecrire ».
+
+    CE QUE CA NE REGLE PAS : le cas r05 (Ready mes. 4, `Eb-/Gb`), ou musx
+    donne la fondamentale a 42 % et rate le Gb — la chroma NNLS, elle, le
+    trouve (43 %). Les deux sources se completent sur ce point precis ; rien
+    ne les combine ici, et une regle de fusion demanderait de nouveaux
+    arbitrages. Ne decoupe toujours pas un accord dont la basse bouge.
+    """
+    import numpy as np
+
+    from harmonia.bass_rules import PLAUSIBLE
+
+    # colonne 0 = « pas de basse », colonnes 1..12 = les douze hauteurs a
+    # partir de DO (`complex_chord.NUM_TO_ABS_SCALE`, verifie dans le clone :
+    # `result_array[:,1] += 1` decale la valeur -1 sur la colonne 0).
+    bass_head = np.asarray(probs[1], dtype=float)
+    dt = float(_musx.FRAME_DT)
+    n_slash = 0
+    for bar in bars:
+        for c in bar:
+            if c.get("nc") or c.get("carry"):
+                continue
+            t0, t1 = float(c["t0"]), float(c["t1"])
+            if t1 <= t0:
+                continue
+            i0 = int(round(t0 / dt))
+            i1 = max(int(round(t1 / dt)), i0 + 1)
+            seg = bass_head[i0:i1]
+            if not len(seg):
+                c["bass"] = -1
+                continue
+            p12 = seg.mean(axis=0)[1:13]
+            root_pc = int(c["root"]) % 12
+            cand = int(np.argmax(p12))
+            garde = cand != root_pc and (cand - root_pc) % 12 in PLAUSIBLE
+            c["bass"] = cand if garde else -1
+            n_slash += garde
+    logger.info("basse sonnante (tete musx) : %d accords recoivent un slash", n_slash)
+    return n_slash
+
+
 def _draft_key(bars: list) -> tuple[dict, str]:
     """Clé PROVISOIRE du chart brut, lue sur les accords déjà décodés.
 
@@ -652,6 +726,16 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
     from harmonia.harmonic_key import analyze_harmony
     from harmonia.nnls_features import extract_bothchroma
     arr, times = extract_bothchroma(audio_path)
+
+    # 7d ── LA BASSE SONNANTE, par les règles arbitrées à l'oreille
+    # (harmonia.bass_rules, 33 arbitrages de Louis le 2026-09-15 —
+    # docs/bass_slash_rules.md). Jusqu'ici `bass` ne venait que de la
+    # notation slash du label décodé par musx, qui n'en écrit presque
+    # jamais ; on la mesure maintenant dans le grave, à l'attaque de chaque
+    # temps, et la règle décide. ICI et pas plus haut : le repli réécrit
+    # `bars` sur place, donc toute basse posée avant serait perdue.
+    _write_sounding_bass(bars, probs, arr, times)
+
     H = analyze_harmony(arr, times, flat)
     for i, c in enumerate(flat):
         c["colour"] = H["colours"][i]
