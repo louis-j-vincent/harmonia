@@ -389,18 +389,38 @@ export function openBarExpanded(bi){
         else cell.appendChild(glyph(c.root,c.q,28,"exact",c.confirmed?T.ink:confColor(c.c)));
       } else if(cidx==null){
         cell.appendChild(el("div",`font:600 20px ${UI};color:${T.faint};opacity:.4;`,"+"));
+      } else {
+        // UN ACCORD TENU N'OCCUPE PAS LE TEMPS (Louis, 2026-09-16 : « quand je
+        // clique pour créer un nouvel accord et que je valide, ça remplace
+        // l'ancien accord existant »). C'est ici que ça se jouait : le test
+        // était « un accord SONNE sur ce temps », donc sur une mesure tenue —
+        // un seul accord au temps 1 — les temps 2, 3 et 4 passaient pour
+        // occupés et renvoyaient tous vers l'accord EXISTANT. Verrouiller le
+        // remplaçait, et le classement par delta ne tournait jamais, faute de
+        // nouveau créneau. Ce qui compte, c'est qu'un accord COMMENCE ici :
+        // un temps que l'accord d'avant se contente de tenir est précisément
+        // « un endroit vide de la barre », les propres mots de la demande.
+        // On montre quand même ce qui tient, en petit : sans ça on ne sait
+        // pas sur quoi on ajoute.
+        const c=S.chords[cidx];
+        const tenu=el("div",`display:flex;align-items:center;gap:3px;opacity:.38;`);
+        if(!c.nc) tenu.appendChild(glyph(c.root,c.q,15,"exact",T.faint));
+        tenu.appendChild(el("div",`font:600 17px ${UI};color:${T.faint};`,"+"));
+        cell.appendChild(tenu);
       }
       row.appendChild(cell);
-      const covered=cidx!=null;
+      // « plein » = un accord COMMENCE ici (on l'édite) ; « anneau » = rien ne
+      // commence (on en ajoute un), que le temps soit tenu ou franchement vide.
+      const debute=onset;
       const dotBtn=el("button",`display:flex;align-items:center;justify-content:center;min-height:44px;border:none;background:transparent;cursor:pointer;-webkit-tap-highlight-color:transparent;`);
-      dotBtn.appendChild(el("div",`width:${covered?9:7}px;height:${covered?9:7}px;border-radius:50%;background:${covered?T.ink:"transparent"};border:${covered?"none":`1.5px solid ${T.faint}`};box-sizing:border-box;`));
-      dotBtn.dataset.beat=String(k); dotBtn.dataset.covered=String(covered);
-      dotBtn.onclick=()=>{ haptic(); close(); if(cidx!=null) openEditor(cidx); else openNewChord(bi,k); };
+      dotBtn.appendChild(el("div",`width:${debute?9:7}px;height:${debute?9:7}px;border-radius:50%;background:${debute?T.ink:"transparent"};border:${debute?"none":`1.5px solid ${T.faint}`};box-sizing:border-box;`));
+      dotBtn.dataset.beat=String(k); dotBtn.dataset.covered=String(debute);
+      dotBtn.onclick=()=>{ haptic(); close(); if(debute) openEditor(cidx); else openNewChord(bi,k); };
       dots.appendChild(dotBtn);
     }
     sheet.appendChild(row); sheet.appendChild(dots);
     sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:italic 11.5px ${SERIF};color:${T.faint};margin-bottom:6px;`,
-      "filled dot = an existing chord · ring = empty, tap to add one"));
+      "filled dot = a chord STARTS here · ring = nothing starts here, tap to add one"));
     const cancel=el("button",`flex:0 0 auto;width:100%;margin-top:6px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:${SZ.control}px;cursor:pointer;`,"Close");
     cancel.onclick=close;
     sheet.appendChild(cancel);

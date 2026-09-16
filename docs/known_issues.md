@@ -280,6 +280,31 @@ inchangée.
 
 ## Résolu récemment
 
+- **Ajouter un accord sur un temps TENU remplaçait l'accord existant
+  (2026-09-16, Louis : « quand je clique pour créer un nouvel accord et que je
+  valide, ça remplace l'ancien accord existant, donc pas sûr que ça fasse bien
+  le delta prior au bon endroit »).** Les deux moitiés de sa remarque étaient
+  justes, et la seconde découlait de la première.
+  La vue « barre en grand » décidait avec `cidx != null` — « un accord SONNE
+  sur ce temps » — au lieu de « un accord COMMENCE ici ». Sur une mesure tenue
+  (un seul accord au temps 1, le cas le plus courant), les temps 2, 3 et 4
+  passaient donc pour occupés et renvoyaient tous vers l'accord EXISTANT :
+  verrouiller le remplaçait. Et comme aucun nouveau créneau n'était créé, le
+  classement par delta (2026-09-16) ne tournait jamais — d'où son doute, fondé.
+  Le test porte maintenant sur l'ATTAQUE (`onset`) : un temps que l'accord
+  précédent se contente de tenir est « un endroit vide de la barre », les mots
+  mêmes de la demande initiale. Point plein = un accord commence ici (on
+  l'édite) ; anneau = rien ne commence (on en ajoute un), et le petit glyphe
+  grisé montre ce qui tient, pour savoir sur quoi on ajoute.
+  Le chemin serveur, lui, était déjà bon : `annotations.overlay` insère une
+  correction dont la clé (mesure, temps) est neuve en clonant un accord-hôte
+  de la même mesure — le mécanisme du « split », éprouvé depuis juillet.
+  **Vérifié de bout en bout** sur Lost Without U mes. 18 (`G7` seul au temps
+  1) : taper le temps 3 ouvre « new chord » avec ses candidats par delta
+  (G 15 %, D-7 35 %), verrouiller G donne côté serveur `G7` temps 1 **et** `G`
+  temps 3 coché — l'ancien intact.
+  `harmonia/static/screens/annotate.js`.
+
 - **Le compas : orbes plus grands et vraiment proportionnels, basses
   SÉLECTIONNABLES (2026-09-16).** Louis : « je veux que les cercles soient
   plus grands, ils devraient être proportionnels à leur proba de suggestion,
