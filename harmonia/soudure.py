@@ -159,7 +159,24 @@ def mot_du_chart(chart: dict) -> dict | None:
         return None
     sig = _basse_par_mesure(chart)
     bornes = _jetons(n, _mesure1(chart))
+    lettres = _mot_basse(sig, bornes)
 
+    return {
+        "n_mesures": n,
+        "temps_par_mesure": [round(grid[i + 1] - grid[i], 4) for i in range(n)],
+        "mot": lettres,
+        "jetons": bornes,
+        "t0": round(grid[0], 4),
+    }
+
+
+def _mot_basse(sig: list, bornes: list[int]) -> str:
+    """Un symbole par jeton, par ÉGALITÉ STRICTE des basses qu'il contient.
+
+    Le repli de `mot_du_chart` quand l'audio n'est pas là pour la ressemblance
+    harmonique. Sorti de son appelant le 2026-09-17 pour que `mot_sur_traits`
+    puisse le réutiliser sur une grille imposée — même loi, deux grilles.
+    """
     vus: dict = {}
     lettres = []
     for j in range(len(bornes) - 1):
@@ -175,14 +192,42 @@ def mot_du_chart(chart: dict) -> dict | None:
                 log.warning("soudure: plus de %d bi-mesures distinctes — les "
                             "dernières partagent un symbole", len(LETTRES))
         lettres.append(vus[cle])
+    return "".join(lettres)
 
-    return {
-        "n_mesures": n,
-        "temps_par_mesure": [round(grid[i + 1] - grid[i], 4) for i in range(n)],
-        "mot": "".join(lettres),
-        "jetons": bornes,
-        "t0": round(grid[0], 4),
-    }
+
+def mot_sur_traits(chart: dict, traits, audio_dir=None) -> tuple | None:
+    """(bornes, mot, source) pour la grille calée sur les traits de Louis.
+
+    Même paire de sources que `song_du_chart` — la ressemblance harmonique
+    (SSM chord-tone sur les postérieures musx) quand l'audio est là, l'égalité
+    stricte des basses sinon — mais sur la grille de `jetons_sur_traits` au
+    lieu de celle que la machine s'était choisie.
+
+    Rend None si le chart est trop court pour une bande.
+    """
+    grid = chart.get("barGrid") or []
+    n = len(grid) - 1
+    if n < 2:
+        return None
+    bornes = jetons_sur_traits(n, traits)
+    try:
+        from pathlib import Path
+
+        from harmonia import musx as _musx
+        from harmonia import section_tool as st
+        from harmonia.settings import SETTINGS
+        stem = Path(chart.get("audio_url") or "").stem
+        audio = (audio_dir or SETTINGS.audio_dir) / f"{stem}.m4a"
+        if stem and audio.exists() and n >= 4:
+            S, _V, _M, _mute, _ch = st.substrates(
+                grid, _musx.frame_posteriors(audio)[0])
+            return bornes, _mot_depuis(_matrice_bimesures(S, bornes)), "harmonie"
+    except Exception:                                    # noqa: BLE001
+        # Jamais muet : le repli sur la basse sous-groupe (deux fois moins de
+        # paires trouvées, mesuré dans `song_du_chart`), on veut le savoir.
+        log.exception("soudure: mot par ressemblance indisponible sur les "
+                      "traits, repli sur la basse")
+    return bornes, _mot_basse(_basse_par_mesure(chart), bornes), "basse"
 
 
 def _otsu(v, lo=0.30, hi=0.999, n=200, defaut=0.90) -> float:
@@ -208,6 +253,87 @@ def _otsu(v, lo=0.30, hi=0.999, n=200, defaut=0.90) -> float:
         if w > best:
             best, seuil = w, float(t)
     return seuil
+
+
+def traits_propres(humain, n_mesures: int) -> tuple[list[tuple], list[dict]]:
+    """Les traits de Louis, nettoyés — et CEUX QU'ON N'A PAS PU GARDER.
+
+    Entrée : la liste du corps de requête, `{label, mesure_debut, mesure_fin}`
+    en mesures 1-indexées, fin incluse. Sortie : `[(b0, b1, label)]` en index
+    de mesure 0-indexés, fin incluse, triés et disjoints ; plus la liste de ce
+    qui a été écarté, avec la raison.
+
+    Louis, 2026-09-17 : « du moment qu'un humain annote une section, il n'y a
+    pas à le corriger, c'est LA vérité terrain ». Un trait n'est donc jamais
+    déplacé ni raccourci ici, à une exception NOMMÉE : un trait qui déborde la
+    fin du morceau est rogné à la dernière mesure plutôt que perdu en entier.
+
+    La deuxième valeur de retour n'est pas décorative : l'ancien code jetait
+    27 traits sur 191 sans rien dire (voir `tests/test_traits_humains.py`).
+    Ce qui tombe doit pouvoir remonter à l'écran.
+    """
+    lus, perdus = [], []
+    for h in humain or []:
+        try:
+            b0 = int(h["mesure_debut"]) - 1
+            b1 = int(h["mesure_fin"]) - 1
+        except (KeyError, TypeError, ValueError):
+            perdus.append({**h, "raison": "illisible"})
+            continue
+        if b0 < 0:
+            perdus.append({**h, "raison": "commence avant le morceau"})
+        elif b1 < b0:
+            perdus.append({**h, "raison": "fin avant le début"})
+        elif b0 >= n_mesures:
+            perdus.append({**h, "raison": "commence après la fin du morceau"})
+        else:
+            lus.append((b0, min(b1, n_mesures - 1), str(h.get("label") or "?"), h))
+    gardes = []
+    for b0, b1, lab, brut in sorted(lus, key=lambda t: (t[0], -t[1])):
+        if gardes and b0 <= gardes[-1][1]:
+            perdus.append({**brut, "raison": f"chevauche « {gardes[-1][2]} »"})
+            continue
+        gardes.append((b0, b1, lab))
+    return gardes, perdus
+
+
+def jetons_sur_traits(n_mesures: int, traits) -> list[int]:
+    """Les bornes des jetons quand ce sont les TRAITS DE LOUIS qui commandent.
+
+    `traits` : `[(b0, b1)]` 0-indexés, fin incluse, triés et disjoints (la
+    sortie de `traits_propres`). Chaque frontière qu'il a tracée devient une
+    borne de jeton ; à l'intérieur de chaque région — un de ses traits, ou un
+    trou entre deux traits — on repose des bi-mesures depuis le début de la
+    région, la mesure orpheline rejoignant le dernier jeton.
+
+    C'est le correctif du 2026-09-17. Avant, la grille (`_jetons`) était posée
+    de deux en deux depuis la mesure 1, SANS lui, et ses traits y étaient
+    ensuite arrondis : sur ses 18 découpages, 52 débuts sur 191 reculaient
+    d'une mesure et 27 traits disparaissaient dans le jeton du voisin. Le
+    symptôme était connu sans être attribué — « un découpage parfait noté
+    0 %, décalé d'un cran » — et c'était la quantification de ses propres
+    traits, pas une erreur de la machine.
+
+    Sans aucun trait, la grille est exactement celle d'avant sur un morceau
+    pair ; ce chemin ne se déclenche que quand il a tracé.
+
+    CE QUE ÇA NE RÉSOUT PAS : la recherche de coutures de `_meilleure_grille`
+    (le jeton de 1 ou 3 mesures posé là où le morceau a une mesure en trop) ne
+    tourne pas ici. Dans les trous entre deux traits, une mesure surnuméraire
+    décale donc encore la parité jusqu'au trait suivant — qui la rattrape.
+    Et la mesure 1 mal détectée reste un problème distinct : elle déplace la
+    grille de MESURES, donc l'audio sous les traits.
+    """
+    aretes = {0, int(n_mesures)}
+    for b0, b1 in traits or []:
+        aretes.add(int(b0))
+        aretes.add(int(b1) + 1)
+    aretes = sorted(a for a in aretes if 0 <= a <= n_mesures)
+    bornes: list[int] = []
+    for a, b in zip(aretes, aretes[1:]):
+        bornes.extend([a] if b - a < 2 else list(range(a, b - 1, 2)))
+    bornes.append(int(n_mesures))
+    return bornes
 
 
 def _matrice_bimesures(S, bornes):

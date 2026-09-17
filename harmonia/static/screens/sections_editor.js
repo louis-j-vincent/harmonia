@@ -556,7 +556,16 @@ export async function validateSectionSelection(){
       const nRes=(r.sections||[]).filter(x=>x.source==="ressemble").length;
       const nA=(r.sections||[]).filter(x=>x.source==="algo").length;
       const nR=(r.sections||[]).filter(x=>x.reste).length;
-      st.note=nT+" de toi · "+nP+" retrouvée"+(nP>1?"s":"")+" sous ton nom · "
+      /* Ce que le serveur n'a PAS pu garder. Jusqu'au 2026-09-17 un trait
+         écarté disparaissait sans un mot — c'était le gros du bug : sur les
+         morceaux à phase impaire, un trait sur deux était avalé par le jeton
+         de son voisin. Il n'y en a plus, mais s'il en revient un jour (deux
+         traits qui se recouvrent vraiment), il se dit. */
+      const ecartes=r.ecartes||[];
+      st.note=(ecartes.length ? "⚠ "+ecartes.length+" trait"
+                +(ecartes.length>1?"s":"")+" écarté"+(ecartes.length>1?"s":"")
+                +" ("+ecartes.map(e=>e.label+" : "+e.raison).join(", ")+") — " : "")
+              +nT+" de toi · "+nP+" retrouvée"+(nP>1?"s":"")+" sous ton nom · "
               +(nRes?nRes+" par ressemblance · ":"")
               +nA+" nommée"+(nA>1?"s":"")+" par l'algo"
               +(nR?" · "+nR+" queue"+(nR>1?"s":"")+" (trop court pour une section)":"")

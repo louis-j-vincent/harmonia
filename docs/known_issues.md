@@ -11,6 +11,43 @@ Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 
 Détail et mesures : `docs/audit_2026-09-15_plan.md`.
 
+- **RÉSOLU 2026-09-17 — un trait de section tracé à la main était arrondi sur
+  une grille de bi-mesures, et un sur deux était jeté.** Louis : « relaxe les
+  règles qu'on a mises sur les sections qui doivent commencer sur un début de
+  4 barres. Du moment qu'un humain annote une section, il n'y a pas à le
+  corriger, c'est LA vérité terrain, et c'est lui qui définit où commence la
+  chanson. » `sections_inferer` calculait la grille de jetons SANS lui — des
+  bi-mesures posées de deux en deux depuis la mesure 1 — puis y arrondissait
+  ses traits, et jetait EN SILENCE tout trait dont le jeton de départ était
+  déjà pris par le précédent. Mesuré sur ses 18 découpages annotés,
+  191 traits : **19 débuts reculés d'une mesure, 23 traits purement perdus**.
+  Sur Chain of Fools, 5 traits sur 10 disparaissaient et les 5 autres
+  reculaient d'un cran. Les morceaux à phase paire n'en voyaient rien, d'où un
+  bug qui paraissait capricieux : le décalage ne dépendait que de la parité de
+  son trait. **C'est l'explication du symptôme déjà noté ici sans être
+  attribué** — « un découpage parfait noté 0 %, décalé d'un cran » : la machine
+  trouvait bien ses blocs de 8 mesures, c'est la quantification de SES traits
+  qui les décalait.
+  **La loi maintenant** : ses traits sont les BORNES de la grille
+  (`soudure.jetons_sur_traits`) ; les bi-mesures se reposent à l'intérieur de
+  chaque région, jamais à cheval sur une frontière qu'il a tracée. Le mot des
+  jetons est recalculé sur cette grille (`soudure.mot_sur_traits`, mêmes deux
+  sources qu'avant : ressemblance harmonique si l'audio est là, égalité des
+  basses sinon). Après : 0 déplacé, 0 perdu sur les 191. Un trait qui ne peut
+  vraiment pas être gardé (recouvrement réel) est RENDU dans `ecartes` et
+  affiché à l'écran, plus jamais avalé.
+  **Ce que ça ne résout pas** : (1) la recherche de coutures de
+  `_meilleure_grille` — le jeton de 1 ou 3 mesures posé là où le morceau a une
+  mesure en trop — ne tourne pas sur la grille des traits ; dans un TROU entre
+  deux traits, une mesure surnuméraire décale encore la parité jusqu'au trait
+  suivant, qui la rattrape. (2) La mesure 1 mal détectée (entrée ci-dessous)
+  est un problème DISTINCT : elle déplace la grille de mesures elle-même, donc
+  l'audio sous les traits. (3) L'outil Soudure (`/api/phrases4`) garde sa
+  règle à lui — une soudure est faite pour être prolongée, c'est son objet ;
+  seule l'annotation de sections est concernée ici. Ses fichiers
+  d'annotation existants sont intacts (vérifié : brouillons et vérité
+  identiques sur les 10 brouillons).
+
 - **La mesure 1 tombe dans le fondu d'entrée quand le fichier contient
   l'intro du CLIP** (2026-09-16, Louis sur Sam Smith : « ça a mal détecté le
   début du morceau, et ça cause un décalage tout le long »). Mesuré sur

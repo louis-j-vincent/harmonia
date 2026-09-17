@@ -317,7 +317,7 @@ def sections_inferer(file):
     puisse jamais être confondu avec un B de sa main.
     """
     from harmonia.phrases4 import LETTERS, phrases
-    from harmonia.soudure import song_du_chart
+    from harmonia.soudure import mot_sur_traits, song_du_chart, traits_propres
     p = CHARTS_DIR / f"{Path(file).stem}.json"
     if not p.exists():
         return jsonify({"error": "no such chart"}), 404
@@ -328,23 +328,43 @@ def sections_inferer(file):
     mot, bornes = song["mot"], song["jetons"]
     humain = (request.get_json(silent=True) or {}).get("humain") or []
 
-    # mesure -> jeton, pour caler ses traits sur la grille de l'algorithme
-    jeton_de = {}
-    for j in range(len(bornes) - 1):
-        for b in range(bornes[j], bornes[j + 1]):
-            jeton_de[b] = j
+    # SES TRAITS SONT LES BORNES DE LA GRILLE — ils ne sont plus arrondis sur
+    # elle (Louis, 2026-09-17 : « du moment qu'un humain annote une section, il
+    # n'y a pas à le corriger, c'est LA vérité terrain, et c'est lui qui
+    # définit où commence la chanson »).
+    #
+    # Avant, la grille de bi-mesures était posée de deux en deux depuis la
+    # mesure 1, sans lui, puis ses traits y étaient quantifiés : sur ses 18
+    # découpages annotés, **52 débuts de section sur 191 reculaient d'une
+    # mesure et 27 traits sur 191 étaient jetés en silence** parce que leur
+    # jeton de départ était déjà pris par le trait précédent. Un `A` tracé
+    # mesure 10 ressortait mesure 9. C'est l'explication du symptôme noté dans
+    # `docs/known_issues.md` — « un découpage parfait noté 0 %, décalé d'un
+    # cran » : la machine trouvait bien ses blocs, c'est la quantification de
+    # SES traits qui les décalait.
+    #
+    # Les morceaux à phase paire n'en voyaient rien, d'où un bug qui paraissait
+    # capricieux : le décalage ne dépendait que de la parité de son trait.
+    gardes, perdus = traits_propres(humain, len(bornes) - 1)
+    if gardes:
+        refait = mot_sur_traits(chart, [(b0, b1) for b0, b1, _ in gardes],
+                                audio_dir=AUDIO_DIR)
+        if refait:
+            bornes, mot, _source = refait
+    if perdus:
+        # Jamais muet : l'ancien code les faisait disparaître sans trace.
+        log.warning("sections %s: %d trait(s) écarté(s) — %s", file, len(perdus),
+                    "; ".join(f"{t.get('label')}: {t['raison']}" for t in perdus))
+    index = {b: j for j, b in enumerate(bornes)}
     fixes = []                       # (j0, j1, label) triés, sans chevauchement
-    for h in sorted(humain, key=lambda h: h["mesure_debut"]):
-        try:
-            j0 = jeton_de.get(int(h["mesure_debut"]) - 1)
-            j1 = jeton_de.get(int(h["mesure_fin"]) - 1)
-        except (TypeError, ValueError):
+    for b0, b1, lab in gardes:
+        j0, j1 = index.get(b0), index.get(b1 + 1)
+        if j0 is None or j1 is None:
+            # Ne peut arriver que si la grille n'a pas été refaite (chart trop
+            # court pour `mot_sur_traits`) : on le dit plutôt que d'arrondir.
+            perdus.append({"label": lab, "raison": "hors de la grille"})
             continue
-        if j0 is None or j1 is None or j1 < j0:
-            continue
-        if fixes and j0 <= fixes[-1][1]:
-            continue                 # deux traits sur le même jeton : le 1er gagne
-        fixes.append((j0, j1, str(h.get("label") or "?")))
+        fixes.append((j0, j1 - 1, lab))
 
     depart, j = [], 0
     for j0, j1, _lab in fixes:
@@ -440,7 +460,9 @@ def sections_inferer(file):
                     "mesure_debut": bornes[s["j0"]] + 1,
                     "mesure_fin": bornes[s["j1"]],
                     "source": source, "reste": bool(s["queue"]), "type": t})
-    return jsonify({"sections": out, "cible": info["cible"]})
+    return jsonify({"sections": out, "cible": info["cible"],
+                    "ecartes": [{"label": t.get("label"), "raison": t["raison"]}
+                                for t in perdus]})
 
 
 # La page /sections/<file> a vécu une heure le 2026-08-15 : Louis voulait
