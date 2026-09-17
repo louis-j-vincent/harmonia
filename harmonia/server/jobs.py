@@ -76,6 +76,24 @@ def bar1_for(file_key: str) -> float | None:
     return d.get("bar1")
 
 
+def tempo_factor_for(file_key: str) -> float | None:
+    """La correction ÷2/×2 de Louis pour ce morceau, ou None.
+
+    Même fichier-marque que `bar1_for` (`state/human/marks/<stem>.json`) — un
+    seul sidecar de corrections humaines par morceau, pas un fichier par type
+    de correction. Voir `harmonia.beats.apply_tempo_octave` pour ce que fait
+    la valeur ; ce que ce garde ne résout pas (`check_grid` ne peut pas voir
+    cette erreur, elle est invariante au tempo) est documenté là-bas.
+    """
+    stem = file_key.removeprefix("min_")
+    p = SETTINGS.marks_dir / f"{stem}.json"
+    try:
+        d = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return d.get("tempo_factor")
+
+
 def _resolve_audio(url: str) -> tuple[Path, str, str]:
     """analyze URL → (audio path, title, artist). Three forms:
     'local:<stem>' (from our own search results, possibly wrapped in a
@@ -119,7 +137,7 @@ def _resolve_audio(url: str) -> tuple[Path, str, str]:
     raise FileNotFoundError(f"could not resolve {url!r} to audio")
 
 
-def _run_job(job_id: str, url: str, bar1_time=None):
+def _run_job(job_id: str, url: str, bar1_time=None, tempo_factor=None):
     """Le chart BRUT est publié dès qu'il existe ; le raffinement continue après.
 
     Louis, 2026-08-07 : « dès que le chart brut est dispo tu l'affiches direct,
@@ -188,6 +206,14 @@ def _run_job(job_id: str, url: str, bar1_time=None):
             if bar1_time is not None:
                 log.info("job %s: reprise du Set bar 1 de %s (%.3fs)",
                          job_id, file_key, float(bar1_time))
+        # Même logique collante pour la correction ÷2/×2 (2026-09-17) : une
+        # ré-analyse d'un morceau déjà connu ne doit pas perdre le réglage
+        # tempo de Louis, exactement comme pour bar1 juste au-dessus.
+        if tempo_factor is None:
+            tempo_factor = tempo_factor_for(file_key)
+            if tempo_factor is not None:
+                log.info("job %s: reprise du réglage tempo de %s (x%s)",
+                         job_id, file_key, tempo_factor)
         # Le sidecar est ce que /api/library ressert : c'est là que l'artiste
         # doit atterrir pour être VU. On n'écrase jamais une saisie de Louis —
         # l'éditeur artiste/titre de l'app écrit dans le même fichier.
@@ -206,7 +232,7 @@ def _run_job(job_id: str, url: str, bar1_time=None):
         for kind, model in analyze_steps(
                 audio_path, title=job["title"], file_key=file_key,
                 audio_url=f"/audio/{audio_path.name}", progress=progress,
-                bar1_time=bar1_time,
+                bar1_time=bar1_time, tempo_factor=tempo_factor,
                 duration_s=dur):
             if kind == "head":
                 # LE CHART DE TÊTE NE TOUCHE PAS LE DISQUE (2026-08-18). C'est
@@ -270,15 +296,18 @@ def _run_job(job_id: str, url: str, bar1_time=None):
                 job.update(status="error", error=str(exc))
 
 
-def start_job(url: str, *, title: str = "", bar1_time=None) -> str:
+def start_job(url: str, *, title: str = "", bar1_time=None,
+              tempo_factor=None) -> str:
     """Crée un job, lance son thread, renvoie son id — l'usine commune à
-    `/api/analyze`, `/api/bar1/<file>` et `/api/record-analyze`."""
+    `/api/analyze`, `/api/bar1/<file>`, `/api/tempo/<file>` et
+    `/api/record-analyze`."""
     job_id = uuid.uuid4().hex[:12]
     with _JOBS_LOCK:
         _jobs[job_id] = {"status": "running", "stage": 0, "created": time.time(),
                          "title": title}
     threading.Thread(target=_run_job, args=(job_id, url),
-                     kwargs={"bar1_time": bar1_time}, daemon=True).start()
+                     kwargs={"bar1_time": bar1_time,
+                             "tempo_factor": tempo_factor}, daemon=True).start()
     return job_id
 
 

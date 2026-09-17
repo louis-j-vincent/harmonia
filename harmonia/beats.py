@@ -805,11 +805,123 @@ def _poser_grille_rigide(beats, downbeats):
     return [round(float(x), 4) for x in g], dbs
 
 
-def track(audio_path: str | Path, *, use_cache: bool = True) -> dict:
+# ── manual octave override (Louis, 2026-09-17, Can't Take My Eyes Off You:
+# détecté à 125 BPM, la vraie noire est à ~62.5) ─────────────────────────────
+# check_grid ne peut PAS voir cette erreur : elle est invariante au tempo
+# absolu. Sur ce morceau les downbeats tombent déjà tous les 4 temps
+# DÉTECTÉS (bpb=4, direct≈1.0, couverture≈1.0) — une grille parfaitement
+# saine à ses propres yeux, juste deux fois trop dense. C'est exactement le
+# piège que la doc de `librosa` en tête de fichier décrit (« doubled to
+# ~129 BPM ») mais qu'aucun garde-fou algorithmique ne peut détecter sans une
+# référence externe (tempo GT, ou l'oreille de Louis) — d'où le bouton
+# ÷2/×2 de l'écran Outils plutôt qu'une nouvelle heuristique.
+#
+# LES DEUX LISTES DOIVENT MINCIR SÉPARÉMENT. Réduire seulement `beats` en
+# gardant les downbeats intacts ne suffit PAS : mesuré sur ce morceau, les
+# 103 downbeats tombent aux indices de temps 0,4,8,12,… (tous pairs) — ne
+# garder qu'un temps sur deux les laisse TOUS passer, et leur écart ne
+# devient que 2 temps (au lieu de 4) dans la grille amincie : `check_grid`
+# lirait alors la signature même du verrou d'octave demi-tempo qu'il refuse.
+# Il faut donc AUSSI ne garder qu'une marque de mesure sur deux — la vraie
+# mesure est deux fois plus longue que celle affichée aujourd'hui.
+#
+# CE QUE ÇA NE RÉSOUT PAS (règle #4) : la phase (quelle moitié des downbeats
+# garder) est une ambiguïté musicale réelle, le même reste non résolu que
+# `score_periods` — on ancre sur le premier downbeat, comme la mesure 1
+# actuelle, faute de mieux.
+TEMPO_OCTAVE_TOL = 1e-6
+
+
+def _octave_steps(factor: float) -> int:
+    """+n pour n doublements, -n pour n divisions par deux ; lève si `factor`
+    n'est pas une puissance de deux exacte (le bouton ne produit que 0.5/2.0,
+    mais les corrections s'accumulent — voir `POST /api/tempo`)."""
+    if factor <= 0:
+        raise ValueError(f"tempo_factor doit être une puissance de deux positive, reçu {factor!r}")
+    n, f = 0, float(factor)
+    while f > 1.0 + TEMPO_OCTAVE_TOL:
+        f /= 2.0
+        n += 1
+    while f < 1.0 - TEMPO_OCTAVE_TOL:
+        f *= 2.0
+        n -= 1
+    if abs(f - 1.0) > 1e-6:
+        raise ValueError(f"tempo_factor doit être une puissance de deux, reçu {factor!r}")
+    return n
+
+
+def _halve_beats(beats: list[float], downbeats: list[float]):
+    """Une mesure vraie sur deux : amincit `downbeats` ET `beats`, séparément."""
+    b = [round(float(t), 4) for t in beats]
+    db = [round(float(t), 4) for t in (downbeats or [])]
+    new_db = db[0::2]                    # la phase (règle #4) : ancrée sur le 1er
+    db_set = set(new_db)
+    even, odd = b[0::2], b[1::2]
+    kept = even if sum(t in db_set for t in even) >= sum(t in db_set for t in odd) \
+        else odd
+    kept_set = set(kept)
+    new_db = [t for t in new_db if t in kept_set]   # invariant : downbeats ⊆ beats
+    return kept, new_db
+
+
+def _double_beats(beats: list[float], downbeats: list[float]):
+    """L'inverse : un temps ET une mesure insérés entre chaque paire."""
+    b = sorted(float(t) for t in beats)
+    out = []
+    for i in range(len(b) - 1):
+        out.append(b[i]); out.append((b[i] + b[i + 1]) / 2)
+    if b:
+        out.append(b[-1])
+    out = [round(t, 4) for t in out]
+    db = sorted(float(t) for t in (downbeats or []))
+    new_db = list(db)
+    for i in range(len(db) - 1):
+        mid = (db[i] + db[i + 1]) / 2
+        # recaler sur un temps RÉEL de `out` — jamais inventer une phase
+        new_db.append(min(out, key=lambda t: abs(t - mid)))
+    new_db = sorted({round(t, 4) for t in new_db})
+    return out, new_db
+
+
+def apply_tempo_octave(d: dict, factor: float | None) -> dict:
+    """Applique la correction manuelle ÷2/×2 de Louis à un résultat de
+    `track()`, ou rend `d` tel quel si `factor` est None (ou ~1.0).
+
+    `factor` peut être n'importe quelle puissance de deux : les corrections
+    successives s'accumulent (voir `jobs.tempo_factor_for`), donc ÷2 posé
+    deux fois vaut ÷4. Toute autre valeur lève — ce n'est pas une entrée que
+    l'écran Outils peut produire, donc une erreur ici est un bug appelant,
+    pas une saisie utilisateur à absorber en silence.
+    """
+    if factor is None or abs(factor - 1.0) < TEMPO_OCTAVE_TOL:
+        return d
+    steps = _octave_steps(factor)
+    beats, downbeats = d.get("beats", []), d.get("downbeats", [])
+    for _ in range(abs(steps)):
+        if len(beats) < 8:
+            break
+        beats, downbeats = (_halve_beats if steps < 0 else _double_beats)(
+            beats, downbeats)
+    if len(beats) < 2:
+        return d
+    import numpy as np
+    bpm = round(60.0 / float(np.median(np.diff(beats))), 2)
+    return {**d, "beats": beats, "downbeats": downbeats, "bpm": bpm}
+
+
+def track(audio_path: str | Path, *, use_cache: bool = True,
+          tempo_factor: float | None = None) -> dict:
     """Beats + downbeats for one audio file.
 
     Returns {"beats": [s...], "downbeats": [s...], "bpm": float}.
     Raises BeatTrackingError instead of ever falling back to another tracker.
+
+    `tempo_factor` (2026-09-17): Louis's manual ÷2/×2 override for a
+    tracker-wide tempo-octave error (see the block comment above
+    `apply_tempo_octave` for why no algorithmic guard can catch this class of
+    bug). Applied AFTER `_clean()`, on every call, cache hit or not — the
+    cache keeps storing what Beat This! actually produced, so removing the
+    override later reverts cleanly.
     """
     audio_path = Path(audio_path)
     if use_cache:
@@ -820,7 +932,7 @@ def track(audio_path: str | Path, *, use_cache: bool = True) -> dict:
                             audio_path.name, exc)
             d = None
         if d is not None and len(d.get("beats", [])) >= 4:
-            return _clean(d)
+            return apply_tempo_octave(_clean(d), tempo_factor)
 
     f2b = _get_beatthis()
     try:
@@ -851,4 +963,4 @@ def track(audio_path: str | Path, *, use_cache: bool = True) -> dict:
     out = {"beats": beats, "downbeats": downbeats, "bpm": bpm}
     if use_cache:
         cache.save_json("beats", audio_path, out)
-    return _clean(out)
+    return apply_tempo_octave(_clean(out), tempo_factor)

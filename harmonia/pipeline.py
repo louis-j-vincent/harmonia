@@ -278,7 +278,8 @@ def _draft_key(bars: list) -> tuple[dict, str]:
 
 
 def analyze(audio_path, *, title: str = "", file_key: str = "",
-            audio_url: str = "", progress=None, bar1_time=None) -> dict:
+            audio_url: str = "", progress=None, bar1_time=None,
+            tempo_factor=None) -> dict:
     """Full thin pipeline for one audio file → final ChartModel dict.
 
     Thin wrapper over `analyze_steps`: it drains the generator and returns the
@@ -289,6 +290,10 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
     `scripts/rebake_library.py` first among them — silently handed the chart
     back to the beat tracker's phase and wiped the user's "Set bar 1". A
     re-anchor you cannot re-apply is not an anchor.
+
+    `tempo_factor` (2026-09-17): same reasoning, for the ÷2/×2 tempo-octave
+    override (see `harmonia.beats.apply_tempo_octave`) — a non-streaming
+    rebake must not silently drop it either.
     """
     model = None
     # `head_s=0` : le chart de tête ne sert qu'à l'écran de chargement. Un
@@ -296,7 +301,8 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
     # morceau pour un modèle qu'il jette.
     for _, model in analyze_steps(audio_path, title=title, file_key=file_key,
                                   audio_url=audio_url, progress=progress,
-                                  bar1_time=bar1_time, head_s=0.0):
+                                  bar1_time=bar1_time, tempo_factor=tempo_factor,
+                                  head_s=0.0):
         pass
     return model
 
@@ -349,7 +355,8 @@ def duration_seconds(audio_path: Path) -> float:
                            f"{audio_path}: {out.stdout!r}") from exc
 
 
-def _head_chart(audio_path: Path, *, title, file_key, audio_url, bar1_time):
+def _head_chart(audio_path: Path, *, title, file_key, audio_url, bar1_time,
+                 tempo_factor=None):
     """Le chart des ~45 premières secondes, ou None. JAMAIS fatal.
 
     Pourquoi ça marche sans rien recalculer différemment : la tête est un
@@ -384,7 +391,8 @@ def _head_chart(audio_path: Path, *, title, file_key, audio_url, bar1_time):
                             audio_url=audio_url, head_s=0.0,
                             bar1_time=(bar1_time if bar1_time is not None
                                        and float(bar1_time) < HEAD_SECONDS
-                                       else None))
+                                       else None),
+                            tempo_factor=tempo_factor)
         try:
             for kind, model in gen:
                 if kind == "raw":
@@ -399,17 +407,22 @@ def _head_chart(audio_path: Path, *, title, file_key, audio_url, bar1_time):
     return None
 
 
-def _run_beats(audio_path, report):
+def _run_beats(audio_path, report, tempo_factor=None):
     """Battues + garde-fou de grille → dict, avec `grid` en plus.
 
     Extrait d'`analyze_steps` le 2026-08-18 pour pouvoir tourner pendant que
     les postérieures musx se calculent dans un autre thread. Le corps est
     inchangé ; seuls les deux `report()` restent à leur place d'origine, donc
     l'écran de chargement voit exactement la même séquence qu'avant.
+
+    `tempo_factor` passe directement à `_beats.track` : la correction ÷2/×2
+    doit s'appliquer AVANT `check_grid` juste en dessous, sinon le garde
+    juge une grille que Louis vient de corriger comme si elle était encore
+    celle du traceur.
     """
     # 1 ── beats (hard error if Beat This! fails; librosa is banned)
     report(1, phase="listening")
-    bd = _beats.track(audio_path)
+    bd = _beats.track(audio_path, tempo_factor=tempo_factor)
     beat_times, downbeats = bd["beats"], bd["downbeats"]
     # Refuse LOUDLY on a grid that cannot carry a 4-beat bar (Louis,
     # 2026-08-05). Everything below indexes bars as `off + b*bpb` over beat
@@ -447,7 +460,7 @@ def _run_beats(audio_path, report):
 
 def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
                   audio_url: str = "", progress=None, bar1_time=None,
-                  head_s: float = HEAD_SECONDS,
+                  tempo_factor=None, head_s: float = HEAD_SECONDS,
                   duration_s: float | None = None):
     """Générateur : `("raw", modèle)` puis `("final", modèle)`.
 
@@ -495,6 +508,12 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
     la suite à l'intérieur de cette fonction (le kill-switch
     `HARMONIA_RAW_CHART` a été retiré au refactor, décision 4 : un seul chart
     raffiné, pas deux formes à maintenir).
+
+    `tempo_factor` (2026-09-17) : la correction manuelle ÷2/×2 de Louis pour
+    un verrou d'octave du traceur — voir `harmonia.beats.apply_tempo_octave`.
+    Passée telle quelle à `_run_beats`, avant tout le reste : chaque étage en
+    aval (re-décodage, mesures, sections) travaille déjà sur la grille
+    corrigée, sans rien savoir de la correction elle-même.
     """
     def report(stage, **kw):
         if progress:
@@ -522,14 +541,15 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
     if head_s and (duration_s if duration_s is not None
                   else duration_seconds(audio_path)) > HEAD_MIN_SONG:
         _head = _head_chart(audio_path, title=title, file_key=file_key,
-                            audio_url=audio_url, bar1_time=bar1_time)
+                            audio_url=audio_url, bar1_time=bar1_time,
+                            tempo_factor=tempo_factor)
         if _head is not None:
             yield "head", _head
 
     _pool = ThreadPoolExecutor(max_workers=1)
     _probs_fut = _pool.submit(_musx.frame_posteriors, audio_path)
     try:
-        bd = _run_beats(audio_path, report)
+        bd = _run_beats(audio_path, report, tempo_factor=tempo_factor)
         probs = _probs_fut.result()
     finally:
         _pool.shutdown(wait=True)

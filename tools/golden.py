@@ -205,17 +205,26 @@ def cuire(eng: dict, key: str, charts: Path, out: Path) -> dict:
     # régénérable (voir `jobs.bar1_for`). Le repli sur `old["bar1"]` reste
     # pour un moteur sans dossier de marques ; depuis le sprint 22 il n'y en
     # a plus, mais la mécanique ne coûte rien et documente la différence.
+    #
+    # MÊME MÉCANIQUE POUR ÷2/×2 (2026-09-17). Sans ça, un rebake/publish
+    # effacerait silencieusement le réglage tempo de Louis exactement comme
+    # `bar1` se perdait avant le sprint 15 (l'incident qui a motivé le fichier
+    # de marque) : le chart cuit ici repartirait du tracker brut, deux fois
+    # trop rapide, et Louis ne le découvrirait qu'en rouvrant le morceau.
     if eng.get("marks") is not None:
         try:
-            bar1 = json.loads((eng["marks"] / f"{stem}.json")
-                              .read_text(encoding="utf-8")).get("bar1")
+            mark = json.loads((eng["marks"] / f"{stem}.json")
+                              .read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            bar1 = None
+            mark = {}
+        bar1 = mark.get("bar1")
+        tempo_factor = mark.get("tempo_factor")
     else:
         bar1 = old.get("bar1")
+        tempo_factor = None
     model = eng["analyze"](audio, title=old.get("title") or "", file_key=key,
                            audio_url=f"/audio/{audio.name}",
-                           bar1_time=bar1)
+                           bar1_time=bar1, tempo_factor=tempo_factor)
     if not model.get("barGrid") or not model.get("sections"):
         return {"status": "erreur", "stem": stem, "raison": "chart vide"}
     if old.get("bar1") is not None and model.get("bar1") is None:

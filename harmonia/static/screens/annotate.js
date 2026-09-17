@@ -6,6 +6,7 @@
 
 import { api } from "../api.js";
 import { go } from "../router.js";
+import { paintLoading, pollJob } from "../screens/analyse.js";
 import { buildIReal } from "../screens/chart.js";
 import { openBar1Sheet, openSectionTool } from "../screens/sections_editor.js";
 import { S } from "../state.js";
@@ -27,6 +28,23 @@ const root = document.getElementById("app");
      /debug/section-merge-game répond 404 « not in this build » — une ligne qui
      mène à une impasse ne vaut pas mieux qu'une ligne grisée. Souder tient ce
      rôle depuis le 2026-08-14, à l'oreille, et cette route-là existe. */
+  // Verrou d'octave (Louis, 2026-09-17 : « can't take my eyes off you, le
+  // bpm est deux fois trop rapide »). Même geste qu'un Set bar 1 : le job
+  // normal reprend tout le morceau, l'écran de chargement à deux phases
+  // s'affiche, et le chart revient sous le même file_key. Voir
+  // `harmonia/beats.py::apply_tempo_octave` pour ce que fait le facteur, et
+  // `/api/tempo` pour pourquoi il s'ACCUMULE (÷2 puis ×2 annule).
+async function applyTempoFactor(factor){
+    const m=S.model; if(!m||!m.file) return;
+    S.job={title:m.title, stage:0, phase:"listening", error:null, file:null};
+    go("analysing");
+    try{
+      const r=await api.post("/api/tempo/"+m.file, {factor});
+      if(r.error){ S.job.error=r.error; paintLoading(); return; }
+      pollJob(r.job_id);
+    }catch(e){ S.job.error=String(e); paintLoading(); }
+  }
+
 export function openAnnotateTools(){
     const m=S.model; if(!m||!m.file) return;
     const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
@@ -49,6 +67,8 @@ export function openAnnotateTools(){
     };
     line("Redessiner les sections","les lettres et leurs frontières, au doigt", openSectionTool);
     line("Caler la mesure 1","le vrai départ du morceau", openBar1Sheet);
+    line("Diviser le tempo par 2","le morceau tourne deux fois trop vite", ()=>applyTempoFactor(0.5));
+    line("Multiplier le tempo par 2","le morceau tourne deux fois trop lentement", ()=>applyTempoFactor(2));
     line("Souder les sections","à l'oreille, deux passages à la fois",
       ()=>{ window.location="/soudure/"+encodeURIComponent(m.file); });
     line("Voir la matrice","où le morceau se répète, à l'œil",

@@ -382,6 +382,45 @@ inchangée.
 
 ## Résolu récemment
 
+- **Verrou d'octave du tracker de battues : bouton ÷2/×2 dans l'écran Outils**
+  (2026-09-17, Louis sur *Can't Take My Eyes Off You* de Frankie Valli : « le
+  bpm est 2x too quick »). Mesuré : Beat This! lisait 125 BPM, avec des
+  downbeats tous les 4 de ces temps (bpb=4, `direct`≈1.0, couverture≈1.0) — une
+  grille **parfaitement saine aux yeux de `check_grid`**, juste deux fois trop
+  rapide. C'est le piège documenté en tête de `beats.py` pour `librosa`
+  (« doubled to ~129 BPM ») mais qu'aucun garde-fou algorithmique ne peut voir
+  ici : la cohérence de grille est invariante au tempo absolu, il faut une
+  référence externe (l'oreille de Louis) pour la détecter.
+  **La correction n'est pas un simple `beats[::2]`** : sur ce morceau, ne
+  garder qu'un temps sur deux en laissant les downbeats intacts fait tomber
+  l'écart downbeat-à-downbeat de 4 à 2 temps dans la grille amincie — c'est
+  très exactement la signature du verrou demi-tempo que `check_grid` refuse
+  (test rouge ajouté : `test_halving_only_beats_would_have_read_as_a_half_tempo_lock`).
+  `harmonia.beats.apply_tempo_octave` amincit **`beats` ET `downbeats`
+  séparément** ; vérifié sur le vrai cache de ce morceau, la grille corrigée
+  repasse `check_grid` avec metre=4, couverture 1.0, et le chart passe de 102
+  à 51 mesures pour ~61 BPM (au lieu de 125).
+  Persistance : `state/human/marks/<stem>.json` porte maintenant `tempo_factor`
+  à côté de `bar1` (même sidecar, jamais un fichier par correction — les deux
+  routes fusionnent au lieu d'écraser). La correction **s'accumule** : ÷2 posé
+  deux fois vaut ÷4, et ÷2 puis ×2 annule proprement (`POST /api/tempo/<file>`).
+  **Piège trouvé en vérifiant, pas en lisant le code** : `tools/golden.py`
+  lisait déjà `bar1` du fichier de marque avant de recuire un chart, mais pas
+  `tempo_factor` — un rebake/publish futur aurait donc **effacé la correction
+  en silence**, exactement l'incident qui avait fait déplacer `bar1` vers ce
+  fichier de marque au sprint 15. Corrigé dans le même commit
+  (`tools/golden.py::cuire`), vérifié par comparaison avant/après isolée (git
+  stash du code) : sans le correctif à `golden.py`, le rapport d'or recuisait
+  *Can't Take My Eyes Off You* à 102 mesures malgré la marque posée ; avec, à
+  51. Chart appliqué en direct sur `min_J36z7AnhvOM` : rapport
+  `/reports/avant_apres.html`.
+  **Ce que ça ne résout pas** : (1) la PHASE au moment d'amincir les
+  downbeats (quelle moitié est la vraie mesure 1) est une ambiguïté musicale
+  réelle — on ancre sur le premier downbeat existant, faute de mieux, même
+  remainder non résolu que `score_periods` (voir règle #4 de CLAUDE.md) ; (2)
+  ça ne DÉTECTE rien — c'est un correctif manuel, pas un nouveau garde-fou, et
+  aucune tentative n'a été faite pour repérer ce cas automatiquement.
+
 - **« Enregistrer comme vérité » repliait bien le chart, mais Read montrait le
   déplié** (2026-09-17, Louis : « quand je vais dans read j'ai le chart brut
   avec les sections colorées, pas bon du tout »).
