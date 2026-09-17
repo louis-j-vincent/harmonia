@@ -32,6 +32,51 @@ from harmonia.settings import SETTINGS
 from tools.annotation_degats import couleur, nom_accord
 
 
+def cherche_brique(chart, b0: int, b1: int, seuil: float = 0.90) -> list[tuple]:
+    """Les reprises de la brique [b0, b1] dans le morceau, sans recouvrement.
+
+    Louis, 2026-09-17 : « une fois que j'ai annoté une section, ça devient une
+    brique, et la première chose à faire c'est de trouver d'autres occurrences
+    de cette section ». C'est le contraire de ce que fait l'algorithme
+    aujourd'hui, qui jette la brique dans une agglomération générique.
+
+    On fait glisser la brique le long de la matrice de ressemblance chord-tone
+    — celle-là même que l'app utilise déjà pour répondre « où ce bloc se
+    rejoue-t-il ? » — et on retient les pics par score décroissant, en
+    refusant tout recouvrement.
+
+    PRÉMISSE VÉRIFIÉE avant d'écrire une ligne d'algorithme (règle 2 du
+    CLAUDE.md), sur Don't Want My Love avec la brique A de Louis (mesures
+    7-14) : la recherche rend 7-14, 15-22 et 34-41 — exactement les trois
+    occurrences que SongFormer avait trouvées, et exactement celles que
+    l'algorithme actuel rate (il propose 15-22, 29-36, 49-56). Le résultat ne
+    bouge pas entre 0,85 et 0,95 de seuil. Sur la brique B (23-33) il rend
+    23-33 et 42-52 ; sur l'outro (49-56), lui seul — un outro ne se rejoue pas.
+
+    CE QUE ÇA NE RÉSOUT PAS : rien n'est branché. C'est une mesure, pas un
+    correctif — Louis tranchera.
+    """
+    import numpy as np
+
+    from harmonia import musx as _musx
+    from harmonia.sections.similarity import _slide, ssm
+    grid = chart["barGrid"]
+    n = len(grid) - 1
+    L = b1 - b0 + 1
+    stem = Path(chart.get("audio_url") or "").stem
+    S = ssm(_musx.frame_posteriors(SETTINGS.audio_dir / f"{stem}.m4a")[0], grid)
+    sc = _slide(S, b0, L, n)
+    pris, out = [], []
+    for b in sorted(range(n - L + 1), key=lambda x: -sc[x]):
+        if sc[b] < seuil:
+            break
+        if any(not (b + L <= c or c + L <= b) for c in pris):
+            continue
+        pris.append(b)
+        out.append((b, b + L - 1, float(sc[b])))
+    return sorted(out)
+
+
 def _sous_etape0(label, b0, b1, avant, apres, mot_av, mot_ap, n_unites) -> str:
     """Ce que le trait a VRAIMENT changé avant même que l'algorithme démarre.
 
@@ -157,6 +202,16 @@ def etapes(cle: str, label: str, b0: int, b1: int) -> dict:
         "unites": [{"m0": s["mesure_debut"] - 1, "m1": s["mesure_fin"] - 1,
                     "txt": s.get("source") or "", "nom": s["label"]}
                    for s in (r.get("sections") or [])]})
+
+    # LA PISTE DE LOUIS, mesurée : et si on cherchait simplement sa brique ?
+    occ = cherche_brique(chart, b0 - 1, b1 - 1)
+    vues.append({
+        "titre": "si on cherchait ta brique",
+        "sous": f"ta section {label} glissée le long du morceau : "
+                f"{len(occ)} occurrence(s) au-dessus de 0,90, sans "
+                "recouvrement — écoute-les pour juger",
+        "unites": [{"m0": x, "m1": y, "txt": f"{sc:.2f}", "nom": label,
+                    "humain": (x == b0 - 1)} for x, y, sc in occ]})
 
     return {
         "cle": cle, "titre": chart.get("title") or stem, "n": n,
