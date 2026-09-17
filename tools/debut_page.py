@@ -34,6 +34,7 @@ from pathlib import Path
 
 import numpy as np
 
+from harmonia.debut import cale_sur_grille, premier_son, premiere_basse
 from harmonia.settings import SETTINGS
 
 FENETRE = 90.0          # secondes d'audio analysées
@@ -94,60 +95,23 @@ def marche_energie(brut: list[float], grille: list[float]) -> tuple[int, float] 
     return None if best is None else (best, score)
 
 
-def _premier_son(brut: list[float], part: float = 0.10, tenue: int = 5) -> float:
-    """Le premier instant où le fichier fait un son — un dixième de l'énergie
-    médiane, tenu 1,25 s. Sert de plancher aux détecteurs : rien de musical ne
-    commence dans le silence, et un modèle qui l'affirme se trompe.
-    """
-    e = np.array(brut)
-    if not len(e):
-        return 0.0
-    seuil = part * float(np.median(e))
-    for i in range(len(e) - tenue):
-        if bool(np.all(e[i:i + tenue] > seuil)):
-            return float(i * PAS)
-    return 0.0
+def _basse_de(stem: str, brut: list[float]) -> float | None:
+    """La 1re note de basse du morceau — `harmonia.debut`, pas une copie.
 
-
-def premiere_basse(stem: str, apres: float = 0.0,
-                   seuil: float = 0.25, tenue: int = 6) -> float | None:
-    """Le premier instant où la tête BASSE de musx sort de « rien » et y reste.
-
-    Piste de Louis, 2026-09-17 : « souvent la première note de basse, mais pas
-    toujours ». `probs[1]` est la tête de basse du modèle, 13 colonnes dont la
-    première est « pas de basse » ; on cherche où son complément passe
-    `seuil` et s'y tient `tenue` trames (0,14 s), pour ne pas se faire prendre
-    par une trame isolée. La recherche démarre à `apres`, le premier son
-    audible du fichier : sans ça la tête de basse déclarait une basse à 0,00 s
-    sur Hot N Cold, dont les quatre premières secondes sont muettes.
-
-    LES RÉGLAGES SONT MESURÉS, pas choisis. Contre huit débuts connus, l'erreur
-    médiane vaut 0,31 s à seuil 0,25 tenu 6 trames, contre 0,95 s à 0,50 tenu 6
-    (l'ancien réglage, qui arrivait 1,6 s trop tard sur Sam Smith et 8,8 s trop
-    tard sur Stand By Me). Un seuil de 0,35 ferait mieux sur la médiane mais
-    rate l'entrée de Stand By Me de 6,5 s : on préfère le réglage qui ne casse
-    aucun cas franc.
-
-    CE QUE ÇA NE RÉSOUT PAS : la première note de basse n'est PAS le début du
-    morceau, et Louis l'a dit lui-même. Sur Billie Jean elle arrive à 5,3 s
-    alors que le morceau ouvre sur la batterie quatre mesures plus tôt. Ce
-    trait montre où est la basse, rien de plus.
+    La règle, ses réglages et leur mesure vivent dans ce module ; la page ne
+    fait que la montrer. C'est l'indice qui gagne sur les 42 réponses de
+    Louis (35/42 contre 28/42 pour le traqueur seul).
     """
     from harmonia import musx as _musx
-    from harmonia.musx import FRAME_DT
     audio = SETTINGS.audio_dir / f"{stem}.m4a"
     if not audio.exists():
         return None
     try:
-        p = _musx.frame_posteriors(audio)[1]
+        probs = _musx.frame_posteriors(audio)[1]
     except Exception:                                    # noqa: BLE001
         print(f"   (postérieures indisponibles pour {stem})")
         return None
-    son = 1.0 - p[:, 0]
-    for i in range(max(0, int(apres / FRAME_DT)), len(son) - tenue):
-        if bool(np.all(son[i:i + tenue] > seuil)):
-            return float(i * FRAME_DT)
-    return None
+    return premiere_basse(probs, apres=premier_son(brut))
 
 
 def premier_accord(chart: dict) -> float | None:
@@ -160,34 +124,6 @@ def premier_accord(chart: dict) -> float | None:
         if not c.get("nc"):
             return float(c.get("t0", 0.0))
     return None
-
-
-def cale_sur_grille(t: float | None, grille: list[float],
-                    part: float = 0.25) -> tuple[float | None, bool]:
-    """La détection, ramenée sur la ligne de mesure quand elle en est proche.
-
-    Louis, 2026-09-17 : « il faut vraiment que tu utilises le grid de la
-    grille pour t'aiguiller aussi, en cas de doute c'est lui qui tranche ».
-    Un seuil franchi sur une postérieure a une précision de l'ordre de la
-    trame ; une ligne de mesure vient du traqueur de battues, qui est meilleur
-    que ça. Donc quand les deux se disputent à moins d'un quart de mesure, la
-    ligne gagne.
-
-    Rend `(temps, posé_sur_une_ligne)`. Au-delà d'un quart de mesure on NE
-    CALE PAS et on le dit : soit le détecteur se trompe, soit c'est la grille,
-    et écraser l'un par l'autre effacerait précisément le désaccord qu'il faut
-    voir. C'est la leçon du trait basse d'avant, collé d'office sur la ligne
-    la plus proche et donc jusqu'à une demi-mesure à côté de la note.
-    """
-    if t is None or len(grille) < 2:
-        return t, False
-    import numpy as _np
-    g = _np.asarray(grille, dtype=float)
-    i = int(_np.abs(g - t).argmin())
-    mesure = float(_np.median(_np.diff(g))) if len(g) > 2 else float(g[1] - g[0])
-    if abs(float(g[i]) - t) <= part * mesure:
-        return float(g[i]), True
-    return t, False
 
 
 def _sur_la_grille(t: float | None, grille: list[float]) -> int | None:
@@ -240,6 +176,7 @@ def collecte() -> list[dict]:
                 mark = None
         crete = max(liss[:nfen]) or 1.0
         gr = [t for t in grid if t < fin]
+        t_basse, sur_basse = cale_sur_grille(_basse_de(stem, brut), gr)
         out.append({
             "stem": stem, "cle": p.stem, "titre": d.get("title") or stem,
             # Le TEMPS BRUT de la détection, jamais ramené sur une ligne de
@@ -249,8 +186,7 @@ def collecte() -> list[dict]:
             # mesure à côté de la note qu'ils prétendaient montrer. Un trait
             # qui dit « la basse est ici » doit être là où elle est.
             **dict(zip(("basse", "basse_sur_ligne"),
-                       cale_sur_grille(premiere_basse(
-                           stem, apres=_premier_son(brut)), gr))),
+                       (t_basse, sur_basse))),
             **dict(zip(("accord", "accord_sur_ligne"),
                        cale_sur_grille(premier_accord(d), gr))),
             "audio": d.get("audio_url") or f"/audio/{stem}.m4a",
@@ -258,7 +194,13 @@ def collecte() -> list[dict]:
             "pas": PAS, "fin": round(fin, 2),
             "grille": [round(t, 3) for t in grid if t < fin],
             "marque": None if mark is None else round(float(mark), 2),
-            "propose": None if m is None else m[0],
+            # LA PROPOSITION, c'est la règle qui gagne — la 1re note de basse
+            # calée sur la grille (35/42 contre 28/42 pour le traqueur seul,
+            # mesuré sur les 42 réponses de Louis). La marche d'énergie reste
+            # affichée comme indice, mais elle ne propose plus rien : c'est
+            # le plus mauvais des quatre (27/42).
+            "propose": _sur_la_grille(t_basse, gr),
+            "energie": None if m is None else m[0],
             "rapport": None if m is None else round(m[1], 1),
             "bpm": round(float((d.get("meta") or {}).get("bpm") or 0)) or None,
         })
@@ -266,8 +208,7 @@ def collecte() -> list[dict]:
     # cas où je ne propose rien, le moins évident en tête (c'est là qu'une
     # règle trop gourmande casserait ce qui marche).
     out.sort(key=lambda s: (0 if (s["propose"] or 0) > 0 else 1,
-                            -(s["rapport"] or 0) if (s["propose"] or 0) > 0
-                            else (s["rapport"] or 0)))
+                            -(s["propose"] or 0)))
     return out
 
 
@@ -510,8 +451,7 @@ def page(songs: list[dict]) -> str:
         if s["marque"] is not None:
             bits.append(f"tu avais calé {s['marque']:.2f}s")
         if (s["propose"] or 0) > 0:
-            bits.append(f"l'énergie s'installe {s['propose']} mesure"
-                        f"{'s' if s['propose'] > 1 else ''} plus loin")
+            bits.append(f"je proposerais la mesure {s['propose'] + 1}")
         hors = [nom for nom, ok, t in (("basse", s["basse_sur_ligne"], s["basse"]),
                                        ("accord", s["accord_sur_ligne"], s["accord"]))
                 if t is not None and not ok]
@@ -528,8 +468,8 @@ def page(songs: list[dict]) -> str:
 
         B.append("<div class=env><canvas></canvas>")
         B.append(repere(g[0], "#8a2b2b", "mes.1", 2))
-        if (s["propose"] or 0) > 0:
-            B.append(repere(g[s["propose"]], "#2f5fa8", "énergie", 16))
+        if s["energie"]:
+            B.append(repere(g[s["energie"]], "#2f5fa8", "énergie", 16))
         # `is not None`, pas la vérité booléenne : un temps de 0,0 s est une
         # détection valide et se dessinait pas du tout (14 cartes sur 45
         # portaient un trait basse alors que 45 en avaient un).
@@ -542,7 +482,7 @@ def page(songs: list[dict]) -> str:
         B.append("<div class=cur><b></b></div></div>")
         sauts = []
         for t_cand, nom, coul in (
-                (g[s["propose"]] if (s["propose"] or 0) > 0 else None,
+                (g[s["energie"]] if s["energie"] else None,
                  "énergie", "#2f5fa8"),
                 (s["basse"], "basse", "#7b4ea3"),
                 (s["accord"], "accord", "#b06a1f")):
@@ -615,8 +555,8 @@ def main(argv=None) -> int:
           f"de déplacer la mesure 1 :")
     for s in bouge:
         print(f"   {s['titre'][:38]:38s} {s['grille'][0]:7.2f}s → "
-              f"{s['grille'][s['propose']]:7.2f}s  (+{s['propose']} mes., "
-              f"marche ×{s['rapport']})")
+              f"{s['grille'][s['propose']]:7.2f}s  "
+              f"(+{s['propose']} mes., 1re note de basse)")
     return 0
 
 

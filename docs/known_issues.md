@@ -48,6 +48,39 @@ Détail et mesures : `docs/audit_2026-09-15_plan.md`.
   d'annotation existants sont intacts (vérifié : brouillons et vérité
   identiques sur les 10 brouillons).
 
+- **RÉSOLU (règle trouvée) 2026-09-17 — le vrai début d'un morceau, c'est sa
+  PREMIÈRE NOTE DE BASSE, calée sur la grille.** Louis a tranché à l'oreille
+  le début de 42 morceaux (`state/human/debuts.json`, vérité terrain tracée
+  par git) : 18 où le traqueur avait déjà raison, 24 qu'il a déplacés. Mesuré
+  contre ses 42 réponses, en comptant juste quand on désigne LA MÊME ligne de
+  mesure que lui :
+
+  | indice | exact | à ±1 mesure |
+  |---|---|---|
+  | le traqueur seul (mesure 1 = 1re ligne) | 28/42 | 37/42 |
+  | la marche d'énergie à la ligne de mesure | 27/42 | 32/42 |
+  | le 1er son audible du fichier | 31/42 | 37/42 |
+  | le 1er accord non-N.C. de musx | 32/42 | 36/42 |
+  | **la 1re note de basse** | **35/42** | **38/42** |
+
+  Douze combinaisons essayées (consensus, médiane, garde-fous mutuels) :
+  aucune ne dépasse la basse seule, les meilleures l'égalent. On garde la plus
+  simple. La règle est `harmonia/debut.py` (`debut_du_morceau`), avec ses
+  réglages mesurés et `tests/test_debut.py` ; `tools/debut_page.py` l'importe
+  au lieu d'en garder une copie, et c'est elle que la page propose maintenant.
+  **PAS ENCORE BRANCHÉE dans la pipeline** : ça déplacerait la mesure 1 sur
+  toute la bibliothèque, donc ça passe par un rapport d'or que Louis arbitre.
+  **Ce que ça ne résout pas**, et le mécanisme est musical : les 7 ratés se
+  rangent en trois familles. (1) Le morceau ouvre sur la BATTERIE — Billie
+  Jean, Be My Baby : la basse arrive une à deux mesures trop tard. C'est la
+  piste que Louis a nommée en premier et qui reste à faire, un détecteur de
+  transitoires aigus, indépendant de l'harmonie. (2) La basse joue déjà
+  pendant l'intro (Urdlvw0SSEc, 9 mesures d'avance ; fd02pGJx0s0). (3) La
+  grille elle-même est fausse (h_D3VFfhvs4, trous de 12 et 42 s dans
+  `barGrid`) — caler sur la ligne la plus proche ne peut pas le rattraper.
+  Enfin, 5 des 42 réponses de Louis ne tombent sur AUCUNE ligne (Stand By Me à
+  deux tiers de mesure) : là c'est la phase du traqueur qui est en cause.
+
 - **La page du vrai début jouait 1,5 s AVANT le curseur — les 12 clics libres
   de Louis du 2026-09-17 sont décalés d'autant (corrigé le jour même).** Il
   l'avait soupçonné : « j'espère que t'as pas mis de temps de latence quand on

@@ -1,0 +1,182 @@
+{
+ "_quoi": "Le vrai début de chaque morceau, tranché à l'oreille par Louis.",
+ "_quand": "2026-09-17, sur /reports/debut_morceaux.html (tools/debut_page.py).",
+ "_comment": "Deux gestes : « ⚑ caler la mesure 1 ici » a écrit un temps dans state/human/marks/ (source « déplacé ») ; « la mesure 1 est bonne » a confirmé celle du traqueur (source « confirmé bon »). Les temps sont en secondes dans le fichier audio.",
+ "_attention": "Une première passe du matin jouait 1,5 s AVANT le curseur et ses clics libres en sont décalés d'autant ; elle a été refaite. Ne sont gardées ici que les marques postérieures à 8 h 50, plus les « c'est bon » qui portent sur la mesure 1 du TRAQUEUR, jamais sur une marque. Trois morceaux marqués dans la passe biaisée sont contredits par un « c'est bon » : autumn_leaves, dOQXg6rK86I, michael_jackson_billie_jean — le « bon » tranche.",
+ "_manquants": [
+  "4JkIs37a2JE",
+  "Ju8Hr50Ckwk",
+  "_R3B2Xr8kwQ",
+  "mVhy7JPqM7A"
+ ],
+ "debuts": {
+  "08DjMT-qR9g": {
+   "t": 5.59,
+   "source": "déplacé"
+  },
+  "0DdCoNbbRvQ": {
+   "t": 0.178,
+   "source": "confirmé bon"
+  },
+  "191P7nIeECo": {
+   "t": 1.4,
+   "source": "déplacé"
+  },
+  "DksSPZTZES0": {
+   "t": 0.137,
+   "source": "confirmé bon"
+  },
+  "J36z7AnhvOM": {
+   "t": 0.58,
+   "source": "confirmé bon"
+  },
+  "Oextk-If8HQ": {
+   "t": 3.35,
+   "source": "déplacé"
+  },
+  "T64BgKEL-Sw": {
+   "t": 0.63,
+   "source": "déplacé"
+  },
+  "Urdlvw0SSEc": {
+   "t": 22.77,
+   "source": "déplacé"
+  },
+  "Uw5OLnN7UvM": {
+   "t": 18.08,
+   "source": "déplacé"
+  },
+  "X-yIEMduRXk": {
+   "t": 0.521,
+   "source": "confirmé bon"
+  },
+  "XpqqjU7u5Yc": {
+   "t": 0.1,
+   "source": "confirmé bon"
+  },
+  "aretha_franklin_chain_of_fools_official_lyric_video": {
+   "t": 5.87,
+   "source": "déplacé"
+  },
+  "autumn_leaves": {
+   "t": 0.94,
+   "source": "confirmé bon"
+  },
+  "autumn_leaves_easy_jazz_piano_piano_cover_sheets": {
+   "t": 2.52,
+   "source": "déplacé"
+  },
+  "bein_green": {
+   "t": 1.56,
+   "source": "déplacé"
+  },
+  "ben_e_king_stand_by_me_audio": {
+   "t": 0.6,
+   "source": "déplacé"
+  },
+  "bobby_hebb_sunny_official_audio": {
+   "t": 2.2,
+   "source": "déplacé"
+  },
+  "bruno_mars_grenade_official_music_video": {
+   "t": 4.86,
+   "source": "déplacé"
+  },
+  "bruno_mars_the_lazy_song_official_music_video": {
+   "t": 8.78,
+   "source": "déplacé"
+  },
+  "dOQXg6rK86I": {
+   "t": 1.158,
+   "source": "confirmé bon"
+  },
+  "elton_john_goodbye_yellow_brick_road_lyrics": {
+   "t": 0.96,
+   "source": "confirmé bon"
+  },
+  "fd02pGJx0s0": {
+   "t": 9.91,
+   "source": "déplacé"
+  },
+  "gbO7qQliXT8": {
+   "t": 3.38,
+   "source": "déplacé"
+  },
+  "h_D3VFfhvs4": {
+   "t": 66.02,
+   "source": "déplacé"
+  },
+  "katy_perry_hot_n_cold_official_music_video": {
+   "t": 35.97,
+   "source": "déplacé"
+  },
+  "let_it_be_remastered_2009": {
+   "t": 0.04,
+   "source": "confirmé bon"
+  },
+  "lgHGU8gqz9U": {
+   "t": 2.76,
+   "source": "confirmé bon"
+  },
+  "maroon_5_she_will_be_loved_official_music_video": {
+   "t": 11.91,
+   "source": "déplacé"
+  },
+  "maroon_5_this_love": {
+   "t": 1.081,
+   "source": "confirmé bon"
+  },
+  "mayer_hawthorne_the_walk": {
+   "t": 18.23,
+   "source": "déplacé"
+  },
+  "michael_jackson_billie_jean_official_video": {
+   "t": 1.258,
+   "source": "confirmé bon"
+  },
+  "nDUVEUjOKMw": {
+   "t": 4.36,
+   "source": "déplacé"
+  },
+  "norah_jones_come_away_with_me": {
+   "t": 3.92,
+   "source": "déplacé"
+  },
+  "norah_jones_don_t_know_why": {
+   "t": 0.14,
+   "source": "confirmé bon"
+  },
+  "oIv_Y2RPQ_A": {
+   "t": 3.112,
+   "source": "confirmé bon"
+  },
+  "ray_charles_georgia_on_my_mind_official_video": {
+   "t": 0.2,
+   "source": "confirmé bon"
+  },
+  "rec_1787243982182": {
+   "t": 2.38,
+   "source": "déplacé"
+  },
+  "sam_smith_i_m_not_the_only_one_official_music_video": {
+   "t": 42.22,
+   "source": "déplacé"
+  },
+  "the_police_every_breath_you_take_official_music_video": {
+   "t": 1.08,
+   "source": "déplacé"
+  },
+  "the_ronettes_be_my_baby_music_video": {
+   "t": 0.92,
+   "source": "confirmé bon"
+  },
+  "yesterday_remastered_2009": {
+   "t": 0.42,
+   "source": "confirmé bon"
+  },
+  "zABLecsR5UE": {
+   "t": 0.269,
+   "source": "confirmé bon"
+  }
+ }
+}

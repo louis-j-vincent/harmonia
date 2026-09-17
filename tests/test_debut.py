@@ -1,0 +1,107 @@
+"""tests/test_debut.py — la règle du vrai début, et ses garde-fous.
+
+Le résultat mesuré (35/42 contre 28/42 pour le traqueur) vit dans le
+docstring de `harmonia.debut` ; il demande l'audio et les postérieures en
+cache, donc il ne tourne pas ici. Ce qui est épinglé ci-dessous, ce sont les
+lois qui font que la règle ne peut PAS mentir : le plancher du silence, le
+calage qui n'écrase pas un désaccord, et l'absence de repli muet.
+"""
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+from harmonia.debut import (PART_CALAGE, PAS_ENERGIE, cale_sur_grille,
+                            premier_son, premiere_basse)
+from harmonia.musx import FRAME_DT
+
+
+def _basse(*plages, n=400):
+    """Une tête de basse musx (n, 13) : `plages` = (trame0, trame1, masse)."""
+    p = np.zeros((n, 13), dtype=np.float32)
+    p[:, 0] = 1.0                                   # « pas de basse » partout
+    for f0, f1, masse in plages:
+        p[f0:f1, 0] = 1.0 - masse
+        p[f0:f1, 1] = masse
+    return p
+
+
+# ── le plancher du silence ───────────────────────────────────────────────────
+
+def test_le_silence_du_debut_ne_compte_pas_comme_un_son():
+    """Hot N Cold : quatre secondes muettes, puis le morceau. Sans ce
+    plancher, la tête de basse déclarait une basse à 0,00 s."""
+    env = [0.0001] * 16 + [0.5] * 40                # 4 s de rien, puis du son
+    assert premier_son(env) == pytest.approx(4.0, abs=PAS_ENERGIE)
+
+
+def test_un_morceau_qui_demarre_tout_de_suite_commence_a_zero():
+    assert premier_son([0.5] * 40) == 0.0
+
+
+def test_une_enveloppe_vide_ne_fait_pas_tomber_le_calcul():
+    assert premier_son([]) == 0.0
+
+
+def test_la_recherche_de_basse_part_apres_le_plancher():
+    """Une basse AVANT le premier son est un faux positif du modèle : on ne
+    la voit pas, parce qu'on ne regarde pas avant."""
+    p = _basse((0, 40, 0.9), (200, 300, 0.9))
+    assert premiere_basse(p, apres=0.0) == pytest.approx(0.0, abs=FRAME_DT)
+    tard = premiere_basse(p, apres=100 * FRAME_DT)
+    assert tard == pytest.approx(200 * FRAME_DT, abs=FRAME_DT)
+
+
+# ── la basse ─────────────────────────────────────────────────────────────────
+
+def test_une_trame_isolee_ne_fait_pas_une_note():
+    """Le modèle bruite. Une seule trame au-dessus du seuil n'est pas une
+    entrée de basse — il en faut `TENUE_BASSE` d'affilée."""
+    p = _basse((50, 52, 0.9), (150, 250, 0.9))      # 2 trames, puis une vraie
+    assert premiere_basse(p) == pytest.approx(150 * FRAME_DT, abs=FRAME_DT)
+
+
+def test_pas_de_basse_du_tout_rend_None_plutot_que_zero():
+    """Pas de repli muet : un morceau sans basse déclarée doit le DIRE. Rendre
+    0,0 ferait passer « je n'ai rien entendu » pour « ça commence au début »."""
+    assert premiere_basse(_basse()) is None
+
+
+# ── la grille tranche, mais n'écrase pas ─────────────────────────────────────
+
+GRILLE = [0.0, 2.0, 4.0, 6.0, 8.0]                  # mesures de 2 s
+
+
+def test_une_detection_proche_dune_ligne_est_posee_dessus():
+    """« En cas de doute c'est lui qui tranche » — le traqueur est plus précis
+    qu'un seuil franchi sur une postérieure."""
+    t, sur = cale_sur_grille(4.17, GRILLE)
+    assert (t, sur) == (4.0, True)
+
+
+def test_une_detection_loin_de_toute_ligne_reste_brute_et_le_dit():
+    """Le cas qu'il ne faut PAS arrondir : à plus d'un quart de mesure, l'un
+    des deux se trompe, et l'effacer cacherait lequel."""
+    t, sur = cale_sur_grille(5.0, GRILLE)           # pile entre deux lignes
+    assert (t, sur) == (5.0, False)
+
+
+@pytest.mark.parametrize("ecart,attendu", [
+    (PART_CALAGE * 2 * 0.9, True),                  # juste dedans
+    (PART_CALAGE * 2 * 1.1, False),                 # juste dehors
+])
+def test_la_frontiere_du_calage_est_un_quart_de_mesure(ecart, attendu):
+    _t, sur = cale_sur_grille(4.0 + ecart, GRILLE)
+    assert sur is attendu
+
+
+def test_sans_grille_on_ne_cale_rien():
+    assert cale_sur_grille(3.3, []) == (3.3, False)
+    assert cale_sur_grille(None, GRILLE) == (None, False)
+
+
+def test_une_grille_a_deux_lignes_a_quand_meme_une_mesure():
+    """`median(diff)` sur deux lignes n'a qu'une valeur — le calcul ne doit pas
+    partir en NaN et faire passer un calage pour impossible."""
+    t, sur = cale_sur_grille(2.1, [0.0, 2.0])
+    assert (t, sur) == (2.0, True)
