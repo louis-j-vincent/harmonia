@@ -302,6 +302,82 @@ def _plus_proche(ressemblance, b0: int, longueur: int) -> str | None:
     return best
 
 
+#: les sections que la machine trouve toute seule, par chart — le calcul est
+#: le même pour tous les traits, il ne dépend que du fichier.
+_AUTO_CACHE: dict = {}
+
+
+@bp.post("/api/sections/simuler/<file>")
+def sections_simuler(file):
+    """BANC D'ESSAI : deux découpages à partir des briques de Louis.
+
+    Louis, 2026-09-17 : « fais-moi une simulation du chart d'annotation avec
+    les 2 stratégies pour que je puisse les tester interactivement suivant ce
+    que j'annote ».
+
+    Corps `{humain: [{label, mesure_debut, mesure_fin}]}` — les mêmes traits
+    que `sections_inferer`, en mesures 1-indexées, fin incluse.
+
+    Rend `{briques, algo, songformer, auto}` : ses briques avec leurs reprises
+    trouvées, puis les deux façons de remplir les trous, puis le découpage du
+    modèle seul pour comparaison.
+
+    CETTE ROUTE N'ÉCRIT RIEN et ne touche ni au chart, ni aux brouillons, ni
+    aux sections de vérité. Elle existe pour que Louis tranche entre les deux
+    stratégies avant qu'une seule ligne de production ne bouge — la
+    production, c'est `sections_inferer`, qui ne lit pas ce module.
+    """
+    from harmonia.sections.simulation import (occurrences_de_tous,
+                                              remplir_par_algo,
+                                              remplir_par_songformer)
+    p = CHARTS_DIR / f"{Path(file).stem}.json"
+    if not p.exists():
+        return jsonify({"error": "no such chart"}), 404
+    chart = json.loads(p.read_text(encoding="utf-8"))
+    stem = Path(chart.get("audio_url") or "").stem
+    if not stem or not (AUDIO_DIR / f"{stem}.m4a").exists():
+        return jsonify({"error": "pas d'audio pour ce chart"}), 404
+
+    # le découpage du modèle seul : il ne dépend pas des traits, on le garde
+    cle = (p.name, p.stat().st_mtime_ns)
+    auto = _AUTO_CACHE.get(cle)
+    if auto is None:
+        from harmonia.pipeline import analyze
+        m = analyze(AUDIO_DIR / f"{stem}.m4a", title=chart.get("title") or stem,
+                    file_key=Path(file).stem,
+                    audio_url=f"/audio/{stem}.m4a")
+        auto = m.get("sections") or []
+        _AUTO_CACHE.clear()
+        _AUTO_CACHE[cle] = auto
+
+    humain = (request.get_json(silent=True) or {}).get("humain") or []
+    if not humain:
+        return jsonify({"briques": [], "algo": [], "songformer": [],
+                        "auto": _plages(auto)})
+    try:
+        occ = occurrences_de_tous(chart, humain, AUDIO_DIR)
+        return jsonify({
+            "briques": occ,
+            "algo": remplir_par_algo(chart, occ, AUDIO_DIR),
+            "songformer": remplir_par_songformer(chart, occ, auto),
+            "auto": _plages(auto)})
+    except Exception as exc:                                 # noqa: BLE001
+        # Jamais muet : un banc d'essai qui rend une liste vide ferait croire
+        # à un découpage vide plutôt qu'à une panne.
+        log.exception("simulation des sections impossible pour %s", file)
+        return jsonify({"error": f"simulation impossible : {exc}"}), 500
+
+
+def _plages(sections) -> list[dict]:
+    """[{m0, m1, label}] à plat, depuis des sections à `barRanges`."""
+    out = []
+    for s in sections or []:
+        for a, b in (s.get("barRanges") or []):
+            out.append({"m0": a, "m1": b, "label": s.get("label") or "?",
+                        "source": "songformer", "mot": ""})
+    return sorted(out, key=lambda x: x["m0"])
+
+
 @bp.post("/api/sections/inferer/<file>")
 def sections_inferer(file):
     """Ce que Louis a surligné + ce que l'algo des quatre mots en déduit.
