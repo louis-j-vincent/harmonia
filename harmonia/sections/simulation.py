@@ -1,11 +1,15 @@
 """Deux façons de découper un morceau à partir des briques de Louis.
 
-RIEN ICI N'EST BRANCHÉ DANS LA CHAÎNE. C'est un banc d'essai : Louis,
-2026-09-17, « n'essaye pas de fix, c'est moi qui dirai comment fix », puis
-« fais-moi une simulation du chart d'annotation avec les 2 stratégies pour que
-je puisse les tester interactivement suivant ce que j'annote ». La route
-`/api/sections/simuler/<file>` et la page `tools/chart_simule.py` lisent ce
-module ; `sections_inferer`, qui est la production, ne le lit pas.
+CE MODULE EST EN PRODUCTION depuis le 2026-09-17. Il est né comme banc
+d'essai — Louis : « n'essaye pas de fix, c'est moi qui dirai comment fix »,
+puis « fais-moi une simulation des 2 stratégies pour que je puisse les tester
+interactivement » — et il a été acté le soir même : « notre brique +
+SongFormer comme méthode principale, c'est acté, tu me le mets en prod ».
+
+`sections_inferer` (la route qu'appelle « Valider les sections ») lit
+`occurrences_de_tous` + `remplir_par_songformer`. `remplir_par_algo` n'est
+plus qu'un point de comparaison, gardé pour la route `/api/sections/simuler/`
+et la page `tools/chart_simule.py`, où Louis peut confronter les deux.
 
 LE POINT DE DÉPART COMMUN, et c'est la découverte de la journée. Aujourd'hui
 `sections_inferer` jette le trait de Louis dans une agglomération générique
@@ -21,7 +25,8 @@ occurrences que SongFormer trouve, et exactement celles que la production
 rate (elle propose 15-22, 29-36, 49-56). Le résultat ne bouge pas entre 0,85
 et 0,95 de seuil.
 
-LES DEUX STRATÉGIES ne diffèrent QUE par ce qu'elles mettent dans les trous :
+LES DEUX STRATÉGIES ne diffèrent QUE par ce qu'elles mettent dans les trous
+— et c'est SongFormer qui a été retenu :
 
   * `remplir_par_algo` — l'agglomération des quatre mots, mais confinée aux
     trous, toutes les occurrences gelées ;
@@ -65,9 +70,16 @@ def cherche_brique(chart: dict, b0: int, b1: int, audio_dir,
     n = len(grid) - 1
     L = b1 - b0 + 1
     stem = Path(chart.get("audio_url") or "").stem
-    if n < 2 or L < 1 or not stem:
+    audio = Path(audio_dir) / f"{stem}.m4a"
+    if n < 2 or L < 1 or not stem or not audio.exists():
+        # Sans audio il n'y a pas de matrice de ressemblance, donc aucune
+        # reprise à chercher : la brique reste seule. Ce n'est pas un repli
+        # muet — on le DIT — et ça ne trahit pas son geste, ça se contente de
+        # ne rien ajouter.
+        logger.info("cherche_brique : pas d'audio pour %s, la brique reste "
+                    "seule", stem or "?")
         return [(b0, b1, 1.0)]
-    S = ssm(_musx.frame_posteriors(Path(audio_dir) / f"{stem}.m4a")[0], grid)
+    S = ssm(_musx.frame_posteriors(audio)[0], grid)
     sc = _slide(S, b0, L, n)
     pris, out = [], []
     for b in sorted(range(max(1, n - L + 1)), key=lambda x: -sc[x]):
@@ -80,9 +92,10 @@ def cherche_brique(chart: dict, b0: int, b1: int, audio_dir,
     return sorted(out) or [(b0, b1, 1.0)]
 
 
-def occurrences_de_tous(chart: dict, traits: list[dict], audio_dir) -> list[dict]:
-    """Chaque trait de Louis, plus ses reprises — sans que deux briques se
-    marchent dessus.
+def occurrences_de_tous(chart: dict, traits: list[dict],
+                        audio_dir) -> tuple[list[dict], list[dict]]:
+    """(occurrences, traits écartés) — chaque trait de Louis, plus ses
+    reprises, sans que deux briques se marchent dessus.
 
     Les traits sont traités dans l'ordre où il les a posés : les reprises
     d'une brique ne peuvent pas recouvrir un trait déjà placé, ni les reprises
@@ -102,7 +115,7 @@ def occurrences_de_tous(chart: dict, traits: list[dict], audio_dir) -> list[dict
             out.append({"m0": x, "m1": y, "label": label,
                         "score": round(sc, 3),
                         "trace": (x == b0 and y == b1)})
-    return sorted(out, key=lambda o: o["m0"])
+    return sorted(out, key=lambda o: o["m0"]), ecartes
 
 
 def remplir_par_algo(chart: dict, occ: list[dict], audio_dir) -> list[dict]:
@@ -166,35 +179,41 @@ def remplir_par_songformer(chart: dict, occ: list[dict],
 
     Les mesures couvertes par une brique de Louis gardent SON nom, et deux
     occurrences voisines de la même brique restent deux blocs — le morceau les
-    joue deux fois. Partout ailleurs on reprend l'étiquette de SongFormer et on
-    regroupe les mesures voisines qui la partagent.
+    joue deux fois. Partout ailleurs on garde les SEGMENTS de SongFormer tels
+    qu'il les a posés, rognés autour des briques.
 
-    `auto` est la liste `chart["sections"]` d'un chart cuit SANS section à la
-    main : c'est la réponse du modèle, celle que la production jette.
+    On ne repasse PAS par un tableau « une étiquette par mesure » : ça fondait
+    deux segments voisins portant la même lettre en un seul bloc, et un
+    morceau qui joue A puis A ressortait avec un A de seize mesures. Les
+    frontières du modèle sont une information, pas un effet de bord.
+
+    `auto` est la liste des segments du modèle, chacun avec ses `barRanges` —
+    la réponse que la production jetait avant le 2026-09-17.
     """
     n = len((chart.get("barGrid") or [])) - 1
-    par_mes = ["?"] * n
-    for sec in auto or []:
-        for a, b in (sec.get("barRanges") or []):
-            for i in range(max(0, a), min(n, b + 1)):
-                par_mes[i] = sec.get("label") or "?"
     pris = [False] * n
     out = []
     for o in occ:
         a, b = max(0, o["m0"]), min(n - 1, o["m1"])
+        if b < a:
+            continue
         out.append({"m0": a, "m1": b, "label": o["label"], "source": "brique",
                     "mot": ""})
         for i in range(a, b + 1):
             pris[i] = True
-    i = 0
-    while i < n:
-        if pris[i]:
-            i += 1
-            continue
-        j = i
-        while j + 1 < n and not pris[j + 1] and par_mes[j + 1] == par_mes[i]:
-            j += 1
-        out.append({"m0": i, "m1": j, "label": par_mes[i],
-                    "source": "songformer", "mot": ""})
-        i = j + 1
+    for sec in auto or []:
+        lab = sec.get("label") or "?"
+        for a, b in (sec.get("barRanges") or []):
+            i = max(0, a)
+            fin = min(n - 1, b)
+            while i <= fin:
+                if pris[i]:
+                    i += 1
+                    continue
+                j = i
+                while j + 1 <= fin and not pris[j + 1]:
+                    j += 1
+                out.append({"m0": i, "m1": j, "label": lab,
+                            "source": "songformer", "mot": ""})
+                i = j + 1
     return sorted(out, key=lambda b: b["m0"])

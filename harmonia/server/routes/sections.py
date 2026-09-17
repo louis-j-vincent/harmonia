@@ -25,6 +25,13 @@ from harmonia.settings import SETTINGS
 
 log = logging.getLogger("harmonia.server.routes.sections")
 
+# La dépendance est déclarée ICI, pas au fond d'une fonction : depuis le
+# 2026-09-17 le découpage du modèle est la MÉTHODE PRINCIPALE de
+# `sections_inferer`, plus un détail d'implémentation.
+from harmonia.sections import detect_sections  # noqa: E402
+from harmonia.sections.simulation import (occurrences_de_tous,  # noqa: E402
+                                          remplir_par_songformer)
+
 bp = Blueprint("sections", __name__)
 
 AUDIO_DIR = SETTINGS.audio_dir
@@ -355,7 +362,7 @@ def sections_simuler(file):
         return jsonify({"briques": [], "algo": [], "songformer": [],
                         "auto": _plages(auto)})
     try:
-        occ = occurrences_de_tous(chart, humain, AUDIO_DIR)
+        occ, _ecartes = occurrences_de_tous(chart, humain, AUDIO_DIR)
         return jsonify({
             "briques": occ,
             "algo": remplir_par_algo(chart, occ, AUDIO_DIR),
@@ -380,179 +387,88 @@ def _plages(sections) -> list[dict]:
 
 @bp.post("/api/sections/inferer/<file>")
 def sections_inferer(file):
-    """Ce que Louis a surligné + ce que l'algo des quatre mots en déduit.
+    """Ses briques d'abord, leurs reprises ensuite, et SongFormer dans les trous.
 
-    Corps : {humain: [{label, mesure_debut, mesure_fin}]} — ses coups de
+    Corps : `{humain: [{label, mesure_debut, mesure_fin}]}` — ses coups de
     surligneur, en mesures 1-indexées, fin incluse.
 
-    LA RÈGLE DE NOMMAGE, qui est tout l'intérêt : ses sections à lui sont
-    figées et gardent SON nom ; celles que l'algorithme trouve avec le MÊME
-    contenu prennent aussi son nom — c'est le « infère les sections
-    similaires » de sa demande. Le reste reçoit des lettres neuves, choisies
-    parmi celles qu'il n'a pas déjà utilisées, pour qu'un B de l'algo ne
-    puisse jamais être confondu avec un B de sa main.
+    LA LOI, actée par Louis le 2026-09-17 (« notre brique + SongFormer comme
+    méthode principale, c'est acté ») :
+
+      1. **ce qu'il trace est une brique** — elle sort aux mesures exactes où
+         il l'a posée, sous son nom ;
+      2. **on cherche ses reprises** — la brique glissée le long de la matrice
+         de ressemblance chord-tone, pics sans recouvrement. « La première
+         chose à faire c'est de trouver d'autres occurrences de cette
+         section » ;
+      3. **les trous gardent ce que SongFormer avait trouvé**, au lieu d'être
+         redécoupés.
+
+    CE QUE ÇA REMPLACE, et pourquoi. L'ancienne version jetait son trait dans
+    l'agglomération des quatre mots, qui redécoupait TOUT le morceau à partir
+    d'un mot de bi-mesures — et ne lisait jamais `chart["sections"]`. Mesuré
+    sur Don't Want My Love (`docs/debut_pourquoi_2026-09-17.md`) : un trait
+    posé exactement là où SongFormer avait déjà sa section déplaçait quand
+    même cinq frontières sur six, faisait disparaître l'intro et l'outro, et
+    donnait le nom de sa brique à huit mesures de B-7 tenu. La recherche de
+    reprises, elle, retrouve exactement les trois occurrences du modèle.
+
+    CE QUE ÇA NE RÉSOUT PAS : une brique dont la matière revient TRANSPOSÉE
+    n'est pas retrouvée (la matrice compare des vecteurs absolus). Et si
+    SongFormer n'a jamais tourné sur ce morceau, la route ÉCHOUE au lieu de
+    se rabattre en silence sur l'ancien algorithme — un découpage qu'il n'a
+    pas demandé vaut moins qu'un message clair (décision du 2026-09-14 sur
+    la mort de l'enfant songformer).
     """
-    from harmonia.phrases4 import LETTERS, phrases
-    from harmonia.soudure import mot_sur_traits, song_du_chart, traits_propres
     p = CHARTS_DIR / f"{Path(file).stem}.json"
     if not p.exists():
         return jsonify({"error": "no such chart"}), 404
     chart = json.loads(p.read_text(encoding="utf-8"))
-    song = song_du_chart(chart, audio_dir=AUDIO_DIR)
-    if not song:
-        return jsonify({"error": "chart trop court"}), 400
-    mot, bornes = song["mot"], song["jetons"]
-    humain = (request.get_json(silent=True) or {}).get("humain") or []
+    stem = Path(chart.get("audio_url") or "").stem
+    audio = AUDIO_DIR / f"{stem}.m4a"
+    grid = chart.get("barGrid") or []
+    if len(grid) < 3 or not stem or not audio.exists():
+        return jsonify({"error": "chart trop court ou audio manquant"}), 400
 
-    # SES TRAITS SONT LES BORNES DE LA GRILLE — ils ne sont plus arrondis sur
-    # elle (Louis, 2026-09-17 : « du moment qu'un humain annote une section, il
-    # n'y a pas à le corriger, c'est LA vérité terrain, et c'est lui qui
-    # définit où commence la chanson »).
-    #
-    # Avant, la grille de bi-mesures était posée de deux en deux depuis la
-    # mesure 1, sans lui, puis ses traits y étaient quantifiés : sur ses 18
-    # découpages annotés, **52 débuts de section sur 191 reculaient d'une
-    # mesure et 27 traits sur 191 étaient jetés en silence** parce que leur
-    # jeton de départ était déjà pris par le trait précédent. Un `A` tracé
-    # mesure 10 ressortait mesure 9. C'est l'explication du symptôme noté dans
-    # `docs/known_issues.md` — « un découpage parfait noté 0 %, décalé d'un
-    # cran » : la machine trouvait bien ses blocs, c'est la quantification de
-    # SES traits qui les décalait.
-    #
-    # Les morceaux à phase paire n'en voyaient rien, d'où un bug qui paraissait
-    # capricieux : le décalage ne dépendait que de la parité de son trait.
-    # EN MESURES, pas en jetons. `bornes` compte les BI-MESURES : passer
-    # `len(bornes)-1` revenait à dire au nettoyage que le morceau fait 28
-    # mesures au lieu de 56, et TOUT trait tracé dans la seconde moitié était
-    # jeté avec la raison « commence après la fin du morceau ». Louis,
-    # 2026-09-17, sur Don't Want My Love : son trait « C » sur les mesures
-    # 37-48 a disparu, et la machine a rempli le trou avec des « A » par
-    # ressemblance. Régression introduite le matin même, en écrivant
-    # `traits_propres` — une erreur d'UNITÉ, exactement le premier motif du
-    # CLAUDE.md : elle produit des chiffres plausibles et faux.
-    gardes, perdus = traits_propres(humain, song["n_mesures"])
-    if gardes:
-        refait = mot_sur_traits(chart, [(b0, b1) for b0, b1, _ in gardes],
-                                audio_dir=AUDIO_DIR)
-        if refait:
-            bornes, mot, _source = refait
+    # Le découpage du modèle. Il ne dépend PAS de ses traits : on le garde par
+    # chart, sinon chaque validation le repaie. Le cache disque de songformer
+    # rend l'appel quasi gratuit après la première analyse du morceau.
+    cle = (p.name, p.stat().st_mtime_ns)
+    auto = _AUTO_CACHE.get(cle)
+    if auto is None:
+        try:
+            segs = detect_sections(grid, audio)
+        except Exception as exc:                             # noqa: BLE001
+            log.exception("sections %s : songformer indisponible", file)
+            return jsonify({"error": "SongFormer n'a pas pu découper ce "
+                                     f"morceau ({exc}). Rien n'a été écrit."}), 503
+        auto = [{"label": g["label"], "barRanges": [[g["b0"], g["b1"]]]}
+                for g in segs]
+        _AUTO_CACHE.clear()
+        _AUTO_CACHE[cle] = auto
+
+    humain = (request.get_json(silent=True) or {}).get("humain") or []
+    occ, perdus = occurrences_de_tous(chart, humain, AUDIO_DIR)
     if perdus:
-        # Jamais muet : l'ancien code les faisait disparaître sans trace.
+        # Jamais muet : l'ancien code faisait disparaître un trait sans rien
+        # dire (voir `soudure.traits_propres`).
         log.warning("sections %s: %d trait(s) écarté(s) — %s", file, len(perdus),
                     "; ".join(f"{t.get('label')}: {t['raison']}" for t in perdus))
-    index = {b: j for j, b in enumerate(bornes)}
-    fixes = []                       # (j0, j1, label) triés, sans chevauchement
-    for b0, b1, lab in gardes:
-        j0, j1 = index.get(b0), index.get(b1 + 1)
-        if j0 is None or j1 is None:
-            # Ne peut arriver que si la grille n'a pas été refaite (chart trop
-            # court pour `mot_sur_traits`) : on le dit plutôt que d'arrondir.
-            perdus.append({"label": lab, "raison": "hors de la grille"})
-            continue
-        fixes.append((j0, j1 - 1, lab))
+    blocs = remplir_par_songformer(chart, occ, auto)
+    tracees = {(o["m0"], o["m1"]) for o in occ if o["trace"]}
 
-    depart, j = [], 0
-    for j0, j1, _lab in fixes:
-        while j < j0:
-            depart.append((j, j + 1, mot[j]))
-            j += 1
-        depart.append((j0, j1 + 1, mot[j0:j1 + 1]))
-        j = j1 + 1
-    while j < len(mot):
-        depart.append((j, j + 1, mot[j]))
-        j += 1
-
-    # SES TRAITS SONT DES MURS. Sans le gel, `merges4` reprend l'agglomération
-    # à partir d'eux et continue de les souder ENTRE EUX : sur Let It Be, son
-    # couplet (4 mots) et son refrain (2 mots) tenaient ensemble sous cible=6,
-    # fusionnaient, et le bloc soudé — qui ne correspondait plus à aucune de
-    # ses sections — repartait sous une lettre de la machine. **15 sections
-    # envoyées, 1 seule rendue sous son nom** (2026-08-17). Prolonger une
-    # soudure est la règle de l'outil Soudure (/api/phrases4, inchangée) ;
-    # ici un trait est une section entière, elle se garde telle quelle.
-    secs, info = phrases(mot, depart=depart,
-                         geles={(j0, j1 + 1) for j0, j1, _lab in fixes})
-    # le contenu de chacune de ses sections -> son nom
-    par_contenu = {mot[j0:j1 + 1]: lab for j0, j1, lab in fixes}
-    # Les plages qu'il a VRAIMENT tracées, pour les distinguer à l'écran de
-    # celles où l'algorithme a propagé son nom. C'est toute la différence entre
-    # « c'est moi qui l'ai dit » et « la machine a suivi », et c'est ce qui
-    # rend l'outil relisible : sans ça il ne saurait plus ce qu'il a affirmé.
-    tracees = {(j0, j1): lab for j0, j1, lab in fixes}
-    siens = set(par_contenu.values())
-    libres = [c for c in LETTERS if c not in siens]
-    renom, k = {}, 0
     out = []
-    # SES BRIQUES SERVENT AUSSI À NOMMER CE QUI NE LEUR EST PAS IDENTIQUE
-    # (Louis, 2026-09-16 : « les sections suivantes devraient automatiquement
-    # être complétées en cherchant le même pattern plusieurs fois dans la
-    # chanson via les matrices ssm », puis « on lui ajoute l'info de quelles
-    # sont les vraies briques des sections »).
-    #
-    # Le nommage ci-dessus ne propage que sur une égalité EXACTE du mot : un
-    # refrain dont un seul jeton diffère repartait sous une lettre de machine.
-    # En second recours seulement, on compare le bloc aux plages que Louis a
-    # tracées, par la SSM chord-tone (`sections.similarity`, la même que la
-    # détection) : s'il ressemble assez à l'une d'elles, il prend SA lettre.
-    #
-    # MESURÉ sur ses 16 découpages validés, en simulant son geste (il marque la
-    # 1re occurrence de chaque lettre, puis valide) : l'accord lettre-par-mesure
-    # sur ce qu'il n'a PAS marqué passe de 36 % à 55 %. Le seuil vient du genou
-    # de la courbe précision/couverture (0,85 : 74 % des blocs nommés sont
-    # justes, contre 54 % sans seuil ; au-delà la précision plafonne). Une
-    # lettre FAUSSE est pire qu'une lettre neuve — elle a l'air d'une
-    # affirmation de sa part — donc on préfère la précision à la couverture.
-    #
-    # CE QUE ÇA NE RÉSOUT PAS : la vérité terrain est son propre découpage, que
-    # lui-même dit imparfait ; ces 55 % mesurent l'accord avec lui, pas la
-    # justesse musicale. Et la SSM est HARMONIQUE : deux sections qui tournent
-    # sur la même boucle (couplet/refrain de soul ou de funk) restent
-    # indiscernables ici — c'est la limite prouvée ce jour-là, la voie mélodie
-    # ayant été supprimée au refactor (voir `section_tool.substrates`).
-    ressemblance = None
-    if par_contenu:
-        try:
-            from harmonia import musx as _musx
-            from harmonia.sections.similarity import ssm
-            stem_a = Path(chart.get("audio_url") or "").stem
-            audio_a = AUDIO_DIR / f"{stem_a}.m4a"
-            if stem_a and audio_a.exists():
-                ressemblance = (
-                    ssm(_musx.frame_posteriors(audio_a)[0], chart["barGrid"]),
-                    {lab: (bornes[j0], bornes[j1 + 1] - bornes[j0])
-                     for j0, j1, lab in fixes
-                     if lab.strip().lower() not in JAMAIS_REJOUEES})
-        except Exception:                                    # noqa: BLE001
-            # Jamais muet : sans ressemblance on retombe sur les lettres
-            # neuves, ce qui est l'ancien comportement — mais on veut savoir.
-            log.exception("nommage par ressemblance indisponible")
-            ressemblance = None
-    for s in secs:
-        t = s["type"]
-        sien = tracees.get((s["j0"], s["j1"] - 1))
-        if sien is not None:
-            # SON trait garde SON étiquette. Le nom venait de `par_contenu`,
-            # une table contenu → étiquette : deux traits au contenu identique
-            # mais nommés différemment s'écrasaient l'un l'autre, et un bloc
-            # qu'il avait appelé A ressortait C. Un trait qu'il a tracé n'a pas
-            # besoin qu'on devine son nom, il le porte.
-            lab, source = sien, "humain"
-        elif t in par_contenu:
-            lab, source = par_contenu[t], "propage"
-        elif ressemblance and (proche := _plus_proche(
-                ressemblance, bornes[s["j0"]],
-                bornes[s["j1"]] - bornes[s["j0"]])):
-            lab, source = proche, "ressemble"
+    for b in blocs:
+        if b["source"] == "brique":
+            source = "humain" if (b["m0"], b["m1"]) in tracees else "propage"
         else:
-            if s["label"] not in renom:
-                renom[s["label"]] = libres[k % len(libres)] if libres else s["label"]
-                k += 1
-            lab, source = renom[s["label"]], "algo"
-        out.append({"label": lab + ("′" if s["prime"] else ""),
-                    "mesure_debut": bornes[s["j0"]] + 1,
-                    "mesure_fin": bornes[s["j1"]],
-                    "source": source, "reste": bool(s["queue"]), "type": t})
-    return jsonify({"sections": out, "cible": info["cible"],
+            source = "algo"
+        out.append({"label": b["label"],
+                    "mesure_debut": b["m0"] + 1, "mesure_fin": b["m1"] + 1,
+                    "source": source, "reste": False, "type": ""})
+    log.info("sections %s : %d brique(s) de Louis, %d bloc(s) rendus",
+             file, len(occ), len(out))
+    return jsonify({"sections": out,
                     "ecartes": [{"label": t.get("label"), "raison": t["raison"]}
                                 for t in perdus]})
 

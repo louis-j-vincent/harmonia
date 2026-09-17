@@ -129,26 +129,47 @@ def _chart_bidon(n_mesures=60, duree=2.0):
 
 
 def test_un_trait_dans_la_SECONDE_MOITIE_du_morceau_survit(tmp_path, monkeypatch):
-    """LA régression. `sections_inferer` passait à `traits_propres` le nombre
-    de JETONS (des bi-mesures) au lieu du nombre de MESURES : le nettoyage
-    croyait donc le morceau deux fois plus court, et tout trait tracé après la
-    moitié était jeté avec « commence après la fin du morceau ».
+    """LA régression du 2026-09-17, et le contrat de la route d'aujourd'hui.
 
-    Louis, 2026-09-17, sur Don't Want My Love : son trait « C » sur les mesures
-    37-48 d'un morceau de 56 mesures a disparu en silence, et la machine a
-    rempli le trou avec des « A » par ressemblance.
+    Le bug : `sections_inferer` passait à `traits_propres` le nombre de JETONS
+    (des bi-mesures) au lieu du nombre de MESURES. Le nettoyage croyait donc le
+    morceau deux fois plus court, et tout trait tracé après la moitié était
+    jeté avec « commence après la fin du morceau ».
 
+    Louis, sur Don't Want My Love : son trait « C » sur les mesures 37-48 d'un
+    morceau de 56 mesures a disparu en silence, et la machine a rempli le trou.
     Une erreur d'unité, le premier motif du CLAUDE.md : elle produit des
     chiffres plausibles et faux.
+
+    Le test vaut aussi pour la loi actée le même jour — brique + SongFormer :
+    ses deux traits doivent ressortir AUX MESURES TRACÉES et SOUS LEUR NOM, et
+    les trous porter ce que le modèle avait trouvé.
     """
     import json
 
     from harmonia.server import app as app_mod
     from harmonia.server.routes import sections as sec_mod
 
+    from harmonia.sections import simulation as sim_mod
+
     (tmp_path / "min_bidon.json").write_text(json.dumps(_chart_bidon()),
                                              encoding="utf-8")
+    (tmp_path / "absent.m4a").write_bytes(b"")     # le fichier doit EXISTER
     monkeypatch.setattr(sec_mod, "CHARTS_DIR", tmp_path)
+    monkeypatch.setattr(sec_mod, "AUDIO_DIR", tmp_path)
+    monkeypatch.setattr(sec_mod, "_AUTO_CACHE", {})
+    # La recherche de reprises demande l'audio et le modèle : elle est mesurée
+    # sur de vrais morceaux, pas ici. Ce test porte sur l'autre contrat — ses
+    # traits survivent, aux bonnes mesures et sous leur nom — donc on la
+    # neutralise en ne rendant que la brique elle-même.
+    monkeypatch.setattr(sim_mod, "cherche_brique",
+                        lambda chart, b0, b1, ad, **k: [(b0, b1, 1.0)])
+    # SongFormer ne tourne pas dans un test : on lui substitue un découpage
+    # fixe, et c'est LUI qu'on doit retrouver dans les trous.
+    monkeypatch.setattr(sec_mod, "detect_sections",
+                        lambda grid, audio, **k: [
+                            {"b0": 0, "b1": 19, "label": "intro"},
+                            {"b0": 20, "b1": 59, "label": "Z"}])
     client = app_mod.create_app().test_client()
 
     humain = [{"label": "A", "mesure_debut": 1, "mesure_fin": 8},
@@ -160,3 +181,12 @@ def test_un_trait_dans_la_SECONDE_MOITIE_du_morceau_survit(tmp_path, monkeypatch
     siens = [s for s in out["sections"] if s["source"] == "humain"]
     assert {(s["label"], s["mesure_debut"], s["mesure_fin"]) for s in siens} == {
         ("A", 1, 8), ("C", 41, 48)}, "ses deux traits, aux mesures tracées"
+    # les trous portent le découpage du modèle, pas des lettres inventées
+    trous = {s["label"] for s in out["sections"] if s["source"] == "algo"}
+    assert trous <= {"intro", "Z"}, f"les trous doivent venir du modèle : {trous}"
+    # et le morceau est couvert de bout en bout, sans trou ni chevauchement
+    plages = sorted((s["mesure_debut"], s["mesure_fin"])
+                    for s in out["sections"])
+    assert plages[0][0] == 1 and plages[-1][1] == 60
+    for (_a, b), (c, _d) in zip(plages, plages[1:]):
+        assert c == b + 1, f"trou ou chevauchement entre {b} et {c}"
