@@ -187,3 +187,134 @@ def debut_du_morceau(audio: Path, grille, probs_basse=None) -> dict:
     g = np.asarray(grille, dtype=float)
     return {"t": t, "son": son, "sur_une_ligne": sur,
             "mesure": (int(np.abs(g - t).argmin()) if len(g) else None)}
+
+
+# ── les quatre pistes, pour regarder POURQUOI on se trompe ───────────────────
+# Louis, 2026-09-17 : « montre-moi ceux où on se trompe [...] et mets sur
+# chacun en dessous les métriques dont tu te sers (intensité de la basse, de
+# la batterie, des accords, + une autre métrique de bruit ambiant parce que
+# des fois dans l'intro il y a ça) ».
+#
+# Une seule de ces quatre courbes sert la règle d'aujourd'hui (la basse). Les
+# trois autres sont là pour qu'il puisse dire ce qui manque — en particulier
+# la BATTERIE, qu'il a nommée en premier et qui est le seul indice ne
+# partageant rien avec musx, donc le seul capable de rattraper un morceau qui
+# ouvre sur un break de caisse claire (Billie Jean, Be My Baby).
+
+#: résolution des courbes affichées, en secondes
+PAS_PISTE = 0.1
+#: au-dessus de cette fréquence, on regarde les transitoires de la batterie
+HZ_BATTERIE = 4000.0
+
+
+def _spectre(audio: Path, fenetre: float, sr: int = 22050,
+             n: int = 1024, saut: int = 512):
+    """(|X|, fréquences, pas) — un spectrogramme d'amplitude, sans dépendance.
+
+    Lu par ffmpeg en mono, fenêtré Hann. Rien ici ne mérite une bibliothèque
+    de plus : deux transformées et une moyenne.
+    """
+    raw = subprocess.run(
+        ["ffmpeg", "-v", "error", "-i", str(audio), "-t", str(fenetre),
+         "-ac", "1", "-ar", str(sr), "-f", "f32le", "-"],
+        capture_output=True).stdout
+    x = np.frombuffer(raw, dtype=np.float32)
+    if len(x) < n * 2:
+        return None, None, None
+    fen = np.hanning(n).astype(np.float32)
+    trames = [np.abs(np.fft.rfft(x[i:i + n] * fen))
+              for i in range(0, len(x) - n, saut)]
+    return np.asarray(trames), np.fft.rfftfreq(n, 1.0 / sr), saut / sr
+
+
+def _vers_pas(v, pas_source: float, pas_cible: float = PAS_PISTE) -> list[float]:
+    """Ramène une courbe à `pas_cible`, en prenant le MAXIMUM de chaque tranche.
+
+    Le maximum et pas la moyenne : une attaque de batterie dure moins qu'un
+    dixième de seconde, une moyenne l'effacerait.
+
+    Le découpage se fait sur le TEMPS, pas sur un nombre entier de trames.
+    Grouper 4 trames musx (4 × 23,22 ms = 92,9 ms) en les appelant « 100 ms »
+    décalait la courbe de 7 % — trois secondes à 42 s, de quoi montrer une
+    entrée de basse une mesure à côté. C'est exactement le genre d'erreur
+    d'unité qui produit des chiffres plausibles et faux (règle 1 du CLAUDE.md).
+    """
+    v = np.asarray(v, dtype=float)
+    if not len(v):
+        return []
+    duree = len(v) * pas_source
+    n = max(1, int(duree / pas_cible))
+    bords = (np.arange(n + 1) * pas_cible / pas_source).astype(int)
+    bords = np.clip(bords, 0, len(v))
+    return [float(v[a:b].max()) if b > a else float(v[min(a, len(v) - 1)])
+            for a, b in zip(bords, bords[1:])]
+
+
+def _normalise(v) -> list[float]:
+    """0 à 1 sur le 95e centile, pour que la courbe se lise malgré un pic."""
+    a = np.asarray(v, dtype=float)
+    if not len(a):
+        return []
+    haut = float(np.percentile(a, 95)) or float(a.max()) or 1.0
+    return [round(float(min(1.0, x / haut)), 3) for x in a]
+
+
+def batterie(audio: Path, fenetre: float = 90.0) -> list[float]:
+    """L'intensité des transitoires AIGUS — la piste « batterie » de Louis.
+
+    Le flux spectral demi-redressé au-dessus de `HZ_BATTERIE` : ce qui monte
+    brusquement dans l'aigu, c'est-à-dire une caisse claire, un charley, un
+    coup de crash. Volontairement aveugle à l'harmonie, puisque c'est
+    exactement ce qui manque à la basse et aux accords, tous deux tirés de
+    musx sur le même audio.
+
+    CE QUE ÇA NE RÉSOUT PAS : ça ne distingue pas une batterie d'un autre
+    transitoire aigu (applaudissements, claquement de porte, sifflante de la
+    voix parlée). Sur une intro de clip bavarde, la parole en produit — c'est
+    pour ça que la courbe de bruit ambiant l'accompagne.
+    """
+    X, f, pas = _spectre(Path(audio), fenetre)
+    if X is None:
+        return []
+    haut = X[:, f >= HZ_BATTERIE]
+    flux = np.maximum(0.0, np.diff(haut, axis=0)).sum(axis=1)
+    return _normalise(_vers_pas(np.concatenate([[0.0], flux]), pas))
+
+
+def bruit_ambiant(audio: Path, fenetre: float = 90.0) -> list[float]:
+    """La platitude spectrale — haute pour du bruit, basse pour du son tenu.
+
+    Le rapport entre moyenne géométrique et moyenne arithmétique du spectre.
+    Une note de basse ou un accord concentrent leur énergie sur des
+    harmoniques : platitude basse. Une salle, une foule, un souffle, une voix
+    parlée s'étalent : platitude haute. C'est la courbe qui doit expliquer les
+    intros de clip, où il se passe du son sans qu'il se passe de la musique.
+    """
+    X, _f, pas = _spectre(Path(audio), fenetre)
+    if X is None:
+        return []
+    P = X ** 2 + 1e-12
+    plat = np.exp(np.mean(np.log(P), axis=1)) / np.mean(P, axis=1)
+    return _normalise(_vers_pas(plat, pas))
+
+
+def pistes(audio: Path, probs=None, fenetre: float = 90.0) -> dict:
+    """Les quatre courbes, au même pas, pour une carte de diagnostic.
+
+    `{basse, accords, batterie, bruit}` — chacune de 0 à 1, une valeur tous
+    les `PAS_PISTE`. Seule `basse` est lue par `debut_du_morceau` ; les autres
+    servent à voir ce qui lui manque.
+    """
+    from harmonia import musx as _musx
+    from harmonia.musx import FRAME_DT
+    audio = Path(audio)
+    if probs is None:
+        probs = _musx.frame_posteriors(audio)
+    n = int(fenetre / FRAME_DT)
+    return {
+        "basse": _normalise(_vers_pas(1.0 - probs[1][:n, 0], FRAME_DT)),
+        "accords": _normalise(_vers_pas(1.0 - probs[0][:n, 0], FRAME_DT)),
+        "batterie": batterie(audio, fenetre),
+        "bruit": bruit_ambiant(audio, fenetre),
+        "pas": PAS_PISTE,
+    }
