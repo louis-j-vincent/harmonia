@@ -41,55 +41,100 @@ from pathlib import Path
 
 logger = logging.getLogger("harmonia.sections.simulation")
 
-#: au-dessous de ce score de reprise, ce n'est pas la même brique
-SEUIL_REPRISE = 0.90
+#: plancher absolu : sous ce score, ce n'est jamais la même brique
+PLANCHER_REPRISE = 0.85
+#: combien d'écarts-types au-dessus de la médiane DU MORCEAU une reprise doit
+#: se détacher — le seuil est relatif, parce que la distribution ne l'est pas
+Z_REPRISE = 1.5
+#: on ne dépasse jamais ça : au-delà, même la brique elle-même serait recalée
+PLAFOND_REPRISE = 0.999
+#: ces rôles ne se rejouent pas — Louis, 2026-09-16 : « une intro ne se rejoue
+#: pas plus tard »
+JAMAIS_REJOUEES = {"intro", "outro", "silence"}
 #: l'alphabet des lettres neuves, d'où l'on retire celles de Louis
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
 def cherche_brique(chart: dict, b0: int, b1: int, audio_dir,
-                   seuil: float = SEUIL_REPRISE) -> list[tuple]:
+                   label: str = "") -> list[tuple]:
     """Les reprises de la brique [b0, b1] — mesures 0-indexées, fin incluse.
 
     On fait glisser la brique le long de la matrice de ressemblance chord-tone
     (`sections.similarity`, la même que l'app utilise déjà pour répondre « où
-    ce bloc se rejoue-t-il ? ») et on retient les pics par score décroissant,
-    en refusant tout recouvrement. La brique elle-même en fait partie, avec un
-    score de 1.
+    ce bloc se rejoue-t-il ? ») et on retient les pics sans recouvrement. La
+    brique elle-même est TOUJOURS rendue, en tête.
+
+    LE SEUIL EST RELATIF AU MORCEAU, et c'est tout l'enjeu. Un seuil absolu de
+    0,90 marchait sur Don't Want My Love et cassait Cry Me A River : Louis,
+    2026-09-17, « j'ai annoté, l'outil n'a complètement pas respecté ce que
+    j'avais écrit ». Mesuré, les deux distributions n'ont rien à voir :
+
+        Don't Want My Love   médiane 0,692 · 1,000 0,996 0,992 0,990 puis
+                             CHUTE de 0,135 à 0,855
+        Cry Me A River       médiane 0,896 · 1,000 0,963 0,963 0,961 0,952…
+                             chutes de 0,000 à 0,009, AUCUNE falaise
+
+    Sur le second, 38 départs sur 80 passaient 0,90 : sa brique était donc
+    recopiée sur la moitié du morceau. Le morceau est une ballade dont toutes
+    les mesures se ressemblent harmoniquement — le canal ne porte pas
+    l'information, et un seuil fixe ne peut pas le savoir.
+
+    D'où : `médiane + 1,5 écart-type`, borné par `PLANCHER_REPRISE` et
+    `PLAFOND_REPRISE`. Un morceau SANS CONTRASTE s'abstient tout seul, ce qui
+    est la bonne réponse — la brique de Louis reste posée là où il l'a mise et
+    SongFormer garde le reste. C'est la même loi que le projet applique déjà
+    ailleurs (`soudure._otsu`, un seuil par morceau ; mémoire « per-song
+    threshold, and a channel with no contrast abstains »).
+
+    UNE INTRO NE SE REJOUE PAS (Louis, 2026-09-16). Un rôle de
+    `JAMAIS_REJOUEES` ne cherche aucune reprise — sur Cry Me A River, « intro »
+    était recopié SEPT fois. Cette règle existait dans l'ancienne route et
+    avait été perdue en la réécrivant.
 
     CE QUE ÇA NE RÉSOUT PAS : une brique dont la matière revient TRANSPOSÉE
-    n'est pas retrouvée — la matrice compare des vecteurs chord-tone absolus.
-    Et une brique de moins de deux mesures donne un score instable, le
-    glissement n'ayant presque rien à comparer.
+    n'est pas retrouvée (la matrice compare des vecteurs absolus). Et sur un
+    morceau sans contraste on ne trouve RIEN, même quand la section se rejoue
+    vraiment : on préfère rater une reprise — SongFormer tient alors le trou —
+    que d'écrire son nom sur la moitié du morceau.
     """
     import numpy as np
 
     from harmonia import musx as _musx
     from harmonia.sections.similarity import _slide, ssm
+    seule = [(b0, b1, 1.0)]
+    if (label or "").strip().lower() in JAMAIS_REJOUEES:
+        return seule
     grid = chart.get("barGrid") or []
     n = len(grid) - 1
     L = b1 - b0 + 1
     stem = Path(chart.get("audio_url") or "").stem
     audio = Path(audio_dir) / f"{stem}.m4a"
     if n < 2 or L < 1 or not stem or not audio.exists():
-        # Sans audio il n'y a pas de matrice de ressemblance, donc aucune
-        # reprise à chercher : la brique reste seule. Ce n'est pas un repli
-        # muet — on le DIT — et ça ne trahit pas son geste, ça se contente de
-        # ne rien ajouter.
+        # Sans audio il n'y a pas de matrice, donc aucune reprise à chercher.
+        # Ce n'est pas un repli muet — on le DIT — et ça ne trahit pas son
+        # geste : ça se contente de ne rien ajouter.
         logger.info("cherche_brique : pas d'audio pour %s, la brique reste "
                     "seule", stem or "?")
-        return [(b0, b1, 1.0)]
+        return seule
     S = ssm(_musx.frame_posteriors(audio)[0], grid)
-    sc = _slide(S, b0, L, n)
-    pris, out = [], []
-    for b in sorted(range(max(1, n - L + 1)), key=lambda x: -sc[x]):
-        if sc[b] < seuil:
+    dom = np.asarray(_slide(S, b0, L, n))[:max(1, n - L + 1)]
+    if len(dom) < 3:
+        return seule
+    seuil = min(PLAFOND_REPRISE,
+                max(PLANCHER_REPRISE,
+                    float(np.median(dom) + Z_REPRISE * dom.std())))
+    pris, out = [(b0, b1)], list(seule)
+    for b in sorted(range(len(dom)), key=lambda x: -dom[x]):
+        if dom[b] < seuil:
             break
-        if any(not (b + L <= c or c + L <= b) for c in pris):
+        if any(not (b + L <= c or d < b) for c, d in pris):
             continue
-        pris.append(b)
-        out.append((b, b + L - 1, float(sc[b])))
-    return sorted(out) or [(b0, b1, 1.0)]
+        pris.append((b, b + L - 1))
+        out.append((b, b + L - 1, float(dom[b])))
+    logger.info("cherche_brique %s [%d-%d] « %s » : seuil %.3f (médiane %.3f, "
+                "σ %.3f) → %d occurrence(s)", stem, b0 + 1, b1 + 1, label,
+                seuil, float(np.median(dom)), float(dom.std()), len(out))
+    return sorted(set(out))
 
 
 def occurrences_de_tous(chart: dict, traits: list[dict],
@@ -108,7 +153,8 @@ def occurrences_de_tous(chart: dict, traits: list[dict],
     pris: list[tuple] = []
     out: list[dict] = []
     for b0, b1, label in gardes:
-        for x, y, sc in cherche_brique(chart, b0, b1, audio_dir):
+        for x, y, sc in cherche_brique(chart, b0, b1, audio_dir,
+                                       label=label):
             if any(not (y < c or d < x) for c, d in pris):
                 continue
             pris.append((x, y))
