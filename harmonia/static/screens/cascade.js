@@ -63,7 +63,28 @@ const tint = pc => `hsl(${hueOf(pc)} 52% 90%)`;
 // en rouge ferait crier « le modèle doute » à un compas qui ne doute pas, il
 // répartit.
 const encre = (p, premier) => premier ? confColor(p) : INK_ON_PETAL;
-// l'aire suit la proba, donc le rayon suit sa racine
+// ── LA TAILLE, ET RIEN QU'ELLE, DIT LA PROBABILITÉ ─────────────────────────
+// Louis, 2026-09-17 : « il faut que la taille des cercles / orbes reflète
+// vraiment les probas, je peux pas avoir 30 % plus grand que 20 % ».
+//
+// La formule de l'app est `rMin + √p × (rMax - rMin)` avec `rMin = 22` — le
+// plancher TACTILE. Mesuré : sur un morceau où le modèle donne 63 / 24 / 3 /
+// 2 / 1 %, elle rend 40 / 33 / 26 / 25 / 24 px de rayon. Un rapport de 63 en
+// probabilité devient 1,7 en rayon et 2,7 en aire : le plancher a mangé toute
+// l'échelle, et deux candidats que tout sépare ont l'air presque égaux.
+//
+// Ici l'aire est donc VRAIMENT proportionnelle à la probabilité : le rayon
+// est `rMax × √p`, sans plancher, et 100 % remplit la bande. Le plancher
+// tactile ne disparaît pas — il change de nature : il devient une zone de
+// contact INVISIBLE de 44 px autour de l'orbe, comme les anneaux de basse le
+// font déjà. Un orbe peut alors être un point, et rester touchable.
+const R_VU_MIN = 4;          // en dessous, on ne verrait plus qu'il existe
+const TACTILE = 44;          // le diamètre minimal d'une zone de contact
+const rayonDe = (p, rMax) => Math.max(R_VU_MIN, rMax * Math.sqrt(Math.max(0, Math.min(1, p))));
+//: l'orbe est-il assez grand pour porter son étiquette DEDANS ?
+const TIENT = 19;
+// l'aire suit la proba, donc le rayon suit sa racine (pour les anneaux de
+// basse, qui eux gardent la convention de l'app)
 const byArea = (p, rMin, rMax) => rMin + Math.sqrt(Math.max(0, Math.min(1, p))) * (rMax - rMin);
 
 // ── L'ACCORD QU'ON EST EN TRAIN DE CONSTRUIRE ──────────────────────────────
@@ -186,6 +207,10 @@ export function buildCascade(idx, onPick, bassOpts) {
     svg.appendChild(sv("circle", { cx, cy, r: R, fill: "none", stroke: T.line, "stroke-width": 1.5 }));
 
     const niv = niveau(), c = etat();
+    //: le pourcentage, écrit pour être lu — sous 1 %, « 0 % » ne distingue pas
+    //: un candidat que le modèle a vu d'un candidat qu'il a écarté.
+    const pct = p => p < 0.01 ? (p * 100).toFixed(1).replace(".", ",") + " %"
+                              : Math.round(p * 100) + " %";
     // la jante ne DÉSIGNE des notes qu'au premier niveau ; ensuite elle reste
     // comme mobilier, sans rien prétendre.
     const cible = {};
@@ -235,11 +260,11 @@ export function buildCascade(idx, onPick, bassOpts) {
     // LE MOYEU A LA TAILLE DE SA PROBA (Louis, 2026-09-17). On ne la recalcule
     // pas : il GARDE le rayon qu'avait l'orbe qu'on vient de toucher, donc
     // cliquer, c'est voir le disque glisser au centre sans changer de taille.
-    const Rout = R + Sz * 0.03, prMin = 22, prMax = Sz * 0.15;
+    const Rout = R + Sz * 0.03, prMax = Sz * 0.155;
     const dern = chemin.length ? chemin[chemin.length - 1] : null;
     const pMoy = dern ? (dern.p || 0)
       : ((casc.base.find(b => b.root === chord.root) || casc.base[0] || {}).c || 0);
-    const rMoy = (dern && dern.pr) ? dern.pr : byArea(pMoy, prMin, prMax);
+    const rMoy = (dern && dern.pr) ? dern.pr : rayonDe(pMoy, prMax);
     // l'anneau libre autour du moyeu suit donc le moyeu, et laisse la place à
     // sa légende, qui est SOUS le disque — elle ne peut plus le contraindre.
     const centerClear = rMoy + Sz * 0.055;
@@ -256,7 +281,7 @@ export function buildCascade(idx, onPick, bassOpts) {
       // mauvais. On les répartit à intervalles égaux — à ce niveau, l'angle
       // n'a rien à dire.
       const parQuintes = niv.cle === "base";
-      nodes = niv.opts.map((o, k) => ({ o, top: o === top, pr: byArea(o.p, prMin, prMax),
+      nodes = niv.opts.map((o, k) => ({ o, top: o === top, pr: rayonDe(o.p, prMax),
         a: parQuintes ? (-90 + fifthsIndex(o.pc) * 30) * Math.PI / 180
                       : (-90 + (360 / niv.opts.length) * k) * Math.PI / 180 }));
 
@@ -300,8 +325,12 @@ export function buildCascade(idx, onPick, bassOpts) {
         nodes.forEach(n => { const bord = n.r - n.pr - rMoy;
           if (bord < 0) pire = Math.max(pire, -bord); });
         if (pire < 0.5) break;
+        // On rétrécit TOUT LE MONDE du même facteur : les aires restent
+        // proportionnelles entre elles, c'est la seule chose qui compte pour
+        // comparer. (L'ancien `Math.max(plancher, …)` écrasait cette
+        // proportion dès qu'un orbe touchait le plancher.)
         const f = Math.max(0.90, 1 - pire / (2 * prMax));
-        nodes.forEach(n => { n.pr = Math.max(prMin * 0.62, n.pr * f); });
+        nodes.forEach(n => { n.pr = Math.max(R_VU_MIN, n.pr * f); });
         pose();
       }
       nodes.forEach(n => { n.x = cx + n.r * Math.cos(n.a); n.y = cy + n.r * Math.sin(n.a); });
@@ -322,35 +351,53 @@ export function buildCascade(idx, onPick, bassOpts) {
     const wrap = el("div", `position:relative;width:${Sz}px;margin:0 auto;`);
     const layer = el("div", "position:absolute;inset:0;pointer-events:none;");
     nodes.forEach((n, i) => {
-      const b = el("button", `position:absolute;left:${n.x}px;top:${n.y}px;`
+      const dedans = n.pr >= TIENT;
+      // LE DISQUE : sa taille est la probabilité, rien d'autre.
+      const b = el("div", `position:absolute;left:${n.x}px;top:${n.y}px;`
         + `transform:translate(-50%,-50%);width:${n.pr * 2}px;height:${n.pr * 2}px;`
         + `border-radius:50%;border:${n.top ? 2.5 : 1.5}px ${n.o.p < SUGGERE ? "dashed" : "solid"} ${edge(n.o.pc)};`
-        + `background:${fill(n.o.pc)};cursor:pointer;pointer-events:auto;display:flex;`
-        + `flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;`
+        + `background:${fill(n.o.pc)};display:flex;flex-direction:column;`
+        + `align-items:center;justify-content:center;gap:1px;padding:0;overflow:visible;`
         + `box-shadow:0 2px 6px rgba(60,40,20,.14);animation:ap-orb .3s ${0.04 * i}s both;`);
-      b.appendChild(glyph(n.o.sym.root, n.o.sym.q, Math.max(13, Math.round(n.pr * 0.58)),
-                          "exact", encre(n.o.p, niv.cle === "base")));
-      // LE POURCENTAGE SUR TOUS LES ORBES, y compris les petits (Louis,
-      // 2026-09-17 : « je veux pareil au premier niveau […] les % de chances
-      // sur chacun des autres accords »). `buildCompass` le cache sous une
-      // certaine taille ; ici c'est justement le petit orbe dont on veut
-      // savoir s'il vaut 5 % ou 0,4 %. Le plancher tactile garantit 44 px de
-      // diamètre, donc la place existe toujours — il suffit de ne pas
-      // l'écrire plus gros que l'orbe.
-      b.appendChild(el("span",
-        `font:600 ${Math.max(8, Math.min(11, Math.round(n.pr * 0.30)))}px ${UI};`
-        + `font-style:normal;line-height:1;color:${FAINT_ON_PETAL};`,
-        // sous 1 %, « 0 % » ne dit rien — on écrit la décimale qui distingue
-        // un candidat que le modèle a vu d'un candidat qu'il a écarté.
-        n.o.p < 0.01 ? (n.o.p * 100).toFixed(1).replace(".", ",") + " %"
-                     : Math.round(n.o.p * 100) + " %"));
-      b.onclick = () => {
+      if (dedans) {
+        b.appendChild(glyph(n.o.sym.root, n.o.sym.q, Math.round(n.pr * 0.58),
+                            "exact", encre(n.o.p, niv.cle === "base")));
+        b.appendChild(el("span",
+          `font:600 ${Math.min(11, Math.round(n.pr * 0.30))}px ${UI};`
+          + `font-style:normal;line-height:1;color:${FAINT_ON_PETAL};`, pct(n.o.p)));
+      }
+      layer.appendChild(b);
+      // L'ÉTIQUETTE SORT quand le disque est trop petit pour la porter. Elle
+      // se pose vers l'EXTÉRIEUR, dans le prolongement du rayon : c'est la
+      // seule direction où l'on est sûr de ne pas retomber sur le moyeu.
+      if (!dedans) {
+        const d = n.pr + 11, ex = n.x + d * Math.cos(n.a), ey = n.y + d * Math.sin(n.a);
+        const droite = Math.cos(n.a) > 0.2, gauche = Math.cos(n.a) < -0.2;
+        const lab = el("div", `position:absolute;left:${ex}px;top:${ey}px;`
+          + `transform:translate(${droite ? "0" : gauche ? "-100%" : "-50%"},-50%);`
+          + `display:flex;align-items:center;gap:4px;white-space:nowrap;`
+          + `pointer-events:none;animation:ap-orb .3s ${0.04 * i}s both;`);
+        lab.appendChild(glyph(n.o.sym.root, n.o.sym.q, 13, "exact",
+                              encre(n.o.p, niv.cle === "base")));
+        lab.appendChild(el("span",
+          `font:600 9.5px ${UI};font-style:normal;color:${T.faint};`, pct(n.o.p)));
+        layer.appendChild(lab);
+      }
+      // LA ZONE DE CONTACT, invisible et toujours d'au moins 44 px : c'est
+      // elle qui porte le plancher tactile, plus la taille du disque. Un orbe
+      // à 0,4 % peut donc être un point et rester touchable.
+      const z = Math.max(TACTILE, n.pr * 2);
+      const hit = el("button", `position:absolute;left:${n.x}px;top:${n.y}px;`
+        + `transform:translate(-50%,-50%);width:${z}px;height:${z}px;border-radius:50%;`
+        + `border:none;background:transparent;cursor:pointer;pointer-events:auto;padding:0;`);
+      hit.title = `${pct(n.o.p)}`;
+      hit.onclick = () => {
         chemin.push(niv.cle === "base"
           ? { cle: "base", root: n.o.root, type: n.o.type, sym: n.o.sym, p: n.o.p, pr: n.pr }
           : { cle: niv.cle, i: n.o.i, sym: n.o.sym, p: n.o.p, pr: n.pr });
         dessine();
       };
-      layer.appendChild(b);
+      layer.appendChild(hit);
     });
 
     // LE MOYEU EST L'ACCORD COURANT, et on le touche pour VALIDER — même
@@ -362,18 +409,30 @@ export function buildCascade(idx, onPick, bassOpts) {
     // fondamentale — un `D-7/D` n'existe pas.
     const basseChoisie = (bassOpts.picked == null) ? (chord.bass == null ? -1 : chord.bass)
                                                    : bassOpts.picked;
+    const zMoy = Math.max(TACTILE, rMoy * 2);
     const hub = el("button", `position:absolute;left:${cx}px;top:${cy}px;`
-      + `transform:translate(-50%,-50%);width:${rMoy * 2}px;height:${rMoy * 2}px;`
+      + `transform:translate(-50%,-50%);width:${zMoy}px;height:${zMoy}px;`
       + `border-radius:50%;border:none;background:transparent;cursor:pointer;`
       + `pointer-events:auto;display:flex;align-items:center;justify-content:center;padding:0;`);
-    // Le moyeu pouvant être petit, le symbole doit tenir dedans : largeur
-    // estimée du Georgia italique, bornée par la corde du disque.
+    // Le moyeu suit la même loi que les orbes, donc il peut être minuscule :
+    // son symbole sort alors sous le disque, là où vit déjà sa légende.
     const larg = 1 + (sym.q || "").length * 0.48;
-    hub.appendChild(glyph(sym.root, sym.q,
-      Math.max(12, Math.min(Math.round(Sz * 0.1), Math.round(1.7 * rMoy / larg))),
-      "exact", confColor(chemin.length ? (chemin[0].p || 0) : pMoy), basseChoisie));
+    const tailleMoy = Math.min(Math.round(Sz * 0.1), Math.round(1.7 * rMoy / larg));
+    const moyDedans = tailleMoy >= 12;
+    const encreMoy = confColor(chemin.length ? (chemin[0].p || 0) : pMoy);
+    if (moyDedans) hub.appendChild(glyph(sym.root, sym.q, tailleMoy, "exact",
+                                         encreMoy, basseChoisie));
     hub.onclick = () => { onPick({ root: sym.root, q: sym.q }, hub); };
     layer.appendChild(hub);
+    if (!moyDedans) {
+      const g = el("div", `position:absolute;left:${cx}px;top:${cy + rMoy + 13}px;`
+        + `transform:translate(-50%,-50%);display:flex;align-items:center;gap:5px;`
+        + `white-space:nowrap;pointer-events:none;`);
+      g.appendChild(glyph(sym.root, sym.q, 17, "exact", encreMoy, basseChoisie));
+      g.appendChild(el("span", `font:600 9.5px ${UI};color:${T.faint};`,
+                       pct(chemin.length ? (dern.p || 0) : pMoy)));
+      layer.appendChild(g);
+    }
     // Les anneaux de basse, tapables. Le disque bleu dessiné dans le SVG reste
     // le VISUEL (sa taille dit la probabilité) ; ce bouton n'est que sa zone
     // de contact, portée au minimum tactile de 44 px même quand l'anneau est
@@ -389,7 +448,11 @@ export function buildCascade(idx, onPick, bassOpts) {
     });
     // la légende est SOUS le disque : dedans, elle imposait au moyeu une
     // taille minimale et un moyeu à 1 % ne pouvait pas être petit.
-    layer.appendChild(el("div", `position:absolute;left:${cx}px;top:${cy + rMoy + 10}px;`
+    // La légende du moyeu ne tient que sous un moyeu assez gros : sous un
+    // moyeu minuscule elle tomberait en travers de l'orbe voisin, et le pied
+    // de page dit déjà la même chose.
+    if (moyDedans) layer.appendChild(el("div",
+      `position:absolute;left:${cx}px;top:${cy + rMoy + 10}px;`
       + `transform:translate(-50%,-50%);font:600 9px ${UI};color:${T.faint};white-space:nowrap;`,
       niv ? "c'est celui-là" : "accord complet"));
     wrap.appendChild(svg); wrap.appendChild(layer);
