@@ -77,6 +77,90 @@ def cherche_brique(chart, b0: int, b1: int, seuil: float = 0.90) -> list[tuple]:
     return sorted(out)
 
 
+def remplir_par_algo(chart, occ, label):
+    """Les trous entre les occurrences, remplis par l'algorithme des 4 mots.
+
+    Les occurrences de la brique de Louis entrent TOUTES comme unités gelées —
+    pas seulement celle qu'il a tracée. L'agglomération ne travaille donc que
+    dans les trous, et ne peut plus donner son nom à un bloc qu'elle a
+    fabriqué elle-même.
+    """
+    from harmonia.phrases4 import grouper_restes, merges4, nommer, phrases
+    from harmonia.soudure import mot_sur_traits
+
+    traits = [(b0, b1) for b0, b1, _ in occ]
+    bornes, mot, _src = mot_sur_traits(chart, traits,
+                                       audio_dir=SETTINGS.audio_dir)
+    idx = {b: j for j, b in enumerate(bornes)}
+    fixes = [(idx[b0], idx[b1 + 1] - 1) for b0, b1 in traits if b0 in idx]
+    depart, j = [], 0
+    for j0, j1 in fixes:
+        while j < j0:
+            depart.append((j, j + 1, mot[j])); j += 1
+        depart.append((j0, j1 + 1, mot[j0:j1 + 1])); j = j1 + 1
+    while j < len(mot):
+        depart.append((j, j + 1, mot[j])); j += 1
+    geles = {(j0, j1 + 1) for j0, j1 in fixes}
+    _secs, info = phrases(mot, depart=depart, geles=geles)
+    steps = merges4(mot, cible=info["cible"], depart=depart, geles=geles)
+    blocs = grouper_restes(nommer(steps[-1]["jetons"], info["cible"],
+                                  geles=geles), mot, info["cible"])
+    siens = {(j0, j1 + 1) for j0, j1 in fixes}
+    # Les lettres neuves ne doivent pas rentrer en collision avec la sienne.
+    libres = [c for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" if c != label.upper()]
+    renom, k, out = {}, 0, []
+    for b in blocs:
+        sien = (b["j0"], b["j1"]) in siens
+        if sien:
+            nom = label
+        else:
+            if b["label"] not in renom:
+                renom[b["label"]] = libres[k % len(libres)]; k += 1
+            nom = renom[b["label"]] + ("′" if b["prime"] else "")
+        out.append({"m0": bornes[b["j0"]], "m1": bornes[b["j1"]] - 1,
+                    "nom": nom, "txt": b["type"], "humain": sien})
+    return out
+
+
+def remplir_par_songformer(chart, occ, label, auto_sections):
+    """Les trous, remplis par ce que SongFormer avait trouvé.
+
+    Les mesures couvertes par la brique de Louis gardent SON nom ; partout
+    ailleurs on reprend l'étiquette de SongFormer, et les mesures voisines de
+    même étiquette redeviennent un bloc. C'est le contraire de ce que fait la
+    route aujourd'hui, qui jette purement et simplement ce découpage.
+    """
+    n = int(chart.get("nBars") or 0)
+    par_mes = ["?"] * n
+    for sec in auto_sections or []:
+        for a, b in (sec.get("barRanges") or []):
+            for i in range(max(0, a), min(n, b + 1)):
+                par_mes[i] = sec.get("label") or "?"
+    # Ses occurrences sont des blocs À PART, jamais fondues entre elles : deux
+    # occurrences voisines de la même brique restent deux occurrences. Les
+    # fondre affichait « A 7-22 » là où le morceau joue deux fois A.
+    pris = [False] * n
+    blocs = []
+    for b0, b1, _ in occ:
+        b0, b1 = max(0, b0), min(n - 1, b1)
+        blocs.append({"m0": b0, "m1": b1, "nom": label, "txt": "toi",
+                      "humain": True})
+        for i in range(b0, b1 + 1):
+            pris[i] = True
+    i = 0
+    while i < n:
+        if pris[i]:
+            i += 1
+            continue
+        j = i
+        while j + 1 < n and not pris[j + 1] and par_mes[j + 1] == par_mes[i]:
+            j += 1
+        blocs.append({"m0": i, "m1": j, "nom": par_mes[i],
+                      "txt": "songformer", "humain": False})
+        i = j + 1
+    return sorted(blocs, key=lambda b: b["m0"])
+
+
 def _sous_etape0(label, b0, b1, avant, apres, mot_av, mot_ap, n_unites) -> str:
     """Ce que le trait a VRAIMENT changé avant même que l'algorithme démarre.
 
@@ -212,6 +296,26 @@ def etapes(cle: str, label: str, b0: int, b1: int) -> dict:
                 "recouvrement — écoute-les pour juger",
         "unites": [{"m0": x, "m1": y, "txt": f"{sc:.2f}", "nom": label,
                     "humain": (x == b0 - 1)} for x, y, sc in occ]})
+
+    # LES DEUX FAÇONS DE REMPLIR LES TROUS. Louis, 2026-09-17 : « il faut
+    # impérativement caler ma brique, puis montre ce que ça fait dans les deux
+    # cas, remplir avec l'algo actuel vs remplir avec SongFormer, toujours en
+    # utilisant ma brique et ses occurrences détectées en priorité ».
+    from harmonia.pipeline import analyze
+    auto = analyze(SETTINGS.audio_dir / f"{stem}.m4a",
+                   title=chart.get("title") or stem, file_key=cle,
+                   audio_url=f"/audio/{stem}.m4a")
+    vues.append({
+        "titre": "trous remplis par l'algo",
+        "sous": "tes occurrences sont gelées ; l'algorithme des quatre mots ne "
+                "travaille plus que DANS les trous",
+        "unites": remplir_par_algo(chart, occ, label)})
+    vues.append({
+        "titre": "trous remplis par SongFormer",
+        "sous": "tes occurrences d'abord ; partout ailleurs, ce que SongFormer "
+                "avait trouvé, au lieu de le jeter",
+        "unites": remplir_par_songformer(chart, occ, label,
+                                         auto.get("sections"))})
 
     return {
         "cle": cle, "titre": chart.get("title") or stem, "n": n,
