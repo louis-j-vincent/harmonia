@@ -32,6 +32,32 @@ from harmonia.settings import SETTINGS
 from tools.annotation_degats import couleur, nom_accord
 
 
+def _sous_etape0(label, b0, b1, avant, apres, mot_av, mot_ap, n_unites) -> str:
+    """Ce que le trait a VRAIMENT changé avant même que l'algorithme démarre.
+
+    Pas seulement « il est gelé ». Sur Don't Want My Love, la machine avait
+    trouvé une COUTURE — un jeton d'une seule mesure à la 30ᵉ, posé là où le
+    morceau a une mesure en trop. `jetons_sur_traits` repose une grille
+    régulière : la couture disparaît, et tout ce qui suit la mesure 30 se
+    décale d'une mesure. Trois jetons changent alors de lettre, à l'autre bout
+    du morceau, très loin du trait. C'est mesuré ici et écrit sur la page
+    plutôt que deviné.
+    """
+    bouts = [f"ton trait {label} (mesures {b0}-{b1}) entre comme UNE unité "
+             f"gelée ; {len(apres)-1} jetons, {n_unites} unités"]
+    d = [i for i, (x, y) in enumerate(zip(avant, apres)) if x != y]
+    if d:
+        bouts.append(f"⚠ les bords bougent à partir de la mesure "
+                     f"{min(avant[d[0]], apres[d[0]]) + 1} : la couture que la "
+                     "machine avait posée là disparaît, et tout ce qui suit se "
+                     "décale")
+    chg = [i for i, (x, y) in enumerate(zip(mot_av, mot_ap)) if x != y]
+    if chg:
+        bouts.append(f"⚠ {len(chg)} jeton(s) changent de lettre, dont le n°"
+                     f"{chg[0]} — loin de ton trait")
+    return " · ".join(bouts)
+
+
 def etapes(cle: str, label: str, b0: int, b1: int) -> dict:
     """Le chart, et l'état des unités après chaque soudure."""
     from harmonia.phrases4 import (cout, grouper_restes, merges4, nommer,
@@ -72,9 +98,21 @@ def etapes(cle: str, label: str, b0: int, b1: int) -> dict:
         return [{"m0": bornes[t[0]], "m1": bornes[t[1]] - 1, "txt": t[2]}
                 for t in toks]
 
-    vues = [{"titre": "étape 0 — les jetons",
-             "sous": f"{len(bornes)-1} bi-mesures, une lettre chacune ; "
-                     f"ton trait {label} est déjà d'un seul tenant",
+    # AVANT TON TRAIT — la grille que la machine se donne toute seule. Louis,
+    # 2026-09-17 : « et ça c'est à quel moment que l'humain a noté quelque
+    # chose ? moi j'ai annoté une section, c'est l'étape 0 ou 1 ? ». Ni l'une
+    # ni l'autre : son trait entre AVANT l'étape 0, et il ne fait pas que se
+    # figer — les bords des jetons épousent ses frontières, donc le mot lui-
+    # même change. Cette vue est là pour qu'on voie ce que son trait déplace.
+    vues = [{"titre": "avant ton trait",
+             "sous": f"la machine seule découpe en {len(song['jetons'])-1} "
+                     "bi-mesures posées de deux en deux, et lit un mot dessus",
+             "unites": [{"m0": song["jetons"][k], "m1": song["jetons"][k+1]-1,
+                         "txt": song["mot"][k]}
+                        for k in range(len(song["jetons"]) - 1)]},
+            {"titre": "étape 0 — ton trait est posé",
+             "sous": _sous_etape0(label, b0, b1, song["jetons"], bornes,
+                                  song["mot"], mot, len(depart)),
              "unites": en_mesures(depart)}]
     for k, s in enumerate(steps[1:], 1):
         vues.append({
@@ -200,6 +238,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   D.vues.forEach((v,i)=>{
     const b=document.createElement('button');
     b.dataset.i=i; b.textContent=v.titre.split(" — ")[0];
+    if(i<2) b.style.borderColor="#4a7c3f";   // les deux vues qui encadrent son geste
     b.onclick=()=>{vue=i;peindre();};
     bar.appendChild(b);
   });
@@ -220,7 +259,11 @@ def page(d: dict) -> str:
         "étape. <b>Touche une mesure pour écouter l'unité entière</b> à "
         "laquelle elle appartient — c'est là qu'on entend ce qu'une lettre veut "
         f"dire.<br><br>Ton trait ici : <b>{html.escape(lab)} sur les mesures "
-        f"{b0}-{b1}</b>. Il est gelé dès l'étape 0 et ne bougera plus.<br>"
+        f"{b0}-{b1}</b>. <b>Il entre AVANT l'étape 0</b> — compare les deux "
+        "premières vues : il ne fait pas que se figer, il déplace aussi les "
+        "bords des jetons, donc le mot que la machine lit. Les étapes 1 et "
+        "suivantes sont les soudures de la machine, qui ne touchent jamais à "
+        "ton bloc.<br>"
         "Pendant les étapes, la teinte suit le CONTENU d'une unité : deux "
         "unités de même teinte ont le même contenu, et c'est exactement ce qui "
         "leur fera porter le même nom. Sur les deux dernières vues elle suit le "
