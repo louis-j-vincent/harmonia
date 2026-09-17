@@ -382,6 +382,28 @@ inchangée.
 
 ## Résolu récemment
 
+- **« Enregistrer comme vérité » repliait bien le chart, mais Read montrait le
+  déplié** (2026-09-17, Louis : « quand je vais dans read j'ai le chart brut
+  avec les sections colorées, pas bon du tout »).
+  Le disque avait raison depuis le début : `/api/soudure/valider/<file>`
+  re-empile les accords (`refold`) ET replie l'affichage
+  (`soudure.sections_pour_chart`) — vérifié sur Ready, 8 occurrences à la main
+  deviennent 3 sections avec reps 5/2/1. Le bug était à l'écran :
+  `writeSectionsToChart` charge EXPRÈS le modèle DÉPLIÉ pour que l'outil de
+  sections reste utilisable, et range le replié dans `S._foldedModel` ; seul
+  `closeSectionTool()` le restituait. Passer en « Read » ne faisait que changer
+  `S.mode` sans recharger — on relisait donc le déplié. Le geste naturel après
+  avoir enregistré, c'est d'aller voir le résultat : le sélecteur de mode ferme
+  maintenant l'outil, ce qui rend la vue repliée.
+  Vérifié dans l'app vivante, rouge puis vert : sans le correctif 20 -> 60 ->
+  60 cellules, avec 20 -> 60 -> 20.
+  **Ce que ça ne règle pas** : il existe DEUX implémentations du repli
+  d'affichage — `folding.minimal_fold` (pipeline) et
+  `soudure.sections_pour_chart` (cette route). Elles peuvent diverger sans que
+  rien ne le dise.
+
+
+
 - **« Valider les sections » complète le reste avec les BRIQUES de Louis
   (2026-09-16).** Sa demande : « une fois qu'on a acté les premières sections
   au doigt et cliqué sur valider, les sections suivantes devraient

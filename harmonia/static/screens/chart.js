@@ -10,7 +10,7 @@ import { go, screenWrap } from "../router.js";
 import { applyRefinement } from "../screens/analyse.js";
 import { candList, openAnnotateTools, openBarExpanded, openEditor } from "../screens/annotate.js";
 import { openChordSheet, openPrefsSheet, openRotor, transposeTo } from "../screens/prefs.js";
-import { attachSectionDrag, buildSectionTool, paintSectionTool, sectToolOn, setPlayhead, spanTime } from "../screens/sections_editor.js";
+import { attachSectionDrag, buildSectionTool, closeSectionTool, paintSectionTool, sectToolOn, setPlayhead, spanTime } from "../screens/sections_editor.js";
 import { S } from "../state.js";
 import { PREF, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, ctlSkin, dispQ, el, fmt, fnColor, glyph, handle, haptic, keyFill, keyHue, kitIcon, kitLegend, kitSegmented, learnLevel, lensLabelColor, mod, note, overlay, play, playGlyph, playMidis, playedLabel, qClass, renderHand, setSpelling, splitHands, tightGap, tightSize, toast, vlTrack, voClose, voicingByStyle, withBass } from "../ui/kit.js";
 
@@ -621,7 +621,18 @@ export function chartDock(){
     const modes=kitSegmented(
       [["read","Read"],["analyse","Analyse"],["annotate","Annotate"],["practise","Practise"]],
       ()=>S.mode,
-      v=>{ if(v==="practise"){ go("prompter"); return; } S.mode=v; go("chart",{push:false}); },
+      v=>{
+        // QUITTER L'OUTIL DE SECTIONS PAR CE BOUTON REND AUSSI LA VUE REPLIÉE
+        // (Louis, 2026-09-17 : « quand je vais dans read j'ai le chart brut
+        // avec les sections colorées, pas bon du tout »).
+        // `writeSectionsToChart` charge EXPRÈS le chart déplié pour que l'outil
+        // reste utilisable, et range le replié dans `S._foldedModel` ; seul
+        // `closeSectionTool` le restituait. Passer en Read ne faisait que
+        // changer `S.mode`, donc on relisait le déplié — le chart était
+        // pourtant bien replié sur le disque. Le geste naturel après avoir
+        // enregistré, c'est d'aller voir le résultat : il ferme l'outil.
+        if(S.sectTool) closeSectionTool();
+        if(v==="practise"){ go("prompter"); return; } S.mode=v; go("chart",{push:false}); },
       {font:13.5});
     modes.style.marginTop="12px";
     dock.appendChild(modes);
