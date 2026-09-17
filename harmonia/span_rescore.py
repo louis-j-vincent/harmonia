@@ -196,6 +196,53 @@ def acoustic_logp_musx(
 # ``ireal_q_to_q5`` below).
 Q5_TAIL = {0: "", 1: "-", 2: "7", 3: "-7b5", 4: "o"}
 
+#: Les quatre colonnes de la tête de SEPTIÈME du modèle vendu
+#: (`complex_chord.SeventhTypes`) : aucune, la majeure, la mineure, la
+#: diminuée.
+_SEV_NONE, _SEV_MAJ7, _SEV_B7, _SEV_BB7 = 0, 1, 2, 3
+
+
+def queue_du_candidat(q5_idx: int, pooled_s7=None) -> str:
+    """La queue écrite d'un candidat — `^7` et `-7` compris quand la septième
+    du modèle les soutient.
+
+    Louis, 2026-09-17 : « typiquement l'endroit ou j'ai marqué un Emaj7, ca ne
+    le proposait jamais ». Mesuré : `^7` apparaissait dans 177 suggestions de
+    la bibliothèque, et les 177 fois l'accord ÉCRIT était déjà ce maj7. Comme
+    alternative : zéro. Idem `-7`, pourtant écrit 348 fois.
+
+    La cause est dans l'espace de candidats lui-même : 12 racines × CINQ
+    familles, où `_TRIAD_SEV_TO_QUAL5` replie ("maj","maj7") sur "maj" et
+    ("min","b7") sur "min". `Q5_TAIL` écrivait ensuite `""` et `"-"`.
+
+    Ce qui change ici : RIEN au classement — même espace, mêmes probabilités,
+    même ordre. Seul le NOM est raffiné, avec une information que musx produit
+    déjà et que `acoustic_logp_musx` lit depuis toujours pour scorer. On ne
+    devine rien, on cesse de jeter.
+
+    Conservateur et SANS SEUIL NOUVEAU : une famille « maj » ne devient `^7`
+    que si la septième la plus probable EST la maj7, une « min » ne devient
+    `-7` que si c'est la b7. Une « maj » avec une b7 garde sa triade nue —
+    cette combinaison a déjà sa famille (`dom`), et la nommer `^7`
+    contredirait le repli qui a produit le classement.
+
+    `pooled_s7` absent ou vide : on rend l'ancienne queue. Un chart d'avant ou
+    un appelant sans la tête ne doit pas casser.
+    """
+    base = Q5_TAIL[q5_idx]
+    if pooled_s7 is None:
+        return base
+    import numpy as np
+    v = np.asarray(pooled_s7, dtype=float).ravel()
+    if v.size < 4 or not float(v.sum()) > 0.0:
+        return base
+    sev = int(np.argmax(v))
+    if q5_idx == 0 and sev == _SEV_MAJ7:          # maj -> maj7
+        return "^7"
+    if q5_idx == 1 and sev == _SEV_B7:            # min -> min7
+        return "-7"
+    return base
+
 
 def ireal_q_to_q5(q: str | None) -> int:
     """Queue iReal (`-7`, `^7`, `h7`, `o`…) → l'index QUAL5 des candidats.
@@ -327,9 +374,11 @@ def delta_candidates(probs: list[np.ndarray], span: tuple[float, float],
         ordre = sorted(plancher, key=lambda i: -gains[i])
         source = "delta"
     sug = []
+    s7 = cur_pool[1][0]                   # la septième que le modèle entend ICI
     for i in ordre[:top_k]:
         r, q5 = token_of(int(i))
-        e = {"root": int(r), "q": Q5_TAIL[q5], "c": round(float(p_cur[i]), 3)}
+        e = {"root": int(r), "q": queue_du_candidat(q5, s7),
+             "c": round(float(p_cur[i]), 3)}
         if gains[i] is not None:
             e["gain"] = round(gains[i], 3)
         sug.append(e)
@@ -385,15 +434,17 @@ def musx_suggestions(probs: list[np.ndarray], chords: list[dict],
     pooled_triad, pooled_s7 = pool_span_musx(probs, spans)
     logp, _n_mass = acoustic_logp_musx(pooled_triad, pooled_s7)
     post = np.exp(logp)
-    for (c, root), p in zip(kept, post):
+    for k, ((c, root), p) in enumerate(zip(kept, post)):
         own = idx_of(root, ireal_q_to_q5(c.get("q")))
+        s7 = pooled_s7[k]                  # la septième que le modèle entend ICI
         sug = []
         for rank, i in enumerate(np.argsort(p)[::-1][:top_k]):
             if rank and float(p[i]) < floor:
                 break          # l'échelle décroît : le reste est sous le plancher
             r, q5 = token_of(int(i))
             sug.append({"root": int(r),
-                        "q": c.get("q", "") if int(i) == own else Q5_TAIL[q5],
+                        "q": c.get("q", "") if int(i) == own
+                             else queue_du_candidat(q5, s7),
                         "c": round(float(p[i]), 3)})
         c["sug"] = sug
     return len(kept)

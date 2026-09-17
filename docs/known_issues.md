@@ -415,6 +415,31 @@ inchangée.
 
 ## Résolu récemment
 
+- **Le compas ne pouvait proposer ni maj7 ni min7** (2026-09-17, Louis :
+  « typiquement l'endroit ou j'ai marqué un Emaj7, ca ne le proposait jamais,
+  c'est pas detecté par musx les major 7th ? »). Mesuré avant de répondre :
+  `^7` apparaissait 177 fois dans les suggestions de la bibliothèque, et les
+  177 fois l'accord ÉCRIT était déjà ce maj7 ; comme ALTERNATIVE, zéro. Idem
+  `-7`, pourtant écrit 348 fois.
+  Cause : l'espace de candidats est 12 racines × CINQ familles
+  (`span_rescore.QUAL5`), et `_TRIAD_SEV_TO_QUAL5` y replie ("maj","maj7") sur
+  "maj" et ("min","b7") sur "min" ; `Q5_TAIL` écrivait ensuite `""` et `"-"`.
+  Seul l'accord déjà écrit gardait sa queue — d'où les 177/177.
+  Correctif : `span_rescore.queue_du_candidat` raffine le NOM du candidat avec
+  la tête de septième de musx (`probs[2]`, quatre colonnes), que
+  `acoustic_logp_musx` lisait déjà pour SCORER. Le classement ne bouge pas —
+  même espace, mêmes probabilités, même ordre. Conservateur et sans seuil
+  nouveau : « maj » ne devient `^7` que si la septième la plus probable est la
+  maj7, « min » ne devient `-7` que si c'est la b7 ; une « maj » avec une b7
+  garde sa triade (cette combinaison a déjà sa famille, `dom`).
+  Effet sur la bibliothèque : `-7` proposé 0 -> **434** fois, `^7` 0 -> **137**.
+  Zéro accord écrit ne change (vérifié par diff).
+  **Ce que ça ne règle pas** : `h7`, `7sus4`, `sus4`, `9`, `+` restent
+  improposables — ils ne sont dans aucune des cinq familles, et musx n'a pas
+  de tête qui les distingue comme il le fait pour la septième.
+
+
+
 - **Verrou d'octave du tracker de battues : bouton ÷2/×2 dans l'écran Outils**
   (2026-09-17, Louis sur *Can't Take My Eyes Off You* de Frankie Valli : « le
   bpm est 2x too quick »). Mesuré : Beat This! lisait 125 BPM, avec des
