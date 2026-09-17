@@ -53,10 +53,11 @@
   padding:12px 14px;margin:16px 0}
  .note p{margin:7px 0;font-size:12.5px;color:var(--faint)}
  .cle{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;
-   gap:3px;margin:9px 0 11px}
+   gap:3px;margin:9px 0 11px;align-items:center}
  .cle .pas{height:28px;border-radius:6px;
    display:flex;align-items:center;justify-content:center;
    font:600 9.5px/1 -apple-system,system-ui,sans-serif}
+ .cle .disque{border-radius:50%;justify-self:center;box-sizing:border-box}
  .note b{color:var(--ink)}
  footer{margin-top:20px;padding-top:12px;border-top:1px solid var(--line);
   font:500 11px/1.8 -apple-system,system-ui,sans-serif;color:var(--faint)}
@@ -232,30 +233,33 @@
   pose à l'angle de sa fondamentale, et la jante s'allume sur les notes
   proposées. Aux niveaux suivants les options sont des degrés du même accord&nbsp;:
   l'angle n'a plus rien à dire, on les répartit à intervalles égaux.</p>
-  <p><b>La teinte vient de la note, jamais de la confiance.</b> Elle suit le
-  cercle des quintes&nbsp;— c'est la même roue que le compas, donc deux rayons
-  voisins portent deux teintes voisines. Au premier cercle c'est la fondamentale
-  qui la donne&nbsp;; plus bas c'est la note ajoutée, et la septième de
+  <p><b>La couleur dit quelle note, la taille dit la probabilité.</b> Chacune
+  son travail, jamais les deux. La teinte suit le cercle des quintes&nbsp;— la
+  roue des couleurs est la même roue que le compas, donc deux rayons voisins
+  portent deux teintes voisines. Au premier cercle c'est la fondamentale qui la
+  donne&nbsp;; plus bas c'est la note ajoutée, et la septième de
   <code>D-7</code> est un do, d'où le rouge de do.</p>
   <div class="cle" id="cleNotes"></div>
-  <p><b>La confiance, elle, ne touche que la saturation et la clarté.</b> Sûr
-  = foncé et franc, incertain = pâle&nbsp;: c'est <code>petalFill</code> /
-  <code>petalEdge</code> tels quels. Deux réglages seulement ont été ajoutés
-  ici, et pour une raison chacun. Au-delà de ~62&nbsp;% le fond devient trop
-  sombre pour un texte d'encre, donc le symbole passe en crème&nbsp;— l'app ne
-  rencontre pas le cas, ses pétales sont petits et rarement si sûrs.</p>
-  <div class="cle" id="cleConf"></div>
-  <p><b>Et <code>confColor</code> ne colore que le moyeu et le premier
-  cercle.</b> Ce dégradé encre&nbsp;→ brun&nbsp;→ rouge veut dire une chose
-  précise&nbsp;: « le modèle n'est pas sûr que ce soit cet accord-là ». Ce sens
-  n'existe qu'au premier niveau. Plus bas, un 19&nbsp;% est une part entre
-  extensions, pas un doute&nbsp;— l'appliquer peindrait en rouge d'alerte un
-  compas qui ne doute pas, il répartit.</p>
-  <p><b>Le moyeu porte l'accord courant, et on le touche pour valider</b> —
-  « ne rien ajouter » n'est pas une orbite. L'aire de l'orbe suit la
-  probabilité&nbsp;; son rayon ne descend jamais sous 22&nbsp;px, qui est le seuil
-  tactile et non une valeur de style. En pointillé&nbsp;: sous le seuil de
-  suggestion, proposé quand même.</p>
+  <p>L'app, elle, fait varier saturation et clarté avec la confiance
+  (<code>petalFill</code> fonce quand le modèle est sûr). On garde ses formules
+  mais on les gèle sur une valeur unique&nbsp;: un orbe pâle ne veut plus dire
+  « le modèle hésite », il veut dire « si&nbsp;♭ ». Ce que le modèle croit se
+  lit sur l'aire seule.</p>
+  <div class="cle" id="cleTaille"></div>
+  <p><b>Le seul reste de couleur-confiance est <code>confColor</code>, sur le
+  symbole.</b> Encre&nbsp;→ brun&nbsp;→ rouge, c'est le dégradé de l'app, et il
+  veut dire « le modèle n'est pas sûr que ce soit cet accord-là ». Ce sens
+  n'existe qu'au premier cercle et au moyeu&nbsp;: plus bas, un 19&nbsp;% est
+  une part entre extensions, pas un doute — l'appliquer peindrait en rouge
+  d'alerte un compas qui ne doute pas, il répartit.</p>
+  <p><b>Le moyeu porte l'accord courant, et il a la taille de sa proba lui
+  aussi</b> — plus exactement, il garde le rayon qu'avait l'orbe qu'on vient de
+  toucher, donc cliquer, c'est voir le disque glisser au centre sans changer de
+  taille. Sa légende est passée sous lui pour qu'elle ne lui impose plus de
+  taille minimale. On le touche pour valider&nbsp;: « ne rien ajouter » n'est
+  pas une orbite. Le rayon d'un orbe ne descend jamais sous 22&nbsp;px, qui est
+  le seuil tactile et non une valeur de style. En pointillé&nbsp;: sous le seuil
+  de suggestion, proposé quand même.</p>
   <p><b>Ce que la géométrie impose.</b> Quand un gros orbe et un petit tombent
   à 30° l'un de l'autre, tout rétrécit ensemble — c'est ce que fait déjà le
   compas de l'app, qui le dit dans son code&nbsp;: « deux orbes de 60&nbsp;px à
@@ -293,33 +297,27 @@ const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).
 // sûr est foncé et franc, un candidat faible est pâle. Une seule dimension
 // pour l'identité, une autre pour la certitude, jamais mélangées.
 const rootHue = pc => Math.round(fifths(pc) / 12 * 360);
-const petalFill = (pc, c) =>
-  `hsl(${rootHue(pc)} ${Math.round(46 + c * 26)}% ${Math.round(84 - c * 34)}%)`;
-const petalEdge = (pc, c) =>
-  `hsl(${rootHue(pc)} ${Math.round(50 + c * 26)}% ${Math.round(60 - c * 22)}%)`;
+// UNE SEULE CHOSE DIT LA PROBABILITÉ ICI : LA TAILLE DE L'ORBE.
+// Les formules de l'app font varier saturation et clarté avec la confiance ;
+// on les garde telles quelles mais on les gèle sur une valeur unique, donc la
+// couleur ne dit plus que « quelle note », jamais « à quel point ».
+const FIGE = 0.35;
+const petalFill = pc =>
+  `hsl(${rootHue(pc)} ${Math.round(46 + FIGE * 26)}% ${Math.round(84 - FIGE * 34)}%)`;
+const petalEdge = pc =>
+  `hsl(${rootHue(pc)} ${Math.round(50 + FIGE * 26)}% ${Math.round(60 - FIGE * 22)}%)`;
 const keyTint = pc => `hsl(${rootHue(pc)} 52% 90%)`;
 // et la couleur du SYMBOLE dit la sûreté du modèle : encre quand il est sûr,
 // puis des bruns, puis le rouge quand il ne l'est plus.
 const confColor = c => c >= .82 ? css('--ink') : c >= .66 ? "#5c4a30"
   : c >= .5 ? "#9a6a1e" : c >= .38 ? "#bd6a22" : "#a8281f";
 
-// DEUX GARDE-FOUS, parce que ce compas-ci n'est pas exactement celui de l'app.
-//
-// 1. `petalFill` fonce quand la confiance monte (clarté 84 - 34c). L'app s'en
-//    sort parce que ses pétales sont petits et rarement très sûrs ; ici un
-//    orbe à 83 % est un disque plein et foncé, sur lequel un texte sombre ne
-//    se lit plus. Au-delà de ~62 % on écrit donc en crème.
-const SOMBRE = c => 84 - 34 * c < 63;
-const surFond = (c, sombre, clair) => SOMBRE(c) ? sombre : clair;
-// 2. `confColor` veut dire UNE chose : « à quel point le modèle croit que
-//    c'est CET accord-là ». Ce sens n'existe qu'au premier niveau. Plus bas,
-//    les nombres sont des parts entre extensions (1 %, 19 %) — les peindre en
-//    rouge ferait crier « le modèle doute » tout un compas qui ne doute pas,
-//    il répartit. Sous le premier niveau, le symbole est donc simplement
-//    lisible : encre sur fond clair, crème sur fond foncé.
-const CREME = "#f7f2e6";
-const encreSymbole = (c, premier) =>
-  SOMBRE(c) ? CREME : (premier ? confColor(c) : css('--ink'));
+// `confColor` veut dire UNE chose : « à quel point le modèle croit que c'est
+// CET accord-là ». Ce sens n'existe qu'au premier niveau. Plus bas, les
+// nombres sont des parts entre extensions (1 %, 19 %) — les peindre en rouge
+// ferait crier « le modèle doute » à un compas qui ne doute pas, il répartit.
+// Sous le premier niveau le symbole est donc simplement en encre.
+const encreSymbole = (c, premier) => premier ? confColor(c) : css('--ink');
 // l'aire suit la proba, donc le rayon suit sa racine (`kit.js::byArea`)
 const byArea = (p, rMin, rMax) => rMin + Math.sqrt(Math.max(0, Math.min(1, p))) * (rMax - rMin);
 
@@ -441,8 +439,25 @@ function dessine(){
   }
 
   // LES ORBES : à l'angle de leur note, l'aire suit la proba, jamais sous 22 px
-  const centerClear = Sz * 0.155, Rout = R + Sz * 0.03;
+  const Rout = R + Sz * 0.03;
   const prMin = 22, prMax = Sz * 0.15;
+
+  // LE MOYEU A LA TAILLE DE SA PROBA, LUI AUSSI (Louis, 2026-09-17 : « et la
+  // taille de l'orbe principale au centre doit aussi être proportionnelle à sa
+  // proba »). On ne la recalcule pas : le moyeu GARDE le rayon qu'avait l'orbe
+  // qu'on vient de toucher, donc cliquer, c'est voir le disque glisser au
+  // centre sans changer de taille. Avant tout choix, c'est l'accord écrit qui
+  // est au centre, et on lui applique la même loi d'aire.
+  const pMoy = chemin.length
+    ? (chemin[chemin.length - 1].p ?? 0)
+    : ((D.accords[sel].base.find(b => b.root === D.accords[sel].root)
+        || D.accords[sel].base[0] || {}).c ?? 0);
+  const rMoy = chemin.length && chemin[chemin.length - 1].pr
+    ? chemin[chemin.length - 1].pr
+    : byArea(pMoy, prMin, prMax);
+  // l'anneau libre autour du moyeu suit donc le moyeu, et laisse la place à sa
+  // légende, qui est désormais SOUS le disque — elle ne peut plus le contraindre.
+  const centerClear = rMoy + Sz * 0.055;
   if (niv) {
     const top = niv.opts.reduce((a, b) => b.p > a.p ? b : a, niv.opts[0]);
     // LE CERCLE DES QUINTES NE VAUT QUE POUR LE PREMIER CERCLE (Louis,
@@ -529,10 +544,10 @@ function dessine(){
       // le rayon jusqu'au moyeu, dans la teinte de l'orbe (l'app fait pareil,
       // `stroke-opacity` 0.4) : il dit d'où vient la proposition.
       svg.appendChild(sv("line", {x1: cx, y1: cy, x2: x, y2: y,
-        stroke: petalEdge(n.o.pc, n.o.p), "stroke-width": 1, "stroke-opacity": 0.4}));
+        stroke: petalEdge(n.o.pc), "stroke-width": 1, "stroke-opacity": 0.4}));
       const g = sv("g", {class: "orbe"});
       g.appendChild(sv("circle", {cx: x, cy: y, r: n.pr,
-        fill: petalFill(n.o.pc, n.o.p), stroke: petalEdge(n.o.pc, n.o.p),
+        fill: petalFill(n.o.pc), stroke: petalEdge(n.o.pc),
         "stroke-width": n.o === top ? 2.5 : 1.5,
         "stroke-dasharray": n.o.p < SUGGERE ? "3 3" : "none"}));
       glyphe(g, x, y - n.pr * 0.08, n.o.sym.root, n.o.sym.q,
@@ -540,13 +555,14 @@ function dessine(){
              encreSymbole(n.o.p, niv.cle === 'base'));
       const pct = sv("text", {x, y: y + n.pr * 0.60, "text-anchor": "middle",
         "font-family": "-apple-system,system-ui,sans-serif", "font-size": 9.5,
-        fill: surFond(n.o.p, "rgba(247,242,230,.82)", C.faint)});
+        fill: C.faint});
       pct.textContent = (n.o.p * 100).toFixed(0) + ' %';
       g.appendChild(pct);
       g.addEventListener('click', () => {
         chemin.push(niv.cle === 'base'
-          ? {cle: 'base', root: n.o.root, type: n.o.type, lab: n.o.sym, p: n.o.p}
-          : {cle: niv.cle, i: n.o.i, lab: n.o.sym});
+          ? {cle: 'base', root: n.o.root, type: n.o.type, lab: n.o.sym,
+             p: n.o.p, pr: n.pr}
+          : {cle: niv.cle, i: n.o.i, lab: n.o.sym, p: n.o.p, pr: n.pr});
         dessine();
       });
       svg.appendChild(g);
@@ -559,7 +575,7 @@ function dessine(){
   // d'accent : c'est exactement ce que fait le compas de l'app. Il est donc
   // pâle, et le symbole s'y écrit en encre — pas en blanc.
   const moyPc = chemin.length ? c.root : D.accords[sel].root;
-  hub.appendChild(sv("circle", {cx, cy, r: Sz * 0.12, fill: keyTint(moyPc),
+  hub.appendChild(sv("circle", {cx, cy, r: rMoy, fill: keyTint(moyPc),
     stroke: C.accent, "stroke-width": 2}));
   const sym = chemin.length ? symbole(c)
     : {root: D.accords[sel].ecrit, q: ''};
@@ -567,11 +583,17 @@ function dessine(){
   // est un `keyTint` toujours pâle (clarté 90 %), et le nombre qu'il colore est
   // bien « à quel point le modèle croit à cet accord » — la proba du premier
   // niveau, celle que l'app affiche déjà.
-  const pBase = chemin.length ? (chemin[0].p ?? 0)
-    : ((D.accords[sel].base.find(b => b.root === D.accords[sel].root)
-        || D.accords[sel].base[0] || {}).c ?? 0);
-  glyphe(hub, cx, cy - Sz * 0.012, sym.root, sym.q, Sz * 0.105, confColor(pBase));
-  const ok = sv("text", {x: cx, y: cy + Sz * 0.072, "text-anchor": "middle",
+  const pBase = chemin.length ? (chemin[0].p ?? 0) : pMoy;
+  // Le moyeu pouvant maintenant être petit, le symbole doit tenir dedans :
+  // largeur estimée du Georgia italique (une capitale ≈ 0,62 em, la queue est
+  // à 0,55 em et ses caractères sont étroits), bornée par la corde du disque.
+  const larg = sym.root.length * 0.62 + (sym.q || '').length * 0.30;
+  glyphe(hub, cx, cy, sym.root, sym.q,
+         Math.min(Sz * 0.105, rMoy * 0.80, 1.72 * rMoy / Math.max(1, larg)),
+         confColor(pBase));
+  // la légende est passée SOUS le disque : elle ne lui impose plus de taille
+  // minimale, donc un moyeu à 3 % peut vraiment être petit.
+  const ok = sv("text", {x: cx, y: cy + rMoy + 10, "text-anchor": "middle",
     "font-family": "-apple-system,system-ui,sans-serif", "font-size": 9,
     "font-weight": 600, fill: C.faint});
   ok.textContent = niv ? "c'est celui-là" : "terminé";
@@ -634,21 +656,26 @@ document.getElementById('play').addEventListener('click', () => {
     const pc = mod(i * 7, 12);            // i-ème quinte à partir de do
     const d = document.createElement('div');
     d.className = 'pas';
-    d.style.background = petalFill(pc, 0.55);
-    d.style.border = '1.5px solid ' + petalEdge(pc, 0.55);
+    d.style.background = petalFill(pc);
+    d.style.border = '1.5px solid ' + petalEdge(pc);
     d.style.color = css('--ink');
     d.textContent = N.notes[pc];
     notes.appendChild(d);
   }
-  const conf = document.getElementById('cleConf');
-  [0.05, 0.25, 0.45, 0.65, 0.85].forEach(c => {
+  // la clé des tailles : même note, même couleur, seule l'aire change —
+  // et c'est `byArea`, la fonction que le compas utilise vraiment.
+  const tai = document.getElementById('cleTaille');
+  [0.03, 0.15, 0.35, 0.60, 0.90].forEach(c => {
     const d = document.createElement('div');
-    d.className = 'pas';
-    d.style.background = petalFill(2, c);   // une seule note : ré
-    d.style.border = '1.5px solid ' + petalEdge(2, c);
-    d.style.color = SOMBRE(c) ? CREME : confColor(c);
+    d.className = 'pas disque';
+    const r = byArea(c, 11, 27);
+    d.style.width = d.style.height = (2 * r) + 'px';
+    d.style.background = petalFill(2);      // une seule note : ré
+    d.style.border = '1.5px solid ' + petalEdge(2);
+    d.style.color = css('--ink');
+    d.style.fontSize = (r < 15 ? 8 : 9.5) + 'px';
     d.textContent = Math.round(c * 100) + ' %';
-    conf.appendChild(d);
+    tai.appendChild(d);
   });
 })();
 
