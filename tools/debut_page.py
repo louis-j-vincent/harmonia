@@ -34,7 +34,8 @@ from pathlib import Path
 
 import numpy as np
 
-from harmonia.debut import cale_sur_grille, premier_son, premiere_basse
+from harmonia.debut import (cale_sur_grille, dernier_trou, premier_son,
+                            premiere_basse)
 from harmonia.settings import SETTINGS
 
 FENETRE = 90.0          # secondes d'audio analysées
@@ -111,7 +112,11 @@ def _basse_de(stem: str, brut: list[float]) -> float | None:
     except Exception:                                    # noqa: BLE001
         print(f"   (postérieures indisponibles pour {stem})")
         return None
-    return premiere_basse(probs, apres=premier_son(brut))
+    # Le TROU d'abord : ce qui joue avant le dernier trou d'harmonie n'est pas
+    # le morceau (règle de Louis, +2 morceaux sans en casser un seul).
+    son = premier_son(brut)
+    trou = dernier_trou(probs, apres=son)
+    return premiere_basse(probs, apres=trou if trou is not None else son)
 
 
 def premier_accord(chart: dict) -> float | None:

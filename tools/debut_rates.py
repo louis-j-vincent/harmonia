@@ -27,8 +27,8 @@ from pathlib import Path
 import numpy as np
 
 from harmonia import musx as _musx
-from harmonia.debut import (PAS_PISTE, cale_sur_grille, enveloppe, pistes,
-                            premier_son, premiere_basse)
+from harmonia.debut import (PAS_PISTE, debut_du_morceau, enveloppe,
+                            pistes, premier_son)
 from harmonia.settings import SETTINGS
 
 #: les quatre courbes, dans l'ordre d'affichage : (clé, nom lisible, couleur)
@@ -73,9 +73,20 @@ def collecte(verite: dict) -> list[dict]:
             continue
         probs = _musx.frame_posteriors(audio)
         son = premier_son(env)
-        t_regle, _sur = cale_sur_grille(premiere_basse(probs[1], apres=son), grid)
+        # La règle COMPLÈTE, celle du module — pas une copie approximative :
+        # premier son, puis dernier trou d'harmonie, puis première basse,
+        # puis la grille tranche.
+        r = debut_du_morceau(audio, grid, probs_basse=probs[1])
+        t_regle = r["t"]
+        # Un morceau peut avoir DEUX réponses justes — Billie Jean, où Louis
+        # dit que le début de la batterie et l'entrée de la basse sont deux
+        # premiers temps légitimes. Les ignorer ferait passer une réussite
+        # pour un raté.
+        vrais = {_index(v["t"], grid)}
+        if v.get("aussi_acceptable") is not None:
+            vrais.add(_index(v["aussi_acceptable"], grid))
         m_regle, m_vrai = _index(t_regle, grid), _index(v["t"], grid)
-        if m_regle == m_vrai:
+        if m_regle in vrais:
             continue                       # la règle tombe juste : rien à dire
 
         fin = min(90.0, max(v["t"], t_regle or 0.0) + 14.0, len(env) * 0.25)
@@ -95,9 +106,11 @@ def collecte(verite: dict) -> list[dict]:
             "grille": [round(t, 3) for t in grid if t < fin],
             "vrai": round(v["t"], 2), "mesure_vraie": m_vrai,
             "regle": None if t_regle is None else round(t_regle, 2),
+            "sur_une_ligne": bool(r.get("sur_une_ligne")),
             "mesure_regle": m_regle,
             "ecart": (m_regle - m_vrai) if m_regle is not None else None,
             "son": round(son, 2),
+            "trou": None if r.get("trou") is None else round(r["trou"], 2),
             "traqueur": round(grid[0], 2),
         })
     out.sort(key=lambda s: -abs(s["ecart"] or 0))
@@ -285,9 +298,14 @@ def page(songs: list[dict]) -> str:
         B.append(f"<div class=verdict>La règle dit <b style='color:#7b4ea3'>"
                  f"{s['regle']:.2f}s</b>, tu dis <b style='color:#4a7c3f'>"
                  f"{s['vrai']:.2f}s</b> — <b>{n} mesure{'s' if n > 1 else ''} "
-                 f"{sens}</b>.</div>")
+                 f"{sens}</b>."
+                 + ("" if s["sur_une_ligne"] else
+                    " <b>Sa détection ne tombe sur aucune ligne de mesure</b> : "
+                    "la grille et le détecteur ne sont pas d'accord, donc l'un "
+                    "des deux se trompe et on ne l'a pas arrondi.")
+                 + "</div>")
         B.append(f"<div class=note>mesure 1 du traqueur {s['traqueur']:.2f}s · "
-                 f"premier son du fichier {s['son']:.2f}s</div>")
+                 f"premier son du fichier {s['son']:.2f}s"+ (f" · trou d'harmonie jusqu'à {s['trou']:.1f}s" if s.get("trou") else "")+ "</div>")
         B.append("<div class=env><canvas></canvas>")
         B.append(repere(g[0], "#8a2b2b", "traqueur", 2))
         if s["regle"] is not None and s["regle"] < s["fin"]:
