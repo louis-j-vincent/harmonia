@@ -1204,7 +1204,6 @@ export function buildIReal(){
     // RANGÉE, jamais par cellule: les fillers de gauche (§2) et de droite
     // prennent la même, sinon le treillis casse.
     const BARH_ENDING=Math.round(BARH*0.78);
-    const endingGap = narrow?10:12;
     const secGap = narrow?16:18;
     S._cells=[];
     let rowCells=[];
@@ -1244,7 +1243,14 @@ export function buildIReal(){
     // (2026-09-17) les fillers rappelaient BARH en dur et n'avaient aucun
     // margin-top: une section de 3 mesures fermait donc sa rangée avec des
     // cellules parties `secGap` px trop haut.
-    let rowH=BARH, rowMT=0;
+    // `rowBare` (Louis, 2026-09-17: « pas de gris sur le reste de cette ligne
+    // par contre ») — une rangée qui ne porte QUE des mesures de fin n'est
+    // pas une rangée de treillis. Ses mesures de fin se dessinent en petite
+    // boîte fermée, collée à la rangée du dessus; tout le reste de la ligne
+    // est du papier nu, sans bordure et sans bordure basse. C'est l'écart
+    // assumé au §2 du handoff, qui demandait un quadrillage complet: le
+    // quadrillage rendait le trou lisible, la boîte le rend juste.
+    let rowH=BARH, rowMT=0, rowBare=false;
     // §3/§4/§5: une fin est un BLOC de mesures consécutives portant la même
     // étiquette (`b.ending`). Sa longueur décide trois choses — la largeur du
     // crochet (§4), la hauteur courte de sa rangée (§3), et si les deux fins
@@ -1278,14 +1284,17 @@ export function buildIReal(){
     // §1 — TOUTE rangée entamée est fermée. `fillRow` bouche les colonnes
     // restantes avec de vraies cellules bordées (pas du papier nu);
     // `closeRow` y ajoute la bordure basse, pour les rangées qu'un gap
-    // (secGap/endingGap) détache de la rangée suivante — une rangée pleine
+    // (secGap) détache de la rangée suivante — une rangée pleine
     // suivie d'une rangée collée n'en veut pas, la border-top de la suivante
     // dessine déjà le trait et deux traits collés font 2px.
-    const filler=c=>el("div",
-      `min-height:${rowH}px;${rowMT?`margin-top:${rowMT}px;`:""}`+
-      `${c>0?`border-left:1px solid ${T.rule};`:""}${row>0?`border-top:1px solid ${T.rule};`:""}`);
+    const filler=c=>{
+      const f=el("div",`min-height:${rowH}px;${rowMT?`margin-top:${rowMT}px;`:""}`);
+      if(rowBare){ f.dataset.bare="1"; return f; }   // papier nu, aucune encre
+      f.style.cssText+=`${c>0?`border-left:1px solid ${T.rule};`:""}${row>0?`border-top:1px solid ${T.rule};`:""}`;
+      return f;
+    };
     const fillRow=()=>{ while(col!==0&&col<4){ const f=filler(col); grid.appendChild(f); rowCells.push(f); col++; } };
-    const closeRow=()=>{ fillRow(); rowCells.forEach(c=>{ c.style.borderBottom=`1px solid ${T.rule}`; }); };
+    const closeRow=()=>{ fillRow(); rowCells.forEach(c=>{ if(!c.dataset.bare) c.style.borderBottom=`1px solid ${T.rule}`; }); };
     bars.forEach((b,bi)=>{
       // Louis, 2026-08-08: the chord-less leading intro does not print AT ALL
       // in Read — the form rail above still carries it. Analyse/Annotate keep
@@ -1350,10 +1359,16 @@ export function buildIReal(){
       const rowBroke = skipToCol!=null;
       if(col===0||rowBroke){
         rowCells=[];
-        // La rangée s'ouvre: sa hauteur et son décalage haut sont décidés ici,
-        // une fois, pour toutes ses cellules (§3).
-        rowMT = b.secFirst ? secGap : (endingHead ? endingGap : 0);
-        rowH  = rowIsEnding(bi, rowBroke?skipToCol:col) ? BARH_ENDING : BARH;
+        // La rangée s'ouvre: sa hauteur, son décalage haut et son encre sont
+        // décidés ici, une fois, pour toutes ses cellules (§3).
+        rowBare = rowIsEnding(bi, rowBroke?skipToCol:col);
+        // Louis, 2026-09-17: « je veux que la cellule soit collée à celle
+        // d'en dessous ». Une rangée de fin ne respire plus au-dessus d'elle
+        // — la 2e fin touche la 1re, les deux forment un bloc vertical à leur
+        // colonne, comme les deux boîtes d'une reprise sur une partition.
+        // C'est ce qui a retiré son dernier emploi à l'ancien `endingGap`.
+        rowMT = b.secFirst ? secGap : 0;
+        rowH  = rowBare ? BARH_ENDING : BARH;
       }
       if(rowBroke){ while(col<skipToCol){ const f=filler(col); grid.appendChild(f); rowCells.push(f); col++; } }
       if(endingHead && b.ending==="1") endingAnchorCol=col;
@@ -1403,7 +1418,22 @@ export function buildIReal(){
       // de la rangée du dessus (sur la capture: une barre de séparation, pas
       // l'ouverture d'une reprise). Le treillis reste neutre (T.rule); le
       // crochet est un DESSIN par-dessus, posé plus bas.
-      const cell=el("div",`position:relative;min-width:0;min-height:${rowH}px;${layoutCss}${rowMT?`margin-top:${rowMT}px;`:""}${gridStart!=null?`grid-column-start:${gridStart};`:""}${col>0?`border-left:1px solid ${T.rule};`:""}${row>0?`border-top:1px solid ${T.rule};`:""}`);
+      // Sur une rangée nue (`rowBare`) la mesure de fin n'hérite pas du
+      // treillis: elle se ferme elle-même en boîte. Pas de bordure haute —
+      // la bordure BASSE de la rangée du dessus est déjà là, et elle y est
+      // collée; à gauche en colonne 1 c'est la barre noire du chart qui
+      // ferme; à droite il n'y a plus de voisin bordé pour le faire, donc
+      // la dernière mesure de la fin porte sa propre bordure droite.
+      const bareEdge = rowBare
+        ? `${col>0?`border-left:1px solid ${T.rule};`:""}border-bottom:1px solid ${T.rule};`+
+          `${endingRun(bi,col)<=1?`border-right:1px solid ${T.rule};`:""}`
+        : `${col>0?`border-left:1px solid ${T.rule};`:""}${row>0?`border-top:1px solid ${T.rule};`:""}`;
+      // Le crochet occupe les ~14px du haut de la cellule: sans ce retrait,
+      // le chiffre `1.` se posait SUR l'accord (vu au rendu, colonne 1 d'une
+      // fin partie en colonne 1). Il vaut pour TOUTES les mesures de la fin,
+      // pas seulement sa tête, sinon la rangée perd sa ligne de base.
+      const endingPadTop = b.ending ? `padding-top:${narrow?9:11}px;` : "";
+      const cell=el("div",`position:relative;min-width:0;min-height:${rowH}px;${layoutCss}${endingPadTop}${rowMT?`margin-top:${rowMT}px;`:""}${gridStart!=null?`grid-column-start:${gridStart};`:""}${bareEdge}`);
       // Scale halo: a coloured underline strip per CHORD, not per bar (2026-07-21
       // fix — see chordKey's own comment above for the "A7 hidden inside bar5"
       // bug this replaces). Never on `background` — setPlayhead() stomps that
@@ -1447,7 +1477,9 @@ export function buildIReal(){
         // sans mordre la bordure de sa rangée, donc il se pose au ras de
         // celle-ci (top:-(secGap-1)) au lieu de flotter à -(secGap-3).
         cell.appendChild(el("div",`position:absolute;left:0;top:-${secGap-1}px;font:800 ${narrow?9:11}px ${UI};line-height:1;color:${T.accent};border:1.5px solid ${T.accent};border-radius:4px;padding:1px 4px;background:${T.paper};z-index:2;`,b.sec));
-        cell.appendChild(el("div",`position:absolute;left:2px;top:0;bottom:0;width:2px;background:${T.ink};`));
+        // (la barre noire d'ouverture de section a disparu d'ici: Louis en
+        // veut UNE, continue sur toute la hauteur du chart — elle est posée
+        // une seule fois sur le cadre, tout en bas de cette fonction.)
       }
       if(endingHead){
         // §4 — UN VRAI CROCHET DE REPRISE, dessiné par-dessus le treillis.
@@ -1461,13 +1493,16 @@ export function buildIReal(){
         // Quand la fin PARTAGE sa rangée il n'y a pas de gap où poser le
         // chiffre: crochet et chiffre rentrent alors juste sous le bord haut
         // de la cellule, le chiffre décalé à droite du tick.
+        // Une rangée de fin est désormais COLLÉE à celle du dessus (Louis,
+        // 2026-09-17): il n'y a plus de gap où faire pendre le chiffre, donc
+        // le crochet entier rentre sous le bord haut de la cellule, chiffre
+        // à droite du tick — l'écriture classique d'une volta.
         const span=Math.max(1,endingRun(bi,col));
-        const y = endingOwnRow ? -2 : 1;
-        const dh = narrow?10:12;
+        const y = 1;
         cell.appendChild(el("div",`position:absolute;left:2px;top:${y}px;height:2px;width:calc(${span*100}% - 6px);background:${T.accent};z-index:3;pointer-events:none;`));
         cell.appendChild(el("div",`position:absolute;left:2px;top:${y}px;width:2px;height:${narrow?13:15}px;background:${T.accent};z-index:3;pointer-events:none;`));
         cell.appendChild(el("div",
-          `position:absolute;${endingOwnRow?`left:2px;top:${y-dh}px;`:`left:7px;top:${y+3}px;`}`+
+          `position:absolute;left:7px;top:${y+3}px;`+
           `font:800 ${narrow?9:11}px ${UI};line-height:1;color:${T.accent};z-index:3;pointer-events:none;`,
           b.ending+"."));
       }
@@ -1626,6 +1661,14 @@ export function buildIReal(){
     // que partout ailleurs, via le même `closeRow` (rowH/rowMT compris, §3).
     closeRow();
     frame.appendChild(grid);
+    // LA BARRE NOIRE, TOUT DU LONG (Louis, 2026-09-17). C'était un trait par
+    // SECTION, posé dans la cellule `secFirst` et haut d'une seule rangée:
+    // le chart en portait un par section, interrompu partout ailleurs. Une
+    // seule barre sur le cadre, du haut au bas de la grille — la marge
+    // gauche du morceau, pas une marque de section. Posée APRÈS la grille
+    // pour passer devant les bandes de tonalité, comme les badges.
+    frame.appendChild(el("div",
+      `position:absolute;left:0;top:0;bottom:0;width:2px;background:${T.ink};z-index:2;pointer-events:none;`));
     if(sectToolOn()) attachSectionDrag(grid);
     paintSectionTool();
     setPlayhead(S.playBar, S.playRep, S.playTime);
