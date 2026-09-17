@@ -7,6 +7,7 @@
 import { api } from "../api.js";
 import { go } from "../router.js";
 import { paintLoading, pollJob } from "../screens/analyse.js";
+import { deleteChart } from "../screens/library.js";
 import { buildIReal } from "../screens/chart.js";
 import { openBar1Sheet, openSectionTool } from "../screens/sections_editor.js";
 import { S } from "../state.js";
@@ -74,6 +75,23 @@ export function openAnnotateTools(){
       ()=>{ window.location="/soudure/"+encodeURIComponent(m.file); });
     line("Voir la matrice","où le morceau se répète, à l'œil",
       ()=>{ window.location="/ssm/"+encodeURIComponent(m.file); });
+    /* Louis, 2026-09-17 : « je veux une option pour facilement supprimer une
+       chanson si j'en veux plus ». Elle existait, mais seulement derrière le
+       mode Édition de la bibliothèque — donc jamais là où on décide, c'est-à-
+       dire en écoutant le morceau.
+       Le geste reste le même que dans la bibliothèque : la ligne disparaît
+       tout de suite, le serveur n'est appelé qu'au bout de cinq secondes, et
+       « Undo » annule. Pas de `confirm()` : il utilise le chrome du système,
+       qui casse l'identité de l'app, et ne laisse aucun retour en arrière —
+       c'est la raison pour laquelle l'undo-snackbar a été choisi en juillet.
+       Et côté serveur, rien de fait à la main n'est détruit : tout part dans
+       `state/human/corbeille/`, suivi par git. */
+    line("Supprimer ce morceau","il quitte la bibliothèque — ton travail est gardé",
+      ()=>{
+        const r=(S.library||[]).find(x=>x.file===m.file)
+                || {file:m.file, title:m.title||m.file};
+        deleteChart(r);
+      });
     sheet.appendChild(list);
     const cancel=el("button",`flex:0 0 auto;width:100%;margin-top:10px;background:transparent;`+
       `border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:${SZ.control}px;cursor:pointer;`,"Fermer");

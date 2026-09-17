@@ -104,6 +104,18 @@ def delete_annotation(file_key: str) -> None:
     _path(file_key).unlink(missing_ok=True)
 
 
+def chemin_annotation(file_key: str) -> Path:
+    """Où vit le sidecar de ce chart — la SEULE réponse qui fasse autorité.
+
+    Ce module est le seul à connaître le schéma et l'emplacement du sidecar
+    (voir l'en-tête). La suppression d'un morceau, qui met le fichier de côté
+    au lieu de l'effacer, passait par `SETTINGS.annotations_dir` : elle
+    dupliquait donc la convention et ratait le fichier dès qu'un test ou un
+    outil repointait ce module ailleurs. Une question, un propriétaire.
+    """
+    return _path(file_key)
+
+
 def _apply(chord: dict, fix: dict) -> None:
     chord["root"] = int(fix["root"]) % 12
     chord["q"] = fix.get("q", "")

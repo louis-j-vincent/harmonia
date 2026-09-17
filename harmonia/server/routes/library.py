@@ -133,11 +133,92 @@ def save_folders():
 
 @bp.delete("/api/chart/<file>")
 def delete_chart(file):
-    p = CHARTS_DIR / f"{Path(file).stem}.json"
+    """Retirer un morceau de la bibliothèque — sans jamais perdre son travail.
+
+    Louis, 2026-09-17 : « je veux une option pour facilement supprimer une
+    chanson si j'en veux plus ».
+
+    CE QUI EST DÉPLACÉ, PAS DÉTRUIT. Tout ce qu'il a fait à la main part dans
+    `state/human/corbeille/<date>_<stem>/` — le chart, les accords confirmés,
+    le découpage des sections (vérité ET brouillon), la marque de mesure 1 ou
+    de tempo, et sa ligne de `chart_meta`. Ce dossier est SUIVI PAR GIT, comme
+    le reste de `state/human/` : une annotation faite à la main a déjà été
+    perdue une fois pour avoir vécu dans un dossier ignoré (2026-08-12), et
+    c'est cette séparation qui est le correctif. Supprimer un morceau ne doit
+    pas rouvrir ce trou.
+
+    CE QUI EST VRAIMENT EFFACÉ : l'audio et les caches régénérables (battues,
+    songformer, postérieures musx, CQT, NNLS) — environ 5 Mo par morceau,
+    mesuré. Ils se refabriquent à partir du fichier, et le chart mis de côté
+    garde l'identifiant de la vidéo pour le retélécharger.
+
+    CE QUE ÇA NE FAIT PAS : remettre le morceau. La restauration est un geste
+    manuel (recopier le dossier de corbeille), pas un bouton — l'écran, lui,
+    offre déjà cinq secondes d'annulation avant même que cette route ne parte.
+    """
+    import shutil
+    from datetime import datetime
+
+    from harmonia import cache
+    stem_chart = Path(file).stem
+    p = CHARTS_DIR / f"{stem_chart}.json"
+    chart = {}
     if p.exists():
-        p.unlink()
-    annotations.delete_annotation(file)
-    return jsonify({"ok": True})
+        try:
+            chart = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            chart = {}
+    stem = Path(chart.get("audio_url") or "").stem or \
+        stem_chart.removeprefix("min_")
+
+    corbeille = (SETTINGS.human_dir / "corbeille" /
+                 f"{datetime.now():%Y-%m-%d_%H%M%S}_{stem}")
+    corbeille.mkdir(parents=True, exist_ok=True)
+    garde = []
+    for src, nom in ((p, "chart.json"),
+                     (annotations.chemin_annotation(stem_chart),
+                      "annotations.json"),
+                     (SETTINGS.sections_dir / f"{stem}.json", "sections.json"),
+                     (SETTINGS.sections_draft_dir / f"{stem}.json",
+                      "sections_brouillon.json"),
+                     (SETTINGS.marks_dir / f"{stem}.json", "marque.json")):
+        if src.exists():
+            shutil.move(str(src), str(corbeille / nom))
+            garde.append(nom)
+
+    # sa ligne de chart_meta part avec le reste
+    meta_f = SETTINGS.chart_meta_path
+    try:
+        meta = json.loads(meta_f.read_text(encoding="utf-8"))
+        if stem_chart in meta:
+            (corbeille / "chart_meta.json").write_text(
+                json.dumps({stem_chart: meta.pop(stem_chart)}, indent=1,
+                           ensure_ascii=False), encoding="utf-8")
+            meta_f.write_text(json.dumps(meta, indent=1, ensure_ascii=False),
+                              encoding="utf-8")
+            garde.append("chart_meta.json")
+    except (OSError, ValueError):
+        log.warning("suppression %s : chart_meta illisible, laissé tel quel", file)
+
+    # l'audio et les caches, eux, s'en vont pour de bon — ils se refabriquent
+    audio = SETTINGS.audio_dir / f"{stem}.m4a"
+    libere = 0
+    if audio.exists():
+        for kind in cache.KINDS:
+            try:
+                c = cache.path(kind, audio)
+            except OSError:
+                continue
+            if c.exists():
+                libere += c.stat().st_size
+                c.unlink()
+        libere += audio.stat().st_size
+        audio.unlink()
+
+    log.info("suppression %s : %d fichier(s) mis de côté dans %s, %.1f Mo "
+             "libérés", file, len(garde), corbeille.name, libere / 1e6)
+    return jsonify({"ok": True, "corbeille": corbeille.name,
+                    "garde": garde, "libere_mo": round(libere / 1e6, 1)})
 
 
 # Ce que ce module ne fait PAS : la recherche (locale ou YouTube — voir

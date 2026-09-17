@@ -16,6 +16,7 @@ every slash chord (This Love bar 0 is G/B) the moment a user confirms it.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from pathlib import Path
 
@@ -214,10 +215,29 @@ def test_post_annotations_then_chart_model_rehydrates():
     assert got["confirmed"] is True and got["root"] == 2 and got["q"] == "-7"
 
 
-def test_delete_chart_removes_its_sidecar():
-    from harmonia.server import app as srv
+def test_delete_chart_moves_its_sidecar_to_the_bin(tmp_path, monkeypatch):
+    """Supprimer un morceau sort son sidecar de la bibliothèque — mais ne le
+    DÉTRUIT pas (2026-09-17, « ton travail est gardé »).
 
-    an.save_annotation("min_ghost", {"chords": [], "merges": []})
+    L'ancienne version de ce test attendait `unlink`. Elle avait raison pour
+    l'époque : la route effaçait. Depuis que Louis peut supprimer un morceau
+    d'un geste depuis le chart, tout ce qu'il a fait à la main part dans
+    `state/human/corbeille/`, suivi par git. Ce test suit le contrat, et il
+    vérifie EN PLUS que rien n'est écrit dans le vrai dossier d'état — la
+    version précédente y créait un dossier de corbeille à chaque exécution.
+    """
+    from harmonia.server import app as srv
+    from harmonia.server.routes import library as lib
+
+    monkeypatch.setattr(lib, "SETTINGS",
+                        dataclasses.replace(lib.SETTINGS,
+                                            human_dir=tmp_path / "human"))
+    an.save_annotation("min_ghost", {"chords": [{"bar": 3}], "merges": []})
     assert an._path("min_ghost").exists()
-    srv.app.test_client().delete("/api/chart/min_ghost")
-    assert not an._path("min_ghost").exists()
+    rep = srv.app.test_client().delete("/api/chart/min_ghost").get_json()
+
+    assert not an._path("min_ghost").exists(), "il quitte la bibliothèque"
+    mis = (tmp_path / "human" / "corbeille" / rep["corbeille"]
+           / "annotations.json")
+    assert mis.exists(), "mais il est récupérable"
+    assert json.loads(mis.read_text())["chords"] == [{"bar": 3}]
