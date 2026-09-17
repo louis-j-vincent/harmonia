@@ -81,6 +81,56 @@ def depuis_inferer(sections: list[dict], n: int) -> tuple[list[str], list[str]]:
     return lab, src
 
 
+def trace(cle: str, label: str, b0: int, b1: int) -> dict:
+    """Le déroulé de l'algorithme sur un trait donné, étape par étape.
+
+    On refait à la main ce que fait `sections_inferer`, uniquement pour
+    pouvoir montrer les valeurs intermédiaires — le mot, chaque soudure, le
+    coût de chaque hypothèse. Aucune décision n'est prise ici.
+    """
+    from harmonia.phrases4 import cout, grouper_restes, merges4, nommer, phrases
+    from harmonia.soudure import mot_sur_traits, song_du_chart, traits_propres
+
+    chart = json.loads((SETTINGS.charts_dir / f"{cle}.json")
+                       .read_text(encoding="utf-8"))
+    song = song_du_chart(chart, audio_dir=SETTINGS.audio_dir)
+    gardes, _ = traits_propres(
+        [{"label": label, "mesure_debut": b0, "mesure_fin": b1}],
+        song["n_mesures"])
+    bornes, mot, src = mot_sur_traits(
+        chart, [(x, y) for x, y, _ in gardes], audio_dir=SETTINGS.audio_dir)
+    idx = {b: j for j, b in enumerate(bornes)}
+    fixes = [(idx[x], idx[y + 1] - 1, lab) for x, y, lab in gardes]
+    depart, j = [], 0
+    for j0, j1, _ in fixes:
+        while j < j0:
+            depart.append((j, j + 1, mot[j])); j += 1
+        depart.append((j0, j1 + 1, mot[j0:j1 + 1])); j = j1 + 1
+    while j < len(mot):
+        depart.append((j, j + 1, mot[j])); j += 1
+    geles = {(j0, j1 + 1) for j0, j1, _ in fixes}
+
+    hypos = []
+    for cible in (4, 6):
+        steps = merges4(mot, cible=cible, depart=depart, geles=geles)
+        blocs = grouper_restes(nommer(steps[-1]["jetons"], cible, geles=geles),
+                               mot, cible)
+        hypos.append({
+            "cible": cible, "cout": cout(blocs, cible),
+            "soudures": [{"paire": s_["paire"], "compte": s_["compte"],
+                          "reste": len(s_["jetons"])} for s_ in steps[1:]],
+            "blocs": [{"m0": bornes[b["j0"]] + 1, "m1": bornes[b["j1"]],
+                       "label": b["label"] + ("′" if b["prime"] else ""),
+                       "type": b["type"], "queue": bool(b["queue"])}
+                      for b in blocs]})
+    _secs, info = phrases(mot, depart=depart, geles=geles)
+    return {"mot": mot, "source_mot": src, "n_jetons": len(bornes) - 1,
+            "trait": (label, b0, b1, fixes[0][0], fixes[0][1]),
+            "contenu_trait": mot[fixes[0][0]:fixes[0][1] + 1],
+            "bornes": [b + 1 for b in bornes],
+            "hypos": hypos, "retenue": info["cible"], "couts": info["couts"]}
+
+
 def collecte(cle: str, traits: list[tuple]) -> dict:
     from harmonia.pipeline import analyze
     from harmonia.server.app import create_app
@@ -119,6 +169,7 @@ def collecte(cle: str, traits: list[tuple]) -> dict:
         "auto": par_mesure(auto.get("sections"), n),
         "chart": par_mesure(chart.get("sections"), n),
         "apres": apres,
+        "trace": trace(cle, *traits[-1]),
     }
 
 
@@ -158,6 +209,19 @@ td.a{font:600 13px ui-monospace,monospace}
 .chg{background:#fff2f2}
 .tab{overflow-x:auto;border:1px solid #ddd3b8;border-radius:10px;background:#fffdf7;
  padding:4px 8px}
+.etape{border-left:3px solid #ddd3b8;padding:2px 0 2px 10px;margin:10px 0;
+ font-size:13.5px}
+.etape ol{margin:6px 0 0;padding-left:20px}
+.etape li{margin:2px 0}
+.mot{display:flex;flex-wrap:wrap;gap:2px;margin:7px 0 4px}
+.mot span{flex:0 0 auto;width:20px;height:22px;border-radius:3px;color:#fff;
+ font:700 11px ui-monospace,monospace;display:flex;align-items:center;
+ justify-content:center}
+.hypo{border:1px solid #ddd3b8;border-radius:9px;padding:7px 10px;margin:8px 0;
+ background:#fffdf7;font-size:13px}
+.hypo.gagne{border-color:#8a2b2b;background:#fffaf5}
+.hypo ol{margin:4px 0;padding-left:20px;font-size:12.5px;color:#5c5647}
+.hypo table{margin-top:4px}
 button{border:1px solid #d8cfb4;border-radius:9px;background:#fff;padding:7px 11px;
  font:600 13px system-ui;cursor:pointer;min-height:40px;color:#2c2820}
 """
@@ -228,6 +292,73 @@ def tableau(d: dict) -> str:
     return "".join(out)
 
 
+def bloc_trace(d: dict) -> str:
+    """Le déroulé lisible de l'algorithme, avec les vraies valeurs."""
+    t = d["trace"]
+    lab, b0, b1, j0, j1 = t["trait"]
+    mot = t["mot"]
+    lettres = sorted(set(mot))
+    part = max(mot.count(c) for c in lettres) / max(1, len(mot))
+    B = ["<h2>Comment l'algorithme s'y prend, pas à pas</h2>",
+         "<div class=etape><b>1. La grille de jetons.</b> Le morceau est "
+         f"découpé en <b>{t['n_jetons']} jetons</b> de deux mesures, dont les "
+         "bords épousent ton trait. Ton trait "
+         f"<b>{html.escape(lab)} sur les mesures {b0}-{b1}</b> occupe les "
+         f"jetons {j0} à {j1}.</div>",
+         "<div class=etape><b>2. Le mot.</b> Chaque jeton reçoit une lettre "
+         "selon ce qu'il contient — deux jetons qui sonnent pareil reçoivent la "
+         f"même. Source : {html.escape(t['source_mot'])}.<div class=mot>"
+         + "".join(f"<span style=\"background:{couleur(c)}\">{c}</span>"
+                   for c in mot) + "</div>"
+         + f"<span class=note>{len(lettres)} lettre(s) distincte(s) pour "
+         f"{len(mot)} jetons — <b>{part:.0%} du morceau porte la même</b>.</span>"
+         "</div>",
+         "<div class=etape><b>3. Le point de départ.</b> Ton trait entre comme "
+         f"UNE unité gelée, de contenu « {html.escape(t['contenu_trait'])} ». "
+         "Elle ne pourra plus être soudée à personne. Tout le reste entre en "
+         "unités d'un seul jeton.</div>",
+         "<div class=etape><b>4. L'agglomération.</b> On soude la paire "
+         "adjacente la plus fréquente, sans jamais dépasser la taille cible, et "
+         "on s'arrête dès qu'aucune paire soudable ne se répète. Deux tailles "
+         "cibles sont essayées.</div>"]
+    for h in t["hypos"]:
+        gagne = h["cible"] == t["retenue"]
+        B.append(f"<div class='hypo{' gagne' if gagne else ''}'>"
+                 f"<b>cible {h['cible']} bi-mesures</b> — coût {h['cout']}"
+                 + (" · <b>retenue</b>" if gagne else " · écartée") + "<ol>")
+        for s_ in h["soudures"]:
+            B.append(f"<li>souder « {html.escape(s_['paire'][0])} » + "
+                     f"« {html.escape(s_['paire'][1])} », vu {s_['compte']}× "
+                     f"→ {s_['reste']} unités</li>")
+        B.append("</ol><table>")
+        for b in h["blocs"]:
+            B.append(f"<tr><td class=m>{b['m0']}-{b['m1']}</td>"
+                     f"<td><span class=et style=\"background:{couleur(b['label'])}\">"
+                     f"{html.escape(b['label'])}</span></td>"
+                     f"<td class=a>{html.escape(b['type'])}</td>"
+                     f"<td class=note>{'trop court, recollé' if b['queue'] else ''}</td></tr>")
+        B.append("</table></div>")
+    B.append("<div class=etape><b>5. On garde l'hypothèse la moins chère</b> — "
+             f"coûts {html.escape(json.dumps(t['couts']))}, donc la cible "
+             f"{t['retenue']}.</div>")
+    B.append("<div class=etape><b>6. Le nommage, dans cet ordre exact.</b> "
+             "Chaque bloc reçoit son étiquette par la PREMIÈRE règle qui "
+             "s'applique :<ol>"
+             "<li><b>humain</b> — le bloc EST ton trait : il garde ton nom ;</li>"
+             "<li><b>propage</b> — son contenu est <i>exactement</i> celui d'un "
+             "de tes traits : il prend ton nom ;</li>"
+             "<li><b>ressemble</b> — il ressemble assez à un de tes traits "
+             "(ressemblance d'accords ≥ 0,75) : il prend ton nom ;</li>"
+             "<li><b>algo</b> — sinon, une lettre neuve que tu n'as pas "
+             "utilisée.</li></ol>"
+             f"C'est la règle 2 qui fait les dégâts ici : ton trait a pour "
+             f"contenu « {html.escape(t['contenu_trait'])} », et "
+             f"<b>trois autres blocs ont exactement le même contenu</b>. Ils "
+             "prennent donc tous ton nom, sans que rien ne les ait comparés "
+             "musicalement.</div>")
+    return "".join(B)
+
+
 def page(d: dict) -> str:
     perdu = sum(1 for i in range(d["n"])
                 if d["auto"][i] != d["apres"][-1]["lab"][i])
@@ -250,7 +381,8 @@ def page(d: dict) -> str:
          "<h2>Mesure par mesure</h2>",
          "<p class=note>Les lignes rosées sont celles où les lectures ne "
          "s'accordent pas. Le cadre noir marque le bloc tracé à la main.</p>",
-         tableau(d)]
+         tableau(d),
+         bloc_trace(d)]
     for a in d["apres"]:
         if a["ecartes"]:
             B.append("<p class=note>⚠ traits écartés pour « "
