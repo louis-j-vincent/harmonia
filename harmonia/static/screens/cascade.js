@@ -35,9 +35,10 @@
 // valider — la doctrine du compas existant appliquée à la lettre.
 
 import { bassList } from "./annotate.js";
+import { collOf, keyTrackFor } from "./chart.js";
 import { S } from "../state.js";
-import { FAINT_ON_PETAL, INK_ON_PETAL, SERIF, T, UI, confColor, el, fifthsIndex,
-         glyph, mod, note, sv } from "../ui/kit.js";
+import { CE_IV, FAINT_ON_PETAL, INK_ON_PETAL, SERIF, T, UI, confColor, el,
+         fifthsIndex, glyph, keyHue, mod, note, sv } from "../ui/kit.js";
 
 //: repris de `span_rescore.SUG_FLOOR` élargi — aucun seuil nouveau ici, c'est
 //: le plancher de suggestion du compas ordinaire (`BASS_SUG_FLOOR`).
@@ -45,18 +46,76 @@ const SUGGERE = 0.125;
 //: les six familles de la tête de triade de musx, dans son ordre de colonnes.
 const TYPE_TAIL = ["", "-", "sus4", "sus2", "o", "+"];
 
-// ── LES COULEURS ───────────────────────────────────────────────────────────
-// La TEINTE vient de la note et suit le cercle des quintes : la roue des
-// couleurs EST la roue du compas, deux rayons voisins portent deux teintes
-// voisines. La PROBABILITÉ, elle, ne dit que la TAILLE (Louis, 2026-09-17 :
-// « la saturation ne devrait pas être affectée par le % de proba, juste la
-// taille des orbes »). On garde donc les formules de `kit.js` mot pour mot,
-// gelées sur une confiance unique : la couleur ne dit plus que « quelle note ».
-const FIGE = 0.35;
-const hueOf = pc => Math.round(fifthsIndex(pc) / 12 * 360);
-const fill = pc => `hsl(${hueOf(pc)} ${Math.round(46 + FIGE * 26)}% ${Math.round(84 - FIGE * 34)}%)`;
-const edge = pc => `hsl(${hueOf(pc)} ${Math.round(50 + FIGE * 26)}% ${Math.round(60 - FIGE * 22)}%)`;
-const tint = pc => `hsl(${hueOf(pc)} 52% 90%)`;
+// ── LES COULEURS : LA GAMME, PAS LA NOTE ───────────────────────────────────
+// Louis, 2026-09-17 : « je veux une couleur par gamme, mais pour les accords
+// ils sont par défaut de la couleur de la gamme dans laquelle cette partie de
+// la chanson est, sauf si l'accord lui même est en dehors de cette gamme
+// auquel cas il est de la couleur de la gamme dans laquelle il projette via
+// les notes qui sortent de la gamme, donc comme l'outil local keys dans
+// analyse » — puis « mets en prod ce jeu de couleurs pour le compas en
+// cascade ». Arbitré sur `docs/plots/gammes.html`.
+//
+// CE QU'EST UNE GAMME ICI : SEPT NOTES. Pas une tonique, pas un mode — un jeu
+// de notes, parce que la règle travaille sur « les notes qui sortent ».
+// Conséquence assumée : si♭ majeur et sol mineur sont la MÊME gamme et
+// portent la même couleur. C'est exact (ce sont les mêmes sept notes) et
+// c'est ce qui empêche un morceau en mineur de clignoter à chaque emprunt à
+// sa relative. C'est aussi déjà la convention de la lentille « key » du chart
+// en mode analyse, qui colore par `keyHue(collOf(...))` : le compas et le
+// chart disent donc la même chose de la même couleur.
+//
+// CE QUE ÇA REMPLACE. La teinte venait de la FONDAMENTALE du candidat : cinq
+// candidats faisaient cinq couleurs, et aucune ne disait rien d'autre que
+// « ce sont cinq accords différents » — ce qu'on voyait déjà. Maintenant un
+// orbe de la couleur du fond reste dans la tonalité, et un orbe d'une autre
+// couleur en sort, vers la gamme que sa couleur nomme.
+const DIATONIQUE = [0, 2, 4, 5, 7, 9, 11];
+//: les sept notes de la gamme dont la tonique MAJEURE est `maj`.
+const collection = maj => DIATONIQUE.map(i => mod(maj + i, 12));
+const dansColl = (pcs, maj) => { const c = collection(maj);
+  return pcs.every(p => c.indexOf(p) >= 0); };
+const combienDans = (pcs, maj) => { const c = collection(maj);
+  return pcs.reduce((n, p) => n + (c.indexOf(p) >= 0 ? 1 : 0), 0); };
+//: combien de quintes séparent deux gammes, dans le sens le plus court.
+const ecartQuintes = (a, b) => { const d = mod(fifthsIndex(a) - fifthsIndex(b), 12);
+  return Math.min(d, 12 - d); };
+// LA PROJECTION : la gamme la plus proche EN QUINTES qui contient l'accord
+// tout entier. Si aucune ne le contient (un diminué, un altéré), celle qui en
+// contient le plus — départagée par la proximité, pour ne pas envoyer un
+// accord à l'autre bout du cercle quand deux gammes le servent aussi mal.
+function gammeDe(pcs, regne) {
+  if (dansColl(pcs, regne)) return regne;
+  let meilleur = regne, best = [-1, -99];
+  for (let k = 0; k < 12; k++) {
+    const score = [dansColl(pcs, k) ? 100 : combienDans(pcs, k), -ecartQuintes(k, regne)];
+    if (score[0] > best[0] || (score[0] === best[0] && score[1] > best[1])) {
+      best = score; meilleur = k;
+    }
+  }
+  return meilleur;
+}
+
+// La PROBABILITÉ ne dit que la TAILLE (Louis, 2026-09-17 : « la saturation ne
+// devrait pas être affectée par le % de proba »). Saturation et clarté sont
+// donc figées, et la teinte ne porte que l'identité de la gamme.
+const hueOf = maj => Math.round(keyHue(maj));
+const fill = maj => `hsl(${hueOf(maj)} 55% 72%)`;
+const edge = maj => `hsl(${hueOf(maj)} 59% 52%)`;
+const tint = maj => `hsl(${hueOf(maj)} 52% 90%)`;
+
+// ── LES NOTES D'UN ACCORD DE LA CASCADE ────────────────────────────────────
+// On ne relit pas le symbole : l'état de la cascade porte déjà la triade et
+// chaque degré ajouté, donc les notes se lisent directement dessus.
+const TYPE_IV = [[0, 4, 7], [0, 3, 7], [0, 5, 7], [0, 2, 7], [0, 3, 6], [0, 4, 8]];
+function notesDe(c) {
+  const iv = (TYPE_IV[c.type] || TYPE_IV[0]).slice();
+  if (c.toit) iv.push(IV.toit[c.toit]);
+  if (c.neuf) iv.push(IV.neuf[c.neuf]);
+  if (c.onze) iv.push(IV.onze[c.onze]);
+  if (c.treize) iv.push(IV.treize[c.treize]);
+  const vus = {};
+  return iv.map(i => mod(c.root + i, 12)).filter(p => vus[p] ? false : (vus[p] = 1));
+}
 // `confColor` veut dire UNE chose : « à quel point le modèle croit que c'est
 // CET accord-là ». Ce sens n'existe qu'au premier niveau et au moyeu. Plus
 // bas, les nombres sont des parts entre extensions (1 %, 19 %) — les peindre
@@ -148,14 +207,25 @@ export function buildCascade(idx, onPick, bassOpts) {
   if (!casc || !casc.base || !casc.base.length) return noCascBox();
 
   const box = el("div", "");
-  box.appendChild(el("div", `text-align:center;font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:6px;`,
-    "on descend un degré à la fois"));
+  const entete = el("div", `text-align:center;font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:6px;`);
+  box.appendChild(entete);
   const fil = el("div", `display:flex;gap:5px;align-items:center;flex-wrap:wrap;min-height:30px;margin-bottom:2px;`);
   const rond = el("div", "display:flex;justify-content:center;");
   const pied = el("div", `text-align:center;font:italic 12px ${SERIF};color:${T.faint};margin-top:6px;min-height:18px;`);
   box.appendChild(fil); box.appendChild(rond); box.appendChild(pied);
 
   let chemin = [];
+
+  // LA GAMME QUI RÈGNE ICI. `keyTrackFor` est la piste de clés LOCALES que le
+  // chart utilise déjà pour sa lentille « key » en mode analyse — celle que
+  // Louis appelle « l'outil local keys dans analyse ». Elle est par accord,
+  // pas par section : un II-V passager a la sienne. `collOf` en fait un jeu de
+  // sept notes (une mineure rend sa relative majeure, ce sont les mêmes).
+  let regne = collOf(S.key, S.keyMode || "major");
+  try {
+    const piste = keyTrackFor(S.chords, S.key, S.keyMode);
+    if (piste && piste[idx]) regne = collOf(piste[idx].tonic, piste[idx].mode);
+  } catch (e) { /* une piste absente ne doit pas fermer le compas */ }
 
   const etat = () => {
     const c = { root: chord.root, type: 0, toit: 0, neuf: 0, onze: 0, treize: 0 };
@@ -184,10 +254,13 @@ export function buildCascade(idx, onPick, bassOpts) {
         return acc;
       }, {})).sort((x, y) => y.c - x.c).slice(0, 5)
         .map(b => ({ root: b.root, type: b.type, p: b.c, pc: b.root,
+                     gam: gammeDe(notesDe({ root: b.root, type: b.type }), regne),
                      sym: { root: b.root, q: TYPE_TAIL[b.type] || "" } })) };
     if (n === 1) return { cle: "toit", titre: "ce qui se pose dessus",
       opts: [3, 1, 2].map(i => ({ i, p: (i === 3 ? casc.treize[1] : casc.sev[i]),
-        pc: mod(c.root + IV.toit[i], 12), sym: symbole({ ...c, toit: i }) })) };
+        pc: mod(c.root + IV.toit[i], 12),
+        gam: gammeDe(notesDe({ ...c, toit: i }), regne),
+        sym: symbole({ ...c, toit: i }) })) };
     if ((c.toit === 0 || c.toit === 3) && n >= 3) return null;
     const suite = [["neuf", "la 9e", casc.neuf], ["onze", "la 11e", casc.onze],
                    ["treize", "la 13e", casc.treize]][n - 2];
@@ -195,16 +268,31 @@ export function buildCascade(idx, onPick, bassOpts) {
     return { cle: suite[0], titre: suite[1],
       opts: suite[2].map((p, i) => i === 0 ? null : ({ i, p,
         pc: mod(c.root + IV[suite[0]][i], 12),
+        gam: gammeDe(notesDe(Object.assign({ ...c }, { [suite[0]]: i })), regne),
         sym: symbole(Object.assign({ ...c }, { [suite[0]]: i })) })).filter(Boolean) };
   };
 
+  //: une gamme se nomme par sa majeure ET sa relative mineure — c'est le même
+  //: jeu de notes, et le dire évite de croire qu'on a changé de monde.
+  const nomGamme = maj => note(maj) + " / " + note(mod(maj + 9, 12)) + "-";
+
   function dessine() {
     rond.textContent = ""; fil.textContent = "";
+    entete.textContent = "la gamme ici : " + nomGamme(regne);
     const Sz = Math.min(318, (rond.clientWidth || box.clientWidth || 340) - 8);
     const cx = Sz / 2, cy = Sz / 2, R = Sz * 0.4;
     const svg = sv("svg", { width: Sz, height: Sz, viewBox: `0 0 ${Sz} ${Sz}`,
                             style: "display:block;overflow:visible" });
-    svg.appendChild(sv("circle", { cx, cy, r: R, fill: "none", stroke: T.line, "stroke-width": 1.5 }));
+    // LA ROUE REPOSE SUR LA GAMME QUI RÈGNE. C'est ce fond qui rend la règle
+    // lisible sans légende : un orbe de la couleur du fond reste dans la
+    // tonalité, un orbe d'une autre couleur en sort — et sa couleur nomme la
+    // gamme vers laquelle il sort.
+    // On peint avec `fill` (clarté 72 %) à faible opacité, PAS avec le `tint`
+    // pâle du compas : un `tint` à 90 % de clarté composité sur la carte
+    // sombre rend un gris boueux qui a perdu sa teinte — donc la règle « le
+    // fond, c'est la gamme » ne se lisait plus du tout en thème sombre.
+    svg.appendChild(sv("circle", { cx, cy, r: R, fill: fill(regne),
+      "fill-opacity": 0.32, stroke: T.line, "stroke-width": 1.5 }));
 
     const niv = niveau(), c = etat();
     //: le pourcentage, écrit pour être lu — sous 1 %, « 0 % » ne distingue pas
@@ -337,9 +425,21 @@ export function buildCascade(idx, onPick, bassOpts) {
       // le rayon jusqu'au moyeu, dans la teinte de l'orbe (`buildCompass` fait
       // pareil, `stroke-opacity` 0.4) : il dit d'où vient la proposition.
       nodes.forEach(n => svg.appendChild(sv("line", { x1: cx, y1: cy, x2: n.x, y2: n.y,
-        stroke: edge(n.o.pc), "stroke-width": 1, "stroke-opacity": 0.4 })));
+        stroke: edge(n.o.gam), "stroke-width": 1, "stroke-opacity": 0.4 })));
     }
-    svg.appendChild(sv("circle", { cx, cy, r: rMoy, fill: tint(c.root),
+    // LA GAMME DU MOYEU. Tant qu'on n'a rien choisi, le moyeu porte l'accord
+    // ÉCRIT : ses notes viennent donc de sa queue (`CE_IV`, la table dont le
+    // son de prévisualisation se sert déjà), pas d'une triade nue — sans quoi
+    // un `D7` perdrait son fa♯, c'est-à-dire exactement la note qui le fait
+    // sortir de la tonalité.
+    const notesMoy = chemin.length ? notesDe(c)
+      : (CE_IV[chord.q] || CE_IV[""]).map(i => mod(chord.root + i, 12));
+    const gamMoy = gammeDe(notesMoy, regne);
+    // Le moyeu prend la MÊME clarté que les orbes, pas le `keyTint` pâle du
+    // compas ordinaire : sa couleur porte maintenant une information (sa
+    // gamme), et à 90 % de clarté deux gammes voisines ne se distinguaient
+    // plus. L'anneau d'accent suffit à dire que c'est le moyeu.
+    svg.appendChild(sv("circle", { cx, cy, r: rMoy, fill: fill(gamMoy),
       stroke: T.accent, "stroke-width": 2 }));
 
     // Les anneaux de basse vivent DEHORS, à `R + 0,085·Sz` plus leur propre
@@ -350,13 +450,20 @@ export function buildCascade(idx, onPick, bassOpts) {
     rond.style.paddingBottom = Math.round(Sz * 0.085) + "px";
     const wrap = el("div", `position:relative;width:${Sz}px;margin:0 auto;`);
     const layer = el("div", "position:absolute;inset:0;pointer-events:none;");
+    // LE POINTILLÉ NE TIENT PAS SUR UN POINT. Il dit « sous le seuil de
+    // suggestion », mais sur un disque de 4 px une bordure pointillée de
+    // 2,5 px se rend en ÉTOILE : l'orbe cesse d'être un cercle et l'info
+    // secondaire détruit l'info principale (sa taille). Sous 12 px de rayon
+    // on repasse donc en trait plein, et l'épaisseur suit le disque.
+    const pointille = n => n.pr >= 12 && n.o.p < SUGGERE;
+    const trait = n => Math.min(n.top ? 2.5 : 1.5, Math.max(0.9, n.pr * 0.35));
     nodes.forEach((n, i) => {
       const dedans = n.pr >= TIENT;
       // LE DISQUE : sa taille est la probabilité, rien d'autre.
       const b = el("div", `position:absolute;left:${n.x}px;top:${n.y}px;`
         + `transform:translate(-50%,-50%);width:${n.pr * 2}px;height:${n.pr * 2}px;`
-        + `border-radius:50%;border:${n.top ? 2.5 : 1.5}px ${n.o.p < SUGGERE ? "dashed" : "solid"} ${edge(n.o.pc)};`
-        + `background:${fill(n.o.pc)};display:flex;flex-direction:column;`
+        + `border-radius:50%;border:${trait(n)}px ${pointille(n) ? "dashed" : "solid"} ${edge(n.o.gam)};`
+        + `background:${fill(n.o.gam)};display:flex;flex-direction:column;`
         + `align-items:center;justify-content:center;gap:1px;padding:0;overflow:visible;`
         + `box-shadow:0 2px 6px rgba(60,40,20,.14);animation:ap-orb .3s ${0.04 * i}s both;`);
       if (dedans) {
@@ -475,9 +582,22 @@ export function buildCascade(idx, onPick, bassOpts) {
     });
     fil.appendChild(el("div", `margin-left:auto;font:500 11px ${UI};color:${T.faint};`,
       niv ? `${chemin.length + 1} · ${niv.titre}` : "rien à ajouter"));
-    pied.textContent = niv
-      ? "touche un orbe pour descendre, le moyeu pour garder l'accord du centre"
-      : "touche le moyeu pour garder cet accord";
+    // LE PIED DIT LA COULEUR, une fois, et seulement quand elle a quelque
+    // chose à dire : si tous les orbes sont dans la gamme, la phrase serait du
+    // bruit. Sinon il NOMME la sortie, ce qui économise une légende.
+    const sortants = nodes.filter(n => n.o.gam !== regne);
+    if (sortants.length) {
+      const noms = [...new Set(sortants.map(n => nomGamme(n.o.gam)))];
+      pied.textContent = (noms.length === 1
+        ? "l'orbe d'une autre couleur sort de la gamme, vers " + noms[0]
+        : "les orbes d'une autre couleur sortent de la gamme, vers "
+          + noms.slice(0, 2).join(" ou "))
+        + (niv ? " — touche pour descendre" : "");
+    } else {
+      pied.textContent = niv
+        ? "tout est dans la gamme — touche un orbe pour descendre, le moyeu pour garder le centre"
+        : "touche le moyeu pour garder cet accord";
+    }
   }
 
   dessine();
