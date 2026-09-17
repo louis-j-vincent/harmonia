@@ -30,7 +30,13 @@ async def run(a):
         pg.on("pageerror", lambda e: errs.append(str(e)))
         pg.on("console", lambda m: errs.append("console." + m.type + ": " + m.text)
               if m.type == "error" else None)
-        await pg.goto(a.url.rstrip("/") + "/" + a.query.lstrip("/"))
+        # On ne recolle un "/" que s'il y a une query à coller. L'ancienne
+        # ligne le posait TOUJOURS, donc `--url http://…/soudure/min_x`
+        # devenait `…/min_x/` et Flask répondait 404 — un faux négatif qui a
+        # fait croire trois fois qu'une route était cassée alors qu'elle
+        # répondait en 30 ms.
+        await pg.goto(a.url.rstrip("/") + "/" + a.query.lstrip("/")
+                      if a.query else a.url)
         await pg.wait_for_timeout(a.wait)
         if a.js:
             out = await pg.evaluate(Path(a.js).read_text())

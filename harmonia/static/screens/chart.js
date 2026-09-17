@@ -260,7 +260,19 @@ export async function openChart(file,opts){
   // and any re-infer still have to address both).
 export function loadModel(m, opts){
     opts = opts || {};
+    /* GARDER L'OUTIL, C'EST GARDER LE CONTEXTE DE TRAVAIL (Louis, 2026-09-17,
+       sur iPhone : « quand je clique, je suis renvoyé sur la page read, je
+       devrais rester sur annotate et avoir direct l'outil qui s'affiche »).
+       L'outil de sections déplie le chart pour travailler dessus, donc il
+       passe par ici — et le mode repartait à « read ». Le panneau de l'outil
+       n'est peint qu'en mode annotate (voir plus bas, `S.mode==="annotate"
+       && sectToolOn()`) : il disparaissait donc au moment précis où on
+       l'ouvrait, et l'onglet du bas basculait sur Read sous ses doigts.
+       Le bug était intermittent, ce qui l'a rendu difficile à voir : sur un
+       chart déjà déplié `loadModel` n'est pas appelé et le mode survivait. */
+    const modeAvant = S.mode;
     S.model=m; S.key=m.key.tonic; S.keyMode=m.key.mode||"major"; S.mode="read"; S.pending=[];
+    if(opts.keepTool && modeAvant) S.mode=modeAvant;
     S._vlKey=null; S._vlTrack=null; S._vlTotals=null; S._lastCoachIdx=null;
     S._prompterSync=null; loopEngineDispose(false);
     S.playBar=-1; S.playRep=null; S.playTime=null;

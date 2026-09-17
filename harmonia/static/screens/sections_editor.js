@@ -212,6 +212,11 @@ export async function openSectionTool(){
       loadModel(un, {keepTool:true});
       S.model.file=folded.file;              // même chart côté serveur
     }
+    // L'outil ne se peint QU'EN mode annotate : on l'y met explicitement
+    // plutôt que de dépendre de l'écran d'où l'on vient. `busy:true` est
+    // déjà posé plus haut, donc la grille colorée et le panneau s'affichent
+    // TOUT DE SUITE, pendant que `/api/section-marks/` charge derrière.
+    S.mode="annotate";
     go("chart");
     const st=S.sectTool, m=S.model;
     try{
