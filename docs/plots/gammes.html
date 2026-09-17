@@ -1,0 +1,327 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>La Couleur Dit La Gamme</title>
+<style>
+/* la palette de l'app (`harmonia/static/ui/kit.js`), valeur pour valeur */
+ :root{--bg:#e7e0d0;--paper:#f7f3e9;--card:#fffdf6;--ink:#1c1c1c;--rule:#b9b09a;
+  --faint:#8a8371;--line:#e5dcc6;--deep:#2a2622;
+  --accent:#8a2b2b;--green:#1f8a5b;--amber:#c58a2e;--blue:#2a6fb0;}
+ @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#151210;--paper:#211c17;--card:#2a241d;--ink:#f2ebde;--rule:#5b5344;
+  --faint:#a99f8c;--line:#39332a;--deep:#0e0c0a;}}
+ :root[data-theme="dark"]{--bg:#151210;--paper:#211c17;--card:#2a241d;--ink:#f2ebde;
+  --rule:#5b5344;--faint:#a99f8c;--line:#39332a;--deep:#0e0c0a;}
+ *{box-sizing:border-box}
+ body{background:var(--bg);color:var(--ink);margin:0 auto;max-width:560px;
+  font:400 15px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  padding:16px 14px 40px}
+ h1{font:600 22px/1.2 Georgia,'Times New Roman',serif;margin:0;letter-spacing:-.01em}
+ .kick{font:italic 13px/1.5 Georgia,'Times New Roman',serif;color:var(--faint);margin:3px 0 0}
+ .eyebrow{font:600 10.5px/1 -apple-system,system-ui,sans-serif;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--faint);margin-bottom:7px}
+ button{font:600 13px/1 -apple-system,system-ui,sans-serif;border-radius:9px;
+  padding:9px 12px;min-height:40px;cursor:pointer;border:1px solid var(--rule);
+  background:var(--paper);color:var(--ink);-webkit-tap-highlight-color:transparent}
+ button:active{transform:translateY(1px)}
+ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+ /* l'outil vit dans une feuille, comme le compas dans l'app */
+ .feuille{background:var(--card);border-radius:22px;padding:14px 14px 16px;
+  margin:10px 0 4px;box-shadow:0 8px 28px -18px rgba(50,35,20,.55)}
+ .bascule{display:inline-flex;background:var(--line);border-radius:10px;
+  padding:3px;gap:2px;margin-bottom:12px}
+ .bascule button{border:none;border-radius:8px;padding:7px 13px;min-height:36px;
+  background:transparent;color:var(--faint);font-weight:600}
+ .bascule button.on{background:var(--card);color:var(--ink);
+  box-shadow:0 1px 2px rgba(0,0,0,.12)}
+
+ .grille{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+ .mes{position:relative;min-height:62px;border:1px solid var(--line);
+  border-radius:10px;padding:14px 4px 5px;display:flex;flex-wrap:wrap;gap:3px;
+  align-content:flex-start;background:var(--paper)}
+ .mes.ici{border-color:var(--accent);box-shadow:0 0 0 2px rgba(138,43,43,.18)}
+ .num{position:absolute;top:3px;left:6px;font:600 9px/1 -apple-system,system-ui,sans-serif;
+  color:var(--faint)}
+ .ac{flex:1 1 auto;min-width:0;min-height:30px;padding:5px 4px;border:1.5px solid transparent;
+  border-radius:7px;display:flex;align-items:center;justify-content:center}
+ .ac .sq{font:italic 600 13px/1 Georgia,serif;white-space:nowrap}
+ .ac.sel{outline:2px solid var(--accent);outline-offset:1px}
+
+ .fiche{margin-top:12px;border-top:1px solid var(--line);padding-top:10px;min-height:96px}
+ .fiche .tete{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+ .fiche .nom{font:italic 600 19px/1 Georgia,serif}
+ .fiche .g{font:600 12.5px/1 -apple-system,system-ui,sans-serif;padding:4px 9px;
+  border-radius:20px;color:#1c1c1c}
+ .fiche .pq{font:italic 12.5px/1.5 Georgia,serif;color:var(--faint);margin:6px 0 9px}
+ .clavier{display:grid;grid-template-columns:repeat(12,1fr);gap:2px}
+ .clavier div{height:38px;border-radius:5px;background:var(--line);
+  display:flex;align-items:flex-end;justify-content:center;padding-bottom:3px;
+  font:600 8.5px/1 -apple-system,system-ui,sans-serif;color:var(--faint)}
+ .clavier div.in{color:#1c1c1c}
+ .clavier div.fond{outline:2px solid var(--accent);outline-offset:-2px}
+
+ .lgs{display:grid;grid-template-columns:repeat(2,1fr);gap:4px;margin-top:10px}
+ .lg{display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:7px;
+  font:500 11.5px/1 -apple-system,system-ui,sans-serif;color:var(--faint)}
+ .lg.vif{background:var(--paper)}
+ .lg i{width:15px;height:15px;border-radius:4px;flex:0 0 auto}
+ .lg b{color:var(--ink);font-weight:600}
+ .lg span{margin-left:auto;font-size:10px;opacity:.75}
+
+ .barre{display:flex;gap:10px;align-items:center;margin-top:10px}
+ .barre .av{font:500 11.5px/1 -apple-system,system-ui,sans-serif;color:var(--faint)}
+ .barre .sp{flex:1}
+ .note{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:12px 14px;margin:16px 0}
+ .note p{margin:7px 0;font-size:12.5px;color:var(--faint)}
+ .note b{color:var(--ink)}
+ code{font:500 11.5px/1 ui-monospace,Menlo,monospace;background:var(--bg);
+  border-radius:4px;padding:1px 4px}
+ footer{margin-top:20px;padding-top:12px;border-top:1px solid var(--line);
+  font:500 11px/1.8 -apple-system,system-ui,sans-serif;color:var(--faint)}
+</style>
+
+<div class="eyebrow">Autumn Leaves Easy Jazz Piano Piano Cover Sheets &middot; G minor</div>
+<h1>La couleur dit la gamme</h1>
+<p class="kick">deux accords de la même couleur se jouent avec les mêmes notes</p>
+
+<div class="feuille">
+  <div class="bascule" id="bascule">
+    <button type="button" data-m="gamme" class="on">couleur&nbsp;= la gamme</button>
+    <button type="button" data-m="note">couleur&nbsp;= la note</button>
+  </div>
+  <div class="grille" id="grille"><div class="mes" data-i="0"><span class="num">1</span><button class="ac" type="button" data-i="0" data-j="0"
+                 data-t0="2.531" data-t1="4.249"
+                 data-pc="0" data-g="dorien"
+                 ><span class="sq">C-</span></button><button class="ac" type="button" data-i="0" data-j="1"
+                 data-t0="4.249" data-t1="6.316"
+                 data-pc="5" data-g="mixolydien"
+                 ><span class="sq">F</span></button><button class="ac" type="button" data-i="0" data-j="2"
+                 data-t0="6.316" data-t1="7.848"
+                 data-pc="10" data-g="ionien"
+                 ><span class="sq">Bb^7</span></button></div><div class="mes" data-i="1"><span class="num">2</span><button class="ac" type="button" data-i="1" data-j="0"
+                 data-t0="7.848" data-t1="9.915"
+                 data-pc="3" data-g="lydien"
+                 ><span class="sq">Eb^7</span></button><button class="ac" type="button" data-i="1" data-j="1"
+                 data-t0="9.915" data-t1="11.61"
+                 data-pc="9" data-g="locrien"
+                 ><span class="sq">Ah7</span></button><button class="ac" type="button" data-i="1" data-j="2"
+                 data-t0="11.61" data-t1="13.769"
+                 data-pc="2" data-g="altéré"
+                 ><span class="sq">D7</span></button></div><div class="mes" data-i="2"><span class="num">3</span><button class="ac" type="button" data-i="2" data-j="0"
+                 data-t0="13.769" data-t1="17.903"
+                 data-pc="7" data-g="éolien"
+                 ><span class="sq">G-7</span></button><button class="ac" type="button" data-i="2" data-j="1"
+                 data-t0="17.903" data-t1="19.482"
+                 data-pc="0" data-g="dorien"
+                 ><span class="sq">C-</span></button></div><div class="mes" data-i="3"><span class="num">4</span><button class="ac" type="button" data-i="3" data-j="0"
+                 data-t0="19.482" data-t1="21.455"
+                 data-pc="5" data-g="mixolydien"
+                 ><span class="sq">F</span></button><button class="ac" type="button" data-i="3" data-j="1"
+                 data-t0="21.455" data-t1="23.034"
+                 data-pc="10" data-g="ionien"
+                 ><span class="sq">Bb^7</span></button><button class="ac" type="button" data-i="3" data-j="2"
+                 data-t0="23.034" data-t1="25.17"
+                 data-pc="3" data-g="lydien"
+                 ><span class="sq">Eb^7</span></button></div><div class="mes" data-i="4"><span class="num">5</span><button class="ac" type="button" data-i="4" data-j="0"
+                 data-t0="25.17" data-t1="26.889"
+                 data-pc="9" data-g="locrien"
+                 ><span class="sq">Ah7</span></button><button class="ac" type="button" data-i="4" data-j="1"
+                 data-t0="26.889" data-t1="28.932"
+                 data-pc="2" data-g="altéré"
+                 ><span class="sq">D7</span></button><button class="ac" type="button" data-i="4" data-j="2"
+                 data-t0="28.932" data-t1="33.39"
+                 data-pc="7" data-g="éolien"
+                 ><span class="sq">G-7</span></button></div><div class="mes" data-i="5"><span class="num">6</span><button class="ac" type="button" data-i="5" data-j="0"
+                 data-t0="30.76" data-t1="33.39"
+                 data-pc="7" data-g="éolien"
+                 ><span class="sq">G-7</span></button><button class="ac" type="button" data-i="5" data-j="1"
+                 data-t0="33.39" data-t1="36.92"
+                 data-pc="0" data-g="dorien"
+                 ><span class="sq">C-7</span></button></div><div class="mes" data-i="6"><span class="num">7</span><button class="ac" type="button" data-i="6" data-j="0"
+                 data-t0="36.92" data-t1="40.403"
+                 data-pc="7" data-g="éolien"
+                 ><span class="sq">G-7</span></button><button class="ac" type="button" data-i="6" data-j="1"
+                 data-t0="40.403" data-t1="41.912"
+                 data-pc="0" data-g="dorien"
+                 ><span class="sq">C-7</span></button></div><div class="mes" data-i="7"><span class="num">8</span><button class="ac" type="button" data-i="7" data-j="0"
+                 data-t0="41.912" data-t1="43.491"
+                 data-pc="5" data-g="mixolydien"
+                 ><span class="sq">F</span></button><button class="ac" type="button" data-i="7" data-j="1"
+                 data-t0="43.491" data-t1="45.07"
+                 data-pc="10" data-g="ionien"
+                 ><span class="sq">Bb^7</span></button><button class="ac" type="button" data-i="7" data-j="2"
+                 data-t0="45.07" data-t1="47.694"
+                 data-pc="3" data-g="lydien"
+                 ><span class="sq">Eb^7</span></button></div><div class="mes" data-i="8"><span class="num">9</span><button class="ac" type="button" data-i="8" data-j="0"
+                 data-t0="47.694" data-t1="51.177"
+                 data-pc="0" data-g="dorien"
+                 ><span class="sq">C-7</span></button><button class="ac" type="button" data-i="8" data-j="1"
+                 data-t0="51.177" data-t1="53.15"
+                 data-pc="10" data-g="ionien"
+                 ><span class="sq">Bb</span></button><button class="ac" type="button" data-i="8" data-j="2"
+                 data-t0="53.15" data-t1="55.217"
+                 data-pc="8" data-g="lydien"
+                 ><span class="sq">Ab^7</span></button></div><div class="mes" data-i="9"><span class="num">10</span><button class="ac" type="button" data-i="9" data-j="0"
+                 data-t0="55.217" data-t1="57.26"
+                 data-pc="3" data-g="lydien"
+                 ><span class="sq">Eb^7</span></button><button class="ac" type="button" data-i="9" data-j="1"
+                 data-t0="57.26" data-t1="60.442"
+                 data-pc="9" data-g="dorien"
+                 ><span class="sq">A-7</span></button></div></div>
+  <div class="fiche" id="fiche"></div>
+  <div class="barre">
+    <span class="av" id="av">touche un accord</span>
+    <span class="sp"></span>
+    <button id="play" type="button">&#9658; écouter</button>
+  </div>
+</div>
+
+<div class="feuille">
+  <div class="eyebrow">les gammes, de la plus claire à la plus sombre</div>
+  <div class="lgs" id="lgs"><div class="lg" data-g="lydien"><i style="background:hsl(48 72% 70%)"></i>
+            <b>lydien</b><span>majeur</span></div><div class="lg" data-g="ionien"><i style="background:hsl(34 70% 64%)"></i>
+            <b>ionien</b><span>majeur</span></div><div class="lg" data-g="mixolydien"><i style="background:hsl(19 68% 59%)"></i>
+            <b>mixolydien</b><span>majeur</span></div><div class="lg" data-g="dorien"><i style="background:hsl(158 44% 58%)"></i>
+            <b>dorien</b><span>mineur</span></div><div class="lg" data-g="éolien"><i style="background:hsl(203 48% 60%)"></i>
+            <b>éolien</b><span>mineur</span></div><div class="lg" data-g="phrygien"><i style="background:hsl(248 40% 62%)"></i>
+            <b>phrygien</b><span>mineur</span></div><div class="lg" data-g="locrien"><i style="background:hsl(280 34% 54%)"></i>
+            <b>locrien</b><span>mineur</span></div><div class="lg" data-g="altéré"><i style="background:hsl(352 64% 58%)"></i>
+            <b>altéré</b><span>hors rampe</span></div><div class="lg" data-g="demi-ton/ton"><i style="background:hsl(322 54% 60%)"></i>
+            <b>demi-ton/ton</b><span>hors rampe</span></div><div class="lg" data-g="par tons"><i style="background:hsl(300 32% 64%)"></i>
+            <b>par tons</b><span>hors rampe</span></div></div>
+</div>
+
+<div class="note">
+  <p><b>La rampe n'est pas un dégradé décoratif.</b> Les sept modes sont rangés
+  par clarté modale&nbsp;— le compte d'altérations par rapport à la majeure de
+  même fondamentale, de&nbsp;+1 (lydien) à&nbsp;−5 (locrien). C'est un axe
+  réel, pas un goût.</p>
+  <p><b>Chaud ou froid&nbsp;= la tierce.</b> La rupture entre le mixolydien et
+  le dorien n'est donc pas un saut arbitraire dans la roue&nbsp;: c'est le
+  passage du mode majeur au mode mineur. À l'intérieur de chaque famille, plus
+  clair&nbsp;= plus brillant. Et les gammes qui ne sont pas des modes de la
+  majeure sortent de la rampe, dans les rouges&nbsp;: «&nbsp;hors de la
+  tonalité&nbsp;» se voit comme hors de la rampe.</p>
+  <p><b>Ce que la couleur-note ne peut pas montrer.</b> Bascule&nbsp;: les six
+  premiers accords d'Autumn Leaves sont six teintes différentes en
+  couleur-note, et une seule famille chaude en couleur-gamme&nbsp;— ils sont
+  tous dans si♭ majeur. Puis la cadence mineure bascule d'un coup dans les
+  froides et le rouge. On voit la FORME, pas les lettres.</p>
+  <p><b>Ce que ça ne résout pas.</b> Un accord peut appeler deux gammes
+  également défendables (un mineur sur le i&nbsp;: dorien ou éolien, l'oreille
+  tranche) et la table en choisit une. Les tensions écrites (♭9, ♯11) ne sont
+  pas lues&nbsp;— elles devraient pouvoir forcer la gamme. La clé locale
+  (<code>keySegments</code>) règne, pas la clé du morceau&nbsp;: sur un morceau
+  qui module, c'est elle qui fait le travail.</p>
+</div>
+
+<footer>
+  table des chord-scales &middot; clé locale&nbsp;: <code>harmonic_key</code>
+  &middot; palette et feuille&nbsp;: <code>ui/kit.js</code> &middot;
+  le compas&nbsp;: <a href="/plots/compas_da.html" style="color:var(--accent)">cascade</a>
+</footer>
+
+<script>
+const D = {"titre":"Autumn Leaves Easy Jazz Piano Piano Cover Sheets","tonalite":"G minor","audio":"../audio/autumn_leaves_easy_jazz_piano_piano_cover_sheets.m4a","noms":["C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B"],"mesures":[{"n":1,"sec":"A","accords":[{"root":0,"q":"-","ecrit":"C-","t0":2.531,"t1":4.249,"gamme":"dorien","pourquoi":"mineur sur le ii","cle":"G mineur"},{"root":5,"q":"","ecrit":"F","t0":4.249,"t1":6.316,"gamme":"mixolydien","pourquoi":"majeur sur le V — c'est une dominante","cle":"G mineur"},{"root":10,"q":"^7","ecrit":"Bb^7","t0":6.316,"t1":7.848,"gamme":"ionien","pourquoi":"majeur sur le I","cle":"G mineur"}]},{"n":2,"sec":"A","accords":[{"root":3,"q":"^7","ecrit":"Eb^7","t0":7.848,"t1":9.915,"gamme":"lydien","pourquoi":"majeur sur le IV","cle":"G mineur"},{"root":9,"q":"h7","ecrit":"Ah7","t0":9.915,"t1":11.61,"gamme":"locrien","pourquoi":"demi-diminué sur le vii","cle":"G mineur"},{"root":2,"q":"7","ecrit":"D7","t0":11.61,"t1":13.769,"gamme":"altéré","pourquoi":"dominante de la tonique mineure","cle":"G mineur"}]},{"n":3,"sec":"A","accords":[{"root":7,"q":"-7","ecrit":"G-7","t0":13.769,"t1":17.903,"gamme":"éolien","pourquoi":"mineur sur le vi","cle":"G mineur"},{"root":0,"q":"-","ecrit":"C-","t0":17.903,"t1":19.482,"gamme":"dorien","pourquoi":"mineur sur le ii","cle":"G mineur"}]},{"n":4,"sec":"A","accords":[{"root":5,"q":"","ecrit":"F","t0":19.482,"t1":21.455,"gamme":"mixolydien","pourquoi":"majeur sur le V — c'est une dominante","cle":"G mineur"},{"root":10,"q":"^7","ecrit":"Bb^7","t0":21.455,"t1":23.034,"gamme":"ionien","pourquoi":"majeur sur le I","cle":"G mineur"},{"root":3,"q":"^7","ecrit":"Eb^7","t0":23.034,"t1":25.17,"gamme":"lydien","pourquoi":"majeur sur le IV","cle":"G mineur"}]},{"n":5,"sec":"A","accords":[{"root":9,"q":"h7","ecrit":"Ah7","t0":25.17,"t1":26.889,"gamme":"locrien","pourquoi":"demi-diminué sur le vii","cle":"G mineur"},{"root":2,"q":"7","ecrit":"D7","t0":26.889,"t1":28.932,"gamme":"altéré","pourquoi":"dominante de la tonique mineure","cle":"G mineur"},{"root":7,"q":"-7","ecrit":"G-7","t0":28.932,"t1":33.39,"gamme":"éolien","pourquoi":"mineur sur le vi","cle":"G mineur"}]},{"n":6,"sec":"A′","accords":[{"root":7,"q":"-7","ecrit":"G-7","t0":30.76,"t1":33.39,"gamme":"éolien","pourquoi":"mineur sur le vi","cle":"G mineur"},{"root":0,"q":"-7","ecrit":"C-7","t0":33.39,"t1":36.92,"gamme":"dorien","pourquoi":"mineur sur le ii","cle":"G mineur"}]},{"n":7,"sec":"A′","accords":[{"root":7,"q":"-7","ecrit":"G-7","t0":36.92,"t1":40.403,"gamme":"éolien","pourquoi":"mineur sur le vi","cle":"G mineur"},{"root":0,"q":"-7","ecrit":"C-7","t0":40.403,"t1":41.912,"gamme":"dorien","pourquoi":"mineur sur le ii","cle":"G mineur"}]},{"n":8,"sec":"A′","accords":[{"root":5,"q":"","ecrit":"F","t0":41.912,"t1":43.491,"gamme":"mixolydien","pourquoi":"majeur sur le V — c'est une dominante","cle":"G mineur"},{"root":10,"q":"^7","ecrit":"Bb^7","t0":43.491,"t1":45.07,"gamme":"ionien","pourquoi":"majeur sur le I","cle":"G mineur"},{"root":3,"q":"^7","ecrit":"Eb^7","t0":45.07,"t1":47.694,"gamme":"lydien","pourquoi":"majeur sur le IV","cle":"G mineur"}]},{"n":9,"sec":"A′","accords":[{"root":0,"q":"-7","ecrit":"C-7","t0":47.694,"t1":51.177,"gamme":"dorien","pourquoi":"mineur sur le ii","cle":"G mineur"},{"root":10,"q":"","ecrit":"Bb","t0":51.177,"t1":53.15,"gamme":"ionien","pourquoi":"majeur sur le I","cle":"G mineur"},{"root":8,"q":"^7","ecrit":"Ab^7","t0":53.15,"t1":55.217,"gamme":"lydien","pourquoi":"majeur sur hors gamme","cle":"G mineur"}]},{"n":10,"sec":"B","accords":[{"root":3,"q":"^7","ecrit":"Eb^7","t0":55.217,"t1":57.26,"gamme":"lydien","pourquoi":"majeur sur le IV","cle":"G mineur"},{"root":9,"q":"-7","ecrit":"A-7","t0":57.26,"t1":60.442,"gamme":"dorien","pourquoi":"mineur sur le vii","cle":"G mineur"}]}],"gammes":{"lydien":{"deg":[0,2,4,6,7,9,11],"c":"hsl(48 72% 70%)","rang":1,"fam":"majeur"},"ionien":{"deg":[0,2,4,5,7,9,11],"c":"hsl(34 70% 64%)","rang":2,"fam":"majeur"},"mixolydien":{"deg":[0,2,4,5,7,9,10],"c":"hsl(19 68% 59%)","rang":3,"fam":"majeur"},"dorien":{"deg":[0,2,3,5,7,9,10],"c":"hsl(158 44% 58%)","rang":4,"fam":"mineur"},"éolien":{"deg":[0,2,3,5,7,8,10],"c":"hsl(203 48% 60%)","rang":5,"fam":"mineur"},"phrygien":{"deg":[0,1,3,5,7,8,10],"c":"hsl(248 40% 62%)","rang":6,"fam":"mineur"},"locrien":{"deg":[0,1,3,5,6,8,10],"c":"hsl(280 34% 54%)","rang":7,"fam":"mineur"},"altéré":{"deg":[0,1,3,4,6,8,10],"c":"hsl(352 64% 58%)","rang":8,"fam":"hors rampe"},"demi-ton/ton":{"deg":[0,1,3,4,6,7,9,10],"c":"hsl(322 54% 60%)","rang":9,"fam":"hors rampe"},"par tons":{"deg":[0,2,4,6,8,10],"c":"hsl(300 32% 64%)","rang":10,"fam":"hors rampe"}}};
+const N = D.noms, G = D.gammes;
+const mod = (n, m) => ((n % m) + m) % m;
+// la couleur-note de l'app : teinte au cercle des quintes, saturation et
+// clarté figées (c'est la règle posée le 2026-09-17 sur le compas).
+const fifths = pc => mod(pc * 7, 12);
+const parNote = pc => `hsl(${Math.round(fifths(pc) / 12 * 360)} 55% 72%)`;
+const parGamme = g => (G[g] || {}).c || 'var(--line)';
+
+let mode = 'gamme', sel = null, audio = null, stopAt = null;
+
+function accordDe(i, j){ return D.mesures[i].accords[j]; }
+
+function peins(){
+  document.querySelectorAll('.ac').forEach(b => {
+    const a = accordDe(+b.dataset.i, +b.dataset.j);
+    b.style.background = mode === 'gamme' ? parGamme(a.gamme) : parNote(a.root);
+    // l'encre posée sur une pastille claire ne suit pas le thème : ces fonds
+    // sont clairs par construction dans les deux (même règle que les pétales
+    // du compas, cf. known_issues 2026-09-17).
+    b.style.color = '#1c1c1c';
+    b.style.borderColor = 'rgba(0,0,0,.14)';
+  });
+  document.querySelectorAll('.lg').forEach(l => {
+    const vif = mode === 'gamme' && sel && sel.gamme === l.dataset.g;
+    l.classList.toggle('vif', !!vif);
+  });
+}
+
+function fiche(a){
+  const f = document.getElementById('fiche');
+  f.innerHTML = '';
+  if (!a) { f.innerHTML = '<div class="pq" style="font:italic 12.5px Georgia,serif;color:var(--faint)">touche un accord pour voir sa gamme</div>'; return; }
+  const tete = document.createElement('div'); tete.className = 'tete';
+  const nom = document.createElement('span'); nom.className = 'nom'; nom.textContent = a.ecrit;
+  const g = document.createElement('span'); g.className = 'g';
+  g.style.background = parGamme(a.gamme);
+  g.textContent = N[mod(a.root, 12)] + ' ' + a.gamme;
+  tete.appendChild(nom); tete.appendChild(g);
+  f.appendChild(tete);
+  const pq = document.createElement('div'); pq.className = 'pq';
+  pq.textContent = a.pourquoi + ' — la tonalité qui règne ici est ' + a.cle;
+  f.appendChild(pq);
+  // LES DOUZE DEMI-TONS, ceux de la gamme allumés dans sa couleur : c'est la
+  // phrase « mêmes notes » rendue vérifiable d'un coup d'œil.
+  const cl = document.createElement('div'); cl.className = 'clavier';
+  const deg = new Set((G[a.gamme] || {deg: []}).deg);
+  for (let i = 0; i < 12; i++) {
+    const pc = mod(a.root + i, 12);
+    const d = document.createElement('div');
+    if (deg.has(i)) { d.className = 'in'; d.style.background = parGamme(a.gamme); }
+    if (i === 0) d.classList.add('fond');
+    d.textContent = N[pc];
+    cl.appendChild(d);
+  }
+  f.appendChild(cl);
+}
+
+document.querySelectorAll('.ac').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.ac').forEach(x => x.classList.remove('sel'));
+  b.classList.add('sel');
+  sel = accordDe(+b.dataset.i, +b.dataset.j);
+  fiche(sel); peins();
+  document.getElementById('av').textContent = sel.ecrit + ' · ' + sel.gamme;
+  if (audio) { stopAt = sel.t1 + 0.15; audio.currentTime = Math.max(0, sel.t0);
+    audio.play().catch(() => {}); }
+}));
+
+document.querySelectorAll('#bascule button').forEach(b => b.addEventListener('click', () => {
+  mode = b.dataset.m;
+  document.querySelectorAll('#bascule button').forEach(x => x.classList.toggle('on', x === b));
+  document.getElementById('lgs').parentElement.style.opacity = mode === 'gamme' ? '1' : '.45';
+  peins();
+}));
+
+// l'audio : fetch + blob, jamais de boucle rAF — les deux pièges iOS déjà
+// payés (`reference_ios_audio_traps`).
+fetch(D.audio).then(r => r.blob()).then(b => {
+  audio = new Audio(URL.createObjectURL(b));
+  audio.addEventListener('timeupdate', () => {
+    if (stopAt != null && audio.currentTime >= stopAt) { audio.pause(); stopAt = null; return; }
+    const t = audio.currentTime;
+    D.mesures.forEach((m, i) => {
+      const dedans = m.accords.length && t >= m.accords[0].t0
+        && t < m.accords[m.accords.length - 1].t1;
+      document.querySelectorAll(`.mes[data-i="${i}"]`)
+        .forEach(el => el.classList.toggle('ici', dedans));
+    });
+  });
+}).catch(() => {});
+
+document.getElementById('play').addEventListener('click', () => {
+  if (!audio) return;
+  if (!audio.paused) { audio.pause(); return; }
+  stopAt = null;
+  if (!sel) audio.currentTime = D.mesures[0].accords.length ? D.mesures[0].accords[0].t0 : 0;
+  audio.play().catch(() => {});
+});
+
+peins(); fiche(null);
+</script>
