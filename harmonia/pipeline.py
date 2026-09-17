@@ -62,6 +62,10 @@ import numpy as np
 from harmonia import beats as _beats
 from harmonia import musx as _musx
 from harmonia.bars import layout_bars
+
+
+class _DebutArbitre(Exception):
+    """Louis a déjà tranché la mesure 1 de ce morceau."""
 from harmonia.key_profiles import infer_key
 from harmonia.labels import chord_pcs, to_chord
 from harmonia.settings import SETTINGS
@@ -580,6 +584,48 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
     # runtime kill-switch (`HARMONIA_QUARTER_BAR=off`), it would take a
     # commit to `settings.py`.
     _quarter = "all" if SETTINGS.quarter_bar else None
+
+    # ── LE VRAI DÉBUT DU MORCEAU, quand Louis n'a pas posé de marque ────────
+    # (2026-09-17). Le traqueur de battues n'a aucun moyen de savoir qu'un
+    # fondu, une intro parlée ou 60 s de sketch ne sont pas le début : il
+    # entend un pouls et le suit. `harmonia.debut` cherche la première note de
+    # basse APRÈS le dernier trou — un passage sans basse, sans mélodie, et
+    # dont la matière ne ressemble pas à ce qui suit. Mesuré sur les 40
+    # morceaux que Louis a tranchés à l'oreille : 37 bonnes mesures contre 28
+    # pour le traqueur seul, sans jamais casser un cas déjà juste.
+    #
+    # SA MARQUE RESTE SOUVERAINE : ce chemin ne s'ouvre que si `bar1_time` est
+    # absent. Et il ne se déclenche que si la détection tombe au moins une
+    # demi-mesure APRÈS la première battue — sinon il n'y a rien à corriger, et
+    # forcer la phase écraserait le vote du traqueur pour rien.
+    if bar1_time is None and len(beat_times) > 4:
+        try:
+            from harmonia.debut import arbitrage, debut_du_morceau
+            # Un « c'est bon » de Louis est une décision au même titre qu'une
+            # marque posée à la main : il dit que la mesure 1 du traqueur est
+            # la bonne, et le détecteur se tait. Sans ça la règle déplacerait
+            # Be My Baby, qu'il a confirmé juste.
+            if arbitrage(Path(audio_path).stem) == "confirmé bon":
+                logger.info("pipeline: Louis a confirmé la mesure 1 du "
+                            "traqueur pour %s — pas de détection",
+                            Path(audio_path).name)
+                raise _DebutArbitre
+            _mesure = _bpb_early * float(np.median(np.diff(beat_times)))
+            _d = debut_du_morceau(audio_path, beat_times, probs_basse=probs[1])
+            if (_d["t"] is not None
+                    and _d["t"] - float(beat_times[0]) > 0.5 * _mesure):
+                bar1_time = _d["t"]
+                logger.info("pipeline: début détecté à %.2fs (1re battue "
+                            "%.2fs, trou %s) — la mesure 1 s'y cale",
+                            _d["t"], float(beat_times[0]),
+                            "aucun" if _d["trou"] is None else f"{_d['trou']:.1f}s")
+        except _DebutArbitre:
+            pass                       # son verdict, pas une panne
+        except Exception:                                    # noqa: BLE001
+            # Jamais muet : sans détection on garde la phase du traqueur, ce
+            # qui est l'ancien comportement — mais on veut le savoir.
+            logger.exception("pipeline: détection du début indisponible")
+
     if bar1_time is not None and len(beat_times):
         # Set bar 1, follow-up (Louis, 2026-08-09: « l'accord devrait
         # commencer au début de la barre ») : le DÉCODAGE aussi doit préférer

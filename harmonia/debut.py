@@ -80,6 +80,13 @@ PART_CALAGE = 0.25
 SEUIL_TROU = 0.15
 #: durée minimale d'un trou pour qu'il sépare deux musiques, en secondes
 DUREE_TROU = 3.0
+#: sous cette part de la mélodie médiane du morceau, il n'y a pas de mélodie
+PART_MELODIE = 0.60
+#: au-dessus de cette cosinus entre l'avant et l'après, c'est la MÊME matière
+#: — donc une simple respiration, pas une frontière entre deux musiques
+SEUIL_COHERENCE = 0.85
+#: de combien de secondes de part et d'autre on compare les deux matières
+MARGE_COHERENCE = 10.0
 
 
 def enveloppe(audio: Path, fenetre: float = 90.0) -> list[float] | None:
@@ -142,59 +149,146 @@ def premiere_basse(probs_basse, apres: float = 0.0) -> float | None:
     return None
 
 
-def dernier_trou(probs_basse, apres: float = 0.0,
-                 fenetre: float = 90.0) -> float | None:
-    """La fin du DERNIER trou d'harmonie avant `fenetre` — la règle de Louis.
+def melodie(chroma, times, liss: float = 1.0) -> np.ndarray:
+    """La présence d'une VRAIE mélodie, image par image.
 
-    Louis, 2026-09-17, sur Urdlvw0SSEc : « s'il y a un début de chanson puis
-    plus rien derrière [...] plus que la musique, le bpm, toute l'identité
-    musicale change après la pause, alors c'est une intro musicale ».
+    Louis, 2026-09-17 : « pour détecter un trou, c'est pas seulement la ligne
+    de basse, c'est aussi pas de mélodie ».
 
-    Un trou = la tête de basse de musx reste sous `SEUIL_TROU` pendant au
-    moins `DUREE_TROU`. Ce qui joue AVANT le dernier trou n'est pas le
-    morceau : c'est le préambule du clip, qui peut très bien être de la vraie
-    musique — d'où l'échec des détecteurs d'intensité, qui l'entendaient à
-    juste titre.
+    `chroma` est le bothchroma NNLS 24 dimensions (`nnls_features`), dont la
+    moitié haute (colonnes 12 à 23) est ce qui sonne au-dessus de la basse. Une
+    mélodie y concentre l'énergie sur peu de notes ; la parole, une salle, un
+    souffle l'étalent sur les douze. On mesure donc la NETTETÉ — un moins
+    l'entropie du profil — pondérée par l'énergie.
 
-    MESURÉ sur les 40 morceaux à grille exploitable de la bibliothèque, contre
-    les réponses de Louis : la basse seule désigne la bonne mesure 35 fois ;
-    la basse cherchée APRÈS le dernier trou, 37 fois, **sans jamais casser un
-    cas déjà juste**. Les deux gagnés sont exactement ceux qu'il avait
-    expliqués : Urdlvw0SSEc (22,77 s, le trou finit à 21,9) et fd02pGJx0s0
-    (9,98 s, le trou finit à 9,9). Le résultat tient sur tout un plateau de
-    réglages — seuil 0,15 à 0,20, durée 2 à 5 s donnent tous 37/40 avec zéro
-    perdu — ce qui est le signe d'un vrai effet et non d'un seuil ajusté.
-
-    CE QUE ÇA NE RÉSOUT PAS : les trois ratés restants. Be My Baby ouvre sur
-    un break de batterie sans harmonie, donc sans trou à trouver. Smooth
-    Criminal trouve bien son trou (fini à 66,6 s) mais tombe une mesure trop
-    loin, sur une grille elle-même trouée. Chain of Fools rend 3,66 s là où
-    Louis a marqué 5,87 — mais il dit lui-même « le vrai début est légèrement
-    avant mon marquage je crois », donc c'est peut-être la marque qui a tort.
-
-    ESSAYÉ ET REJETÉ avant d'en arriver là, chacun mesuré : la récurrence
-    harmonique en veto (0 gagné 0 perdu — une intro de clip partage la
-    tonalité du morceau), la récurrence rythmique (+1, −10), et le changement
-    de tempo, invisible parce que Beat This! impose un tempo unique au fichier
-    entier. Voir `docs/debut_pourquoi_2026-09-17.md`.
+    Les deux facteurs sont nécessaires : l'énergie seule ne distingue rien (sur
+    Sam Smith elle vaut autant sur les 40 s de dialogue que sur le morceau), et
+    la netteté seule explose dans le silence, où le chroma devient dégénéré et
+    se concentre par hasard sur une note (Urdlvw0SSEc marque 0,92 en plein
+    trou). Leur produit sépare : sur Sam Smith 0,35 à 0,46 fois la médiane
+    pendant le dialogue, 1,19 fois dès l'entrée du groupe ; Let It Be, qui n'a
+    pas d'intro, ne descend jamais sous 0,91.
     """
+    g = np.asarray(chroma, dtype=float)[:, 12:]
+    e = g.sum(1)
+    s = e.copy()
+    s[s <= 1e-9] = 1.0
+    p = g / s[:, None]
+    nettete = 1.0 - (-(p * np.log(p + 1e-12)).sum(1) / np.log(12))
+    ref = float(np.median(e)) or 1.0
+    m = nettete * np.minimum(1.0, e / ref)
+    pas = float(times[1] - times[0]) if len(times) > 1 else liss
+    k = max(1, int(liss / pas))
+    return np.convolve(m, np.ones(k) / k, mode="same")
+
+
+def _profil(chroma, times, t0: float, t1: float):
+    """Le profil mélodique moyen de [t0, t1), normalisé — ou None si vide."""
+    sel = (np.asarray(times) >= t0) & (np.asarray(times) < t1)
+    if not sel.any():
+        return None
+    v = np.asarray(chroma, dtype=float)[sel, 12:].mean(0)
+    n = float(np.linalg.norm(v))
+    return v / n if n > 1e-9 else None
+
+
+def _sans_basse(probs_basse, apres: float, fenetre: float) -> list[tuple]:
+    """Les (début, fin) des passages où musx n'entend aucune basse assez
+    longtemps. Ce sont les CANDIDATS ; deux autres conditions les filtrent."""
     from harmonia.musx import FRAME_DT
     pb = np.asarray(probs_basse)
     n = min(len(pb), int(fenetre / FRAME_DT))
     k = int(DUREE_TROU / FRAME_DT)
     if n <= k:
-        return None
+        return []
     creux = (1.0 - pb[:n, 0]) < SEUIL_TROU
-    fin, i = None, max(0, int(apres / FRAME_DT))
+    out, i = [], max(0, int(apres / FRAME_DT))
     while i < n - k:
         if bool(np.all(creux[i:i + k])):
             j = i
             while j < n and creux[j]:
                 j += 1
-            fin, i = j * FRAME_DT, j
+            out.append((i * FRAME_DT, j * FRAME_DT))
+            i = j
         else:
             i += 1
-    return fin
+    return out
+
+
+def dernier_trou(probs_basse, chroma=None, times=None, apres: float = 0.0,
+                 fenetre: float = 90.0) -> float | None:
+    """La fin du DERNIER trou avant `fenetre` — la règle de Louis, à trois
+    conditions, TOUTES nécessaires.
+
+    Louis, 2026-09-17 : « pour détecter un trou, c'est pas seulement la ligne
+    de basse, c'est aussi pas de mélodie, et EN PLUS c'est une incohérence
+    mélodique en pattern entre le début de la chanson et le trou. Il faut
+    toutes ces règles-là. »
+
+    1. **Pas de basse** — la tête de basse de musx reste sous `SEUIL_TROU`
+       pendant au moins `DUREE_TROU`.
+    2. **Pas de mélodie** — la mélodie (voir `melodie`) y reste sous
+       `PART_MELODIE` fois la médiane du morceau. Sans cette condition, un
+       passage où la basse se tait mais où le chant continue passerait pour
+       une frontière de fichier.
+    3. **Incohérence de matière** — ce qui joue AVANT le trou ne ressemble pas
+       à ce qui joue APRÈS : cosinus des deux profils mélodiques sous
+       `SEUIL_COHERENCE`, mesuré sur `MARGE_COHERENCE` secondes de part et
+       d'autre. C'est la condition que Louis exige explicitement, « sinon ça
+       peut juste être une pause dans la musique ».
+
+    Ce qui joue avant le dernier trou survivant n'est pas le morceau : c'est le
+    préambule du clip, qui peut très bien être de la vraie musique — d'où
+    l'échec des détecteurs d'intensité, qui l'entendaient à juste titre.
+
+    Sans `chroma`, seule la première condition s'applique et on le DIT dans le
+    journal : c'est un repli dégradé, jamais silencieux.
+
+    MESURÉ sur les 40 morceaux à grille exploitable, contre les réponses de
+    Louis. La 1re note de basse seule désigne la bonne mesure 35 fois ; après
+    le dernier trou, 37 fois, sans jamais casser un cas déjà juste. Les deux
+    gagnés sont ceux qu'il avait expliqués : Urdlvw0SSEc (22,77 s) et
+    fd02pGJx0s0 (9,98 s). Les trois conditions donnent le MÊME score que la
+    seule condition de basse, mais en ne déclarant que 6 trous au lieu de 9 —
+    trois faux trous en moins sur des morceaux où ça ne se voyait pas encore.
+    Les deux seuils sont au genou de leur courbe : à 0,50 de mélodie on perd un
+    gain, à 0,70 de cohérence aussi.
+
+    CE QUE ÇA NE RÉSOUT PAS : Be My Baby ouvre sur un break de batterie sans
+    harmonie, donc sans trou à trouver ; Smooth Criminal trouve son trou (fini
+    à 66,6 s) mais tombe une mesure trop loin, sur une grille elle-même trouée ;
+    Chain of Fools rend une détection qui ne tombe sur aucune ligne de mesure.
+
+    ESSAYÉ ET REJETÉ avant d'en arriver là, chacun mesuré : la récurrence
+    harmonique en veto (0 gagné 0 perdu), la récurrence rythmique (+1, −10), et
+    le changement de tempo, invisible parce que Beat This! impose un tempo
+    unique au fichier entier. Voir `docs/debut_pourquoi_2026-09-17.md`.
+    """
+    candidats = _sans_basse(probs_basse, apres, fenetre)
+    if not candidats:
+        return None
+    if chroma is None or times is None:
+        log.info("debut: pas de chroma, le trou n'est jugé que sur la basse "
+                 "(2 des 3 conditions de Louis manquent)")
+        return candidats[-1][1]
+    mel = melodie(chroma, times)
+    med = float(np.median(mel)) or 1.0
+    t_arr = np.asarray(times)
+    garde = None
+    for t0, t1 in candidats:
+        dedans = (t_arr >= t0) & (t_arr < t1)
+        if not dedans.any():
+            continue
+        if float(mel[dedans].mean()) >= PART_MELODIE * med:
+            continue                                  # 2/ il y a une mélodie
+        avant = _profil(chroma, times, max(0.0, t0 - MARGE_COHERENCE), t0)
+        apres_ = _profil(chroma, times, t1, t1 + MARGE_COHERENCE)
+        if avant is None or apres_ is None:
+            continue              # rien avant : le silence de tête, pas un trou
+        if float(avant @ apres_) >= SEUIL_COHERENCE:
+            continue                       # 3/ même matière : une respiration
+        garde = t1
+    return garde
 
 
 def cale_sur_grille(t: float | None, grille) -> tuple[float | None, bool]:
@@ -222,7 +316,33 @@ def cale_sur_grille(t: float | None, grille) -> tuple[float | None, bool]:
     return t, False
 
 
-def debut_du_morceau(audio: Path, grille, probs_basse=None) -> dict:
+def arbitrage(stem: str) -> str | None:
+    """Ce que Louis a tranché pour ce morceau — « confirmé bon », « déplacé »,
+    ou None s'il ne s'est pas prononcé.
+
+    Lu dans `state/human/debuts.json`, la vérité terrain qu'il a produite le
+    2026-09-17 sur 42 morceaux. Un « confirmé bon » dit que la mesure 1 du
+    traqueur est la bonne : le détecteur doit alors se taire, même s'il pense
+    autrement. Sans cette lecture, la règle déplacerait Be My Baby, dont il a
+    dit qu'il était juste — un « c'est bon » est une décision de sa part
+    exactement comme une marque posée à la main, et la contredire en silence
+    serait pire que de ne rien détecter.
+
+    Rend None sur n'importe quelle erreur de lecture : l'absence d'arbitrage
+    est le cas normal (5 morceaux de la bibliothèque, et tous les nouveaux).
+    """
+    from harmonia.settings import SETTINGS
+    f = SETTINGS.repo / "state" / "human" / "debuts.json"
+    try:
+        import json
+        return ((json.loads(f.read_text(encoding="utf-8")).get("debuts") or {})
+                .get(stem, {}).get("source"))
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def debut_du_morceau(audio: Path, grille, probs_basse=None,
+                     chroma=None, times=None) -> dict:
     """Où commence le morceau : `{t, mesure, sur_une_ligne, son}`.
 
     `t` est en secondes, `mesure` l'index de la ligne de `grille` retenue.
@@ -241,7 +361,17 @@ def debut_du_morceau(audio: Path, grille, probs_basse=None) -> dict:
         probs_basse = _musx.frame_posteriors(Path(audio))[1]
     # Ce qui joue avant le dernier trou d'harmonie n'est pas le morceau : on
     # ne cherche la première basse qu'APRÈS (voir `dernier_trou`).
-    trou = dernier_trou(probs_basse, apres=son)
+    if chroma is None:
+        try:
+            from harmonia.nnls_features import extract_bothchroma
+            chroma, times = extract_bothchroma(Path(audio))
+        except Exception as exc:                          # noqa: BLE001
+            # Jamais muet : sans chroma il ne reste qu'une des trois conditions
+            # de Louis, et le trou détecté est moins sûr.
+            log.warning("debut: chroma NNLS indisponible pour %s (%s) — le "
+                        "trou ne sera jugé que sur la basse", Path(audio).name, exc)
+            chroma = times = None
+    trou = dernier_trou(probs_basse, chroma, times, apres=son)
     brut = premiere_basse(probs_basse, apres=trou if trou is not None else son)
     if brut is None:
         log.info("debut: aucune basse déclarée dans %s", Path(audio).name)

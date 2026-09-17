@@ -159,3 +159,81 @@ def test_le_trou_ne_regarde_pas_avant_le_premier_son():
     musiques : il n'y a rien avant lui."""
     p = _basse((300, 900, 0.9), n=1000)
     assert dernier_trou(p, apres=300 * FRAME_DT) is None
+
+
+# ── les deux autres conditions du trou ───────────────────────────────────────
+# Louis, 2026-09-17 : « c'est pas seulement la ligne de basse, c'est aussi pas
+# de mélodie, et EN PLUS c'est une incohérence mélodique en pattern entre le
+# début de la chanson et le trou. Il faut toutes ces règles-là. »
+
+def _chroma(n, motif_aigu, energie=1.0):
+    """Un bothchroma NNLS (n, 24) dont la moitié haute suit `motif_aigu`."""
+    c = np.zeros((n, 24), dtype=np.float32)
+    c[:, :12] = 0.05
+    c[:, 12:] = np.asarray(motif_aigu, dtype=np.float32) * energie
+    return c
+
+
+def _temps(n, pas=0.05):
+    return np.arange(n) * pas
+
+
+NET = [1.0, 0.05, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02]
+PLAT = [1.0 / 12] * 12
+
+
+def test_la_melodie_distingue_une_note_tenue_dun_bruit_etale():
+    """Une mélodie concentre l'énergie sur peu de notes ; la parole l'étale.
+    C'est la netteté, pas le volume : sur Sam Smith l'énergie aiguë vaut autant
+    sur les 40 s de dialogue que sur le morceau."""
+    from harmonia.debut import melodie
+    n = 200
+    net = float(melodie(_chroma(n, NET), _temps(n)).mean())
+    plat = float(melodie(_chroma(n, PLAT), _temps(n)).mean())
+    assert net > plat * 3
+
+
+def test_un_passage_sans_basse_MAIS_avec_melodie_nest_pas_un_trou():
+    """La 2e condition. Un pont où la basse se tait pendant que le chant
+    continue n'est pas une frontière de fichier."""
+    from harmonia.debut import dernier_trou
+    n_ch, pas = 800, 0.05
+    p = _basse((0, 200, 0.9), (330, 700, 0.9), n=800)
+    assert dernier_trou(p) is not None                 # la basse seule dirait oui
+    chroma = _chroma(n_ch, NET)                        # mais la mélodie ne cesse
+    assert dernier_trou(p, chroma, _temps(n_ch, pas)) is None
+
+
+def test_un_trou_sans_melodie_ET_avec_une_autre_matiere_compte():
+    """Les trois conditions réunies : la basse se tait, la mélodie aussi, et
+    ce qui joue avant ne ressemble pas à ce qui joue après."""
+    from harmonia.debut import dernier_trou
+    n_ch, pas = 800, 0.05
+    p = _basse((0, 200, 0.9), (330, 700, 0.9), n=800)
+    chroma = _chroma(n_ch, PLAT)
+    avant = [0.0] * 12; avant[3] = 1.0                 # l'intro : une matière
+    apres = [0.0] * 12; apres[9] = 1.0                 # le morceau : une autre
+    chroma[:int(200 * FRAME_DT / pas), 12:] = avant
+    chroma[int(330 * FRAME_DT / pas):, 12:] = apres
+    assert dernier_trou(p, chroma, _temps(n_ch, pas)) is not None
+
+
+def test_une_respiration_entre_deux_fois_la_MEME_matiere_nest_pas_un_trou():
+    """La 3e condition, celle que Louis exige — « sinon ça peut juste être une
+    pause dans la musique »."""
+    from harmonia.debut import dernier_trou
+    n_ch, pas = 800, 0.05
+    p = _basse((0, 200, 0.9), (330, 700, 0.9), n=800)
+    chroma = _chroma(n_ch, PLAT)
+    meme = [0.0] * 12; meme[3] = 1.0
+    chroma[:int(200 * FRAME_DT / pas), 12:] = meme
+    chroma[int(330 * FRAME_DT / pas):, 12:] = meme     # la même, des deux côtés
+    assert dernier_trou(p, chroma, _temps(n_ch, pas)) is None
+
+
+def test_sans_chroma_on_retombe_sur_la_basse_seule_sans_mentir():
+    """Repli dégradé assumé : deux des trois conditions manquent, et le module
+    l'écrit dans son journal plutôt que de faire comme si de rien n'était."""
+    from harmonia.debut import dernier_trou
+    p = _basse((0, 200, 0.9), (330, 700, 0.9), n=800)
+    assert dernier_trou(p, None, None) is not None

@@ -227,9 +227,18 @@ def cuire(eng: dict, key: str, charts: Path, out: Path) -> dict:
                            bar1_time=bar1, tempo_factor=tempo_factor)
     if not model.get("barGrid") or not model.get("sections"):
         return {"status": "erreur", "stem": stem, "raison": "chart vide"}
-    if old.get("bar1") is not None and model.get("bar1") is None:
+    # La garde compare la marque à ce que le chart neuf en a fait — PAS au
+    # champ `bar1` du vieux chart. Depuis le sprint 15 la marque vit dans
+    # `state/human/marks/`, et le champ du chart n'en est qu'une copie pour le
+    # client. Garder l'ancienne comparaison bloquait la republication d'un
+    # morceau dont Louis venait de RETIRER sa marque : le 2026-09-17 il a dit
+    # « la mesure 1 est bonne » sur trois morceaux qu'il avait marqués par
+    # erreur le matin même, et la garde refusait de recuire les charts avec la
+    # phase du traqueur — elle protégeait une copie périmée contre sa propre
+    # décision. Quand la marque existe, la garde mord exactement comme avant.
+    if bar1 is not None and model.get("bar1") is None:
         return {"status": "erreur", "stem": stem,
-                "raison": f"Set bar 1 ({old['bar1']}s) perdu"}
+                "raison": f"Set bar 1 ({bar1}s) perdu"}
     note = ""
     a_la_main = sections_a_la_main(eng, stem)
     if a_la_main:
