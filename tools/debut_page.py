@@ -94,6 +94,56 @@ def marche_energie(brut: list[float], grille: list[float]) -> tuple[int, float] 
     return None if best is None else (best, score)
 
 
+def premiere_basse(stem: str, seuil: float = 0.5, tenue: int = 11) -> float | None:
+    """Le premier instant où la tête BASSE de musx sort de « rien » et y reste.
+
+    Piste de Louis, 2026-09-17 : « souvent la première note de basse, mais pas
+    toujours ». `probs[1]` est la tête de basse du modèle, 13 colonnes dont la
+    première est « pas de basse » ; on cherche où son complément passe
+    `seuil` et s'y tient `tenue` trames (0,26 s), pour ne pas se faire prendre
+    par une trame isolée.
+
+    CE QUE ÇA NE RÉSOUT PAS : mesuré contre ses 20 marques, ça tombe juste à
+    la mesure près 9 fois sur 20 — pas mieux que le traqueur. La basse entre
+    souvent une mesure AVANT le premier temps (une levée), et parfois après.
+    C'est un indice à lui montrer, pas encore une règle.
+    """
+    from harmonia import musx as _musx
+    from harmonia.musx import FRAME_DT
+    audio = SETTINGS.audio_dir / f"{stem}.m4a"
+    if not audio.exists():
+        return None
+    try:
+        p = _musx.frame_posteriors(audio)[1]
+    except Exception:                                    # noqa: BLE001
+        print(f"   (postérieures indisponibles pour {stem})")
+        return None
+    son = 1.0 - p[:, 0]
+    for i in range(len(son) - tenue):
+        if bool(np.all(son[i:i + tenue] > seuil)):
+            return float(i * FRAME_DT)
+    return None
+
+
+def premier_accord(chart: dict) -> float | None:
+    """Le début du premier accord que musx ne dit pas « silence ».
+
+    Piste de Louis : « regarder si musx ou Beat This chope déjà tout seul le
+    bon début ». C'est la réponse de musx, lue dans le chart déjà cuit.
+    """
+    for c in (chart.get("prompter") or {}).get("chords") or []:
+        if not c.get("nc"):
+            return float(c.get("t0", 0.0))
+    return None
+
+
+def _sur_la_grille(t: float | None, grille: list[float]) -> int | None:
+    """L'index de la ligne de mesure la plus proche de `t`."""
+    if t is None or not grille:
+        return None
+    return min(range(len(grille)), key=lambda i: abs(grille[i] - t))
+
+
 def collecte() -> list[dict]:
     out, vus = [], set()
     for p in sorted(SETTINGS.charts_dir.glob("min_*.json")):
@@ -130,8 +180,11 @@ def collecte() -> list[dict]:
             except (OSError, ValueError):
                 mark = None
         crete = max(liss[:nfen]) or 1.0
+        gr = [t for t in grid if t < fin]
         out.append({
             "stem": stem, "cle": p.stem, "titre": d.get("title") or stem,
+            "basse": _sur_la_grille(premiere_basse(stem), gr),
+            "accord": _sur_la_grille(premier_accord(d), gr),
             "audio": d.get("audio_url") or f"/audio/{stem}.m4a",
             "env": [round(v / crete, 3) for v in liss[:nfen]],
             "pas": PAS, "fin": round(fin, 2),
@@ -179,6 +232,7 @@ button:active{background:#f0e9d5}
 button.on{background:#2c2820;border-color:#2c2820;color:#fff}
 button.play{background:#8a2b2b;border-color:#8a2b2b;color:#fff}
 button.pas{min-width:52px;font-size:15px}
+button.saut{font-size:12.5px;min-height:36px;padding:5px 9px}
 button.caler{border-color:#c9a86a;background:#fdf3d8;font-size:12.5px;min-height:38px;padding:6px 10px}
 button.caler.on{background:#4a7c3f;border-color:#4a7c3f;color:#fff}
 button:disabled{opacity:.5}
@@ -192,7 +246,12 @@ JS = r"""
 const au=document.getElementById('au');let stop=null;
 au.addEventListener('timeupdate',()=>{if(stop!=null&&au.currentTime>=stop){au.pause();stop=null;}});
 function jouer(src,t0,dur){
-  const d0=Math.max(0,t0-1.5);                 // 1,5 s d'élan pour entendre venir
+  // PILE au curseur, aucun élan. Louis, 2026-09-17 : « j'espère que t'as pas
+  // mis de temps de latence quand on clique sur écouter ici qui fait que ça
+  // joue avant le curseur, car sinon ça fausse tout ». Il avait raison : il y
+  // avait 1,5 s d'élan, et caler à l'oreille poussait donc la marque 1,5 s
+  // trop tard. Le bouton doit dire la vérité sur ce qu'il joue.
+  const d0=Math.max(0,t0);
   const go=()=>{try{au.currentTime=d0;}catch(e){}stop=d0+(dur||7.5);au.play().catch(()=>{});};
   if(au.getAttribute('src')!==src){au.setAttribute('src',src);
     au.addEventListener('loadedmetadata',go,{once:true});au.load();}
@@ -336,7 +395,7 @@ def page(songs: list[dict]) -> str:
          "(ou glisse le doigt), puis écoute pour vérifier. Le curseur va où tu "
          "le mets, il n'est collé à rien.<br>"
          "<b style='color:#8a2b2b'>Rouge</b> = la mesure 1 d'aujourd'hui. "
-         "<b style='color:#2f5fa8'>Bleu</b> = ce que je proposerais. Les traits "
+         "Les autres traits sont les trois pistes que tu m'as données : ""<b style='color:#2f5fa8'>l'énergie</b> qui s'installe, ""<b style='color:#7b4ea3'>la 1re note de basse</b>, ""<b style='color:#b06a1f'>le 1er accord</b> de musx. Les "
          "fins sont les lignes de mesure du traqueur : elles sont justes, il ne "
          "sait pas laquelle est la première.<br><b>Les « c'est bon » me servent "
          "autant que les « c'est décalé ».</b><br>Les verdicts ne changent rien au chart : ils sont là pour que j'en tire une règle. Le seul bouton qui écrit est « ⚑ caler la mesure 1 ici pour de vrai », en bas de chaque carte — il refait le chart du morceau.</div>"]
@@ -373,16 +432,32 @@ def page(songs: list[dict]) -> str:
         B.append("<div class=env><canvas></canvas>")
         B.append(repere(g[0], "#8a2b2b", "mes.1", 2))
         if (s["propose"] or 0) > 0:
-            B.append(repere(g[s["propose"]], "#2f5fa8", "ma proposition", 16))
+            B.append(repere(g[s["propose"]], "#2f5fa8", "énergie", 16))
+        if s["basse"]:
+            B.append(repere(g[s["basse"]], "#7b4ea3", "basse", 30))
+        if s["accord"]:
+            B.append(repere(g[s["accord"]], "#b06a1f", "accord", 44))
         if s["marque"] is not None and s["marque"] < s["fin"]:
-            B.append(repere(s["marque"], "#4a7c3f", "ta marque", 30))
+            B.append(repere(s["marque"], "#4a7c3f", "ta marque", 58))
         B.append("<div class=cur><b></b></div></div>")
+        sauts = []
+        for idx, nom, coul in ((s["propose"], "énergie", "#2f5fa8"),
+                               (s["basse"], "basse", "#7b4ea3"),
+                               (s["accord"], "accord", "#b06a1f")):
+            if idx:
+                sauts.append(f"<button class=saut style=\"color:{coul};"
+                             f"border-color:{coul}55\" onclick=\"pose("
+                             f"this.closest('.card'),{g[idx]:.2f},true)\">"
+                             f"→ {nom}</button>")
+        if sauts:
+            B.append("<div class=row><span class=note>sauter à&nbsp;:</span>"
+                     + "".join(sauts) + "</div>")
         B.append("<div class=row>"
                  "<button class=pas onclick=\"pas(this.closest('.card'),-1)\">◀</button>"
                  "<button class=pas onclick=\"pas(this.closest('.card'),1)\">▶</button>"
                  f"<button class=play onclick=\"jouer('{s['audio']}',"
                  "ici(this.closest('.card')),8)\">"
-                 "▶ écouter d'ici</button>"
+                 "▶ écouter à partir d'ici</button>"
                  f"<button onclick=\"jouer('{s['audio']}',{g[0]:.2f},7.5)\">"
                  "▶ la mesure 1 actuelle</button>"
                  "<span class='note ecart'></span></div>")

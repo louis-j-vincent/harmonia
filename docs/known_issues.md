@@ -48,6 +48,45 @@ Détail et mesures : `docs/audit_2026-09-15_plan.md`.
   d'annotation existants sont intacts (vérifié : brouillons et vérité
   identiques sur les 10 brouillons).
 
+- **La page du vrai début jouait 1,5 s AVANT le curseur — les 12 clics libres
+  de Louis du 2026-09-17 sont décalés d'autant (corrigé le jour même).** Il
+  l'avait soupçonné : « j'espère que t'as pas mis de temps de latence quand on
+  clique sur écouter ici, car sinon ça fausse tout ». C'était le cas : `jouer()`
+  démarrait à `t0 - 1.5`. Mesuré sur ses 20 marques — 8 posées au pas de mesure
+  (◀ ▶, donc pile sur une ligne) et 12 au clic libre : **les 12 tombent entre
+  1,17 et 1,59 s après une ligne de mesure (médiane 1,41 s), et en retirant
+  1,5 s, 10 sur 12 reviennent à moins de 0,25 s d'une ligne.** Ces 12 marques
+  ont re-cuit 12 charts avec une mesure 1 EN PLEIN MILIEU d'une mesure ; les
+  valeurs d'origine sont sauvegardées hors dépôt avant toute reprise.
+
+- **Les trois pistes pour trouver le début automatiquement échouent, et on
+  sait pourquoi (2026-09-17).** Pistes de Louis : le début de l'accompagnement,
+  la première note de basse, et « regarder si musx ou Beat This chope déjà tout
+  seul le bon début ». Mesuré sur ses 20 marques (vérité provisoire : le clic
+  corrigé de 1,5 s, ramené sur la ligne la plus proche) :
+
+  | indice | juste à la mesure près |
+  |---|---|
+  | le traqueur seul (mesure 1 = 1re ligne) | 9/20 |
+  | marche d'énergie à la ligne de mesure | 8/20 |
+  | 1re note de basse (tête basse de musx) | 9/20 |
+  | 1er accord non-N.C. | 9/20 |
+  | deux pistes d'accord entre elles | 9/18 |
+
+  **Le mécanisme** : la basse et l'accord sortent tous deux de musx, sur le
+  même audio, et le premier instant où musx cesse de dire « silence » est
+  exactement ce sur quoi Beat This accroche sa première battue. Ils ne sont
+  donc PAS indépendants du traqueur : là où le traqueur se trompe, ils se
+  trompent pareil. Le seul indice vraiment indépendant testé — la marche
+  d'énergie — est le plus mauvais, parce qu'il trouve le refrain le plus fort
+  quand le morceau démarre tout de suite.
+  **Ce que le mécanisme impose pour la suite** : il faut un indice indépendant
+  de l'harmonie. Le candidat nommé par Louis et pas encore testé est la
+  BATTERIE (« le grid donné par le temps qu'on chope quand la batterie se cale
+  après ») : un détecteur de transitoires hautes fréquences ne partage rien
+  avec musx. À faire sur une vérité propre — les 20 marques actuelles sont
+  contaminées par les 1,5 s ci-dessus.
+
 - **La mesure 1 tombe dans le fondu d'entrée quand le fichier contient
   l'intro du CLIP** (2026-09-16, Louis sur Sam Smith : « ça a mal détecté le
   début du morceau, et ça cause un décalage tout le long »). Mesuré sur
