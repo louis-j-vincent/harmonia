@@ -377,19 +377,42 @@ function marque(c,quoi){                    // quoi=null → on efface le verdic
   rendre();
 }
 function rendre(){
+  // On liste TOUT ce que le navigateur a gardé, pas seulement ce qui trouve
+  // une carte à l'écran, et on tolère l'ancien schéma (`verdict` au lieu de
+  // `v`). Louis, 2026-09-17 : « y'a seulement les arbitrages où j'ai dit que
+  // c'était bon que je peux coller, le reste tu ne les récupères pas ? ».
+  // Le format du stockage a changé en cours de route sous la même clé : une
+  // entrée de l'ancien format se lisait « undefined » ou pas du tout. Un
+  // relevé qu'on ne peut pas recopier en entier ne vaut rien.
   const L=[];let n=0;
-  for(const c of document.querySelectorAll('.card')){
-    const v=V[c.dataset.stem];if(!v)continue;n++;
-    let l=c.dataset.stem+' → '+v.v;
-    if(v.v==='ailleurs')
-      l+=' : '+v.t.toFixed(2)+'s'
-        +' [mesure '+v.mes+' à '+v.tmes.toFixed(2)+'s, '
-        +(v.ecart>0?'+':'')+v.ecart+' mesure'+(Math.abs(v.ecart)>1?'s':'')
-        +(v.sur?'':', pas sur une ligne')+']';
+  for(const st of Object.keys(V)){
+    const v=V[st]||{};const quoi=v.v||v.verdict||'?';n++;
+    let l=st+' → '+quoi;
+    const t=(typeof v.t==='number')?v.t:null;
+    if(t!==null) l+=' : '+t.toFixed(2)+'s';
+    if(typeof v.mes==='number')
+      l+=' [mesure '+v.mes+(typeof v.tmes==='number'?' à '+v.tmes.toFixed(2)+'s':'')
+        +(typeof v.ecart==='number'
+          ? ', '+(v.ecart>0?'+':'')+v.ecart+' mesure'+(Math.abs(v.ecart)>1?'s':'') : '')
+        +(v.sur===false?', pas sur une ligne':'')+']';
     L.push(l);
   }
-  document.getElementById('out').value=L.join('\n')||'(aucun verdict pour l\'instant)';
+  document.getElementById('out').value=L.sort().join('\n')
+      ||'(aucun verdict pour l\'instant)';
   document.getElementById('n').textContent=n+' / '+document.querySelectorAll('.card').length;
+}
+function copierBrut(){
+  // Le filet : le contenu EXACT du stockage, sans mise en forme ni tri, pour
+  // que rien ne puisse se perdre dans ma façon de le relire.
+  const t=document.getElementById('out');
+  let brut='';try{brut=localStorage.getItem(KEY)||'';}catch(e){brut='(stockage illisible)';}
+  t.value=brut||'(rien de stocké dans ce navigateur)';
+  t.select();t.setSelectionRange(0,99999);presse(t.value);
+}
+function presse(txt){
+  const replier=()=>{try{document.execCommand('copy');}catch(e){}};
+  try{const pr=navigator.clipboard&&navigator.clipboard.writeText(txt);
+      if(pr&&pr.catch) pr.catch(replier); else replier();}catch(e){replier();}
 }
 function dessiner(c){
   const cv=c.querySelector('canvas'), env=JSON.parse(c.dataset.env);
@@ -451,9 +474,8 @@ function caler(btn,cle){
    // console. Le bouton redevient cliquable pour réessayer.
    .catch(e=>{etat.textContent='raté : '+e.message;btn.disabled=false;});
 }
-function copier(){const t=document.getElementById('out');
-  t.select();t.setSelectionRange(0,99999);
-  try{navigator.clipboard.writeText(t.value)}catch(e){document.execCommand('copy')}}
+function copier(){rendre();const t=document.getElementById('out');
+  t.select();t.setSelectionRange(0,99999);presse(t.value);}
 """
 
 
@@ -563,10 +585,14 @@ def page(songs: list[dict]) -> str:
         B.append("</div>")
     B.append("<h2>Tes arbitrages</h2>"
              "<textarea id=out readonly></textarea>"
-             "<div class=row><button onclick=copier()>Copier le bloc</button></div>"
+             "<div class=row><button onclick=copier()>Copier le bloc</button>"
+             "<button onclick=copierBrut()>Copier tout, brut</button>"
+             "<button onclick=rendre()>Relire</button></div>"
              "<p class=note>Colle-le dans la conversation. Rien n'est envoyé "
              "d'ici ; tes réponses restent dans ce navigateur, tu peux t'y "
-             "reprendre en plusieurs fois.</p>")
+             "reprendre en plusieurs fois. « Copier tout, brut » vide le "
+             "stockage tel quel, au cas où ma mise en forme laisserait "
+             "tomber quelque chose.</p>")
     return ("<!-- tools/debut_page.py -->"
             "<meta charset=utf-8>"
             "<meta name=viewport content='width=device-width,initial-scale=1'>"
