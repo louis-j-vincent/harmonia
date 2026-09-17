@@ -189,39 +189,58 @@ JS = r"""
 const au=document.getElementById('au');let stop=null;
 au.addEventListener('timeupdate',()=>{if(stop!=null&&au.currentTime>=stop){au.pause();stop=null;}});
 function jouer(src,t0,dur){
-  const d0=Math.max(0,t0-1.5);
+  const d0=Math.max(0,t0-1.5);                 // 1,5 s d'élan pour entendre venir
   const go=()=>{try{au.currentTime=d0;}catch(e){}stop=d0+(dur||7.5);au.play().catch(()=>{});};
   if(au.getAttribute('src')!==src){au.setAttribute('src',src);
     au.addEventListener('loadedmetadata',go,{once:true});au.load();}
   else go();
 }
+function ici(c){return parseFloat(c.dataset.choix)}
 const KEY='harmonia_debut_v1';
 let V={};try{V=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){V={}}
 
 function lignes(c){return JSON.parse(c.dataset.grille)}
-function pose(c,k){                       // k = index de mesure choisi
-  const g=lignes(c), fin=parseFloat(c.dataset.fin);
-  k=Math.max(0,Math.min(g.length-1,k));
-  c.dataset.choix=k;
-  const cur=c.querySelector('.cur'), pc=100*g[k]/fin;
+function proche(c,t){                       // la ligne de mesure la plus proche
+  const g=lignes(c);let k=0;
+  for(let i=1;i<g.length;i++) if(Math.abs(g[i]-t)<Math.abs(g[k]-t)) k=i;
+  return {k:k, t:g[k], d:t-g[k]};
+}
+function pose(c,t,efface){                  // t = un TEMPS, libre
+  const fin=parseFloat(c.dataset.fin);
+  t=Math.max(0,Math.min(fin,t));
+  c.dataset.choix=t.toFixed(2);
+  const cur=c.querySelector('.cur'), pc=100*t/fin;
   cur.style.left=pc+'%';
   const et=cur.querySelector('b');
-  et.textContent='mes. '+(k+1)+' · '+g[k].toFixed(2)+'s';
+  et.textContent=t.toFixed(2)+'s';
   // Passé les deux tiers, l'étiquette déborderait : on la pose à gauche du
-  // trait. `right` sur un trait de 2 px de large fait pousser le texte vers
-  // la gauche, sans changer la position du trait lui-même.
-  if(pc>62){et.style.left='auto';et.style.right='4px';}
-  else{et.style.right='auto';et.style.left='4px';}
-  const d=k-parseInt(c.dataset.actuel,10);
-  c.querySelector('.ecart').textContent = d===0 ? 'la mesure 1 actuelle'
-    : (d>0?'+':'')+d+' mesure'+(Math.abs(d)>1?'s':'')+' par rapport à maintenant';
+  // trait. `right` sur un trait de 3 px fait pousser le texte vers la gauche,
+  // sans bouger le trait.
+  if(pc>62){et.style.left='auto';et.style.right='5px';}
+  else{et.style.right='auto';et.style.left='5px';}
+  // Ce que je lis, moi : la ligne de mesure la plus proche et le décalage en
+  // mesures. C'est la grandeur qu'une règle devra prédire — le clic de Louis
+  // est libre, la conversion est mon travail.
+  const pr=proche(c,t), dm=pr.k-parseInt(c.dataset.actuel,10);
+  c.querySelector('.ecart').textContent =
+    (Math.abs(pr.d)<0.35 ? 'pile sur la ligne de la mesure '+(pr.k+1)
+                         : 'entre deux lignes, la plus proche est la mesure '+(pr.k+1))
+    + (dm===0 ? ' — la mesure 1 actuelle'
+              : ' — '+(dm>0?'+':'')+dm+' mesure'+(Math.abs(dm)>1?'s':''));
+  if(efface) marque(c,null);
 }
-function pas(c,d){pose(c,parseInt(c.dataset.choix,10)+d);marque(c,null);}
-function marque(c,quoi){                  // quoi=null → on efface le verdict
+function pas(c,d){                          // ◀ ▶ : d'une ligne de mesure
+  const g=lignes(c), pr=proche(c,ici(c));
+  let k=pr.k+d;
+  if(Math.abs(pr.d)>0.05) k=(d>0 && pr.d<0)||(d<0 && pr.d>0) ? pr.k : pr.k+d;
+  pose(c,g[Math.max(0,Math.min(g.length-1,k))],true);
+}
+function marque(c,quoi){                    // quoi=null → on efface le verdict
   const st=c.dataset.stem;
   if(quoi===null){delete V[st];}
-  else{const k=parseInt(c.dataset.choix,10), g=lignes(c);
-       V[st]={v:quoi,mes:k+1,t:g[k],ecart:k-parseInt(c.dataset.actuel,10)};}
+  else{const t=ici(c), pr=proche(c,t);
+       V[st]={v:quoi,t:t,mes:pr.k+1,tmes:pr.t,
+              ecart:pr.k-parseInt(c.dataset.actuel,10),sur:Math.abs(pr.d)<0.35};}
   for(const b of c.querySelectorAll('.vd button'))
     b.classList.toggle('on', quoi!==null && b.dataset.v===quoi);
   try{localStorage.setItem(KEY,JSON.stringify(V))}catch(e){}
@@ -232,8 +251,11 @@ function rendre(){
   for(const c of document.querySelectorAll('.card')){
     const v=V[c.dataset.stem];if(!v)continue;n++;
     let l=c.dataset.stem+' → '+v.v;
-    if(v.v==='ailleurs') l+=' : mesure '+v.mes+' ('+v.t.toFixed(2)+'s, '
-        +(v.ecart>0?'+':'')+v.ecart+' mesure'+(Math.abs(v.ecart)>1?'s':'')+')';
+    if(v.v==='ailleurs')
+      l+=' : '+v.t.toFixed(2)+'s'
+        +' [mesure '+v.mes+' à '+v.tmes.toFixed(2)+'s, '
+        +(v.ecart>0?'+':'')+v.ecart+' mesure'+(Math.abs(v.ecart)>1?'s':'')
+        +(v.sur?'':', pas sur une ligne')+']';
     L.push(l);
   }
   document.getElementById('out').value=L.join('\n')||'(aucun verdict pour l\'instant)';
@@ -241,7 +263,7 @@ function rendre(){
 }
 function dessiner(c){
   const cv=c.querySelector('canvas'), env=JSON.parse(c.dataset.env);
-  const g=lignes(c), pas_=parseFloat(c.dataset.pas), fin=parseFloat(c.dataset.fin);
+  const g=lignes(c), fin=parseFloat(c.dataset.fin);
   const w=cv.width=Math.round(cv.clientWidth*2), h=cv.height=176, x=cv.getContext('2d');
   x.fillStyle='#f3edda';x.fillRect(0,0,w,h);
   x.strokeStyle='#e0d6bd';x.lineWidth=2;                 // les lignes de mesure
@@ -252,18 +274,24 @@ function dessiner(c){
   for(let i=0;i<n;i++){const bh=Math.max(2,env[i]*h*0.9);
     x.fillRect(i*w/n,h-bh,Math.max(1.5,w/n-0.5),bh);}
 }
+function tempsDe(e,el,fin){
+  const r=el.getBoundingClientRect();
+  return (e.clientX-r.left)/r.width*fin;
+}
 window.addEventListener('DOMContentLoaded',()=>{
   for(const c of document.querySelectorAll('.card')){
     dessiner(c);
-    const g=lignes(c), fin=parseFloat(c.dataset.fin);
-    c.querySelector('.env').addEventListener('click',e=>{
-      const r=e.currentTarget.getBoundingClientRect();
-      const t=(e.clientX-r.left)/r.width*fin;
-      let k=0;for(let i=1;i<g.length;i++) if(Math.abs(g[i]-t)<Math.abs(g[k]-t)) k=i;
-      pose(c,k);marque(c,null);
-    });
+    const onde=c.querySelector('.env'), fin=parseFloat(c.dataset.fin);
+    let tire=false;
+    onde.addEventListener('pointerdown',e=>{
+      tire=true;onde.setPointerCapture(e.pointerId);
+      pose(c,tempsDe(e,onde,fin),true);e.preventDefault();});
+    onde.addEventListener('pointermove',e=>{
+      if(tire) pose(c,tempsDe(e,onde,fin),false);});
+    for(const ev of ['pointerup','pointercancel'])
+      onde.addEventListener(ev,()=>{tire=false;});
     const v=V[c.dataset.stem];
-    pose(c, v ? v.mes-1 : parseInt(c.dataset.depart,10));
+    pose(c, v ? v.t : parseFloat(c.dataset.depart), false);
     if(v) for(const b of c.querySelectorAll('.vd button'))
       b.classList.toggle('on',b.dataset.v===v.v);
   }
@@ -279,26 +307,28 @@ function copier(){const t=document.getElementById('out');
 
 def page(songs: list[dict]) -> str:
     B = ["<h1>Le vrai début du morceau</h1>",
-         "<div class=lede>Le traqueur pose des lignes de mesure justes, mais il "
-         "ne sait pas <b>laquelle est la première</b> — un fondu ou une intro de "
-         "clip le trompe.<br>Traits fins = les lignes. "
+         "<div class=lede><b>Touche l'onde là où le morceau commence</b> "
+         "(ou glisse le doigt), puis écoute pour vérifier. Le curseur va où tu "
+         "le mets, il n'est collé à rien.<br>"
          "<b style='color:#8a2b2b'>Rouge</b> = la mesure 1 d'aujourd'hui. "
-         "<b style='color:#2f5fa8'>Bleu</b> = ce que je proposerais. Touche "
-         "l'onde, écoute, tranche.<br><b>Les « c'est bon » me servent autant que "
-         "les « c'est décalé ».</b> La page ne modifie rien.</div>"]
+         "<b style='color:#2f5fa8'>Bleu</b> = ce que je proposerais. Les traits "
+         "fins sont les lignes de mesure du traqueur : elles sont justes, il ne "
+         "sait pas laquelle est la première.<br><b>Les « c'est bon » me servent "
+         "autant que les « c'est décalé ».</b> La page ne modifie rien.</div>"]
     bouge = sum(1 for s in songs if (s["propose"] or 0) > 0)
     B.append(f"<p class=note>{len(songs)} morceaux. Je proposerais de déplacer "
              f"la mesure 1 sur {bouge} d'entre eux — ils sont en tête. "
              "Répondu : <span class=compte id=n>0</span></p>")
     for s in songs:
         g = s["grille"]
-        depart = s["propose"] if (s["propose"] or 0) > 0 else 0
+        depart = g[s["propose"]] if (s["propose"] or 0) > 0 else g[0]
         cls = "card bouge" if (s["propose"] or 0) > 0 else "card"
         B.append(
             f"<div class=\"{cls}\" data-stem=\"{html.escape(s['stem'])}\" "
             f"data-env='{json.dumps(s['env'])}' data-grille='{json.dumps(g)}' "
             f"data-pas=\"{s['pas']}\" data-fin=\"{s['fin']}\" "
-            f"data-actuel=\"0\" data-depart=\"{depart}\" data-choix=\"{depart}\">")
+            f"data-actuel=\"0\" data-depart=\"{depart:.2f}\" "
+            f"data-choix=\"{depart:.2f}\">")
         B.append(f"<div class=tt>{html.escape(s['titre'])}</div>")
         bits = [f"mesure 1 à {g[0]:.2f}s"]
         if s["bpm"]:
@@ -326,9 +356,8 @@ def page(songs: list[dict]) -> str:
                  "<button class=pas onclick=\"pas(this.closest('.card'),-1)\">◀</button>"
                  "<button class=pas onclick=\"pas(this.closest('.card'),1)\">▶</button>"
                  f"<button class=play onclick=\"jouer('{s['audio']}',"
-                 "JSON.parse(this.closest('.card').dataset.grille)"
-                 "[parseInt(this.closest('.card').dataset.choix,10)],7.5)\">"
-                 "▶ écouter le curseur</button>"
+                 "ici(this.closest('.card')),8)\">"
+                 "▶ écouter d'ici</button>"
                  f"<button onclick=\"jouer('{s['audio']}',{g[0]:.2f},7.5)\">"
                  "▶ la mesure 1 actuelle</button>"
                  "<span class='note ecart'></span></div>")
