@@ -7,21 +7,20 @@ Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 
 ## Ouvert
 
-### Aucun chart de la bibliothèque ne porte de 1re/2e fin
+### Deux accords larges dans une mesure débordent de leur cellule
 
-Les 80 charts de la bibliothèque ont zéro mesure `ending` (vérifié le
-2026-09-17, `/api/chart-model/` sur les 80). Tout le treillis des fins
-— crochets de reprise, alignement de la 2e sous la 1re, rangée courte — est
-donc du code de rendu que la PROD n'exerce jamais : il ne se vérifie qu'avec
-un modèle synthétique. La sonde `harmonia/static/_probe_treillis.html` en
-fabrique un (si mineur, AABA, 1re/2e fin, `tail:2`, barre à 4 accords, basse
-slash) et se charge à `/static/_probe_treillis.html?case=aaba`. Elle n'est
-liée depuis nulle part dans l'app.
+En notation NORMALE, une mesure à deux accords aux étiquettes longues sort de
+sa cellule à 390 px : `A♭maj7 B♭maj7` dépasse de 35 px, `B♭maj7 Cmaj7` de 21,
+`D♭9 G♭maj7` de 14, `B♭7sus4 A♭/B♭` de 10. Mesuré le 2026-09-17 sur 4 des 10
+morceaux d'un tirage au hasard, et identique AVANT le lot « treillis » — c'est
+un défaut ancien, pas une régression. L'écriture COMPACTE (`glyphTight`, qui
+tucke la qualité sous l'épaule de la lettre) ne l'a pas : c'est exactement le
+problème qu'elle a été écrite pour résoudre, mais elle n'est pas le défaut.
 
-La question ouverte n'est pas le rendu, c'est l'AMONT : `s.endings` vient du
-serveur, et rien dans la bibliothèque n'en produit. Soit le repli ne détecte
-jamais de fin alternée, soit il en produit et les 80 charts n'en ont
-sincèrement pas — non tranché.
+La sortie n'est pas d'agrandir la cellule (elle fait un quart de rangée par
+construction) ni de rapetisser le glyphe (SZ2 a déjà été arbitré contre
+iRealB). Piste la plus probable : faire retomber une mesure à deux accords
+larges sur le calage serré, sans changer la taille.
 
 ### `test_minimal_fold_separe_les_longueurs_dune_meme_lettre` est rouge
 
