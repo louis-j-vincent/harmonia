@@ -14,7 +14,7 @@
  :root[data-theme="dark"]{--bg:#151210;--paper:#211c17;--card:#2a241d;--ink:#f2ebde;
   --rule:#5b5344;--faint:#a99f8c;--line:#39332a;--deep:#0e0c0a;}
  *{box-sizing:border-box}
- body{background:var(--paper);color:var(--ink);margin:0 auto;max-width:560px;
+ body{background:var(--bg);color:var(--ink);margin:0 auto;max-width:560px;
   font:400 15px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
   padding:16px 14px 40px}
  h1{font:600 22px/1.2 Georgia,'Times New Roman',serif;margin:0;letter-spacing:-.01em}
@@ -24,7 +24,7 @@
 
  button{font:600 13px/1 -apple-system,system-ui,sans-serif;border-radius:9px;
   padding:9px 12px;min-height:40px;cursor:pointer;border:1px solid var(--rule);
-  background:var(--card);color:var(--ink);-webkit-tap-highlight-color:transparent}
+  background:var(--paper);color:var(--ink);-webkit-tap-highlight-color:transparent}
  button:active{transform:translateY(1px)}
  button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
@@ -40,6 +40,13 @@
  .fil .fleche{color:var(--faint);font-size:13px}
  .fil .niv{margin-left:auto;font:500 11px/1 -apple-system,system-ui,sans-serif;color:var(--faint)}
 
+ /* Dans l'app, le compas vit dans une feuille (`kit.js::sheetBox`) : fond
+    `card`, coins de 22 px, ombre portée. Il n'est jamais posé à même la page,
+    et sa teinte de fond fait partie de son identité — l'orbe pâle est pâle
+    PAR RAPPORT à ce blanc-crème. On lui rend donc son support, fil d'Ariane
+    et barre d'outils compris, qui sont eux aussi dans la feuille. */
+ .feuille{background:var(--card);border-radius:22px;padding:14px 16px 16px;
+  margin:6px 0 4px;box-shadow:0 8px 28px -18px rgba(50,35,20,.55)}
  .rond{display:flex;justify-content:center;padding:4px 0 2px}
  svg{display:block;overflow:visible;touch-action:manipulation}
  svg .orbe{cursor:pointer}
@@ -218,6 +225,7 @@
              <span class="sq">G-7</span></button><button class="slot" data-i="73" type="button">
              <span class="sb">87.3</span>
              <span class="sq">D-7</span></button></div>
+<div class="feuille">
 <div class="fil" id="fil"></div>
 <div class="rond" id="rond"></div>
 
@@ -226,6 +234,7 @@
   <span class="sp"></span>
   <button id="play" type="button">&#9658; écouter</button>
   <button id="haut" type="button">&#8630; remonter</button>
+</div>
 </div>
 
 <div class="note">
@@ -307,9 +316,16 @@ const petalFill = pc =>
 const petalEdge = pc =>
   `hsl(${rootHue(pc)} ${Math.round(50 + FIGE * 26)}% ${Math.round(60 - FIGE * 22)}%)`;
 const keyTint = pc => `hsl(${rootHue(pc)} 52% 90%)`;
+// UN ORBE EST UN FOND CLAIR DANS LES DEUX THÈMES. `petalFill` et `keyTint`
+// n'ont pas de branche sombre — ils sont pâles par construction, c'est ce qui
+// fait l'identité du compas. Ce qu'on écrit DESSUS doit donc rester sombre
+// même quand la page est sombre : prendre `--ink` y mettrait du crème sur du
+// pâle. (Le compas de l'app a exactement ce défaut, cf. known_issues.)
+const ENCRE_PETALE = "#1c1c1c";        // `LIGHT.ink`
+const PALE_PETALE = "#6f6857";
 // et la couleur du SYMBOLE dit la sûreté du modèle : encre quand il est sûr,
 // puis des bruns, puis le rouge quand il ne l'est plus.
-const confColor = c => c >= .82 ? css('--ink') : c >= .66 ? "#5c4a30"
+const confColor = c => c >= .82 ? ENCRE_PETALE : c >= .66 ? "#5c4a30"
   : c >= .5 ? "#9a6a1e" : c >= .38 ? "#bd6a22" : "#a8281f";
 
 // `confColor` veut dire UNE chose : « à quel point le modèle croit que c'est
@@ -317,7 +333,7 @@ const confColor = c => c >= .82 ? css('--ink') : c >= .66 ? "#5c4a30"
 // nombres sont des parts entre extensions (1 %, 19 %) — les peindre en rouge
 // ferait crier « le modèle doute » à un compas qui ne doute pas, il répartit.
 // Sous le premier niveau le symbole est donc simplement en encre.
-const encreSymbole = (c, premier) => premier ? confColor(c) : css('--ink');
+const encreSymbole = (c, premier) => premier ? confColor(c) : ENCRE_PETALE;
 // l'aire suit la proba, donc le rayon suit sa racine (`kit.js::byArea`)
 const byArea = (p, rMin, rMax) => rMin + Math.sqrt(Math.max(0, Math.min(1, p))) * (rMax - rMin);
 
@@ -555,7 +571,7 @@ function dessine(){
              encreSymbole(n.o.p, niv.cle === 'base'));
       const pct = sv("text", {x, y: y + n.pr * 0.60, "text-anchor": "middle",
         "font-family": "-apple-system,system-ui,sans-serif", "font-size": 9.5,
-        fill: C.faint});
+        fill: PALE_PETALE});
       pct.textContent = (n.o.p * 100).toFixed(0) + ' %';
       g.appendChild(pct);
       g.addEventListener('click', () => {
@@ -658,7 +674,7 @@ document.getElementById('play').addEventListener('click', () => {
     d.className = 'pas';
     d.style.background = petalFill(pc);
     d.style.border = '1.5px solid ' + petalEdge(pc);
-    d.style.color = css('--ink');
+    d.style.color = ENCRE_PETALE;
     d.textContent = N.notes[pc];
     notes.appendChild(d);
   }
@@ -672,7 +688,7 @@ document.getElementById('play').addEventListener('click', () => {
     d.style.width = d.style.height = (2 * r) + 'px';
     d.style.background = petalFill(2);      // une seule note : ré
     d.style.border = '1.5px solid ' + petalEdge(2);
-    d.style.color = css('--ink');
+    d.style.color = ENCRE_PETALE;
     d.style.fontSize = (r < 15 ? 8 : 9.5) + 'px';
     d.textContent = Math.round(c * 100) + ' %';
     tai.appendChild(d);
