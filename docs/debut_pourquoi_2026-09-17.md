@@ -166,3 +166,64 @@ Enfin, il a dit franchement qu'un calcul déterministe ferait presque aussi
 bien que son raisonnement sur ce dossier. C'est ce qui a mené au test du trou
 à pleine résolution ci-dessus, qui fait 37/40. **L'agent n'a donc pas été
 construit : il a servi à trouver la règle, ce qui est mieux.**
+
+## La règle du préfixe : mesurée, rejetée — et le vrai coupable trouvé
+
+Louis, 2026-09-17, sur Don't Want My Love : « pourquoi le C c'est `bbbaa` et
+après le D c'est `bbbaaaa` ? Ce D c'est clairement un C avec un `aa` derrière
+qui est une outro ». D'où la règle candidate : **un bloc qui commence par un
+autre bloc est ce bloc, plus une queue.**
+
+Mesurée sur ses 18 découpages annotés (806 mesures), protocole du 2026-09-16
+— on simule son geste, il marque la première occurrence de chaque lettre puis
+valide, et on mesure l'accord lettre-par-mesure sur ce qu'il n'a PAS marqué.
+Rapport complet : `docs/regle_prefixe_2026-09-17.md`.
+
+| règle | accord lettre/mesure | paires groupées | gagne | perd |
+|---|---|---|---|---|
+| témoin (exact + prime) | 56,5 % | 75,1 % | — | — |
+| A — préfixe entier | 54,0 % | 73,7 % | **0** | **3** |
+| B — plus long préfixe commun | 53,7 % | 74,6 % | **0** | **4** |
+| G — correctif de `grouper_restes` | 55,3 % | **76,2 %** | 2 | 7 |
+
+**Zéro gagnant pour A et B, à tous les réglages.** Perdants : Yesterday
+55 → 36 %, Let It Be 91 → 74 %, Be My Baby 29 → 17 %. Avec un garde-fou
+honnête (partie partagée ≥ 4 bi-mesures), A et B deviennent strictement
+identiques au témoin : le témoin, en plus compliqué.
+
+### Pourquoi, en trois faits
+
+1. **Sur son propre morceau la règle ne peut pas se déclencher.** Son C est
+   `abbb` et son D `bbbaaaa` : le plus long préfixe commun vaut **zéro**. La
+   matière partagée — les trois `b` — est bien dans les deux, mais **décalée
+   d'une bi-mesure**. Sur tout le corpus : partie partagée EN TÊTE
+   1,61 bi-mesure, partie partagée N'IMPORTE OÙ 2,38. La bonne primitive
+   n'est pas « commence par », c'est « contient le même motif, décalé ».
+2. **Le mot pauvre piège la règle.** Les deux morceaux les plus cassés sont
+   les deux plus pauvres parmi ceux où elle tire : Let It Be (71 % d'une
+   seule lettre, −17 points) et Yesterday (70 %, −19 points). Les fusions
+   plausibles n'apparaissent que sur les mots riches (Sunny, 10 lettres).
+3. **`nommer` avait déjà raison ; c'est `grouper_restes` qui casse.** Tracé
+   sur Don't Want My Love avec son trait A :
+
+        après `nommer`            après `grouper_restes`
+        23-26  C  « bb »          23-28  D  « bbb »
+        27-28  D  « b »
+        37-42  A  « aaa »         37-48  C  « aaaccc »
+        43-46  E  « cc »
+        47-48  F  « c »
+
+   Les fragments sont déclarés « queue » parce qu'ils sont plus courts que la
+   cible, puis recollés — et le recollage **invente une lettre** sans rapport
+   avec celles des fragments. Le bloc dont Louis se plaint n'est pas un
+   défaut de nommage : c'est un recollage de morceaux déjà nommés.
+
+### La piste qui reste
+
+La variante G — « un reste dont le type se répète ailleurs n'est pas du
+reste, il garde sa lettre » — est la seule qui bouge la STRUCTURE (76,2 %
+contre 75,1 %) et elle débloque deux des trois morceaux que ce document note
+comme coincés : **The Walk 0 → 43 %**, **Easy On Me 28 → 55 %**. Trop brutale
+telle quelle : 256 blocs contre 198, elle fragmente. Il lui faut un
+adoucissement — recoller quand même, mais **garder la lettre du plus long
+fragment** au lieu d'en inventer une neuve.
