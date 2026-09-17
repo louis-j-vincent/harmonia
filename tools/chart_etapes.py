@@ -94,9 +94,18 @@ def etapes(cle: str, label: str, b0: int, b1: int) -> dict:
     cible = info["cible"]
     steps = merges4(mot, cible=cible, depart=depart, geles=geles)
 
+    siens = {(j0, j1 + 1) for j0, j1, _ in fixes}
+
     def en_mesures(toks):
-        return [{"m0": bornes[t[0]], "m1": bornes[t[1]] - 1, "txt": t[2]}
-                for t in toks]
+        # `humain` distingue LA section annotée des bi-mesures brutes. Louis,
+        # 2026-09-17 : « pour moi l'étape 0 ça devrait être juste mon
+        # annotation de la section A et rien d'autre, là pourquoi il y a déjà
+        # d'autres sections annotées ». Il a raison : il n'y en a qu'une. Les
+        # autres unités ne sont pas des sections, ce sont les jetons de deux
+        # mesures, la matière première que l'algorithme va souder. Les peindre
+        # pareil laissait croire à un découpage déjà fait.
+        return [{"m0": bornes[t[0]], "m1": bornes[t[1]] - 1, "txt": t[2],
+                 "humain": (t[0], t[1]) in siens} for t in toks]
 
     # AVANT TON TRAIT — la grille que la machine se donne toute seule. Louis,
     # 2026-09-17 : « et ça c'est à quel moment que l'humain a noté quelque
@@ -111,8 +120,11 @@ def etapes(cle: str, label: str, b0: int, b1: int) -> dict:
                          "txt": song["mot"][k]}
                         for k in range(len(song["jetons"]) - 1)]},
             {"titre": "étape 0 — ton trait est posé",
-             "sous": _sous_etape0(label, b0, b1, song["jetons"], bornes,
-                                  song["mot"], mot, len(depart)),
+             "sous": "UNE seule section est annotée, la tienne (cadre "
+                     "noir) ; tout le reste n'est pas découpé, ce sont les "
+                     "bi-mesures brutes — " + _sous_etape0(
+                         label, b0, b1, song["jetons"], bornes,
+                         song["mot"], mot, len(depart)),
              "unites": en_mesures(depart)}]
     for k, s in enumerate(steps[1:], 1):
         vues.append({
@@ -182,7 +194,8 @@ h1{font-size:19px;margin:0 0 6px}
  word-break:break-word}
 .mes.deb{border-top-left-radius:5px;border-bottom-left-radius:5px}
 .badge{position:absolute;top:-1px;right:3px;font:700 10px system-ui;color:#fff;
- padding:1px 5px;border-radius:0 0 4px 4px}
+ padding:1px 5px;border-radius:0 0 4px 4px;opacity:.72}
+.badge.moi{opacity:1;box-shadow:0 0 0 2px #2c2820}
 .lg{font:600 12.5px system-ui;color:#8a8371;margin:10px 0 2px}
 """
 
@@ -216,19 +229,25 @@ function peindre(){
   const cells=document.querySelectorAll('.mes');
   for(const c of cells){ c.style.background="#f3edda"; c.style.boxShadow="";
     const b=c.querySelector('.badge'); if(b) b.remove(); }
+  // Une unité de Louis se voit ; une bi-mesure brute se devine. Sans cette
+  // différence la page laissait croire que tout était déjà annoté.
+  const brut = v.unites.filter(u=>!u.humain).length>8;
   for(const u of v.unites){
     const coul=teinte(u.nom||u.txt);
+    const fort = u.humain || !brut;
     for(let m=u.m0;m<=u.m1 && m<cells.length;m++){
       const c=cells[m];
-      c.style.background=coul+"26";
-      c.style.boxShadow="inset 3px 0 0 "+(m===u.m0?coul:"transparent");
+      c.style.background=coul+(fort?"33":"12");
+      c.style.boxShadow="inset "+(fort?"4":"2")+"px 0 0 "
+                        +(m===u.m0?(fort?coul:coul+"66"):"transparent")
+                        +(u.humain?", 0 0 0 2px #2c2820":"");
       c.onclick=()=>jouer(D.grid[u.m0], D.grid[Math.min(u.m1+1,D.grid.length-1)]);
     }
     const tete=cells[u.m0];
-    if(tete){
+    if(tete && (fort || u.nom)){
       const b=document.createElement('div');
-      b.className='badge'; b.style.background=coul;
-      b.textContent=(u.nom? u.nom+" · ":"")+(u.txt||"");
+      b.className='badge'+(u.humain?' moi':''); b.style.background=coul;
+      b.textContent=(u.humain?"toi · ":"")+(u.nom? u.nom+" · ":"")+(u.txt||"");
       tete.appendChild(b);
     }
   }
