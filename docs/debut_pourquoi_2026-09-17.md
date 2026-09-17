@@ -110,3 +110,59 @@ exemples : une intro de clip contient souvent de la **parole**, et la courbe
 de bruit ambiant la montre franchement sur Sam Smith (platitude spectrale
 haute pendant 40 s, effondrée dès l'entrée du groupe). Détecter la parole est
 un problème mieux posé que « détecter une autre musique ».
+
+
+## Ce qui a fini par marcher : le trou, à pleine résolution
+
+Les quatre échecs ci-dessus avaient un point commun que je n'avais pas vu :
+ils cherchaient tous à comparer l'intro au CORPS du morceau (par la
+ressemblance, par le tempo). La règle de Louis ne compare rien — elle regarde
+**ce qu'il y a ENTRE les deux** :
+
+> « Si on a un début de chanson puis plus rien derrière [...] alors c'est une
+> intro musicale. »
+
+`harmonia.debut.dernier_trou` : la tête de basse de musx reste sous 0,15
+pendant au moins 3 secondes. Ce qui joue avant le DERNIER trou n'est pas le
+morceau. La première note de basse est alors cherchée à partir de là.
+
+| règle | bonne mesure |
+|---|---|
+| le traqueur seul | 28/42 |
+| la 1re note de basse | 35/40 |
+| **la 1re note de basse APRÈS le dernier trou** | **37/40, zéro cas cassé** |
+
+Les deux gagnés sont exactement ceux que Louis avait expliqués : Urdlvw0SSEc
+(22,77 s, le trou finit à 21,9) et fd02pGJx0s0 (9,98 s, trou fini à 9,9). Le
+résultat tient sur tout un plateau de réglages — seuil 0,15 à 0,20, durée 2 à
+5 s donnent tous 37/40 avec zéro perdu — ce qui est le signe d'un vrai effet
+et non d'un seuil ajusté à trois exemples.
+
+Les trois ratés restants : Be My Baby ouvre sur un break de batterie sans
+harmonie, donc sans trou à trouver ; Smooth Criminal trouve bien son trou
+(fini à 66,6 s) mais tombe une mesure trop loin, sur une grille elle-même
+trouée ; Chain of Fools rend 3,66 s là où Louis a marqué 5,87 — mais il dit
+lui-même que le vrai début est « légèrement avant » sa marque, donc c'est
+peut-être la marque qui a tort.
+
+### L'agent « détecter l'intro » : testé, et il a trouvé mieux qu'une réponse
+
+Louis, 2026-09-17 : « il faudrait un agent spécial "détecter l'intro" qui soit
+lancé et dise s'il y a une intro ou pas ». La prémisse a été testée avant de
+construire quoi que ce soit (règle 2 du CLAUDE.md) : un agent a reçu les
+quatre courbes de huit morceaux, résumées en 30 tranches de 0 à 9, sans les
+réponses.
+
+Il a bien répondu — et il a surtout **invalidé mon protocole** : le résumé en
+tranches de 0 à 9 avait écrasé à zéro la basse faible-mais-non-nulle des
+intros de clip. Un agent qui réussit là-dessus réussit sur un indice qui
+n'existe pas dans l'audio. Il a aussi noté que ma courbe d'énergie n'avait pas
+le même nombre de tranches que les autres, donc n'était pas alignée, et que la
+polarité du bruit ambiant s'inverse d'un morceau à l'autre (haut pendant le
+préambule de The Walk, nul pendant les 30 s de dialogue de Hot N Cold) — donc
+« bruit ambiant haut = intro » casserait sur deux morceaux sur huit.
+
+Enfin, il a dit franchement qu'un calcul déterministe ferait presque aussi
+bien que son raisonnement sur ce dossier. C'est ce qui a mené au test du trou
+à pleine résolution ci-dessus, qui fait 37/40. **L'agent n'a donc pas été
+construit : il a servi à trouver la règle, ce qui est mieux.**

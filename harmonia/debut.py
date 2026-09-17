@@ -20,7 +20,8 @@ lui :
     la marche d'énergie à la ligne de mesure       27/42
     le 1er accord non-N.C. de musx                 32/42
     le 1er son audible du fichier                  31/42
-    **la 1re note de basse**                       **35/42**
+    la 1re note de basse                           35/42
+    **la 1re note de basse APRÈS le dernier trou**  **37/40**
 
 Et douze combinaisons (consensus, médiane, garde-fous mutuels) : aucune ne
 dépasse la basse seule. Les meilleures l'égalent — « la plus précoce de basse
@@ -75,6 +76,10 @@ SEUIL_BASSE = 0.25
 TENUE_BASSE = 6
 #: en deçà de cette fraction de mesure, c'est la ligne de la grille qui gagne
 PART_CALAGE = 0.25
+#: sous cette masse de basse, musx n'entend aucune harmonie — c'est un « trou »
+SEUIL_TROU = 0.15
+#: durée minimale d'un trou pour qu'il sépare deux musiques, en secondes
+DUREE_TROU = 3.0
 
 
 def enveloppe(audio: Path, fenetre: float = 90.0) -> list[float] | None:
@@ -137,6 +142,61 @@ def premiere_basse(probs_basse, apres: float = 0.0) -> float | None:
     return None
 
 
+def dernier_trou(probs_basse, apres: float = 0.0,
+                 fenetre: float = 90.0) -> float | None:
+    """La fin du DERNIER trou d'harmonie avant `fenetre` — la règle de Louis.
+
+    Louis, 2026-09-17, sur Urdlvw0SSEc : « s'il y a un début de chanson puis
+    plus rien derrière [...] plus que la musique, le bpm, toute l'identité
+    musicale change après la pause, alors c'est une intro musicale ».
+
+    Un trou = la tête de basse de musx reste sous `SEUIL_TROU` pendant au
+    moins `DUREE_TROU`. Ce qui joue AVANT le dernier trou n'est pas le
+    morceau : c'est le préambule du clip, qui peut très bien être de la vraie
+    musique — d'où l'échec des détecteurs d'intensité, qui l'entendaient à
+    juste titre.
+
+    MESURÉ sur les 40 morceaux à grille exploitable de la bibliothèque, contre
+    les réponses de Louis : la basse seule désigne la bonne mesure 35 fois ;
+    la basse cherchée APRÈS le dernier trou, 37 fois, **sans jamais casser un
+    cas déjà juste**. Les deux gagnés sont exactement ceux qu'il avait
+    expliqués : Urdlvw0SSEc (22,77 s, le trou finit à 21,9) et fd02pGJx0s0
+    (9,98 s, le trou finit à 9,9). Le résultat tient sur tout un plateau de
+    réglages — seuil 0,15 à 0,20, durée 2 à 5 s donnent tous 37/40 avec zéro
+    perdu — ce qui est le signe d'un vrai effet et non d'un seuil ajusté.
+
+    CE QUE ÇA NE RÉSOUT PAS : les trois ratés restants. Be My Baby ouvre sur
+    un break de batterie sans harmonie, donc sans trou à trouver. Smooth
+    Criminal trouve bien son trou (fini à 66,6 s) mais tombe une mesure trop
+    loin, sur une grille elle-même trouée. Chain of Fools rend 3,66 s là où
+    Louis a marqué 5,87 — mais il dit lui-même « le vrai début est légèrement
+    avant mon marquage je crois », donc c'est peut-être la marque qui a tort.
+
+    ESSAYÉ ET REJETÉ avant d'en arriver là, chacun mesuré : la récurrence
+    harmonique en veto (0 gagné 0 perdu — une intro de clip partage la
+    tonalité du morceau), la récurrence rythmique (+1, −10), et le changement
+    de tempo, invisible parce que Beat This! impose un tempo unique au fichier
+    entier. Voir `docs/debut_pourquoi_2026-09-17.md`.
+    """
+    from harmonia.musx import FRAME_DT
+    pb = np.asarray(probs_basse)
+    n = min(len(pb), int(fenetre / FRAME_DT))
+    k = int(DUREE_TROU / FRAME_DT)
+    if n <= k:
+        return None
+    creux = (1.0 - pb[:n, 0]) < SEUIL_TROU
+    fin, i = None, max(0, int(apres / FRAME_DT))
+    while i < n - k:
+        if bool(np.all(creux[i:i + k])):
+            j = i
+            while j < n and creux[j]:
+                j += 1
+            fin, i = j * FRAME_DT, j
+        else:
+            i += 1
+    return fin
+
+
 def cale_sur_grille(t: float | None, grille) -> tuple[float | None, bool]:
     """La détection, ramenée sur la ligne de mesure quand elle en est proche.
 
@@ -179,13 +239,16 @@ def debut_du_morceau(audio: Path, grille, probs_basse=None) -> dict:
     if probs_basse is None:
         from harmonia import musx as _musx
         probs_basse = _musx.frame_posteriors(Path(audio))[1]
-    brut = premiere_basse(probs_basse, apres=son)
+    # Ce qui joue avant le dernier trou d'harmonie n'est pas le morceau : on
+    # ne cherche la première basse qu'APRÈS (voir `dernier_trou`).
+    trou = dernier_trou(probs_basse, apres=son)
+    brut = premiere_basse(probs_basse, apres=trou if trou is not None else son)
     if brut is None:
         log.info("debut: aucune basse déclarée dans %s", Path(audio).name)
         return {"t": None, "mesure": None, "sur_une_ligne": False, "son": son}
     t, sur = cale_sur_grille(brut, grille)
     g = np.asarray(grille, dtype=float)
-    return {"t": t, "son": son, "sur_une_ligne": sur,
+    return {"t": t, "son": son, "trou": trou, "sur_une_ligne": sur,
             "mesure": (int(np.abs(g - t).argmin()) if len(g) else None)}
 
 

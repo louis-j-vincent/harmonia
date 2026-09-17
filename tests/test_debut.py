@@ -11,7 +11,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from harmonia.debut import (PART_CALAGE, PAS_ENERGIE, cale_sur_grille,
+from harmonia.debut import (DUREE_TROU, PART_CALAGE, PAS_ENERGIE,
+                            cale_sur_grille, dernier_trou,
                             premier_son, premiere_basse)
 from harmonia.musx import FRAME_DT
 
@@ -105,3 +106,56 @@ def test_une_grille_a_deux_lignes_a_quand_meme_une_mesure():
     partir en NaN et faire passer un calage pour impossible."""
     t, sur = cale_sur_grille(2.1, [0.0, 2.0])
     assert (t, sur) == (2.0, True)
+
+
+# ── le trou : ce qui joue avant n'est pas le morceau ─────────────────────────
+
+def test_un_trou_dharmonie_repousse_le_debut():
+    """La règle de Louis : « un début de chanson puis plus rien derrière, puis
+    toute l'identité musicale change ». Une intro de clip est de la VRAIE
+    musique — la détecter n'était pas l'erreur ; la prendre pour le morceau,
+    si."""
+    p = _basse((0, 200, 0.9),          # l'intro du clip : de la vraie musique
+               (330, 700, 0.9),        # puis le morceau
+               n=800)                  # entre les deux, 3,0 s de rien
+    trou = dernier_trou(p, apres=0.0)
+    assert trou is not None
+    # la FIN du trou, pas son début : c'est là que la musique reprend, et
+    # c'est de là qu'on doit repartir chercher.
+    assert trou == pytest.approx(330 * FRAME_DT, abs=2 * FRAME_DT)
+    # sans le trou on tombe sur l'intro ; avec, sur le morceau
+    assert premiere_basse(p) == pytest.approx(0.0, abs=FRAME_DT)
+    assert premiere_basse(p, apres=trou) == pytest.approx(330 * FRAME_DT,
+                                                          abs=2 * FRAME_DT)
+
+
+def test_un_morceau_sans_trou_nest_pas_repousse():
+    """Le cas majoritaire — 35 des 40 morceaux mesurés. Une règle qui gagne
+    deux cas en cassant les autres ne vaut rien ; celle-ci n'en casse aucun."""
+    assert dernier_trou(_basse((0, 700, 0.9), n=800)) is None
+
+
+def test_une_respiration_courte_nest_pas_un_trou():
+    """Louis : « sinon ça peut juste être une pause dans la musique ». Un
+    silence d'une seconde est un break, pas une frontière de fichier."""
+    court = int(1.0 / FRAME_DT)
+    p = _basse((0, 200, 0.9), (200 + court, 700, 0.9), n=800)
+    assert dernier_trou(p) is None
+
+
+def test_cest_le_DERNIER_trou_qui_compte():
+    """Un clip peut empiler deux préambules. Seul le dernier sépare l'intro du
+    morceau — retenir le premier laisserait le second préambule dedans."""
+    k = int(DUREE_TROU / FRAME_DT) + 4
+    p = _basse((0, 100, 0.9),
+               (100 + k, 200 + k, 0.9),
+               (200 + 2 * k, 900, 0.9), n=1000)
+    trou = dernier_trou(p)
+    assert trou == pytest.approx((200 + 2 * k) * FRAME_DT, abs=2 * FRAME_DT)
+
+
+def test_le_trou_ne_regarde_pas_avant_le_premier_son():
+    """Le silence de tête d'un fichier n'est pas une frontière entre deux
+    musiques : il n'y a rien avant lui."""
+    p = _basse((300, 900, 0.9), n=1000)
+    assert dernier_trou(p, apres=300 * FRAME_DT) is None
