@@ -7,6 +7,29 @@ Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 
 ## Ouvert
 
+### RÉSOLU 2026-09-17 — le compas était illisible en thème sombre
+
+Trouvé en portant la charte du compas sur une page de démo
+(`tools/page_compas_da.py`), puis reproduit dans l'app.
+
+`petalFill`, `petalEdge` et `keyTint` (`ui/kit.js`) n'ont **pas** de branche
+sombre : leur clarté est calculée (`84 - 34c`, et 90 % pour le moyeu) et c'est
+voulu — un pétale est un fond clair, c'est l'identité du compas. Mais ce qu'on
+écrivait dessus prenait `T.ink`, qui bascule à `#f2ebde` en thème sombre. Donc
+dès qu'on passait le thème, le compas de `Annotate` écrivait du crème sur du
+pâle : contraste ~1,1:1, le symbole du moyeu et celui de chaque orbe
+disparaissaient. Quatre endroits, tous dans `annotate.js` : le glyphe de
+l'orbe, son pourcentage (`T.faint`), le glyphe du moyeu, et la pastille de
+degré du Guide.
+
+Le thème clair ne montrait rien, d'où un défaut qui a vécu longtemps.
+
+**La loi maintenant** : `kit.js` exporte `INK_ON_PETAL` / `FAINT_ON_PETAL`,
+figés sur l'encre du thème clair, et c'est ce qu'on écrit sur un pétale, quel
+que soit le thème. Vérifié dans l'app à 390 px, thèmes clair et sombre
+(`buildCompass` rendu avec les deux réglages, captures en session).
+
+
 ### Audit 2026-09-15 — ce qui reste ouvert
 
 Détail et mesures : `docs/audit_2026-09-15_plan.md`.

@@ -10,7 +10,7 @@ import { paintLoading, pollJob } from "../screens/analyse.js";
 import { buildIReal } from "../screens/chart.js";
 import { openBar1Sheet, openSectionTool } from "../screens/sections_editor.js";
 import { S } from "../state.js";
-import { SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, el, fifthsIndex, glyph, handle, haptic, keyTint, mod, note, overlay, petalEdge, petalFill, play, playedLabel, roleOf, sheetCol, sv, toast } from "../ui/kit.js";
+import { FAINT_ON_PETAL, INK_ON_PETAL, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, el, fifthsIndex, glyph, handle, haptic, keyTint, mod, note, overlay, petalEdge, petalFill, play, playedLabel, roleOf, sheetCol, sv, toast } from "../ui/kit.js";
 
 // The single DOM host div (`<div id="app">`) — there is exactly one call
 // site, `window.APP.build(document.getElementById("app"))` in main.js, so
@@ -650,8 +650,8 @@ export function buildCompass(idx,onPick,bassOpts){
     const layer=el("div","position:absolute;inset:0;pointer-events:none;");
     nodes.forEach((n,i)=>{
       const b=el("button",`position:absolute;left:${n.x}px;top:${n.y}px;transform:translate(-50%,-50%);width:${n.pr*2}px;height:${n.pr*2}px;border-radius:50%;border:${n.isTop?2:1.5}px solid ${petalEdge(n.s.root,n.s.c)};background:${petalFill(n.s.root,n.s.c)};cursor:pointer;pointer-events:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;box-shadow:0 2px 6px rgba(60,40,20,.14);animation:ap-orb .3s ${0.04*i}s both;`);
-      b.appendChild(glyph(n.s.root,n.s.q,Math.max(13,Math.round(n.pr*0.6)),"exact",T.ink));
-      if(n.pr>Sz*0.072) b.appendChild(el("span",`font:600 ${Math.max(9,Math.round(n.pr*0.32))}px ${UI};font-style:normal;color:${T.faint};`,Math.round(n.s.c*100)+"%"));
+      b.appendChild(glyph(n.s.root,n.s.q,Math.max(13,Math.round(n.pr*0.6)),"exact",INK_ON_PETAL));
+      if(n.pr>Sz*0.072) b.appendChild(el("span",`font:600 ${Math.max(9,Math.round(n.pr*0.32))}px ${UI};font-style:normal;color:${FAINT_ON_PETAL};`,Math.round(n.s.c*100)+"%"));
       if(n.isTop) b.appendChild(el("span",`position:absolute;inset:-6px;border-radius:50%;border:2px solid ${T.accent};opacity:.4;animation:ap-pulse 2s ease-in-out infinite;`));
       b.onclick=()=>onPick({root:n.s.root,q:n.s.q}, b);
       layer.appendChild(b);
@@ -671,7 +671,7 @@ export function buildCompass(idx,onPick,bassOpts){
     // same onPick flow as an orb: preview plays, "Lock A7" arms, outline lands
     // on the hub ring.
     const hub=el("button",`position:absolute;left:${cx}px;top:${cy}px;transform:translate(-50%,-50%);width:${Sz*0.24}px;height:${Sz*0.24}px;border-radius:50%;border:none;background:transparent;cursor:pointer;pointer-events:auto;display:flex;align-items:center;justify-content:center;padding:0;`);
-    hub.appendChild(glyph(chord.root,chord.q,Math.round(Sz*0.1),"exact",T.ink));
+    hub.appendChild(glyph(chord.root,chord.q,Math.round(Sz*0.1),"exact",INK_ON_PETAL));
     hub.onclick=()=>onPick({root:chord.root,q:chord.q}, hub);
     layer.appendChild(hub);
     wrap.appendChild(svg); wrap.appendChild(layer);
@@ -773,7 +773,7 @@ export function buildGuide(idx,onPick,bassOpts){
     sug.forEach((s,i)=>{ const role=roleOf(S.key,s.root,s.q,next);
       const card=el("button",`display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;text-align:left;background:${T.card};border:1.5px solid ${s===top?T.accent:T.line};border-radius:12px;padding:11px 13px;cursor:pointer;animation:ap-in .32s ${i*0.05}s both;`);
       const swatch=el("div",`width:38px;height:38px;border-radius:10px;background:${petalFill(s.root,s.c)};border:1.5px solid ${petalEdge(s.root,s.c)};display:flex;align-items:center;justify-content:center;`);
-      swatch.appendChild(el("span",`font:700 11px ${UI};color:${T.ink};`,role.num));
+      swatch.appendChild(el("span",`font:700 11px ${UI};color:${INK_ON_PETAL};`,role.num));
       const mid=el("div","min-width:0;");
       const t1=el("div","display:flex;align-items:baseline;gap:8px;");
       t1.appendChild(glyph(s.root,s.q,22,"exact",T.ink));

@@ -207,6 +207,15 @@ export const rootHue=pc=>Math.round(fifthsIndex(pc)/12*360);
 export function petalFill(pc,conf){ return `hsl(${rootHue(pc)} ${Math.round(46+conf*26)}% ${Math.round(84-conf*34)}%)`; }
 export function petalEdge(pc,conf){ return `hsl(${rootHue(pc)} ${Math.round(50+conf*26)}% ${Math.round(60-conf*22)}%)`; }
 export function keyTint(pc){ return `hsl(${rootHue(pc)} 52% 90%)`; }
+  // UN PÉTALE EST UN FOND CLAIR DANS LES DEUX THÈMES. Les trois fonctions
+  // ci-dessus n'ont pas de branche sombre : leur clarté est calculée (84-34c,
+  // 90 %), et c'est voulu — c'est l'identité du compas. Mais `T.ink` bascule
+  // en crème en thème sombre, donc `glyph(..., T.ink)` posé sur un pétale
+  // écrivait du crème sur du pâle : moyeu et orbes illisibles dès qu'on passe
+  // le thème (constaté 2026-09-17 sur la page de démo, même code). L'encre qui
+  // va SUR un pétale est donc celle du thème clair, quel que soit le thème.
+export const INK_ON_PETAL = LIGHT.ink;
+export const FAINT_ON_PETAL = "#6f6857";
 export const SVGNS="http://www.w3.org/2000/svg";
 export function sv(t,a){ const e=document.createElementNS(SVGNS,t); for(const k in a) e.setAttribute(k,a[k]); return e; }
 export function qClass(q){ if(q===""||q.startsWith("^")||q.startsWith("6")) return "maj"; if(isHalfDim(q)) return "m7b5"; if(isDim(q)) return "dim"; if(q.startsWith("-")) return "min"; if(q.startsWith("sus")) return (q.indexOf("7")>=0)?"dom":"sus"; if(q.startsWith("+")) return q.indexOf("7")>=0?"dom":"aug"; return "dom"; }
