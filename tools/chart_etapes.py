@@ -1,0 +1,266 @@
+"""Le chart brut, et les étapes de l'algorithme posées DESSUS.
+
+Louis, 2026-09-17 : « je veux le chart brut avec itérativement au cours du
+temps les sections qui y sont détectées, que je puisse les voir et les relier
+au morceau — là je vois aa bbb cc, ça ne me parle pas ».
+
+Il a raison : un mot de lettres ne dit rien tant qu'on ne voit pas à quelles
+mesures il correspond. Cette page montre donc le chart comme l'app le montre,
+quatre mesures par ligne avec les accords, et par-dessus l'état de
+l'algorithme À CHAQUE ÉTAPE :
+
+    étape 0   les jetons nus — une lettre par bi-mesure
+    étape 1…n après chaque soudure, les unités telles qu'elles sont
+    final     les blocs nommés, avec la provenance de chaque nom
+
+Chaque unité s'écoute au doigt. C'est tout l'objet de la page : entendre ce
+que « a » veut dire.
+
+CE QU'ELLE NE FAIT PAS : corriger quoi que ce soit (Louis, le même jour :
+« n'essaye pas de fix, c'est moi qui dirai comment fix »).
+
+    python -m tools.chart_etapes --chart min_xxx --trait A:7-14
+"""
+from __future__ import annotations
+
+import argparse
+import html
+import json
+from pathlib import Path
+
+from harmonia.settings import SETTINGS
+from tools.annotation_degats import couleur, nom_accord
+
+
+def etapes(cle: str, label: str, b0: int, b1: int) -> dict:
+    """Le chart, et l'état des unités après chaque soudure."""
+    from harmonia.phrases4 import (cout, grouper_restes, merges4, nommer,
+                                   phrases)
+    from harmonia.soudure import (accords_par_mesure, mot_sur_traits,
+                                  song_du_chart, traits_propres)
+
+    chart = json.loads((SETTINGS.charts_dir / f"{cle}.json")
+                       .read_text(encoding="utf-8"))
+    song = song_du_chart(chart, audio_dir=SETTINGS.audio_dir)
+    n = int(chart.get("nBars") or 0)
+    grid = [float(t) for t in (chart.get("barGrid") or [])]
+    stem = Path(chart.get("audio_url") or "").stem
+
+    gardes, _ = traits_propres(
+        [{"label": label, "mesure_debut": b0, "mesure_fin": b1}],
+        song["n_mesures"])
+    bornes, mot, src_mot = mot_sur_traits(
+        chart, [(x, y) for x, y, _ in gardes], audio_dir=SETTINGS.audio_dir)
+    idx = {b: j for j, b in enumerate(bornes)}
+    fixes = [(idx[x], idx[y + 1] - 1, lab) for x, y, lab in gardes]
+
+    depart, j = [], 0
+    for j0, j1, _ in fixes:
+        while j < j0:
+            depart.append((j, j + 1, mot[j])); j += 1
+        depart.append((j0, j1 + 1, mot[j0:j1 + 1])); j = j1 + 1
+    while j < len(mot):
+        depart.append((j, j + 1, mot[j])); j += 1
+    geles = {(j0, j1 + 1) for j0, j1, _ in fixes}
+
+    # l'hypothèse retenue, pour ne dérouler QUE celle-là
+    _secs, info = phrases(mot, depart=depart, geles=geles)
+    cible = info["cible"]
+    steps = merges4(mot, cible=cible, depart=depart, geles=geles)
+
+    def en_mesures(toks):
+        return [{"m0": bornes[t[0]], "m1": bornes[t[1]] - 1, "txt": t[2]}
+                for t in toks]
+
+    vues = [{"titre": "étape 0 — les jetons",
+             "sous": f"{len(bornes)-1} bi-mesures, une lettre chacune ; "
+                     f"ton trait {label} est déjà d'un seul tenant",
+             "unites": en_mesures(depart)}]
+    for k, s in enumerate(steps[1:], 1):
+        vues.append({
+            "titre": f"étape {k} — on soude « {s['paire'][0]} » + "
+                     f"« {s['paire'][1]} »",
+            "sous": f"cette paire revient {s['compte']} fois ; "
+                    f"il reste {len(s['jetons'])} unités",
+            "unites": en_mesures(s["jetons"])})
+
+    blocs = grouper_restes(nommer(steps[-1]["jetons"], cible, geles=geles),
+                           mot, cible)
+    vues.append({
+        "titre": "final — les blocs, et leur nom",
+        "sous": f"cible {cible} bi-mesures, coût {cout(blocs, cible)} ; "
+                "les trop courts ont été recollés à leur voisin",
+        "unites": [{"m0": bornes[b["j0"]], "m1": bornes[b["j1"]] - 1,
+                    "txt": b["type"],
+                    "nom": b["label"] + ("′" if b["prime"] else ""),
+                    "queue": bool(b["queue"])} for b in blocs]})
+
+    # et ce que la route rend vraiment, avec la provenance de chaque nom
+    from harmonia.server.app import create_app
+    r = create_app().test_client().post(
+        f"/api/sections/inferer/{cle}",
+        json={"humain": [{"label": label, "mesure_debut": b0,
+                          "mesure_fin": b1}]}).get_json()
+    vues.append({
+        "titre": "ce que l'app écrit",
+        "sous": "le nom de chaque bloc, et par quelle règle il l'a reçu",
+        "unites": [{"m0": s["mesure_debut"] - 1, "m1": s["mesure_fin"] - 1,
+                    "txt": s.get("source") or "", "nom": s["label"]}
+                   for s in (r.get("sections") or [])]})
+
+    return {
+        "cle": cle, "titre": chart.get("title") or stem, "n": n,
+        "audio": chart.get("audio_url") or f"/audio/{stem}.m4a",
+        "grid": [round(t, 3) for t in grid], "bpb": int(chart.get("bpb") or 4),
+        "accords": [" ".join(nom_accord(c) for c in (b or [])) or "·"
+                    for b in accords_par_mesure(chart)][:n],
+        "mot": mot, "source_mot": src_mot, "trait": (label, b0, b1),
+        "vues": vues,
+    }
+
+
+CSS = """
+*{box-sizing:border-box}
+body{margin:0 auto;padding:14px 12px 40px;background:#faf6ec;color:#2c2820;
+ font:15px/1.45 system-ui,-apple-system,sans-serif;max-width:860px}
+h1{font-size:19px;margin:0 0 6px}
+.note{color:#8a8371;font-size:12.5px}
+.lede{background:#fff7df;border:1px solid #e8d9a8;border-radius:10px;
+ padding:10px 12px;font-size:14px;margin:10px 0}
+.pas{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0 4px;
+ position:sticky;top:0;background:#faf6ec;padding:8px 0;z-index:5}
+.pas button{border:1px solid #d8cfb4;border-radius:9px;background:#fff;
+ padding:7px 10px;font:600 12.5px system-ui;cursor:pointer;min-height:40px;
+ color:#2c2820}
+.pas button.on{background:#2c2820;border-color:#2c2820;color:#fff}
+.tete{font:600 15px system-ui;margin:2px 0}
+.stete{color:#8a8371;font-size:12.5px;margin-bottom:8px}
+.grille{display:grid;grid-template-columns:repeat(4,1fr);gap:3px}
+.mes{position:relative;min-height:56px;border-radius:5px;padding:14px 5px 5px;
+ background:#f3edda;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.mes .no{position:absolute;top:2px;left:5px;font:600 10px system-ui;
+ color:#8a8371;font-variant-numeric:tabular-nums}
+.mes .ac{font:600 13.5px ui-monospace,monospace;color:#2c2820;line-height:1.3;
+ word-break:break-word}
+.mes.deb{border-top-left-radius:5px;border-bottom-left-radius:5px}
+.badge{position:absolute;top:-1px;right:3px;font:700 10px system-ui;color:#fff;
+ padding:1px 5px;border-radius:0 0 4px 4px}
+.lg{font:600 12.5px system-ui;color:#8a8371;margin:10px 0 2px}
+"""
+
+JS = r"""
+const au=document.getElementById('au');let stop=null;
+au.addEventListener('timeupdate',()=>{if(stop!=null&&au.currentTime>=stop){au.pause();stop=null;}});
+function jouer(t0,t1){
+  const src=D.audio;
+  const go=()=>{try{au.currentTime=t0;}catch(e){}stop=t1;au.play().catch(()=>{});};
+  if(au.getAttribute('src')!==src){au.setAttribute('src',src);
+    au.addEventListener('loadedmetadata',go,{once:true});au.load();}
+  else go();
+}
+function teinte(txt){
+  // même teinte pour un même contenu, d'une étape à l'autre : c'est ce qui
+  // permet de SUIVRE une unité pendant qu'elle grossit.
+  const T=["#8a2b2b","#2f5fa8","#1f7a6b","#b06a1f","#7b4ea3","#4a7c3f",
+           "#a8336a","#556b2f","#8a6d3b","#3b6f8a"];
+  const s=String(txt||"?").toLowerCase();
+  if(s==="intro"||s==="outro"||s==="silence"||s==="humain") return "#8a8371";
+  let h=0; for(const c of s) h+=c.charCodeAt(0);
+  return T[h%T.length];
+}
+let vue=0;
+function peindre(){
+  const v=D.vues[vue];
+  document.getElementById('tete').textContent=v.titre;
+  document.getElementById('stete').textContent=v.sous;
+  for(const b of document.querySelectorAll('.pas button'))
+    b.classList.toggle('on', +b.dataset.i===vue);
+  const cells=document.querySelectorAll('.mes');
+  for(const c of cells){ c.style.background="#f3edda"; c.style.boxShadow="";
+    const b=c.querySelector('.badge'); if(b) b.remove(); }
+  for(const u of v.unites){
+    const coul=teinte(u.nom||u.txt);
+    for(let m=u.m0;m<=u.m1 && m<cells.length;m++){
+      const c=cells[m];
+      c.style.background=coul+"26";
+      c.style.boxShadow="inset 3px 0 0 "+(m===u.m0?coul:"transparent");
+      c.onclick=()=>jouer(D.grid[u.m0], D.grid[Math.min(u.m1+1,D.grid.length-1)]);
+    }
+    const tete=cells[u.m0];
+    if(tete){
+      const b=document.createElement('div');
+      b.className='badge'; b.style.background=coul;
+      b.textContent=(u.nom? u.nom+" · ":"")+(u.txt||"");
+      tete.appendChild(b);
+    }
+  }
+}
+window.addEventListener('DOMContentLoaded',()=>{
+  const bar=document.getElementById('pas');
+  D.vues.forEach((v,i)=>{
+    const b=document.createElement('button');
+    b.dataset.i=i; b.textContent=v.titre.split(" — ")[0];
+    b.onclick=()=>{vue=i;peindre();};
+    bar.appendChild(b);
+  });
+  peindre();
+});
+"""
+
+
+def page(d: dict) -> str:
+    lab, b0, b1 = d["trait"]
+    cells = []
+    for i in range(d["n"]):
+        cells.append(f"<div class=mes><div class=no>{i+1}</div>"
+                     f"<div class=ac>{html.escape(d['accords'][i] if i < len(d['accords']) else '·')}</div></div>")
+    corps = (
+        f"<h1>{html.escape(d['titre'])}</h1>"
+        "<div class=lede>Le chart brut, et l'algorithme posé dessus, étape par "
+        "étape. <b>Touche une mesure pour écouter l'unité entière</b> à "
+        "laquelle elle appartient — c'est là qu'on entend ce qu'une lettre veut "
+        f"dire.<br><br>Ton trait ici : <b>{html.escape(lab)} sur les mesures "
+        f"{b0}-{b1}</b>. Il est gelé dès l'étape 0 et ne bougera plus.<br>"
+        "Pendant les étapes, la teinte suit le CONTENU d'une unité : deux "
+        "unités de même teinte ont le même contenu, et c'est exactement ce qui "
+        "leur fera porter le même nom. Sur les deux dernières vues elle suit le "
+        "NOM.</div>"
+        "<div class=pas id=pas></div>"
+        "<div class=tete id=tete></div><div class=stete id=stete></div>"
+        "<div class=grille>" + "".join(cells) + "</div>"
+        f"<p class=note>{d['n']} mesures · {d['bpb']} temps par mesure · "
+        f"mot calculé sur : {html.escape(d['source_mot'])}</p>")
+    data = json.dumps({"audio": d["audio"], "grid": d["grid"],
+                       "vues": d["vues"]}, ensure_ascii=False)
+    return ("<!-- tools/chart_etapes.py -->"
+            "<meta charset=utf-8>"
+            "<meta name=viewport content='width=device-width,initial-scale=1'>"
+            f"<title>{html.escape(d['titre'])} — les étapes sur le chart</title>"
+            "<style>" + CSS + "</style><body>" + corps
+            + "<audio id=au preload=auto playsinline></audio>"
+            "<script>const D=" + data + ";</script><script>" + JS + "</script>")
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--chart", default="min_B6AHb9W_LkM")
+    ap.add_argument("--trait", default="A:7-14", help="LABEL:debut-fin")
+    ap.add_argument("--titre", default=None)
+    ap.add_argument("--out", type=Path, default=None)
+    a = ap.parse_args(argv)
+    label, plage = a.trait.split(":")
+    deb, fin = plage.split("-")
+    d = etapes(a.chart, label, int(deb), int(fin))
+    if a.titre:
+        d["titre"] = a.titre
+    out = a.out or (SETTINGS.reports_dir / f"chart_etapes_{a.chart}.html")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(page(d), encoding="utf-8")
+    print(f"→ {out}\n   {len(d['vues'])} étapes · {d['n']} mesures")
+    for v in d["vues"]:
+        print(f"   {v['titre']}  ({len(v['unites'])} unités)")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
