@@ -12,7 +12,7 @@ import { candList, openAnnotateTools, openBarExpanded, openEditor } from "../scr
 import { openChordSheet, openPrefsSheet, openRotor, transposeTo } from "../screens/prefs.js";
 import { attachSectionDrag, buildSectionTool, closeSectionTool, paintSectionTool, sectToolOn, setPlayhead, spanTime } from "../screens/sections_editor.js";
 import { S } from "../state.js";
-import { PREF, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, ctlSkin, dispQ, el, fmt, fnColor, glyph, handle, haptic, keyFill, keyHue, kitIcon, kitLegend, kitSegmented, learnLevel, lensLabelColor, mod, note, overlay, play, playGlyph, playMidis, playedLabel, qClass, renderHand, setSpelling, splitHands, tightGap, tightSize, toast, vlTrack, voClose, voicingByStyle, withBass } from "../ui/kit.js";
+import { PREF, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, ctlSkin, dispQ, el, fmt, fnColor, glyph, handle, haptic, keyFill, keyHue, kitIcon, kitLegend, kitSegmented, learnLevel, lensLabelColor, mod, note, overlay, play, playGlyph, playMidis, playedLabel, qClass, renderHand, setSpelling, songTitle, splitHands, tightGap, tightSize, toast, vlTrack, voClose, voicingByStyle, withBass } from "../ui/kit.js";
 
 // The single DOM host div (`<div id="app">`) — there is exactly one call
 // site, `window.APP.build(document.getElementById("app"))` in main.js, so
@@ -511,7 +511,7 @@ export function chartToolbar(){
     const tw=el("div","flex:1;min-width:0;");
     tw.appendChild(el("div",
       `font:italic 600 19px ${SERIF};color:${T.ink};`+
-      `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`, m?m.title:""));
+      `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`, songTitle(m)));
     // min-height 44 with negative margins: a full-size tap target (the kit's
     // floor) without adding visual height to the toolbar.
     const meta=el("button",
@@ -1365,7 +1365,12 @@ export function buildIReal(){
       // this one cell, already reads as "the alternate tail" without
       // pushing its row out of alignment with its siblings.
       const endingOwnRow = endingHead && (atRowStart || rowBroke);
-      const leftPad = endingOwnRow ? (narrow?21:26) : (narrow?3:8);
+      // Le retrait de gauche d'une fin sur SA rangée ne sert qu'à laisser
+      // passer le tick du crochet — 2px de large, posé à left:2px. Il valait
+      // 21/26px du temps où le chiffre `1.` vivait DANS la cellule; §4 l'a
+      // remonté dans le gap, et ces 21px poussaient les deux accords de la
+      // 2e fin par-dessus la barre de mesure de droite (vu au rendu 390px).
+      const leftPad = endingOwnRow ? (narrow?8:11) : (narrow?3:8);
       // §2: plus de `grid-column-start` pour les fins — les cellules vides
       // sont posées pour de vrai, le flux de la grille suffit. Il ne reste
       // utile que pour `b.secFirst`, où il garantit la colonne 1.
@@ -1445,15 +1450,26 @@ export function buildIReal(){
         cell.appendChild(el("div",`position:absolute;left:2px;top:0;bottom:0;width:2px;background:${T.ink};`));
       }
       if(endingHead){
-        // Own row: label + tick sit IN the margin gap, above the border-top
-        // rule, forming a hanging "⌐1." bracket. Sharing a row: no gap
-        // exists to hang in, so both sit just inside the cell's top edge
-        // instead — still legible, distinguished from a section badge by
-        // colour/digit shape alone.
-        const labelTop = endingOwnRow ? (-endingGap+1) : (narrow?3:4);
-        const tickH = endingOwnRow ? (endingGap+9) : (narrow?13:16);
-        cell.appendChild(el("div",`position:absolute;left:4px;top:${labelTop}px;font:800 ${narrow?9:11}px ${UI};color:${T.accent};z-index:2;`,b.ending+"."));
-        cell.appendChild(el("div",`position:absolute;left:2px;top:${labelTop}px;height:${tickH}px;width:2px;background:${T.accent};`));
+        // §4 — UN VRAI CROCHET DE REPRISE, dessiné par-dessus le treillis.
+        //   * tick vertical, 2px accent, ~14px, à `left:2px` de la cellule de
+        //     tête — c'est lui qui arrête le trait à gauche;
+        //   * horizontale 2px accent partant du tick et s'arrêtant AU BORD
+        //     DROIT de la dernière mesure de cette fin, jamais au-delà (d'où
+        //     `endingRun`: les cellules font 1fr chacune, donc n mesures =
+        //     n×100% de la largeur de la cellule de tête);
+        //   * le chiffre `1.`/`2.` au-dessus de l'horizontale, dans le gap.
+        // Quand la fin PARTAGE sa rangée il n'y a pas de gap où poser le
+        // chiffre: crochet et chiffre rentrent alors juste sous le bord haut
+        // de la cellule, le chiffre décalé à droite du tick.
+        const span=Math.max(1,endingRun(bi,col));
+        const y = endingOwnRow ? -2 : 1;
+        const dh = narrow?10:12;
+        cell.appendChild(el("div",`position:absolute;left:2px;top:${y}px;height:2px;width:calc(${span*100}% - 6px);background:${T.accent};z-index:3;pointer-events:none;`));
+        cell.appendChild(el("div",`position:absolute;left:2px;top:${y}px;width:2px;height:${narrow?13:15}px;background:${T.accent};z-index:3;pointer-events:none;`));
+        cell.appendChild(el("div",
+          `position:absolute;${endingOwnRow?`left:2px;top:${y-dh}px;`:`left:7px;top:${y+3}px;`}`+
+          `font:800 ${narrow?9:11}px ${UI};line-height:1;color:${T.accent};z-index:3;pointer-events:none;`,
+          b.ending+"."));
       }
       // Learn reduction can collapse two different chords in one bar to the
       // same label (B♭maj7 · B♭7 both read B♭ at L1). A lead sheet never
@@ -1497,7 +1513,7 @@ export function buildIReal(){
         // label genuinely simplified, so Learn never silently lies.
         const dq=dispQ(ch.q);
         const bassHidden=S.learn&&S.level<3&&ch.bass!=null&&ch.bass>=0&&mod(ch.bass,12)!==mod(ch.root,12);
-        item.appendChild(glyph(ch.root,dq,size,chordDepth(ch),chordColor(ch),bassHidden?-1:ch.bass));
+        item.appendChild(glyph(ch.root,dq,size,chordDepth(ch),chordColor(ch),bassHidden?-1:ch.bass,b.chords.length===1));
         // LA VARIANTE, en petit au-dessus — comme iRealb (Louis, 2026-08-17 :
         // « indiquer le moins commun comme une variation, en petit en haut de
         // l'accord comme on fait sur irealb »). Elle n'apparaît que sur un
@@ -1582,7 +1598,7 @@ export function buildIReal(){
       if(!b.chords.length){
         if(atRowStart && lastCh){
           const item=el("div","position:relative;z-index:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;grid-column:1/-1;justify-self:center;");
-          item.appendChild(glyph(lastCh.root,dispQ(lastCh.q),SZ1,chordDepth(lastCh),chordColor(lastCh),(S.learn&&S.level<3)?-1:lastCh.bass));
+          item.appendChild(glyph(lastCh.root,dispQ(lastCh.q),SZ1,chordDepth(lastCh),chordColor(lastCh),(S.learn&&S.level<3)?-1:lastCh.bass,true));
           cell.appendChild(item);
         } else {
           cell.appendChild(el("div",`position:relative;z-index:1;font:700 ${narrow?22:28}px ${SERIF};color:${T.faint};opacity:.5;grid-column:1/-1;justify-self:center;`,"%"));
@@ -1606,14 +1622,9 @@ export function buildIReal(){
       rowCells.push(cell);
       col++;
     });
-    // fermer la toute dernière rangée du chart (mêmes règles). BARH, la même
-    // constante que partout — les 64/74 en dur dataient d'avant la densité
-    // 2026-08-02 et laissaient la dernière rangée plus haute que les autres.
-    while(col!==0 && col<4){
-      const f=el("div",`min-height:${BARH}px;border-left:1px solid ${T.rule};${row>0?`border-top:1px solid ${T.rule};`:""}`);
-      grid.appendChild(f); rowCells.push(f); col++;
-    }
-    rowCells.forEach(c=>{ c.style.borderBottom=`1px solid ${T.rule}`; });
+    // fermer la toute dernière rangée du chart — exactement les mêmes règles
+    // que partout ailleurs, via le même `closeRow` (rowH/rowMT compris, §3).
+    closeRow();
     frame.appendChild(grid);
     if(sectToolOn()) attachSectionDrag(grid);
     paintSectionTool();

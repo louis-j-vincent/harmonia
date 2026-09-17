@@ -7,6 +7,28 @@ Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 
 ## Ouvert
 
+### Aucun chart de la bibliothèque ne porte de 1re/2e fin
+
+Les 80 charts de la bibliothèque ont zéro mesure `ending` (vérifié le
+2026-09-17, `/api/chart-model/` sur les 80). Tout le treillis des fins
+— crochets de reprise, alignement de la 2e sous la 1re, rangée courte — est
+donc du code de rendu que la PROD n'exerce jamais : il ne se vérifie qu'avec
+un modèle synthétique. La sonde `harmonia/static/_probe_treillis.html` en
+fabrique un (si mineur, AABA, 1re/2e fin, `tail:2`, barre à 4 accords, basse
+slash) et se charge à `/static/_probe_treillis.html?case=aaba`. Elle n'est
+liée depuis nulle part dans l'app.
+
+La question ouverte n'est pas le rendu, c'est l'AMONT : `s.endings` vient du
+serveur, et rien dans la bibliothèque n'en produit. Soit le repli ne détecte
+jamais de fin alternée, soit il en produit et les 80 charts n'en ont
+sincèrement pas — non tranché.
+
+### `test_minimal_fold_separe_les_longueurs_dune_meme_lettre` est rouge
+
+`tests/test_songformer_sections.py` — rouge au 2026-09-17, indépendamment du
+frontend (vérifié en remisant les changements JS). 375 autres tests passent.
+
+
 ### La liste blanche de `chart.js` a mangé un troisième champ
 
 `chart.js` reconstruit chaque accord dans `S.chords` en recopiant une LISTE

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>probe treillis</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin:0; height:100%; background:#e7e0d0; }
+  #app { height:100dvh; overflow:auto; padding:8px; }
+</style></head>
+<body><div id="app"></div>
+<script type="module">
+import { API } from "/static/router.js";   // amorce l'ordre des modules (kit ↔ chart sont circulaires)
+import { S } from "/static/state.js";
+import { T, UI, PREF, setSpelling } from "/static/ui/kit.js";
+
+import { buildIReal } from "/static/screens/chart.js";
+
+const P = new URLSearchParams(location.search);
+if(P.get("notation")) PREF.notation=P.get("notation");
+const root = document.getElementById("app");
+root.style.background = T.paper;
+
+// ── chart synthétique: si mineur, AABA, 1re/2e fin ───────────────────────
+const N = {C:0,"C#":1,D:2,"D#":3,E:4,F:5,"F#":6,G:7,"G#":8,A:9,"A#":10,B:11};
+const chords=[], bars=[];
+let t=0;
+// "B-7" | "D/A" | "F#-7 B-7" | "" (mesure tenue)
+function bar(spec, meta){
+  const idxs=[];
+  const toks = spec ? spec.split(/\s+/) : [];
+  toks.forEach((tok,i)=>{
+    const m=tok.match(/^([A-G][#b]?)([^\/]*)(?:\/([A-G][#b]?))?$/);
+    const root_=N[m[1].replace("b","")];
+    chords.push({root:root_, q:m[2]||"", c:.9, bass:(m[3]!=null?N[m[3]]:-1), nc:false,
+                 beat:i*(4/toks.length), t0:t+i, t1:t+i+1, confirmed:false, n:4,
+                 sug:null, sugBass:null, casc:null, var:null,
+                 sec:meta.sec, secId:meta.secId, secIdx:0, reps:1,
+                 barFirst:i===0, secFirst:!!meta.secFirst&&i===0, spans:[[t,t+4]]});
+    idxs.push(chords.length-1);
+  });
+  bars.push(Object.assign({sec:meta.sec, secId:meta.secId, secFirst:!!meta.secFirst,
+      reps:1, ending:meta.ending||null, endingFirst:!!meta.endingFirst,
+      idxs, t0:t, t1:t+4, held:!toks.length, barSpans:null}, {}));
+  t+=4;
+}
+const CASE = P.get("case")||"aaba";
+if(CASE==="aaba"){
+  // A — 6 mesures (contrôle #2: finit par deux cellules vides bordées)
+  ["B-7","E-7","F#7","B-7","G^7","F#7"].forEach((s,i)=>bar(s,{sec:"A",secId:"a",secFirst:i===0}));
+  // A' — préfixe 6 mesures puis 1re/2e fin (contrôle #1 et #4)
+  ["B-7","E-7","F#7","B-7","E- F#-","A B-"].forEach((s,i)=>bar(s,{sec:"A2",secId:"a2",secFirst:i===0}));
+  bar("F#- B-7",{sec:"A2",secId:"a2",ending:"1",endingFirst:true});
+  bar("F#-7 B-7",{sec:"A2",secId:"a2",ending:"2",endingFirst:true});
+  // B — 4 mesures, dont une à UN accord avec basse (contrôle #6) et une à 4
+  bar("D/A",{sec:"B",secId:"b",secFirst:true});
+  bar("D/A B-7",{sec:"B",secId:"b"});
+  bar("C7 B7 Bb7 A7",{sec:"B",secId:"b"});
+  bar("",{sec:"B",secId:"b"});
+  // A — 3 mesures (rangée incomplète sous un gap de section)
+  ["B-7","F#7","B-7"].forEach((s,i)=>bar(s,{sec:"A3",secId:"a3",secFirst:i===0}));
+} else if(CASE==="aaba32"){
+  // contrôle #3: un AABA de 32 mesures en Read doit montrer 4 sections
+  const A=["B-7","E-7","F#7","B-7","G^7","F#7","B-7","F#7"];
+  const B=["D^7","D^7","G^7","G^7","C#-7","F#7","B-7","F#7"];
+  [["A","a",A],["A2","a2",A],["B","b",B],["A3","a3",A]].forEach(([lab,id,sp])=>
+    sp.forEach((x,i)=>bar(x,{sec:lab,secId:id,secFirst:i===0})));
+} else if(CASE==="tail2"){
+  // contrôle #5: anchorCol=3 avec une fin de 2 mesures → les deux fins en col 1
+  ["B-7","E-7","F#7","B-7","G^7","F#7","E-7"].forEach((s,i)=>bar(s,{sec:"A",secId:"a",secFirst:i===0}));
+  bar("F#- B-7",{sec:"A",secId:"a",ending:"1",endingFirst:true});
+  bar("E-7",{sec:"A",secId:"a",ending:"1"});
+  bar("F#-7",{sec:"A",secId:"a",ending:"2",endingFirst:true});
+  bar("B-7",{sec:"A",secId:"a",ending:"2"});
+}
+Object.assign(S,{ screen:"chart", mode:P.get("mode")||"read", colorMode:"function",
+  model:{file:P.get("file")||"B6ahb9w_Lkm", title:P.get("title")||"B6ahb9w Lkm", bpb:4, form:"AABA"},
+  chords, bars, sections:[], key:11, keyMode:"minor", pending:[], playing:false,
+  playBar:-1, playRate:1, playRep:null, playTime:null, _cells:[], learn:false, level:2,
+  chartChrome:(P.get("imm")==="1"?false:true), tapSeek:false, piano:"never", _hiddenIntroId:null,
+  library:[], results:[], job:null, audio:null });
+setSpelling(S.key,S.keyMode);
+try{ root.appendChild(buildIReal()); }
+catch(e){ root.appendChild(Object.assign(document.createElement("pre"),{textContent:"ERREUR "+e+"\n"+e.stack})); }
+window.S=S;
+window.__probeReady=true;
+</script></body></html>

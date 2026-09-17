@@ -132,7 +132,7 @@ export const TIGHT_SIZE={1:30, 2:25, 3:22, 4:19};
 export const TIGHT_GAP ={1:0,  2:9,  3:6,  4:4};
 export function tightSize(n){ return TIGHT_SIZE[Math.min(4, Math.max(1, n))]; }
 export function tightGap(n){ return TIGHT_GAP[Math.min(4, Math.max(1, n))]; }
-export function glyphTight(root,q,size,depth,color,bass){
+export function glyphTight(root,q,size,depth,color,bass,inlineBass){
     const w=el("span",
       `position:relative;display:inline-flex;align-items:stretch;height:${size}px;`+
       `font:italic 600 ${size}px ${SERIF};line-height:1;white-space:nowrap;color:${color};`);
@@ -176,17 +176,29 @@ export function glyphTight(root,q,size,depth,color,bass){
       // voisin hors de la cellule (mesuré: 3 débordements sur Goodbye Yellow
       // Brick Road). Elle pend sous la ligne de base, où il n'y a que du
       // papier.
+      // §7 (2026-09-17): le pendu est la bonne réponse dans une barre SERRÉE
+      // — c'est mesuré. Dans une cellule à UN SEUL accord il n'y a aucun
+      // problème de largeur, et le `/A` pendu sous le `D` désalignait la
+      // rangée pour rien: là, la basse se pose EN LIGNE, même ligne de base.
+      // (padding-bottom 19% de la taille, en px: c'est l'assise de Georgia,
+      // le même calage que la colonne de qualité juste au-dessus.)
       const bassSize=Math.round(size*0.5);
-      const bw=el("span",`position:absolute;right:0;bottom:${-Math.round(size*0.40)}px;`+
-        `display:inline-flex;align-items:baseline;font-weight:600;opacity:.7;`);
-      bw.appendChild(el("span",`font-size:${bassSize}px;`,"/"));
+      const bw=inlineBass
+        ? el("span",`align-self:stretch;display:inline-flex;align-items:flex-end;margin-left:1px;`+
+                    `padding-bottom:${Math.round(size*0.19)}px;font-weight:600;opacity:.7;`)
+        : el("span",`position:absolute;right:0;bottom:${-Math.round(size*0.40)}px;`+
+                    `display:inline-flex;align-items:baseline;font-weight:600;opacity:.7;`);
+      bw.appendChild(el("span",`font-size:${bassSize}px;line-height:1;`,"/"));
       bw.appendChild(noteEl(bass,bassSize));
       w.appendChild(bw);
     }
     return w;
   }
-export function glyph(root,q,size,depth,color,bass){
-    if(PREF.notation==="compact") return glyphTight(root,q,size,depth,color,bass);
+  // `inlineBass` ne concerne que l'écriture compacte: en notation normale la
+  // basse est DÉJÀ en ligne (voir plus bas), c'est le serrage qui la fait
+  // pendre. L'appelant passe simplement « cette cellule n'a qu'un accord ».
+export function glyph(root,q,size,depth,color,bass,inlineBass){
+    if(PREF.notation==="compact") return glyphTight(root,q,size,depth,color,bass,inlineBass);
     const w=el("span",`font-family:${SERIF};font-style:italic;line-height:1;white-space:nowrap;color:${color};display:inline-flex;align-items:baseline;`);
     const rootEl=noteEl(root,size); rootEl.style.fontWeight="600"; w.appendChild(rootEl);
     let suf; if(depth==="family") suf=famSuffix(q); else if(depth==="seventh") suf=TOK[seventhOf(q)]||""; else suf=(TOK[q]!=null?TOK[q]:q);
@@ -765,3 +777,37 @@ export function resetSpelling(){ NOTES=FLAT; }
 // exported instead of exposing `actx` itself, which stays reassignable only here.
 export function suspendPreviewAudio(){ try{ if(actx && actx.state==="running") actx.suspend(); }catch(e){} }
 
+  // §8 (2026-09-17) — UN TITRE DE MORCEAU N'EST JAMAIS UN NOM DE FICHIER.
+  // `B6ahb9w Lkm` s'imprimait tel quel en tête du chart. Cascade:
+  //   1. `model.title` s'il est humain;
+  //   2. sinon le nom de fichier nettoyé (underscores → espaces, Title Case);
+  //   3. s'il reste illisible → « Sans titre » (la tonalité reste en
+  //      sous-titre, comme aujourd'hui), le nom brut restant accessible dans
+  //      la feuille d'info.
+  // Illisible = un mot qui colle chiffres et lettres (`B6ahb9w`). Le handoff
+  // ajoutait « ou plus de deux chiffres »: appliqué à la lettre il condamne
+  // « 1979 » ou « 9.20 Special », de vrais titres — les chiffres SÉPARÉS des
+  // lettres sont donc épargnés, seule la soudure est retenue comme signal.
+export function humanTitle(s){
+    s=String(s||"").trim();
+    if(!s) return false;
+    // Un titre sans AUCUNE lettre reste un titre (« 1979 », « 5150 »): ce
+    // n'est pas la présence de chiffres qui trahit un nom de fichier, c'est
+    // leur SOUDURE à des lettres.
+    for(const w of s.split(/[^A-Za-z0-9]+/)){
+      if(w && /[A-Za-z]/.test(w) && /\d/.test(w)) return false;
+    }
+    return true;
+  }
+export function titleFromFile(f){
+    const t=String(f||"").replace(/\.[A-Za-z0-9]{1,5}$/,"").replace(/[_\-]+/g," ").replace(/\s+/g," ").trim();
+    return t ? t.replace(/\b[a-z]/g,c=>c.toUpperCase()) : "";
+  }
+export function songTitle(m){
+    if(!m) return "Sans titre";
+    const t=String(m.title||"").trim();
+    if(humanTitle(t)) return t;
+    const f=titleFromFile(m.file);
+    if(humanTitle(f)) return f;
+    return "Sans titre";
+  }
