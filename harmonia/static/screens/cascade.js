@@ -34,6 +34,7 @@
 // Et « ne rien ajouter » n'est pas un orbe : c'est le MOYEU qu'on touche pour
 // valider — la doctrine du compas existant appliquée à la lettre.
 
+import { bassList } from "./annotate.js";
 import { S } from "../state.js";
 import { FAINT_ON_PETAL, INK_ON_PETAL, SERIF, T, UI, confColor, el, fifthsIndex,
          glyph, mod, note, sv } from "../ui/kit.js";
@@ -113,8 +114,14 @@ function noCascBox() {
  * `onPick({root, q}, btn)` est le MÊME rappel que `buildCompass` : toucher le
  * moyeu choisit l'accord construit, la prévisualisation le joue, « Lock »
  * s'arme. Un orbe ne choisit rien — il descend d'un étage.
+ *
+ * `bassOpts = {onPickBass, picked}` — mêmes anneaux de basse que le compas
+ * ordinaire, autour des lettres de la jante, et la basse choisie s'écrit en
+ * slash sur le moyeu (Louis, 2026-09-17 : « les basses autour du cercle en
+ * slash chords »).
  */
-export function buildCascade(idx, onPick) {
+export function buildCascade(idx, onPick, bassOpts) {
+  bassOpts = bassOpts || {};
   const chord = S.chords[idx];
   const casc = chord && chord.casc;
   if (!casc || !casc.base || !casc.base.length) return noCascBox();
@@ -184,16 +191,41 @@ export function buildCascade(idx, onPick) {
     const cible = {};
     if (niv && niv.cle === "base") niv.opts.forEach(o => { cible[o.pc] = o; });
 
+    // LA BASSE ENTENDUE, autour des lettres de la jante — repris tel quel de
+    // `buildCompass`. Une lettre de la jante est une CLASSE DE HAUTEUR, pas un
+    // accord : c'est exactement ce qu'une basse nomme, donc elle se pose là
+    // sans rien inventer et sans voler de place aux orbes, qui vivent à
+    // l'intérieur du cercle. Bleu, et PAS la teinte de quintes de la note :
+    // la basse est une AUTRE voix, pas un autre accord — si les deux
+    // partageaient la palette, un anneau se lirait comme une suggestion.
+    const bass = bassList(idx);
+    const bassBy = {};
+    bass.forEach((b, i) => { bassBy[b.pc] = { b, isTop: i === 0 }; });
+    const bMin = Sz * 0.042, bMax = Sz * 0.082, bassHits = [];
+
     // LA JANTE : douze lettres au cercle des quintes, la fondamentale écrite cerclée
     for (let i = 0; i < 12; i++) {
       const ang = (-90 + i * 30) * Math.PI / 180, pc = mod(i * 7, 12);
       const ox = cx + R * Math.cos(ang), oy = cy + R * Math.sin(ang);
+      const tx = cx + (R + Sz * 0.085) * Math.cos(ang);
+      const ty = cy + (R + Sz * 0.085) * Math.sin(ang);
       svg.appendChild(sv("circle", { cx: ox, cy: oy, r: 2, fill: T.rule }));
-      const lbl = sv("text", { x: cx + (R + Sz * 0.085) * Math.cos(ang),
-        y: cy + (R + Sz * 0.085) * Math.sin(ang), "text-anchor": "middle",
+      // AVANT la lettre : en SVG le dernier peint gagne, et un disque posé
+      // par-dessus rendrait illisible la note qu'on vient justement lire.
+      const hit = bassBy[pc];
+      if (hit) {
+        const br = byArea(hit.b.c, bMin, bMax), choisie = bassOpts.picked === pc;
+        svg.appendChild(sv("circle", { cx: tx, cy: ty, r: br, fill: T.blue,
+          "fill-opacity": choisie ? 0.42 : 0.13, stroke: T.blue,
+          "stroke-width": choisie ? 3 : (hit.isTop ? 2 : 1.25),
+          "stroke-opacity": choisie ? 1 : (hit.isTop ? 0.95 : 0.6) }));
+        bassHits.push({ pc, tx, ty, br, c: hit.b.c });
+      }
+      const lbl = sv("text", { x: tx, y: ty, "text-anchor": "middle",
         "dominant-baseline": "central", "font-family": UI, "font-size": Sz * 0.042,
-        "font-weight": (pc === chord.root || cible[pc]) ? 700 : 500,
-        fill: pc === chord.root ? T.accent : (cible[pc] ? T.blue : T.faint) });
+        "font-weight": (pc === chord.root || cible[pc] || hit) ? 700 : 500,
+        fill: pc === chord.root ? T.accent
+            : (hit ? T.blue : (cible[pc] ? T.blue : T.faint)) });
       lbl.textContent = note(pc);
       svg.appendChild(lbl);
       if (pc === chord.root) svg.appendChild(sv("circle", { cx: ox, cy: oy, r: 5,
@@ -281,6 +313,12 @@ export function buildCascade(idx, onPick) {
     svg.appendChild(sv("circle", { cx, cy, r: rMoy, fill: tint(c.root),
       stroke: T.accent, "stroke-width": 2 }));
 
+    // Les anneaux de basse vivent DEHORS, à `R + 0,085·Sz` plus leur propre
+    // rayon : celui du bas dépasse la boîte du SVG d'environ 7 % de sa taille
+    // et venait mordre la légende. On réserve la place plutôt que de rentrer
+    // les anneaux — leur distance à la jante est ce qui les distingue des
+    // orbes.
+    rond.style.paddingBottom = Math.round(Sz * 0.085) + "px";
     const wrap = el("div", `position:relative;width:${Sz}px;margin:0 auto;`);
     const layer = el("div", "position:absolute;inset:0;pointer-events:none;");
     nodes.forEach((n, i) => {
@@ -292,9 +330,20 @@ export function buildCascade(idx, onPick) {
         + `box-shadow:0 2px 6px rgba(60,40,20,.14);animation:ap-orb .3s ${0.04 * i}s both;`);
       b.appendChild(glyph(n.o.sym.root, n.o.sym.q, Math.max(13, Math.round(n.pr * 0.58)),
                           "exact", encre(n.o.p, niv.cle === "base")));
-      if (n.pr > Sz * 0.068) b.appendChild(el("span",
-        `font:600 ${Math.max(9, Math.round(n.pr * 0.30))}px ${UI};font-style:normal;color:${FAINT_ON_PETAL};`,
-        Math.round(n.o.p * 100) + "%"));
+      // LE POURCENTAGE SUR TOUS LES ORBES, y compris les petits (Louis,
+      // 2026-09-17 : « je veux pareil au premier niveau […] les % de chances
+      // sur chacun des autres accords »). `buildCompass` le cache sous une
+      // certaine taille ; ici c'est justement le petit orbe dont on veut
+      // savoir s'il vaut 5 % ou 0,4 %. Le plancher tactile garantit 44 px de
+      // diamètre, donc la place existe toujours — il suffit de ne pas
+      // l'écrire plus gros que l'orbe.
+      b.appendChild(el("span",
+        `font:600 ${Math.max(8, Math.min(11, Math.round(n.pr * 0.30)))}px ${UI};`
+        + `font-style:normal;line-height:1;color:${FAINT_ON_PETAL};`,
+        // sous 1 %, « 0 % » ne dit rien — on écrit la décimale qui distingue
+        // un candidat que le modèle a vu d'un candidat qu'il a écarté.
+        n.o.p < 0.01 ? (n.o.p * 100).toFixed(1).replace(".", ",") + " %"
+                     : Math.round(n.o.p * 100) + " %"));
       b.onclick = () => {
         chemin.push(niv.cle === "base"
           ? { cle: "base", root: n.o.root, type: n.o.type, sym: n.o.sym, p: n.o.p, pr: n.pr }
@@ -308,6 +357,11 @@ export function buildCascade(idx, onPick) {
     // rappel qu'un orbe du compas ordinaire : la prévisualisation joue,
     // « Lock » s'arme. « Ne rien ajouter » n'est donc pas une orbite.
     const sym = chemin.length ? symbole(c) : { root: chord.root, q: chord.q || "" };
+    // LA BASSE CHOISIE S'ÉCRIT EN SLASH SUR LE MOYEU. `glyph` sait déjà le
+    // faire (son 6e argument) et n'écrit rien quand la basse EST la
+    // fondamentale — un `D-7/D` n'existe pas.
+    const basseChoisie = (bassOpts.picked == null) ? (chord.bass == null ? -1 : chord.bass)
+                                                   : bassOpts.picked;
     const hub = el("button", `position:absolute;left:${cx}px;top:${cy}px;`
       + `transform:translate(-50%,-50%);width:${rMoy * 2}px;height:${rMoy * 2}px;`
       + `border-radius:50%;border:none;background:transparent;cursor:pointer;`
@@ -317,9 +371,22 @@ export function buildCascade(idx, onPick) {
     const larg = 1 + (sym.q || "").length * 0.48;
     hub.appendChild(glyph(sym.root, sym.q,
       Math.max(12, Math.min(Math.round(Sz * 0.1), Math.round(1.7 * rMoy / larg))),
-      "exact", confColor(chemin.length ? (chemin[0].p || 0) : pMoy)));
+      "exact", confColor(chemin.length ? (chemin[0].p || 0) : pMoy), basseChoisie));
     hub.onclick = () => { onPick({ root: sym.root, q: sym.q }, hub); };
     layer.appendChild(hub);
+    // Les anneaux de basse, tapables. Le disque bleu dessiné dans le SVG reste
+    // le VISUEL (sa taille dit la probabilité) ; ce bouton n'est que sa zone
+    // de contact, portée au minimum tactile de 44 px même quand l'anneau est
+    // plus petit — une lecture à 13 % doit rester atteignable au doigt.
+    if (bassOpts.onPickBass) bassHits.forEach(h => {
+      const d = Math.max(44, h.br * 2);
+      const bb = el("button", `position:absolute;left:${h.tx}px;top:${h.ty}px;`
+        + `transform:translate(-50%,-50%);width:${d}px;height:${d}px;border-radius:50%;`
+        + `border:none;background:transparent;cursor:pointer;pointer-events:auto;padding:0;`);
+      bb.title = `${note(h.pc)} — ${Math.round(h.c * 100)} % de l'énergie grave à l'attaque`;
+      bb.onclick = () => bassOpts.onPickBass(h.pc);
+      layer.appendChild(bb);
+    });
     // la légende est SOUS le disque : dedans, elle imposait au moyeu une
     // taille minimale et un moyeu à 1 % ne pouvait pas être petit.
     layer.appendChild(el("div", `position:absolute;left:${cx}px;top:${cy + rMoy + 10}px;`

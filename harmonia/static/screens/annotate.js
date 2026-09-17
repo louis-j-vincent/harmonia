@@ -201,7 +201,7 @@ export function openEditor(idx,opts){
       // Le compas en CASCADE (2026-09-17) : les extensions que musx entend,
       // un étage par tête. Il vit à côté du compas ordinaire, il ne le
       // remplace pas — c'est le même `onPick`, donc le même « Lock ».
-      else if(editTab==="cascade") pane.appendChild(buildCascade(idx,onPick));
+      else if(editTab==="cascade") pane.appendChild(buildCascade(idx,onPick,bassOpts));
       else if(editTab==="guide") pane.appendChild(buildGuide(idx,onPick,bassOpts));
       else pane.appendChild(buildHand(idx,onPick,renderPane));
     }
