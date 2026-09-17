@@ -131,7 +131,7 @@ def collecte() -> list[dict]:
                 mark = None
         crete = max(liss[:nfen]) or 1.0
         out.append({
-            "stem": stem, "titre": d.get("title") or stem,
+            "stem": stem, "cle": p.stem, "titre": d.get("title") or stem,
             "audio": d.get("audio_url") or f"/audio/{stem}.m4a",
             "env": [round(v / crete, 3) for v in liss[:nfen]],
             "pas": PAS, "fin": round(fin, 2),
@@ -179,6 +179,9 @@ button:active{background:#f0e9d5}
 button.on{background:#2c2820;border-color:#2c2820;color:#fff}
 button.play{background:#8a2b2b;border-color:#8a2b2b;color:#fff}
 button.pas{min-width:52px;font-size:15px}
+button.caler{border-color:#c9a86a;background:#fdf3d8;font-size:12.5px;min-height:38px;padding:6px 10px}
+button.caler.on{background:#4a7c3f;border-color:#4a7c3f;color:#fff}
+button:disabled{opacity:.5}
 .ou{color:#8a8371;font-size:12.5px;margin:0 2px}
 textarea{width:100%;min-height:150px;font:12.5px/1.45 ui-monospace,monospace;
  border:1px solid #d8cfb4;border-radius:10px;padding:8px;background:#fff}
@@ -299,6 +302,28 @@ window.addEventListener('DOMContentLoaded',()=>{
   window.addEventListener('resize',()=>{
     for(const c of document.querySelectorAll('.card')) dessiner(c);});
 });
+function caler(btn,cle){
+  const c=btn.closest('.card'), t=ici(c), etat=c.querySelector('.etat');
+  if(!confirm('Caler la mesure 1 de « '+c.querySelector('.tt').textContent
+      +' » à '+t.toFixed(2)+'s ?\n\nÇa réécrit le chart du morceau.')) return;
+  btn.disabled=true;etat.textContent='on refait le chart…';
+  fetch('/api/bar1/'+encodeURIComponent(cle),{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify({t:t})})
+   .then(r=>r.json()).then(d=>{
+      if(!d.job_id){throw new Error(d.error||'refusé');}
+      let n=0;
+      const voir=()=>fetch('/api/job/'+d.job_id).then(r=>r.json()).then(j=>{
+        if(j.status==='done'){          // jobs.py n'en rend que trois : running, done, error
+          etat.textContent='calé à '+t.toFixed(2)+'s, chart refait';
+          btn.textContent='⚑ calé';btn.classList.add('on');return;}
+        if(j.status==='error'){throw new Error(j.error||'échec du chart');}
+        if(++n>60){throw new Error('trop long, va voir dans l\'app');}
+        setTimeout(voir,1500);});
+      return voir();})
+   // Pas de repli muet : si ça rate, ça se lit sur la carte, pas dans la
+   // console. Le bouton redevient cliquable pour réessayer.
+   .catch(e=>{etat.textContent='raté : '+e.message;btn.disabled=false;});
+}
 function copier(){const t=document.getElementById('out');
   t.select();t.setSelectionRange(0,99999);
   try{navigator.clipboard.writeText(t.value)}catch(e){document.execCommand('copy')}}
@@ -314,7 +339,7 @@ def page(songs: list[dict]) -> str:
          "<b style='color:#2f5fa8'>Bleu</b> = ce que je proposerais. Les traits "
          "fins sont les lignes de mesure du traqueur : elles sont justes, il ne "
          "sait pas laquelle est la première.<br><b>Les « c'est bon » me servent "
-         "autant que les « c'est décalé ».</b> La page ne modifie rien.</div>"]
+         "autant que les « c'est décalé ».</b><br>Les verdicts ne changent rien au chart : ils sont là pour que j'en tire une règle. Le seul bouton qui écrit est « ⚑ caler la mesure 1 ici pour de vrai », en bas de chaque carte — il refait le chart du morceau.</div>"]
     bouge = sum(1 for s in songs if (s["propose"] or 0) > 0)
     B.append(f"<p class=note>{len(songs)} morceaux. Je proposerais de déplacer "
              f"la mesure 1 sur {bouge} d'entre eux — ils sont en tête. "
@@ -372,6 +397,14 @@ def page(songs: list[dict]) -> str:
                  "aucune ligne ne tombe juste</button>"
                  f"<button data-v='sais pas' onclick=\"marque(this.closest('.card'),'sais pas')\">"
                  "je ne sais pas</button></div>")
+        # Le seul bouton de la page qui ÉCRIT. Louis, 2026-09-17 : « c'est lui
+        # qui définit où commence la chanson » — son clic n'a donc aucune raison
+        # de faire un détour par l'app. Il refait le chart du morceau (caches
+        # chauds, quelques secondes) et rien d'autre.
+        B.append("<div class=row><button class=caler "
+                 f"onclick=\"caler(this,'{html.escape(s['cle'])}')\">"
+                 "⚑ caler la mesure 1 ici pour de vrai</button>"
+                 "<span class='note etat'></span></div>")
         B.append("</div>")
     B.append("<h2>Tes arbitrages</h2>"
              "<textarea id=out readonly></textarea>"
