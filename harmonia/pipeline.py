@@ -247,8 +247,24 @@ def _write_sounding_bass(bars, probs, arr, times) -> int:
             if not len(seg):
                 c["bass"] = -1
                 continue
-            p12 = seg.mean(axis=0)[1:13]
             root_pc = int(c["root"]) % 12
+            # LE DÉCODEUR PASSE D'ABORD (Louis, 2026-09-17 : « chope ses
+            # renversements aussi s'ils font sens, pas forcément la peine
+            # d'écraser avec les nôtres — le modèle musx a tout appris je lui
+            # fais 100 % confiance, il peut overrule »).
+            # Quand l'étiquette décodée portait déjà un slash (`maj/5`,
+            # `min/b3`, `maj/2`… — les huit renversements du vocabulaire),
+            # `labels.to_chord` l'a posé dans `bass`. C'est une décision
+            # JOINTE — triade et basse choisies ensemble, lissées par le
+            # Viterbi sur tout le morceau — donc meilleure par construction
+            # qu'un argmax par accord d'une tête séparée. On la garde.
+            # Mesuré avant de changer quoi que ce soit : sur six morceaux, les
+            # deux étaient d'accord 15 fois sur 15. Ce commit ne change donc
+            # aucun chart aujourd'hui ; il pose qui a le dernier mot.
+            if int(c.get("bass", -1)) >= 0:
+                n_slash += 1
+                continue
+            p12 = seg.mean(axis=0)[1:13]
             cand = int(np.argmax(p12))
             c["bass"] = cand if cand != root_pc else -1
             n_slash += cand != root_pc

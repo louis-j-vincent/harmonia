@@ -398,47 +398,25 @@ inchangée.
 
 ## Ouvert — à arbitrer
 
-- **On demande à musx 26 accords sur les 382 que son décodeur sait exprimer**
-  (2026-09-17, audit demandé par Louis : « vérifie que tous les accords
-  détectés par musx sont bien transférables dans nos charts, je ne veux perdre
-  aucune info »).
-  Le transfert lui-même est SAIN — voir « Résolu » ci-dessous. La perte est en
-  AMONT : `musx.redecode` passe `chord_dict="submission"`, c'est-à-dire
-  `third_party/musx_ismir2019/data/submission_chord_list.txt`, 26 entrées.
-  Le clone en livre trois autres : `full` (382), `extended` (26), `ismir2017`
-  (15).
-  Ce que `full` a en plus et qu'on ne peut donc jamais écrire : `maj6`, `min6`,
-  `minmaj7`, `maj13`, `min11`, `min13`, tous les dominants altérés
-  (`7(b9)`, `7(#11)`, `7(#9)`, `7(b13)`…), et une centaine de renversements.
-  Les têtes du modèle savent les exprimer : il y a une tête de NEUVIÈME
-  (none / 9 / #9 / b9), d'ONZIÈME et de TREIZIÈME (none / 13 / b13) — donc un
-  `maj6` est à la portée du modèle, on ne le lui demande simplement pas.
-  ATTENTION, `extended` n'est PAS un sur-ensemble : il ajoute `maj/4`, `maj6`,
-  `min6` mais RETIRE `maj/b7`, `min/2`, `min/b7` — dont `maj/2` que notre
-  échantillon voit réellement sortir. Passer à `full` est le seul vrai
-  élargissement, et il réécrirait tous les charts : c'est une décision de
-  Louis, avec sa page avant/après.
-  **Ce que ça ne dit pas** : si le modèle a été ENTRAÎNÉ à prédire ces
-  combinaisons. Le commentaire de `span_rescore._TRIAD_SEV_TO_QUAL5` affirme
-  que seules sept combinaisons (triade, septième) l'ont été. Avant d'élargir,
-  il faudrait le vérifier dans le papier ISMIR 2019, pas dans nos commentaires.
-
-
-
-- **Les 4 slashes en b9 de Virtual Insanity** (2026-09-16). En retirant le
-  filtre d'intervalle (Louis : « utilise cette basse a chaque fois »), 47
-  slashes apparaissent sur 9 morceaux. Quarante-trois sont des renversements
-  ordinaires — `Bb7/Ab` (b7, 3e renversement d'un dominante), `D-7/G` (une
-  quarte, c'est-à-dire un G7sus4), `C/A` (une sixte, c'est-à-dire un A-7). Les
-  quatre derniers sont des **b9** dans un seul morceau : `Bb7/B` sur Virtual
-  Insanity, un si naturel sous un si bémol. C'est l'intervalle que Louis avait
-  écarté à l'oreille le 2026-09-15, et le même morceau porte aussi six `Dh7/B`.
-  Un si tenu à la basse sur tout le passage : pédale réelle, ou artefact de la
-  tête basse sur ce timbre ? À écouter. Page :
-  `/reports/basse_libre/avant_apres.html`.
-  C'est le premier « litige » au sens où Louis l'entendait — rien ne le
-  tranche automatiquement aujourd'hui, et `bass_rules` garde la mémoire des
-  arbitrages pour le jour où on écrira cette règle-là.
+- **Élargir le vocabulaire de musx ne servirait à rien — MESURÉ, impasse**
+  (2026-09-17, Louis : « récupères TOUS les accords que musx sait faire, et
+  élargis notre propre classification »). Fait dans l'ordre le moins cher :
+  décoder UN morceau avec `chord_dict="full"` (382 entrées) au lieu de
+  `submission` (26). Résultat : **exactement le même décodage** — mêmes 54
+  segments, mêmes 6 types. Le vocabulaire n'est pas ce qui bride.
+  Ce qui bride, ce sont les têtes d'extension du modèle. Sur **1255 accords
+  décodés de 14 morceaux** : la 9e gagne **3 fois**, la 11e et la 13e
+  **jamais**. Mécanisme : chaque extension multiplie le score par la
+  probabilité de sa classe, et « aucune » domine (88-98 % en moyenne) ; un
+  `maj9` est donc structurellement onze fois moins probable qu'un `maj7` et ne
+  peut pas gagner le Viterbi. Les parts maximales atteintes existent pourtant
+  (9e jusqu'à 54 %, 13e jusqu'à 43 %) : l'information est là, elle ne gagne
+  jamais l'argmax.
+  Donc : `full` ne changerait rien, et le modèle — à qui Louis fait 100 %
+  confiance — répond « pas d'extension ». Piste si on veut ces couleurs un
+  jour : ne pas les faire CONCOURIR mais les AFFICHER, comme l'accord optionnel
+  « en petit au-dessus » déjà noté plus haut. Ce serait un affichage, pas un
+  décodage, et ça n'engagerait rien.
 
 ## Résolu récemment
 

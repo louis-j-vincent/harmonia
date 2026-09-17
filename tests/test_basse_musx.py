@@ -141,3 +141,27 @@ def test_les_accords_tenus_et_les_silences_sont_laisses_tranquilles():
     n = _write_sounding_bass(bars, _probs(90, {7: 0.9}), None, None)
     assert n == 0
     assert "bass" not in bars[0][0] and "bass" not in bars[0][1]
+
+
+def test_le_renversement_du_decodeur_passe_avant_la_tete():
+    """Louis, 2026-09-17 : « le modèle musx a tout appris […] il peut overrule ».
+
+    Quand l'étiquette décodée portait déjà un slash, `labels.to_chord` l'a posé
+    dans `bass`. C'est une décision JOINTE — triade et basse choisies ensemble
+    et lissées par le Viterbi — donc on la garde même si la tête basse, prise
+    accord par accord, dit autre chose.
+    """
+    bars = [[{"root": 0, "q": "", "t0": 0.0, "t1": 2.0, "nc": False, "bass": 4}]]
+    n = _write_sounding_bass(bars, _probs(90, {7: 0.95}), None, None)   # la tête dit SOL
+    assert bars[0][0]["bass"] == 4, "le renversement décodé a été écrasé"
+    assert n == 1
+
+
+def test_sans_renversement_decode_la_tete_decide():
+    """`bass = -1` veut dire « le vocabulaire n'avait pas de slash à proposer
+    ici » bien plus souvent que « position fondamentale certaine » : sur les
+    vingt-cinq accords du vocabulaire, huit seulement portent un slash, et
+    aucun au-delà de la triade. La tête remplit donc tout le reste."""
+    bars = [[{"root": 0, "q": "", "t0": 0.0, "t1": 2.0, "nc": False, "bass": -1}]]
+    _write_sounding_bass(bars, _probs(90, {7: 0.95}), None, None)
+    assert bars[0][0]["bass"] == 7
