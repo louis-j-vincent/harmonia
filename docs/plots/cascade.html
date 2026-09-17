@@ -1,0 +1,559 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Le Compas En Cascade</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;500&display=swap">
+<style>
+ :root{--bg:#F5F1E7;--surface:#fff;--surface-2:#FBF7EE;--rule:#E3DAC4;--rule-strong:#C9BE9F;
+  --ink:#211C14;--ink-dim:#6F6555;--ink-faint:#A79C86;--accent:#B4632A;--accent-soft:#EFDFC5;
+  --accent-ink:#5A3315;--mark:#1F6E5C;--mark-soft:#DCEDE7;--warn:#B23A33;--warn-soft:#F6E0DD;}
+ @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#14120D;--surface:#1B1812;--surface-2:#211D16;--rule:#332D22;--rule-strong:#4A4130;
+  --ink:#ECE4D3;--ink-dim:#A89D89;--ink-faint:#726858;--accent:#DE9251;--accent-soft:#3B2C1B;
+  --accent-ink:#F3D2AC;--mark:#59B39C;--mark-soft:#1B302B;--warn:#E1837B;--warn-soft:#3A2220;}}
+ :root[data-theme="dark"]{--bg:#14120D;--surface:#1B1812;--surface-2:#211D16;--rule:#332D22;
+  --rule-strong:#4A4130;--ink:#ECE4D3;--ink-dim:#A89D89;--ink-faint:#726858;--accent:#DE9251;
+  --accent-soft:#3B2C1B;--accent-ink:#F3D2AC;--mark:#59B39C;--mark-soft:#1B302B;
+  --warn:#E1837B;--warn-soft:#3A2220;}
+ *{box-sizing:border-box}
+ body{background:var(--bg);color:var(--ink);margin:0 auto;max-width:900px;
+  font-family:'Public Sans',-apple-system,sans-serif;padding:20px 14px 90px;font-size:14.5px;line-height:1.5}
+ h1{font-family:'Fraunces',Georgia,serif;font-size:25px;font-weight:600;margin:0;text-wrap:balance}
+ h2{font-family:'Fraunces',Georgia,serif;font-size:16px;margin:26px 0 8px}
+ .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--accent-ink);background:var(--accent-soft);display:inline-block;padding:2px 7px;
+  border-radius:3px;margin-bottom:8px}
+ .sub{color:var(--ink-dim);font-size:13px;margin:5px 0 0}
+ code{font-family:'IBM Plex Mono',monospace;font-size:12.5px;background:var(--surface-2);
+  border:1px solid var(--rule);border-radius:4px;padding:1px 5px}
+ .card{background:var(--surface);border:1px solid var(--rule);border-radius:11px;padding:13px 15px;margin:14px 0}
+ .card p{margin:8px 0;font-size:13px;color:var(--ink-dim)} .card b{color:var(--ink)}
+ button{font-family:'IBM Plex Mono',monospace;font-size:12.5px;border-radius:7px;padding:7px 11px;
+  cursor:pointer;border:1px solid var(--rule);background:var(--surface-2);color:var(--ink-dim)}
+ button:hover{border-color:var(--accent);color:var(--accent-ink);background:var(--accent-soft)}
+ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+ .slots{display:flex;gap:6px;overflow-x:auto;padding:4px 0 8px;-webkit-overflow-scrolling:touch}
+ .slot{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-start;gap:1px;
+  padding:6px 9px;min-width:74px}
+ .slot.on{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+ .sb{font-size:9.5px;opacity:.75} .sq{font-size:13.5px;font-weight:600}
+ .sx{font-size:9px;color:var(--mark);background:var(--mark-soft);border-radius:3px;padding:0 4px}
+ .slot.on .sx{color:var(--surface);background:rgba(255,255,255,.22)}
+
+ .etage{border:1px solid var(--rule);border-radius:11px;background:var(--surface);
+  padding:11px 13px;margin-bottom:8px}
+ .etage.dort{opacity:.45}
+ .eh{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px}
+ .num{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--accent-ink);
+  background:var(--accent-soft);border-radius:4px;padding:1px 7px}
+ .eh b{font-size:13.5px} .eh .note{font-size:11.5px;color:var(--ink-faint);margin-left:auto}
+ .opts{display:flex;gap:6px;flex-wrap:wrap}
+ .opt{position:relative;overflow:hidden;min-width:70px;text-align:left}
+ .opt .lab{position:relative;z-index:2;font-weight:600}
+ .opt .pc{position:relative;z-index:2;font-size:10px;opacity:.8;margin-left:6px}
+ .opt .fill{position:absolute;left:0;top:0;bottom:0;background:var(--accent-soft);z-index:1}
+ .opt.on{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+ .opt.on .fill{background:rgba(255,255,255,.22)}
+ .opt.top{border-color:var(--mark)}
+ .opt.faible{color:var(--ink-faint)}
+
+ .res{position:sticky;bottom:0;z-index:20;background:var(--surface);border:1px solid var(--rule-strong);
+  border-radius:11px;padding:11px 14px;margin-top:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+ .res .sym{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;color:var(--accent-ink)}
+ .res .av{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-faint)}
+ .res .sp{flex:1;min-width:4px}
+ footer{margin-top:26px;padding-top:12px;border-top:1px solid var(--rule);font-size:11.5px;
+  color:var(--ink-faint);font-family:'IBM Plex Mono',monospace;line-height:1.8}
+</style>
+
+<span class="eyebrow">Lost Without U &middot; C major &middot; démo</span>
+<h1>Le compas en cascade</h1>
+<p class="sub">La base, puis la 7<sup>e</sup>, la 9<sup>e</sup>, la 11<sup>e</sup>, la 13<sup>e</sup> —
+un étage par tête du modèle, avec sa vraie distribution.</p>
+
+<div class="card">
+  <p><b>Pourquoi cette forme.</b> Le modèle est déjà fait comme ça&nbsp;: six têtes
+  entraînées séparément — triade, basse, 7<sup>e</sup>, 9<sup>e</sup>, 11<sup>e</sup>,
+  13<sup>e</sup>. La cascade ne range pas les boutons autrement, elle lit la structure
+  du modèle.</p>
+  <p><b>Ce que ça débloque.</b> Dans le décodage, les extensions ne gagnent jamais&nbsp;:
+  la 9<sup>e</sup> trois fois sur 1255 accords, la 11<sup>e</sup> et la 13<sup>e</sup> zéro
+  — une extension doit battre « aucune » dans le Viterbi, et « aucune » domine.
+  Elles sont pourtant là&nbsp;: <b>23 accords de ce morceau</b> portent une extension
+  au-dessus de 25&nbsp;%, jusqu'à 54&nbsp;% sur un <code>G7sus4</code>, ce qui en fait un
+  <code>G9sus</code>. En cascade, l'extension n'a plus à gagner&nbsp;: elle est proposée.</p>
+</div>
+
+<h2>Choisis un accord</h2>
+<p class="sub" style="margin-bottom:6px">Le badge vert marque ceux où une 9<sup>e</sup> est forte.</p>
+<div class="slots" id="slots"><button class="slot" data-i="0" type="button">
+             <span class="sb">1.1</span>
+             <span class="sq">D-7</span>
+             
+           </button><button class="slot" data-i="1" type="button">
+             <span class="sb">2.1</span>
+             <span class="sq">G7</span>
+             
+           </button><button class="slot" data-i="2" type="button">
+             <span class="sb">3.1</span>
+             <span class="sq">C^7</span>
+             
+           </button><button class="slot" data-i="3" type="button">
+             <span class="sb">4.1</span>
+             <span class="sq">F^7</span>
+             
+           </button><button class="slot" data-i="4" type="button">
+             <span class="sb">4.3</span>
+             <span class="sq">G-7</span>
+             
+           </button><button class="slot" data-i="5" type="button">
+             <span class="sb">5.1</span>
+             <span class="sq">D-7</span>
+             
+           </button><button class="slot" data-i="6" type="button">
+             <span class="sb">6.3</span>
+             <span class="sq">G7</span>
+             
+           </button><button class="slot" data-i="7" type="button">
+             <span class="sb">7.1</span>
+             <span class="sq">C^7</span>
+             
+           </button><button class="slot" data-i="8" type="button">
+             <span class="sb">8.1</span>
+             <span class="sq">F^7</span>
+             
+           </button><button class="slot" data-i="9" type="button">
+             <span class="sb">8.3</span>
+             <span class="sq">G-7</span>
+             
+           </button><button class="slot" data-i="10" type="button">
+             <span class="sb">9.1</span>
+             <span class="sq">D-7</span>
+             
+           </button><button class="slot" data-i="11" type="button">
+             <span class="sb">11.1</span>
+             <span class="sq">C^7</span>
+             
+           </button><button class="slot" data-i="12" type="button">
+             <span class="sb">12.1</span>
+             <span class="sq">F^7</span>
+             <span class='sx'>9e 26 %</span>
+           </button><button class="slot" data-i="13" type="button">
+             <span class="sb">12.3</span>
+             <span class="sq">G7</span>
+             <span class='sx'>9e 30 %</span>
+           </button><button class="slot" data-i="14" type="button">
+             <span class="sb">13.1</span>
+             <span class="sq">D-7</span>
+             <span class='sx'>9e 35 %</span>
+           </button><button class="slot" data-i="15" type="button">
+             <span class="sb">14.1</span>
+             <span class="sq">G7</span>
+             
+           </button><button class="slot" data-i="16" type="button">
+             <span class="sb">15.1</span>
+             <span class="sq">C^7</span>
+             
+           </button><button class="slot" data-i="17" type="button">
+             <span class="sb">16.1</span>
+             <span class="sq">F^7</span>
+             
+           </button><button class="slot" data-i="18" type="button">
+             <span class="sb">16.3</span>
+             <span class="sq">G7sus4</span>
+             <span class='sx'>9e 54 %</span>
+           </button><button class="slot" data-i="19" type="button">
+             <span class="sb">17.1</span>
+             <span class="sq">D-7/G</span>
+             <span class='sx'>9e 51 %</span>
+           </button><button class="slot" data-i="20" type="button">
+             <span class="sb">18.1</span>
+             <span class="sq">G7</span>
+             <span class='sx'>9e 29 %</span>
+           </button><button class="slot" data-i="21" type="button">
+             <span class="sb">19.1</span>
+             <span class="sq">C</span>
+             
+           </button><button class="slot" data-i="22" type="button">
+             <span class="sb">20.3</span>
+             <span class="sq">C/G</span>
+             
+           </button><button class="slot" data-i="23" type="button">
+             <span class="sb">21.1</span>
+             <span class="sq">D-7</span>
+             
+           </button><button class="slot" data-i="24" type="button">
+             <span class="sb">22.1</span>
+             <span class="sq">G7</span>
+             
+           </button><button class="slot" data-i="25" type="button">
+             <span class="sb">23.1</span>
+             <span class="sq">C</span>
+             
+           </button><button class="slot" data-i="26" type="button">
+             <span class="sb">24.3</span>
+             <span class="sq">C/G</span>
+             
+           </button><button class="slot" data-i="27" type="button">
+             <span class="sb">26.1</span>
+             <span class="sq">G7/D</span>
+             
+           </button><button class="slot" data-i="28" type="button">
+             <span class="sb">27.1</span>
+             <span class="sq">G7</span>
+             <span class='sx'>9e 33 %</span>
+           </button><button class="slot" data-i="29" type="button">
+             <span class="sb">28.1</span>
+             <span class="sq">C</span>
+             
+           </button><button class="slot" data-i="30" type="button">
+             <span class="sb">29.1</span>
+             <span class="sq">F^7</span>
+             
+           </button><button class="slot" data-i="31" type="button">
+             <span class="sb">29.3</span>
+             <span class="sq">G</span>
+             
+           </button><button class="slot" data-i="32" type="button">
+             <span class="sb">39.1</span>
+             <span class="sq">D-7</span>
+             <span class='sx'>9e 36 %</span>
+           </button><button class="slot" data-i="33" type="button">
+             <span class="sb">40.1</span>
+             <span class="sq">A-7</span>
+             
+           </button><button class="slot" data-i="34" type="button">
+             <span class="sb">41.3</span>
+             <span class="sq">C/G</span>
+             <span class='sx'>9e 43 %</span>
+           </button><button class="slot" data-i="35" type="button">
+             <span class="sb">42.1</span>
+             <span class="sq">D-7</span>
+             <span class='sx'>9e 46 %</span>
+           </button><button class="slot" data-i="36" type="button">
+             <span class="sb">43.1</span>
+             <span class="sq">G7</span>
+             <span class='sx'>9e 29 %</span>
+           </button><button class="slot" data-i="37" type="button">
+             <span class="sb">44.1</span>
+             <span class="sq">C</span>
+             
+           </button><button class="slot" data-i="38" type="button">
+             <span class="sb">45.3</span>
+             <span class="sq">C/G</span>
+             
+           </button><button class="slot" data-i="39" type="button">
+             <span class="sb">46.1</span>
+             <span class="sq">D-7</span>
+             <span class='sx'>9e 41 %</span>
+           </button><button class="slot" data-i="40" type="button">
+             <span class="sb">47.1</span>
+             <span class="sq">G7</span>
+             <span class='sx'>9e 33 %</span>
+           </button><button class="slot" data-i="41" type="button">
+             <span class="sb">48.1</span>
+             <span class="sq">C</span>
+             <span class='sx'>9e 26 %</span>
+           </button><button class="slot" data-i="42" type="button">
+             <span class="sb">50.1</span>
+             <span class="sq">D-7</span>
+             
+           </button><button class="slot" data-i="43" type="button">
+             <span class="sb">51.1</span>
+             <span class="sq">G7</span>
+             
+           </button><button class="slot" data-i="44" type="button">
+             <span class="sb">52.1</span>
+             <span class="sq">C^7</span>
+             
+           </button><button class="slot" data-i="45" type="button">
+             <span class="sb">53.1</span>
+             <span class="sq">F^7</span>
+             
+           </button><button class="slot" data-i="46" type="button">
+             <span class="sb">53.3</span>
+             <span class="sq">G-7</span>
+             
+           </button><button class="slot" data-i="47" type="button">
+             <span class="sb">54.1</span>
+             <span class="sq">D-7</span>
+             <span class='sx'>9e 27 %</span>
+           </button><button class="slot" data-i="48" type="button">
+             <span class="sb">55.1</span>
+             <span class="sq">G7</span>
+             
+           </button><button class="slot" data-i="49" type="button">
+             <span class="sb">55.3</span>
+             <span class="sq">G</span>
+             <span class='sx'>9e 29 %</span>
+           </button><button class="slot" data-i="50" type="button">
+             <span class="sb">56.1</span>
+             <span class="sq">C^7</span>
+             
+           </button><button class="slot" data-i="51" type="button">
+             <span class="sb">57.3</span>
+             <span class="sq">C/E</span>
+             
+           </button><button class="slot" data-i="52" type="button">
+             <span class="sb">59.1</span>
+             <span class="sq">D-7</span>
+             
+           </button><button class="slot" data-i="53" type="button">
+             <span class="sb">60.1</span>
+             <span class="sq">G7</span>
+             
+           </button><button class="slot" data-i="54" type="button">
+             <span class="sb">61.1</span>
+             <span class="sq">C^7</span>
+             
+           </button><button class="slot" data-i="55" type="button">
+             <span class="sb">62.1</span>
+             <span class="sq">F^7</span>
+             
+           </button><button class="slot" data-i="56" type="button">
+             <span class="sb">63.1</span>
+             <span class="sq">D-7</span>
+             
+           </button><button class="slot" data-i="57" type="button">
+             <span class="sb">64.1</span>
+             <span class="sq">G7</span>
+             <span class='sx'>9e 29 %</span>
+           </button><button class="slot" data-i="58" type="button">
+             <span class="sb">65.1</span>
+             <span class="sq">C^7</span>
+             
+           </button><button class="slot" data-i="59" type="button">
+             <span class="sb">30.1</span>
+             <span class="sq">D-7</span>
+             <span class='sx'>9e 49 %</span>
+           </button><button class="slot" data-i="60" type="button">
+             <span class="sb">31.1</span>
+             <span class="sq">G7</span>
+             <span class='sx'>9e 35 %</span>
+           </button><button class="slot" data-i="61" type="button">
+             <span class="sb">32.1</span>
+             <span class="sq">C^7</span>
+             
+           </button><button class="slot" data-i="62" type="button">
+             <span class="sb">33.1</span>
+             <span class="sq">F^7</span>
+             <span class='sx'>9e 27 %</span>
+           </button><button class="slot" data-i="63" type="button">
+             <span class="sb">33.3</span>
+             <span class="sq">G-</span>
+             
+           </button><button class="slot" data-i="64" type="button">
+             <span class="sb">33.4</span>
+             <span class="sq">A-</span>
+             
+           </button><button class="slot" data-i="65" type="button">
+             <span class="sb">34.1</span>
+             <span class="sq">D-7</span>
+             
+           </button><button class="slot" data-i="66" type="button">
+             <span class="sb">35.1</span>
+             <span class="sq">G7</span>
+             <span class='sx'>9e 39 %</span>
+           </button><button class="slot" data-i="67" type="button">
+             <span class="sb">36.1</span>
+             <span class="sq">C^7</span>
+             
+           </button><button class="slot" data-i="68" type="button">
+             <span class="sb">37.1</span>
+             <span class="sq">F^7</span>
+             <span class='sx'>9e 28 %</span>
+           </button><button class="slot" data-i="69" type="button">
+             <span class="sb">37.3</span>
+             <span class="sq">G7sus4</span>
+             <span class='sx'>9e 38 %</span>
+           </button><button class="slot" data-i="70" type="button">
+             <span class="sb">84.1</span>
+             <span class="sq">G7</span>
+             
+           </button><button class="slot" data-i="71" type="button">
+             <span class="sb">85.1</span>
+             <span class="sq">C</span>
+             
+           </button><button class="slot" data-i="72" type="button">
+             <span class="sb">86.3</span>
+             <span class="sq">G-7</span>
+             
+           </button><button class="slot" data-i="73" type="button">
+             <span class="sb">87.3</span>
+             <span class="sq">D-7</span>
+             
+           </button></div>
+
+<div id="cascade"></div>
+
+<div class="res">
+  <span class="av" id="av"></span>
+  <span class="sym" id="sym">—</span>
+  <span class="sp"></span>
+  <button id="play" type="button">&#9658; écouter</button>
+  <button id="reset" type="button">repartir du modèle</button>
+</div>
+
+<footer>
+  têtes : <code>harmonia.musx.frame_posteriors</code> — triade 73 · basse 13 · 7<sup>e</sup> 4 ·
+  9<sup>e</sup> 4 · 11<sup>e</sup> 3 · 13<sup>e</sup> 3<br>
+  seuil « suggéré » : 0.125, repris de <code>span_rescore.SUG_FLOOR</code> —
+  aucun seuil nouveau &middot; données : <code>scratchpad/cascade_data.py</code><br>
+  le rendu de l'app connaît 29 queues (<code>ui/kit.js</code>) dont <code>^9</code>,
+  <code>-9</code>, <code>13</code>, <code>-^7</code>, <code>7b9</code>, <code>7#11</code>,
+  <code>69</code> ; celles que la cascade peut produire sans glyphe encore
+  (<code>11</code>, <code>^11</code>, <code>^13</code>, <code>-11</code>,
+  <code>-13</code>, <code>9sus4</code>, <code>add9</code>) s'affichent en texte brut —
+  lisibles, mais à typographier si on garde la cascade
+</footer>
+
+<script>
+const D = {"key":"min_0DdCoNbbRvQ","titre":"Lost Without U","tonalite":"C major","audio":"../audio/0DdCoNbbRvQ.m4a","noms":{"triades":["maj","min","sus4","sus2","dim","aug"],"sev":["aucune","maj7","b7","bb7"],"neuf":["aucune","9","#9","b9"],"onze":["aucune","11","#11"],"treize":["aucune","13","b13"],"notes":["C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B"]},"accords":[{"bar":1,"beat":1,"t0":0.186,"t1":2.995,"ecrit":"D-7","root":2,"q":"-7","base":[{"root":2,"type":1,"c":0.8276},{"root":7,"type":1,"c":0.0499},{"root":7,"type":0,"c":0.0296},{"root":7,"type":2,"c":0.0223},{"root":2,"type":0,"c":0.0198},{"root":5,"type":0,"c":0.0147},{"root":10,"type":0,"c":0.007},{"root":2,"type":2,"c":0.007}],"nMass":0.0037,"sev":[0.173,0.0062,0.8206,0.0003],"neuf":[0.8048,0.1879,0.0017,0.0055],"onze":[0.9512,0.0466,0.0022],"treize":[0.9855,0.0133,0.0012]},{"bar":2,"beat":1,"t0":2.995,"t1":5.828,"ecrit":"G7","root":7,"q":"7","base":[{"root":7,"type":0,"c":0.5607},{"root":7,"type":1,"c":0.1498},{"root":2,"type":1,"c":0.1408},{"root":7,"type":2,"c":0.0628},{"root":0,"type":0,"c":0.0163},{"root":10,"type":0,"c":0.0121},{"root":5,"type":0,"c":0.0102},{"root":2,"type":4,"c":0.0096}],"nMass":0.0046,"sev":[0.1994,0.0169,0.7828,0.0009],"neuf":[0.7657,0.2124,0.0022,0.0197],"onze":[0.9454,0.0481,0.0065],"treize":[0.9642,0.0324,0.0033]},{"bar":3,"beat":1,"t0":5.828,"t1":8.638,"ecrit":"C^7","root":0,"q":"^7","base":[{"root":0,"type":0,"c":0.9355},{"root":9,"type":1,"c":0.0247},{"root":5,"type":0,"c":0.0076},{"root":0,"type":5,"c":0.0069},{"root":7,"type":0,"c":0.0049},{"root":0,"type":1,"c":0.0031},{"root":0,"type":2,"c":0.0027},{"root":4,"type":1,"c":0.0015}],"nMass":0.0042,"sev":[0.2451,0.6741,0.0808,0.0],"neuf":[0.8671,0.1257,0.0003,0.0068],"onze":[0.9788,0.0144,0.0068],"treize":[0.909,0.0839,0.0071]},{"bar":4,"beat":1,"t0":8.638,"t1":10.054,"ecrit":"F^7","root":5,"q":"^7","base":[{"root":5,"type":0,"c":0.6799},{"root":0,"type":0,"c":0.1908},{"root":9,"type":1,"c":0.0171},{"root":7,"type":1,"c":0.0137},{"root":5,"type":1,"c":0.0111},{"root":2,"type":1,"c":0.0106},{"root":10,"type":0,"c":0.0082},{"root":7,"type":0,"c":0.0066}],"nMass":0.019,"sev":[0.0957,0.8837,0.0205,0.0],"neuf":[0.7903,0.207,0.0001,0.0026],"onze":[0.9712,0.0209,0.0079],"treize":[0.9272,0.0629,0.0099]},{"bar":4,"beat":3,"t0":10.054,"t1":11.471,"ecrit":"G-7","root":7,"q":"-7","base":[{"root":7,"type":1,"c":0.4186},{"root":9,"type":1,"c":0.184},{"root":7,"type":0,"c":0.0692},{"root":0,"type":0,"c":0.0629},{"root":5,"type":0,"c":0.0478},{"root":2,"type":1,"c":0.0383},{"root":7,"type":2,"c":0.0286},{"root":10,"type":0,"c":0.0229}],"nMass":0.0109,"sev":[0.3295,0.1971,0.4729,0.0005],"neuf":[0.8121,0.1792,0.0012,0.0075],"onze":[0.9529,0.0425,0.0046],"treize":[0.9194,0.0767,0.004]},{"bar":5,"beat":1,"t0":11.471,"t1":15.697,"ecrit":"D-7","root":2,"q":"-7","base":[{"root":2,"type":1,"c":0.734},{"root":7,"type":0,"c":0.0771},{"root":7,"type":1,"c":0.0463},{"root":7,"type":2,"c":0.0378},{"root":5,"type":0,"c":0.0287},{"root":2,"type":0,"c":0.0166},{"root":2,"type":2,"c":0.0092},{"root":0,"type":0,"c":0.0068}],"nMass":0.0079,"sev":[0.2323,0.0173,0.75,0.0004],"neuf":[0.8473,0.1396,0.001,0.0121],"onze":[0.9502,0.0471,0.0027],"treize":[0.9486,0.048,0.0033]},{"bar":6,"beat":3,"t0":15.697,"t1":17.113,"ecrit":"G7","root":7,"q":"7","base":[{"root":7,"type":0,"c":0.3975},{"root":2,"type":1,"c":0.1893},{"root":7,"type":1,"c":0.1681},{"root":7,"type":2,"c":0.1299},{"root":0,"type":0,"c":0.0271},{"root":5,"type":0,"c":0.0227},{"root":10,"type":0,"c":0.0087},{"root":7,"type":3,"c":0.0073}],"nMass":0.0108,"sev":[0.2896,0.0272,0.6823,0.0008],"neuf":[0.7682,0.208,0.0019,0.0219],"onze":[0.9305,0.0639,0.0057],"treize":[0.9264,0.068,0.0055]},{"bar":7,"beat":1,"t0":17.113,"t1":19.946,"ecrit":"C^7","root":0,"q":"^7","base":[{"root":0,"type":0,"c":0.8949},{"root":9,"type":1,"c":0.0297},{"root":5,"type":0,"c":0.0186},{"root":7,"type":0,"c":0.0103},{"root":0,"type":5,"c":0.0071},{"root":2,"type":1,"c":0.0065},{"root":0,"type":1,"c":0.0058},{"root":0,"type":2,"c":0.0039}],"nMass":0.0061,"sev":[0.3942,0.5434,0.0624,0.0001],"neuf":[0.8523,0.1422,0.0005,0.0051],"onze":[0.9649,0.0221,0.013],"treize":[0.884,0.1071,0.009]},{"bar":8,"beat":1,"t0":19.946,"t1":21.362,"ecrit":"F^7","root":5,"q":"^7","base":[{"root":5,"type":0,"c":0.628},{"root":0,"type":0,"c":0.2361},{"root":2,"type":1,"c":0.0294},{"root":9,"type":1,"c":0.0226},{"root":7,"type":0,"c":0.0135},{"root":7,"type":1,"c":0.0122},{"root":7,"type":2,"c":0.0096},{"root":5,"type":3,"c":0.0053}],"nMass":0.0051,"sev":[0.1946,0.7746,0.0308,0.0001],"neuf":[0.7614,0.2366,0.0003,0.0017],"onze":[0.9625,0.0253,0.0122],"treize":[0.9227,0.0697,0.0076]},{"bar":8,"beat":3,"t0":21.362,"t1":22.756,"ecrit":"G-7","root":7,"q":"-7","base":[{"root":7,"type":1,"c":0.2863},{"root":7,"type":0,"c":0.14},{"root":5,"type":0,"c":0.1052},{"root":9,"type":1,"c":0.1007},{"root":7,"type":2,"c":0.0919},{"root":2,"type":1,"c":0.0741},{"root":0,"type":0,"c":0.0608},{"root":2,"type":0,"c":0.0168}],"nMass":0.008,"sev":[0.3695,0.1666,0.4632,0.0007],"neuf":[0.7673,0.2247,0.0033,0.0047],"onze":[0.9506,0.0453,0.0041],"treize":[0.9343,0.061,0.0047]},{"bar":9,"beat":1,"t0":22.756,"t1":28.421,"ecrit":"D-7","root":2,"q":"-7","base":[{"root":2,"type":1,"c":0.6958},{"root":7,"type":0,"c":0.1766},{"root":7,"type":2,"c":0.038},{"root":2,"type":0,"c":0.0244},{"root":5,"type":0,"c":0.0151},{"root":0,"type":0,"c":0.0092},{"root":2,"type":2,"c":0.0088},{"root":7,"type":1,"c":0.0084}],"nMass":0.0028,"sev":[0.2664,0.0262,0.7069,0.0005],"neuf":[0.8108,0.1789,0.0009,0.0094],"onze":[0.9564,0.0401,0.0035],"treize":[0.9438,0.0531,0.0031]},{"bar":11,"beat":1,"t0":28.421,"t1":31.231,"ecrit":"C^7","root":0,"q":"^7","base":[{"root":0,"type":0,"c":0.89},{"root":9,"type":1,"c":0.023},{"root":7,"type":0,"c":0.0207},{"root":5,"type":0,"c":0.017},{"root":2,"type":1,"c":0.0123},{"root":0,"type":2,"c":0.0093},{"root":0,"type":1,"c":0.0061},{"root":0,"type":3,"c":0.0034}],"nMass":0.0013,"sev":[0.2838,0.6357,0.0804,0.0001],"neuf":[0.7971,0.1927,0.0004,0.0098],"onze":[0.9705,0.0201,0.0095],"treize":[0.903,0.092,0.005]},{"bar":12,"beat":1,"t0":31.231,"t1":32.647,"ecrit":"F^7","root":5,"q":"^7","base":[{"root":5,"type":0,"c":0.6104},{"root":0,"type":0,"c":0.2332},{"root":9,"type":1,"c":0.0507},{"root":2,"type":1,"c":0.0288},{"root":7,"type":0,"c":0.019},{"root":7,"type":2,"c":0.0083},{"root":7,"type":1,"c":0.0062},{"root":10,"type":0,"c":0.0062}],"nMass":0.0015,"sev":[0.153,0.7814,0.0656,0.0],"neuf":[0.7414,0.2559,0.0002,0.0024],"onze":[0.9617,0.0224,0.0159],"treize":[0.9039,0.0914,0.0047]},{"bar":12,"beat":3,"t0":32.647,"t1":34.064,"ecrit":"G7","root":7,"q":"7","base":[{"root":7,"type":0,"c":0.2608},{"root":7,"type":1,"c":0.1976},{"root":7,"type":2,"c":0.1479},{"root":2,"type":1,"c":0.1232},{"root":9,"type":1,"c":0.0575},{"root":5,"type":0,"c":0.0569},{"root":0,"type":0,"c":0.0466},{"root":2,"type":0,"c":0.0334}],"nMass":0.0023,"sev":[0.2794,0.0511,0.6693,0.0002],"neuf":[0.6932,0.2957,0.0015,0.0096],"onze":[0.9167,0.0777,0.0056],"treize":[0.928,0.0708,0.0013]},{"bar":13,"beat":1,"t0":34.064,"t1":36.897,"ecrit":"D-7","root":2,"q":"-7","base":[{"root":2,"type":1,"c":0.7544},{"root":7,"type":0,"c":0.0838},{"root":7,"type":2,"c":0.0742},{"root":2,"type":0,"c":0.0296},{"root":5,"type":0,"c":0.0201},{"root":2,"type":2,"c":0.0107},{"root":7,"type":1,"c":0.01},{"root":0,"type":0,"c":0.0054}],"nMass":0.0004,"sev":[0.1694,0.0073,0.8232,0.0001],"neuf":[0.6423,0.3506,0.0008,0.0064],"onze":[0.8761,0.1193,0.0046],"treize":[0.9479,0.0509,0.0012]},{"bar":14,"beat":1,"t0":36.897,"t1":39.706,"ecrit":"G7","root":7,"q":"7","base":[{"root":7,"type":0,"c":0.5483},{"root":2,"type":1,"c":0.2455},{"root":7,"type":2,"c":0.0875},{"root":7,"type":1,"c":0.0399},{"root":0,"type":0,"c":0.0203},{"root":5,"type":0,"c":0.0131},{"root":2,"type":0,"c":0.0087},{"root":7,"type":3,"c":0.0068}],"nMass":0.0033,"sev":[0.2622,0.02,0.7174,0.0004],"neuf":[0.7304,0.2455,0.0014,0.0227],"onze":[0.9265,0.0667,0.0068],"treize":[0.9416,0.0554,0.003]},{"bar":15,"beat":1,"t0":39.706,"t1":42.539,"ecrit":"C^7","root":0,"q":"^7","base":[{"root":0,"type":0,"c":0.9444},{"root":7,"type":0,"c":0.0124},{"root":5,"type":0,"c":0.0102},{"root":9,"type":1,"c":0.0078},{"root":0,"type":2,"c":0.0078},{"root":2,"type":1,"c":0.0029},{"root":0,"type":1,"c":0.0024},{"root":0,"type":3,"c":0.0017}],"nMass":0.0012,"sev":[0.3118,0.5655,0.1227,0.0],"neuf":[0.83,0.1643,0.0005,0.0052],"onze":[0.9699,0.0214,0.0087],"treize":[0.9159,0.0814,0.0027]},{"bar":16,"beat":1,"t0":42.539,"t1":43.955,"ecrit":"F^7","root":5,"q":"^7","base":[{"root":5,"type":0,"c":0.6683},{"root":0,"type":0,"c":0.2139},{"root":2,"type":1,"c":0.0265},{"root":9,"type":1,"c":0.0231},{"root":7,"type":0,"c":0.0155},{"root":7,"type":2,"c":0.0099},{"root":10,"type":0,"c":0.0066},{"root":7,"type":1,"c":0.0053}],"nMass":0.002,"sev":[0.1705,0.7855,0.044,0.0],"neuf":[0.7812,0.2171,0.0001,0.0016],"onze":[0.9652,0.0213,0.0135],"treize":[0.9203,0.078,0.0018]},{"bar":16,"beat":3,"t0":43.955,"t1":46.765,"ecrit":"G7sus4","root":7,"q":"7sus4","base":[{"root":7,"type":2,"c":0.296},{"root":7,"type":0,"c":0.2117},{"root":2,"type":1,"c":0.1925},{"root":5,"type":0,"c":0.0818},{"root":0,"type":0,"c":0.0761},{"root":7,"type":1,"c":0.0463},{"root":9,"type":1,"c":0.0198},{"root":2,"type":2,"c":0.0194}],"nMass":0.0025,"sev":[0.2207,0.0452,0.7339,0.0002],"neuf":[0.4477,0.5449,0.0002,0.0073],"onze":[0.7504,0.2295,0.0201],"treize":[0.8818,0.1172,0.001]},{"bar":17,"beat":1,"t0":45.356,"t1":48.179,"ecrit":"D-7/G","root":2,"q":"-7","base":[{"root":2,"type":1,"c":0.4326},{"root":7,"type":2,"c":0.234},{"root":7,"type":0,"c":0.1826},{"root":7,"type":1,"c":0.0401},{"root":5,"type":0,"c":0.0323},{"root":2,"type":2,"c":0.0214},{"root":0,"type":0,"c":0.0169},{"root":2,"type":0,"c":0.0088}],"nMass":0.0028,"sev":[0.2007,0.0161,0.7831,0.0001],"neuf":[0.4864,0.5056,0.0002,0.0077],"onze":[0.7773,0.2081,0.0146],"treize":[0.9068,0.0917,0.0015]},{"bar":18,"beat":1,"t0":48.179,"t1":51.003,"ecrit":"G7","root":7,"q":"7","base":[{"root":2,"type":1,"c":0.46},{"root":7,"type":0,"c":0.2682},{"root":7,"type":2,"c":0.1022},{"root":7,"type":1,"c":0.0493},{"root":0,"type":0,"c":0.0343},{"root":5,"type":0,"c":0.0178},{"root":2,"type":0,"c":0.0126},{"root":2,"type":2,"c":0.0076}],"nMass":0.0131,"sev":[0.2683,0.0235,0.7081,0.0001],"neuf":[0.6882,0.2949,0.0007,0.0161],"onze":[0.9097,0.0826,0.0076],"treize":[0.9021,0.095,0.003]},{"bar":19,"beat":1,"t0":51.003,"t1":53.827,"ecrit":"C","root":0,"q":"","base":[{"root":0,"type":0,"c":0.9293},{"root":0,"type":2,"c":0.0121},{"root":7,"type":0,"c":0.0087},{"root":2,"type":1,"c":0.0085},{"root":0,"type":1,"c":0.0076},{"root":5,"type":0,"c":0.0068},{"root":9,"type":1,"c":0.0066},{"root":0,"type":3,"c":0.0034}],"nMass":0.0058,"sev":[0.5388,0.3618,0.0994,0.0],"neuf":[0.8449,0.1503,0.0004,0.0044],"onze":[0.9685,0.0223,0.0092],"treize":[0.9216,0.0747,0.0036]},{"bar":20,"beat":3,"t0":55.238,"t1":56.65,"ecrit":"C/G","root":0,"q":"","base":[{"root":7,"type":1,"c":0.2544},{"root":0,"type":0,"c":0.2506},{"root":7,"type":0,"c":0.1197},{"root":2,"type":1,"c":0.0868},{"root":7,"type":2,"c":0.0652},{"root":9,"type":1,"c":0.0467},{"root":5,"type":0,"c":0.0463},{"root":10,"type":0,"c":0.0135}],"nMass":0.0173,"sev":[0.3999,0.0667,0.5329,0.0006],"neuf":[0.7407,0.2429,0.0007,0.0157],"onze":[0.9316,0.0561,0.0122],"treize":[0.8477,0.1485,0.0038]},{"bar":21,"beat":1,"t0":56.65,"t1":59.474,"ecrit":"D-7","root":2,"q":"-7","base":[{"root":2,"type":1,"c":0.8606},{"root":7,"type":0,"c":0.039},{"root":7,"type":2,"c":0.0198},{"root":2,"type":0,"c":0.0168},{"root":2,"type":2,"c":0.0148},{"root":5,"type":0,"c":0.0118},{"root":0,"type":0,"c":0.0111},{"root":7,"type":1,"c":0.0077}],"nMass":0.0073,"sev":[0.3135,0.0182,0.6682,0.0001],"neuf":[0.7934,0.2014,0.0004,0.0048],"onze":[0.946,0.0508,0.0032],"treize":[0.9526,0.0462,0.0012]},{"bar":22,"beat":1,"t0":59.474,"t1":62.297,"ecrit":"G7","root":7,"q":"7","base":[{"root":7,"type":0,"c":0.4058},{"root":2,"type":1,"c":0.3534},{"root":7,"type":2,"c":0.0725},{"root":7,"type":1,"c":0.0642},{"root":0,"type":0,"c":0.033},{"root":5,"type":0,"c":0.0158},{"root":10,"type":0,"c":0.0082},{"root":2,"type":0,"c":0.0082}],"nMass":0.0129,"sev":[0.4235,0.0159,0.5601,0.0005],"neuf":[0.8706,0.1221,0.0007,0.0067],"onze":[0.9663,0.0316,0.0021],"treize":[0.942,0.0549,0.003]},{"bar":23,"beat":1,"t0":62.297,"t1":65.121,"ecrit":"C","root":0,"q":"","base":[{"root":0,"type":0,"c":0.9009},{"root":7,"type":0,"c":0.0194},{"root":5,"type":0,"c":0.0181},{"root":2,"type":1,"c":0.0143},{"root":0,"type":2,"c":0.0117},{"root":9,"type":1,"c":0.0065},{"root":0,"type":3,"c":0.0057},{"root":0,"type":1,"c":0.0031}],"nMass":0.0048,"sev":[0.6053,0.27,0.1246,0.0001],"neuf":[0.8825,0.1121,0.0005,0.0049],"onze":[0.9762,0.0141,0.0096],"treize":[0.9162,0.0784,0.0054]},{"bar":24,"beat":3,"t0":66.533,"t1":67.945,"ecrit":"C/G","root":0,"q":"","base":[{"root":0,"type":0,"c":0.3633},{"root":7,"type":0,"c":0.2404},{"root":9,"type":1,"c":0.0855},{"root":7,"type":2,"c":0.0743},{"root":7,"type":1,"c":0.0742},{"root":5,"type":0,"c":0.0318},{"root":4,"type":1,"c":0.0222},{"root":2,"type":1,"c":0.0212}],"nMass":0.033,"sev":[0.4941,0.1071,0.3985,0.0003],"neuf":[0.8277,0.1564,0.0009,0.015],"onze":[0.9527,0.036,0.0113],"treize":[0.9138,0.084,0.0022]},{"bar":26,"beat":1,"t0":70.768,"t1":73.592,"ecrit":"G7/D","root":7,"q":"7","base":[{"root":2,"type":1,"c":0.9331},{"root":2,"type":0,"c":0.0114},{"root":7,"type":0,"c":0.0112},{"root":2,"type":2,"c":0.0086},{"root":7,"type":2,"c":0.0073},{"root":5,"type":0,"c":0.0067},{"root":0,"type":0,"c":0.005},{"root":7,"type":1,"c":0.005}],"nMass":0.0014,"sev":[0.2646,0.0112,0.7241,0.0001],"neuf":[0.7536,0.2345,0.0004,0.0115],"onze":[0.9199,0.0775,0.0026],"treize":[0.9524,0.0459,0.0017]},{"bar":27,"beat":1,"t0":73.584,"t1":76.417,"ecrit":"G7","root":7,"q":"7","base":[{"root":7,"type":0,"c":0.6038},{"root":7,"type":1,"c":0.1845},{"root":7,"type":2,"c":0.0738},{"root":2,"type":1,"c":0.0477},{"root":0,"type":0,"c":0.0285},{"root":5,"type":0,"c":0.0173},{"root":10,"type":0,"c":0.0137},{"root":7,"type":3,"c":0.0053}],"nMass":0.005,"sev":[0.3175,0.0324,0.6499,0.0002],"neuf":[0.645,0.3263,0.0005,0.0283],"onze":[0.9378,0.0519,0.0103],"treize":[0.9327,0.0645,0.0028]},{"bar":28,"beat":1,"t0":76.417,"t1":79.25,"ecrit":"C","root":0,"q":"","base":[{"root":0,"type":0,"c":0.9144},{"root":5,"type":0,"c":0.0218},{"root":0,"type":2,"c":0.0173},{"root":7,"type":0,"c":0.017},{"root":9,"type":1,"c":0.0049},{"root":0,"type":5,"c":0.0038},{"root":10,"type":0,"c":0.0035},{"root":0,"type":1,"c":0.0032}],"nMass":0.0009,"sev":[0.482,0.4435,0.0744,0.0001],"neuf":[0.8257,0.1612,0.0001,0.0129],"onze":[0.9724,0.0169,0.0107],"treize":[0.8879,0.1059,0.0062]},{"bar":29,"beat":1,"t0":79.25,"t1":80.643,"ecrit":"F^7","root":5,"q":"^7","base":[{"root":5,"type":0,"c":0.823},{"root":0,"type":0,"c":0.0911},{"root":2,"type":1,"c":0.0117},{"root":9,"type":1,"c":0.0116},{"root":5,"type":1,"c":0.0085},{"root":5,"type":3,"c":0.0079},{"root":7,"type":0,"c":0.0065},{"root":10,"type":0,"c":0.0054}],"nMass":0.0023,"sev":[0.1961,0.7841,0.0198,0.0],"neuf":[0.8144,0.1835,0.0001,0.002],"onze":[0.9745,0.0132,0.0123],"treize":[0.9401,0.0534,0.0065]},{"bar":29,"beat":3,"t0":80.643,"t1":82.059,"ecrit":"G","root":7,"q":"","base":[{"root":7,"type":0,"c":0.2129},{"root":7,"type":1,"c":0.1643},{"root":9,"type":1,"c":0.1415},{"root":5,"type":0,"c":0.1141},{"root":0,"type":0,"c":0.0739},{"root":2,"type":1,"c":0.0586},{"root":7,"type":2,"c":0.0523},{"root":10,"type":0,"c":0.0277}],"nMass":0.0074,"sev":[0.4372,0.182,0.3803,0.0005],"neuf":[0.8659,0.1291,0.0012,0.0038],"onze":[0.9797,0.0181,0.0022],"treize":[0.9556,0.0398,0.0046]},{"bar":39,"beat":1,"t0":107.485,"t1":110.295,"ecrit":"D-7","root":2,"q":"-7","base":[{"root":2,"type":1,"c":0.9085},{"root":2,"type":0,"c":0.0287},{"root":2,"type":2,"c":0.0157},{"root":5,"type":0,"c":0.0124},{"root":9,"type":1,"c":0.0113},{"root":0,"type":0,"c":0.004},{"root":7,"type":0,"c":0.0031},{"root":2,"type":3,"c":0.0018}],"nMass":0.0055,"sev":[0.1981,0.0345,0.7673,0.0],"neuf":[0.6284,0.362,0.0012,0.0083],"onze":[0.9024,0.0918,0.0058],"treize":[0.9503,0.0453,0.0044]},{"bar":40,"beat":1,"t0":110.295,"t1":115.937,"ecrit":"A-7","root":9,"q":"-7","base":[{"root":9,"type":1,"c":0.6814},{"root":2,"type":1,"c":0.1525},{"root":7,"type":0,"c":0.0425},{"root":7,"type":2,"c":0.0234},{"root":0,"type":0,"c":0.02},{"root":5,"type":0,"c":0.018},{"root":7,"type":1,"c":0.0123},{"root":2,"type":0,"c":0.0113}],"nMass":0.004,"sev":[0.3331,0.0356,0.6311,0.0002],"neuf":[0.7635,0.2249,0.0018,0.0099],"onze":[0.9367,0.0581,0.0051],"treize":[0.9359,0.0555,0.0086]},{"bar":41,"beat":3,"t0":114.534,"t1":115.946,"ecrit":"C/G","root":0,"q":"","base":[{"root":9,"type":1,"c":0.4775},{"root":7,"type":0,"c":0.1344},{"root":2,"type":1,"c":0.0998},{"root":7,"type":2,"c":0.0816},{"root":7,"type":1,"c":0.0452},{"root":5,"type":0,"c":0.0395},{"root":0,"type":0,"c":0.039},{"root":2,"type":2,"c":0.0153}],"nMass":0.0064,"sev":[0.1603,0.0219,0.8178,0.0001],"neuf":[0.566,0.4302,0.0008,0.003],"onze":[0.8686,0.1276,0.0038],"treize":[0.9544,0.0448,0.0008]},{"bar":42,"beat":1,"t0":115.946,"t1":118.769,"ecrit":"D-7","root":2,"q":"-7","base":[{"root":2,"type":1,"c":0.7977},{"root":7,"type":0,"c":0.0504},{"root":7,"type":2,"c":0.0368},{"root":2,"type":2,"c":0.0312},{"root":2,"type":0,"c":0.0191},{"root":9,"type":1,"c":0.0172},{"root":5,"type":0,"c":0.0125},{"root":0,"type":0,"c":0.011}],"nMass":0.0027,"sev":[0.153,0.0058,0.8411,0.0001],"neuf":[0.5298,0.4617,0.0013,0.0072],"onze":[0.8176,0.1764,0.006],"treize":[0.9284,0.0699,0.0018]},{"bar":43,"beat":1,"t0":118.769,"t1":121.593,"ecrit":"G7","root":7,"q":"7","base":[{"root":7,"type":0,"c":0.5152},{"root":2,"type":1,"c":0.2088},{"root":7,"type":2,"c":0.0897},{"root":7,"type":1,"c":0.0598},{"root":0,"type":0,"c":0.0512},{"root":5,"type":0,"c":0.0122},{"root":2,"type":0,"c":0.0069},{"root":10,"type":0,"c":0.0042}],"nMass":0.0208,"sev":[0.3058,0.0111,0.6829,0.0002],"neuf":[0.6958,0.2858,0.0019,0.0165],"onze":[0.9131,0.0821,0.0048],"treize":[0.9009,0.0946,0.0045]},{"bar":44,"beat":1,"t0":121.593,"t1":124.417,"ecrit":"C","root":0,"q":"","base":[{"root":0,"type":0,"c":0.9308},{"root":7,"type":0,"c":0.0135},{"root":0,"type":2,"c":0.0105},{"root":5,"type":0,"c":0.0093},{"root":9,"type":1,"c":0.0077},{"root":2,"type":1,"c":0.0072},{"root":0,"type":1,"c":0.0032},{"root":0,"type":3,"c":0.0031}],"nMass":0.0038,"sev":[0.6359,0.2409,0.123,0.0002],"neuf":[0.8778,0.1164,0.0008,0.005],"onze":[0.9755,0.0178,0.0066],"treize":[0.893,0.1003,0.0067]},{"bar":45,"beat":3,"t0":125.828,"t1":127.24,"ecrit":"C/G","root":0,"q":"","base":[{"root":0,"type":0,"c":0.3483},{"root":7,"type":1,"c":0.2768},{"root":7,"type":0,"c":0.1178},{"root":9,"type":1,"c":0.0704},{"root":7,"type":2,"c":0.0624},{"root":2,"type":1,"c":0.034},{"root":5,"type":0,"c":0.0171},{"root":0,"type":2,"c":0.0115}],"nMass":0.0049,"sev":[0.4398,0.0609,0.4989,0.0004],"neuf":[0.7853,0.2053,0.0006,0.0088],"onze":[0.9424,0.0525,0.0051],"treize":[0.9072,0.0899,0.0029]},{"bar":46,"beat":1,"t0":127.24,"t1":130.064,"ecrit":"D-7","root":2,"q":"-7","base":[{"root":2,"type":1,"c":0.6657},{"root":0,"type":0,"c":0.0754},{"root":2,"type":2,"c":0.0715},{"root":7,"type":0,"c":0.0586},{"root":2,"type":0,"c":0.0471},{"root":7,"type":2,"c":0.0335},{"root":9,"type":1,"c":0.0158},{"root":5,"type":0,"c":0.0105}],"nMass":0.0016,"sev":[0.3223,0.0243,0.6533,0.0001],"neuf":[0.5883,0.407,0.0006,0.0042],"onze":[0.8531,0.1415,0.0054],"treize":[0.9176,0.0806,0.0018]},{"bar":47,"beat":1,"t0":130.064,"t1":132.887,"ecrit":"G7","root":7,"q":"7","base":[{"root":7,"type":0,"c":0.6373},{"root":7,"type":2,"c":0.136},{"root":7,"type":1,"c":0.1056},{"root":2,"type":1,"c":0.034},{"root":0,"type":0,"c":0.0315},{"root":5,"type":0,"c":0.0139},{"root":7,"type":3,"c":0.0136},{"root":2,"type":0,"c":0.0034}],"nMass":0.0052,"sev":[0.3588,0.0204,0.6206,0.0002],"neuf":[0.657,0.3279,0.0012,0.0139],"onze":[0.9038,0.08,0.0163],"treize":[0.9339,0.0646,0.0015]},{"bar":48,"beat":1,"t0":132.888,"t1":137.114,"ecrit":"C","root":0,"q":"","base":[{"root":0,"type":0,"c":0.7507},{"root":7,"type":0,"c":0.0345},{"root":0,"type":2,"c":0.0302},{"root":2,"type":1,"c":0.0169},{"root":0,"type":3,"c":0.0153},{"root":5,"type":0,"c":0.0115},{"root":9,"type":1,"c":0.0076},{"root":0,"type":1,"c":0.0045}],"nMass":0.1032,"sev":[0.5833,0.2499,0.1667,0.0001],"neuf":[0.7326,0.257,0.0006,0.0098],"onze":[0.9107,0.0453,0.044],"treize":[0.8803,0.1133,0.0064]},{"bar":50,"beat":1,"t0":138.53,"t1":141.363,"ecrit":"D-7","root":2,"q":"-7","base":[{"root":2,"type":1,"c":0.8685},{"root":5,"type":0,"c":0.0347},{"root":2,"type":0,"c":0.024},{"root":0,"type":0,"c":0.0158},{"root":7,"type":0,"c":0.0142},{"root":2,"type":2,"c":0.014},{"root":7,"type":2,"c":0.0051},{"root":9,"type":1,"c":0.0043}],"nMass":0.0068,"sev":[0.3266,0.0109,0.6625,0.0001],"neuf":[0.8644,0.1298,0.0009,0.005],"onze":[0.963,0.0358,0.0013],"treize":[0.9784,0.0198,0.0018]},{"bar":51,"beat":1,"t0":141.363,"t1":144.173,"ecrit":"G7","root":7,"q":"7","base":[{"root":7,"type":0,"c":0.8096},{"root":7,"type":2,"c":0.0539},{"root":7,"type":1,"c":0.0477},{"root":0,"type":0,"c":0.0323},{"root":2,"type":1,"c":0.0241},{"root":5,"type":0,"c":0.0125},{"root":7,"type":3,"c":0.0029},{"root":10,"type":0,"c":0.0023}],"nMass":0.0025,"sev":[0.3764,0.0245,0.599,0.0002],"neuf":[0.7819,0.2008,0.0008,0.0165],"onze":[0.9648,0.0313,0.0039],"treize":[0.9662,0.0326,0.0012]},{"bar":52,"beat":1,"t0":144.173,"t1":147.006,"ecrit":"C^7","root":0,"q":"^7","base":[{"root":0,"type":0,"c":0.9616},{"root":7,"type":0,"c":0.0128},{"root":5,"type":0,"c":0.0083},{"root":0,"type":2,"c":0.0031},{"root":0,"type":5,"c":0.0024},{"root":9,"type":1,"c":0.0024},{"root":0,"type":1,"c":0.0021},{"root":10,"type":0,"c":0.001}],"nMass":0.0008,"sev":[0.3519,0.5757,0.0724,0.0],"neuf":[0.8796,0.1129,0.0002,0.0073],"onze":[0.9883,0.0077,0.004],"treize":[0.9641,0.0339,0.002]},{"bar":53,"beat":1,"t0":147.006,"t1":148.422,"ecrit":"F^7","root":5,"q":"^7","base":[{"root":5,"type":0,"c":0.8114},{"root":0,"type":0,"c":0.1069},{"root":7,"type":1,"c":0.0148},{"root":2,"type":1,"c":0.0123},{"root":9,"type":1,"c":0.0108},{"root":7,"type":0,"c":0.0095},{"root":7,"type":2,"c":0.0051},{"root":10,"type":0,"c":0.0044}],"nMass":0.002,"sev":[0.1101,0.8732,0.0167,0.0],"neuf":[0.8186,0.179,0.0001,0.0023],"onze":[0.9796,0.013,0.0074],"treize":[0.9457,0.0505,0.0038]},{"bar":53,"beat":3,"t0":148.422,"t1":149.838,"ecrit":"G-7","root":7,"q":"-7","base":[{"root":7,"type":1,"c":0.3242},{"root":9,"type":1,"c":0.1717},{"root":7,"type":0,"c":0.1407},{"root":5,"type":0,"c":0.0871},{"root":2,"type":1,"c":0.0795},{"root":7,"type":2,"c":0.0386},{"root":0,"type":0,"c":0.0381},{"root":10,"type":0,"c":0.0351}],"nMass":0.0025,"sev":[0.2009,0.0795,0.7196,0.0001],"neuf":[0.7682,0.2177,0.0016,0.0126],"onze":[0.9556,0.0413,0.0032],"treize":[0.9661,0.0326,0.0013]},{"bar":54,"beat":1,"t0":149.838,"t1":152.648,"ecrit":"D-7","root":2,"q":"-7","base":[{"root":2,"type":1,"c":0.9014},{"root":2,"type":0,"c":0.029},{"root":2,"type":2,"c":0.0147},{"root":7,"type":0,"c":0.0131},{"root":5,"type":0,"c":0.0096},{"root":0,"type":0,"c":0.007},{"root":9,"type":1,"c":0.0068},{"root":7,"type":2,"c":0.0062}],"nMass":0.0009,"sev":[0.1712,0.0139,0.8149,0.0],"neuf":[0.7261,0.2675,0.0012,0.0052],"onze":[0.9369,0.0611,0.002],"treize":[0.9784,0.0203,0.0013]},{"bar":55,"beat":1,"t0":152.648,"t1":154.064,"ecrit":"G7","root":7,"q":"7","base":[{"root":7,"type":0,"c":0.8066},{"root":2,"type":1,"c":0.0579},{"root":7,"type":2,"c":0.055},{"root":7,"type":1,"c":0.0377},{"root":0,"type":0,"c":0.0134},{"root":5,"type":0,"c":0.0081},{"root":2,"type":0,"c":0.0048},{"root":7,"type":3,"c":0.0037}],"nMass":0.0012,"sev":[0.3195,0.0119,0.6682,0.0004],"neuf":[0.7693,0.2068,0.0014,0.0225],"onze":[0.9538,0.0331,0.0131],"treize":[0.9703,0.0288,0.0009]},{"bar":55,"beat":3,"t0":154.064,"t1":155.481,"ecrit":"G","root":7,"q":"","base":[{"root":7,"type":0,"c":0.5289},{"root":0,"type":0,"c":0.2031},{"root":7,"type":2,"c":0.1521},{"root":7,"type":1,"c":0.0502},{"root":5,"type":0,"c":0.0148},{"root":2,"type":1,"c":0.0107},{"root":7,"type":3,"c":0.0101},{"root":9,"type":1,"c":0.0058}],"nMass":0.0028,"sev":[0.539,0.0413,0.4195,0.0001],"neuf":[0.6978,0.2945,0.0005,0.0071],"onze":[0.9242,0.0597,0.0161],"treize":[0.9537,0.0445,0.0017]},{"bar":56,"beat":1,"t0":155.481,"t1":159.707,"ecrit":"C^7","root":0,"q":"^7","base":[{"root":0,"type":0,"c":0.835},{"root":5,"type":0,"c":0.0287},{"root":7,"type":0,"c":0.0182},{"root":4,"type":1,"c":0.0163},{"root":2,"type":1,"c":0.0158},{"root":9,"type":1,"c":0.0145},{"root":0,"type":2,"c":0.0049},{"root":4,"type":0,"c":0.0044}],"nMass":0.0304,"sev":[0.424,0.4725,0.1034,0.0001],"neuf":[0.885,0.1087,0.0002,0.0061],"onze":[0.9721,0.0112,0.0167],"treize":[0.9648,0.0325,0.0026]},{"bar":57,"beat":3,"t0":159.707,"t1":161.123,"ecrit":"C/E","root":0,"q":"","base":[{"root":0,"type":0,"c":0.2068},{"root":5,"type":0,"c":0.2004},{"root":2,"type":1,"c":0.1383},{"root":4,"type":1,"c":0.0942},{"root":9,"type":1,"c":0.0738},{"root":4,"type":0,"c":0.0409},{"root":7,"type":0,"c":0.0306},{"root":10,"type":0,"c":0.0228}],"nMass":0.076,"sev":[0.5363,0.1687,0.2948,0.0002],"neuf":[0.8899,0.0987,0.0003,0.0112],"onze":[0.9768,0.0154,0.0078],"treize":[0.9346,0.0592,0.0062]},{"bar":59,"beat":1,"t0":163.956,"t1":166.766,"ecrit":"D-7","root":2,"q":"-7","base":[{"root":2,"type":1,"c":0.9068},{"root":2,"type":0,"c":0.0281},{"root":7,"type":0,"c":0.0163},{"root":2,"type":2,"c":0.0114},{"root":5,"type":0,"c":0.0106},{"root":9,"type":1,"c":0.0062},{"root":7,"type":2,"c":0.0057},{"root":0,"type":0,"c":0.0051}],"nMass":0.0024,"sev":[0.2364,0.0206,0.7429,0.0001],"neuf":[0.8264,0.1606,0.0012,0.0119],"onze":[0.9492,0.0474,0.0035],"treize":[0.9806,0.0151,0.0043]},{"bar":60,"beat":1,"t0":166.766,"t1":169.599,"ecrit":"G7","root":7,"q":"7","base":[{"root":7,"type":0,"c":0.8236},{"root":2,"type":1,"c":0.0637},{"root":7,"type":2,"c":0.0416},{"root":7,"type":1,"c":0.0294},{"root":0,"type":0,"c":0.0112},{"root":5,"type":0,"c":0.0068},{"root":2,"type":0,"c":0.0044},{"root":10,"type":0,"c":0.0023}],"nMass":0.0023,"sev":[0.2842,0.0253,0.6903,0.0002],"neuf":[0.7846,0.1874,0.0008,0.0273],"onze":[0.9587,0.0325,0.0087],"treize":[0.9529,0.0444,0.0027]},{"bar":61,"beat":1,"t0":169.599,"t1":172.408,"ecrit":"C^7","root":0,"q":"^7","base":[{"root":0,"type":0,"c":0.8336},{"root":7,"type":0,"c":0.0799},{"root":0,"type":1,"c":0.0145},{"root":0,"type":2,"c":0.0131},{"root":5,"type":0,"c":0.0119},{"root":9,"type":1,"c":0.0091},{"root":0,"type":3,"c":0.0061},{"root":2,"type":1,"c":0.0041}],"nMass":0.0021,"sev":[0.281,0.6555,0.0633,0.0002],"neuf":[0.818,0.173,0.0001,0.0089],"onze":[0.9596,0.026,0.0144],"treize":[0.8554,0.1348,0.0098]},{"bar":62,"beat":1,"t0":172.408,"t1":175.241,"ecrit":"F^7","root":5,"q":"^7","base":[{"root":5,"type":0,"c":0.3027},{"root":0,"type":0,"c":0.2572},{"root":7,"type":1,"c":0.1018},{"root":9,"type":1,"c":0.0816},{"root":2,"type":1,"c":0.0655},{"root":7,"type":0,"c":0.0515},{"root":10,"type":0,"c":0.0377},{"root":0,"type":2,"c":0.0151}],"nMass":0.0039,"sev":[0.2478,0.6068,0.1451,0.0003],"neuf":[0.8034,0.187,0.0004,0.0093],"onze":[0.9583,0.0283,0.0133],"treize":[0.8959,0.0961,0.008]},{"bar":63,"beat":1,"t0":175.241,"t1":178.074,"ecrit":"D-7","root":2,"q":"-7","base":[{"root":2,"type":1,"c":0.9475},{"root":2,"type":0,"c":0.0142},{"root":7,"type":0,"c":0.0086},{"root":2,"type":2,"c":0.0076},{"root":5,"type":0,"c":0.0067},{"root":7,"type":2,"c":0.0045},{"root":7,"type":1,"c":0.0023},{"root":9,"type":1,"c":0.0021}],"nMass":0.0002,"sev":[0.2447,0.0069,0.7483,0.0001],"neuf":[0.857,0.1338,0.0022,0.007],"onze":[0.9547,0.0433,0.0019],"treize":[0.979,0.0201,0.0009]},{"bar":64,"beat":1,"t0":178.074,"t1":180.883,"ecrit":"G7","root":7,"q":"7","base":[{"root":7,"type":0,"c":0.7446},{"root":7,"type":2,"c":0.1019},{"root":7,"type":1,"c":0.0636},{"root":2,"type":1,"c":0.0328},{"root":5,"type":0,"c":0.0167},{"root":0,"type":0,"c":0.014},{"root":7,"type":3,"c":0.0066},{"root":7,"type":5,"c":0.0033}],"nMass":0.0017,"sev":[0.3548,0.0481,0.5966,0.0005],"neuf":[0.682,0.2942,0.0011,0.0227],"onze":[0.9285,0.0617,0.0098],"treize":[0.9554,0.0423,0.0023]},{"bar":65,"beat":1,"t0":180.883,"t1":183.716,"ecrit":"C^7","root":0,"q":"^7","base":[{"root":0,"type":0,"c":0.9453},{"root":7,"type":0,"c":0.0162},{"root":5,"type":0,"c":0.0111},{"root":0,"type":5,"c":0.006},{"root":9,"type":1,"c":0.0032},{"root":0,"type":2,"c":0.0024},{"root":4,"type":1,"c":0.0021},{"root":0,"type":1,"c":0.0015}],"nMass":0.003,"sev":[0.2184,0.7598,0.0217,0.0],"neuf":[0.8659,0.1245,0.0003,0.0093],"onze":[0.9766,0.0098,0.0136],"treize":[0.9363,0.0582,0.0055]},{"bar":30,"beat":1,"t0":209.119,"t1":211.952,"ecrit":"D-7","root":2,"q":"-7","base":[{"root":2,"type":1,"c":0.7712},{"root":7,"type":2,"c":0.0607},{"root":7,"type":0,"c":0.0424},{"root":5,"type":0,"c":0.0327},{"root":2,"type":2,"c":0.0301},{"root":2,"type":0,"c":0.0175},{"root":7,"type":1,"c":0.0161},{"root":9,"type":1,"c":0.0114}],"nMass":0.0004,"sev":[0.1473,0.0199,0.8328,0.0],"neuf":[0.5095,0.4863,0.0002,0.004],"onze":[0.7943,0.1982,0.0075],"treize":[0.9395,0.0598,0.0008]},{"bar":31,"beat":1,"t0":211.952,"t1":214.761,"ecrit":"G7","root":7,"q":"7","base":[{"root":7,"type":0,"c":0.7307},{"root":7,"type":1,"c":0.1076},{"root":7,"type":2,"c":0.0686},{"root":2,"type":1,"c":0.0355},{"root":5,"type":0,"c":0.0159},{"root":0,"type":0,"c":0.015},{"root":7,"type":3,"c":0.0061},{"root":10,"type":0,"c":0.0037}],"nMass":0.0015,"sev":[0.2322,0.0461,0.7214,0.0002],"neuf":[0.6243,0.3485,0.0005,0.0267],"onze":[0.922,0.0662,0.0118],"treize":[0.891,0.1069,0.0021]},{"bar":32,"beat":1,"t0":214.761,"t1":217.594,"ecrit":"C^7","root":0,"q":"^7","base":[{"root":0,"type":0,"c":0.9403},{"root":5,"type":0,"c":0.016},{"root":7,"type":0,"c":0.0131},{"root":0,"type":5,"c":0.0091},{"root":9,"type":1,"c":0.0036},{"root":0,"type":2,"c":0.0031},{"root":4,"type":1,"c":0.0022},{"root":0,"type":1,"c":0.0018}],"nMass":0.0014,"sev":[0.1787,0.7905,0.0308,0.0],"neuf":[0.8564,0.1333,0.0003,0.01],"onze":[0.9742,0.0129,0.0129],"treize":[0.918,0.0718,0.0102]},{"bar":33,"beat":1,"t0":217.594,"t1":219.011,"ecrit":"F^7","root":5,"q":"^7","base":[{"root":5,"type":0,"c":0.8031},{"root":0,"type":0,"c":0.0583},{"root":7,"type":1,"c":0.0253},{"root":5,"type":1,"c":0.0225},{"root":9,"type":1,"c":0.0119},{"root":7,"type":0,"c":0.0103},{"root":5,"type":3,"c":0.0093},{"root":2,"type":1,"c":0.0092}],"nMass":0.0023,"sev":[0.0887,0.8839,0.0274,0.0],"neuf":[0.7159,0.2748,0.0008,0.0086],"onze":[0.9663,0.0225,0.0112],"treize":[0.9119,0.0714,0.0168]},{"bar":33,"beat":3,"t0":219.011,"t1":219.707,"ecrit":"G-","root":7,"q":"-","base":[{"root":7,"type":1,"c":0.7443},{"root":7,"type":0,"c":0.1035},{"root":2,"type":1,"c":0.0347},{"root":9,"type":1,"c":0.0183},{"root":7,"type":2,"c":0.016},{"root":5,"type":0,"c":0.0146},{"root":0,"type":0,"c":0.0124},{"root":10,"type":0,"c":0.0104}],"nMass":0.0017,"sev":[0.5153,0.0819,0.4016,0.0011],"neuf":[0.8417,0.1448,0.0035,0.0101],"onze":[0.9708,0.0272,0.002],"treize":[0.9273,0.0625,0.0102]},{"bar":33,"beat":4,"t0":219.707,"t1":220.427,"ecrit":"A-","root":9,"q":"-","base":[{"root":9,"type":1,"c":0.6028},{"root":7,"type":1,"c":0.1165},{"root":2,"type":1,"c":0.091},{"root":7,"type":0,"c":0.0342},{"root":5,"type":0,"c":0.0281},{"root":0,"type":0,"c":0.0204},{"root":9,"type":0,"c":0.0197},{"root":10,"type":0,"c":0.0176}],"nMass":0.001,"sev":[0.5005,0.0765,0.4226,0.0005],"neuf":[0.8892,0.0997,0.0029,0.0083],"onze":[0.9639,0.0356,0.0006],"treize":[0.931,0.0661,0.0029]},{"bar":34,"beat":1,"t0":220.427,"t1":223.237,"ecrit":"D-7","root":2,"q":"-7","base":[{"root":2,"type":1,"c":0.9614},{"root":2,"type":0,"c":0.0086},{"root":5,"type":0,"c":0.0063},{"root":7,"type":0,"c":0.0047},{"root":9,"type":1,"c":0.0036},{"root":7,"type":1,"c":0.0034},{"root":2,"type":2,"c":0.0034},{"root":7,"type":2,"c":0.0024}],"nMass":0.0002,"sev":[0.2145,0.006,0.7794,0.0001],"neuf":[0.8552,0.1376,0.0022,0.0049],"onze":[0.9493,0.0484,0.0022],"treize":[0.9515,0.0477,0.0009]},{"bar":35,"beat":1,"t0":223.237,"t1":226.069,"ecrit":"G7","root":7,"q":"7","base":[{"root":7,"type":0,"c":0.6211},{"root":7,"type":2,"c":0.1305},{"root":7,"type":1,"c":0.1118},{"root":2,"type":1,"c":0.0501},{"root":0,"type":0,"c":0.0317},{"root":5,"type":0,"c":0.0192},{"root":7,"type":3,"c":0.0129},{"root":10,"type":0,"c":0.0039}],"nMass":0.0011,"sev":[0.263,0.0263,0.7102,0.0005],"neuf":[0.601,0.3884,0.001,0.0096],"onze":[0.8681,0.1212,0.0107],"treize":[0.9206,0.0783,0.0011]},{"bar":36,"beat":1,"t0":226.069,"t1":228.879,"ecrit":"C^7","root":0,"q":"^7","base":[{"root":0,"type":0,"c":0.9489},{"root":5,"type":0,"c":0.0149},{"root":7,"type":0,"c":0.0123},{"root":9,"type":1,"c":0.0061},{"root":0,"type":2,"c":0.0033},{"root":0,"type":5,"c":0.0025},{"root":4,"type":1,"c":0.002},{"root":0,"type":1,"c":0.0015}],"nMass":0.001,"sev":[0.2762,0.6471,0.0766,0.0],"neuf":[0.7965,0.1945,0.0005,0.0086],"onze":[0.9581,0.0335,0.0084],"treize":[0.8806,0.1136,0.0058]},{"bar":37,"beat":1,"t0":228.879,"t1":230.296,"ecrit":"F^7","root":5,"q":"^7","base":[{"root":5,"type":0,"c":0.8849},{"root":0,"type":0,"c":0.0349},{"root":7,"type":0,"c":0.0096},{"root":2,"type":1,"c":0.0091},{"root":9,"type":1,"c":0.0087},{"root":4,"type":1,"c":0.0081},{"root":4,"type":0,"c":0.0078},{"root":5,"type":3,"c":0.0065}],"nMass":0.0055,"sev":[0.1465,0.8274,0.0261,0.0],"neuf":[0.714,0.2819,0.0003,0.0038],"onze":[0.9314,0.0445,0.0241],"treize":[0.8603,0.1271,0.0125]},{"bar":37,"beat":3,"t0":230.296,"t1":234.545,"ecrit":"G7sus4","root":7,"q":"7sus4","base":[{"root":7,"type":2,"c":0.3018},{"root":7,"type":0,"c":0.2179},{"root":2,"type":1,"c":0.1303},{"root":5,"type":0,"c":0.1054},{"root":7,"type":1,"c":0.0676},{"root":0,"type":0,"c":0.0644},{"root":9,"type":1,"c":0.0577},{"root":2,"type":0,"c":0.0048}],"nMass":0.0136,"sev":[0.3054,0.0452,0.6489,0.0005],"neuf":[0.6141,0.3821,0.0004,0.0033],"onze":[0.8087,0.183,0.0083],"treize":[0.8742,0.122,0.0038]},{"bar":84,"beat":1,"t0":234.545,"t1":237.354,"ecrit":"G7","root":7,"q":"7","base":[{"root":7,"type":0,"c":0.436},{"root":2,"type":1,"c":0.1718},{"root":7,"type":2,"c":0.1333},{"root":7,"type":1,"c":0.1134},{"root":0,"type":0,"c":0.0301},{"root":5,"type":0,"c":0.0271},{"root":9,"type":1,"c":0.0093},{"root":10,"type":0,"c":0.0057}],"nMass":0.0346,"sev":[0.2735,0.0156,0.7088,0.0021],"neuf":[0.7291,0.2439,0.0021,0.0249],"onze":[0.8718,0.1138,0.0144],"treize":[0.7837,0.2074,0.0089]},{"bar":85,"beat":1,"t0":237.354,"t1":241.604,"ecrit":"C","root":0,"q":"","base":[{"root":0,"type":0,"c":0.5818},{"root":7,"type":0,"c":0.104},{"root":5,"type":0,"c":0.0654},{"root":7,"type":1,"c":0.0545},{"root":9,"type":1,"c":0.0453},{"root":7,"type":2,"c":0.0177},{"root":2,"type":1,"c":0.0168},{"root":0,"type":2,"c":0.0127}],"nMass":0.0524,"sev":[0.4168,0.1986,0.3839,0.0006],"neuf":[0.7739,0.2036,0.001,0.0214],"onze":[0.9141,0.071,0.0149],"treize":[0.8209,0.1629,0.0162]},{"bar":86,"beat":3,"t0":241.604,"t1":244.413,"ecrit":"G-7","root":7,"q":"-7","base":[{"root":7,"type":1,"c":0.3219},{"root":0,"type":0,"c":0.1101},{"root":2,"type":1,"c":0.1035},{"root":7,"type":0,"c":0.1029},{"root":7,"type":2,"c":0.0929},{"root":9,"type":1,"c":0.0521},{"root":5,"type":0,"c":0.0433},{"root":10,"type":0,"c":0.018}],"nMass":0.0598,"sev":[0.404,0.0251,0.5703,0.0005],"neuf":[0.8379,0.1566,0.002,0.0035],"onze":[0.9458,0.0507,0.0035],"treize":[0.9465,0.0469,0.0065]},{"bar":87,"beat":3,"t0":244.413,"t1":245.83,"ecrit":"D-7","root":2,"q":"-7","base":[{"root":2,"type":1,"c":0.3843},{"root":7,"type":0,"c":0.1331},{"root":7,"type":1,"c":0.1193},{"root":7,"type":2,"c":0.0734},{"root":0,"type":0,"c":0.0448},{"root":5,"type":0,"c":0.0275},{"root":10,"type":0,"c":0.027},{"root":2,"type":0,"c":0.0215}],"nMass":0.1083,"sev":[0.3932,0.0043,0.602,0.0004],"neuf":[0.8818,0.111,0.0036,0.0036],"onze":[0.9517,0.047,0.0013],"treize":[0.9668,0.0297,0.0034]}]};
+const SUGGERE = 0.125;
+const N = D.noms;
+const TYPE_TAIL = ["", "-", "sus4", "sus2", "o", "+"];
+let sel = 0, ch = null;
+
+// ── le symbole : c'est le degré le PLUS HAUT retenu qui nomme l'accord, les
+// autres étant implicites — la convention des lead sheets. Les altérations,
+// elles, se disent entre parenthèses parce qu'elles ne sont pas implicites.
+function symbole(c){
+  const base = TYPE_TAIL[c.type] || "";
+  const sev = c.sev, n9 = c.neuf, n11 = c.onze, n13 = c.treize;
+  const alt = [];
+  if (n9 === 2) alt.push("#9"); if (n9 === 3) alt.push("b9");
+  if (n11 === 2) alt.push("#11");
+  if (n13 === 2) alt.push("b13");
+  // le plus haut degré NATUREL retenu
+  let haut = 0;
+  if (sev) haut = 7;
+  if (n9 === 1) haut = 9;
+  if (n11 === 1) haut = 11;
+  if (n13 === 1) haut = 13;
+  let q;
+  if (!sev){
+    // sans septième, une extension seule se dit « add »
+    q = base + (haut ? "add" + haut : "");
+  } else if (c.type === 4 && sev === 3) {
+    q = "o7";                                  // dim + bb7
+  } else if (c.type === 4 && sev === 2) {
+    q = "h7";                                  // dim + b7 = demi-diminué
+  } else if (sev === 1) {
+    q = (c.type === 1 ? "-^" : "^") + (haut > 7 ? haut : 7);   // maj7 et au-delà
+  } else {
+    // b7 : dominante, ou mineure septième
+    q = (c.type === 1 ? "-" : "") + (haut > 7 ? haut : 7);
+    if (c.type === 2) q = (haut > 7 ? haut : 7) + "sus4";
+    if (c.type === 3) q = (haut > 7 ? haut : 7) + "sus2";
+  }
+  // SANS PARENTHÈSES : le rendu de l'app connaît `7b9`, `7#9`, `7#11` et leur
+  // donne un vrai glyphe (`ui/kit.js`, tables TOK/CTOK, 29 queues). Écrire
+  // `7(b9)` produirait du texte brut là où il existe une typographie.
+  if (alt.length) q += alt.join("");
+  return N.notes[c.root] + q;
+}
+
+function argmax(v, from){ let b = from || 0; for (let i = from || 0; i < v.length; i++) if (v[i] > v[b]) b = i; return b; }
+
+function depuisModele(a){
+  const b = a.base[0];
+  return {root: b.root, type: b.type, sev: argmax(a.sev), neuf: argmax(a.neuf),
+           onze: argmax(a.onze), treize: argmax(a.treize)};
+}
+
+function etage(num, titre, cle, options, valeurs, actif){
+  const d = document.createElement('div');
+  d.className = 'etage' + (actif ? '' : ' dort');
+  const top = argmax(valeurs);
+  const suggere = valeurs.slice(1).some(v => v >= SUGGERE);
+  d.innerHTML = `<div class="eh"><span class="num">${num}</span><b>${titre}</b>` +
+    `<span class="note">${suggere ? "le modèle en suggère une" : "rien de suggéré ici"}</span></div>`;
+  const row = document.createElement('div'); row.className = 'opts';
+  options.forEach((lab, i) => {
+    const b = document.createElement('button');
+    const v = valeurs[i] || 0;
+    b.className = 'opt' + (ch[cle] === i ? ' on' : '') + (i === top ? ' top' : '')
+                + (i && v < SUGGERE ? ' faible' : '');
+    b.type = 'button';
+    b.innerHTML = `<span class="fill" style="width:${Math.round(v * 100)}%"></span>` +
+      `<span class="lab">${lab}</span><span class="pc">${(v * 100).toFixed(0)} %</span>`;
+    b.addEventListener('click', () => {
+      ch[cle] = i;
+      // choisir « aucune » à un étage efface les étages du dessus : un accord
+      // ne porte pas une 13e sans 9e retenue quand on vient de tout couper.
+      if (cle === 'sev' && i === 0) { ch.neuf = 0; ch.onze = 0; ch.treize = 0; }
+      if (cle === 'neuf' && i === 0) { ch.onze = 0; ch.treize = 0; }
+      if (cle === 'onze' && i === 0) { ch.treize = 0; }
+      rendre();
+    });
+    row.appendChild(b);
+  });
+  d.appendChild(row);
+  return d;
+}
+
+function rendre(){
+  const a = D.accords[sel];
+  const host = document.getElementById('cascade');
+  host.innerHTML = '';
+  // ÉTAGE 1 : la base, les huit meilleures (racine + type) de la tête triade
+  const d1 = document.createElement('div'); d1.className = 'etage';
+  d1.innerHTML = '<div class="eh"><span class="num">1</span><b>la base</b>' +
+    '<span class="note">racine et type, tête triade</span></div>';
+  const r1 = document.createElement('div'); r1.className = 'opts';
+  a.base.forEach((b, k) => {
+    const btn = document.createElement('button');
+    const on = ch.root === b.root && ch.type === b.type;
+    btn.className = 'opt' + (on ? ' on' : '') + (k === 0 ? ' top' : '');
+    btn.type = 'button';
+    btn.innerHTML = `<span class="fill" style="width:${Math.round(b.c * 100)}%"></span>` +
+      `<span class="lab">${N.notes[b.root]}${TYPE_TAIL[b.type] || ''}</span>` +
+      `<span class="pc">${(b.c * 100).toFixed(0)} %</span>`;
+    btn.addEventListener('click', () => { ch.root = b.root; ch.type = b.type; rendre(); });
+    r1.appendChild(btn);
+  });
+  d1.appendChild(r1); host.appendChild(d1);
+
+  // ÉTAGES 2 à 5 : chacun s'ouvre quand le précédent est choisi (la cascade
+  // que Louis décrit) ; un étage endormi reste lisible mais grisé.
+  host.appendChild(etage(2, "la 7<sup>e</sup>", 'sev', N.sev, a.sev, true));
+  host.appendChild(etage(3, "la 9<sup>e</sup>", 'neuf', N.neuf, a.neuf, ch.sev !== 0));
+  host.appendChild(etage(4, "la 11<sup>e</sup>", 'onze', N.onze, a.onze, ch.neuf !== 0));
+  host.appendChild(etage(5, "la 13<sup>e</sup>", 'treize', N.treize, a.treize, ch.onze !== 0));
+
+  document.getElementById('sym').textContent = symbole(ch);
+  document.getElementById('av').textContent = 'le chart écrit ' + a.ecrit + ' \u2192';
+  document.querySelectorAll('.slot').forEach((s, i) => s.classList.toggle('on', i === sel));
+}
+
+document.querySelectorAll('.slot').forEach(s => s.addEventListener('click', () => {
+  sel = parseInt(s.dataset.i, 10);
+  ch = depuisModele(D.accords[sel]);
+  rendre();
+  s.scrollIntoView({inline: 'center', block: 'nearest', behavior: 'smooth'});
+}));
+document.getElementById('reset').addEventListener('click', () => {
+  ch = depuisModele(D.accords[sel]); rendre();
+});
+
+// audio : fetch + blob, arrêt sur `timeupdate` (les deux pièges iOS du projet)
+let audio = null, stopAt = null;
+fetch(D.audio).then(r => r.blob()).then(b => {
+  audio = new Audio(URL.createObjectURL(b));
+  audio.addEventListener('timeupdate', () => {
+    if (stopAt != null && audio.currentTime >= stopAt) { audio.pause(); stopAt = null; }
+  });
+}).catch(() => {});
+document.getElementById('play').addEventListener('click', () => {
+  if (!audio) return;
+  const a = D.accords[sel];
+  stopAt = a.t1 + 0.2;
+  audio.currentTime = Math.max(0, a.t0);
+  audio.play().catch(() => {});
+});
+
+ch = depuisModele(D.accords[0]);
+rendre();
+</script>
