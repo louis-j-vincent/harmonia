@@ -114,3 +114,49 @@ def test_un_trait_qui_deborde_la_fin_est_rogne_pas_jete():
     gardes, _ = traits_propres(
         [{"label": "outro", "mesure_debut": 78, "mesure_fin": 90}], 80)
     assert gardes == [(77, 79, "outro")]
+
+
+# ── la régression du 2026-09-17 : une erreur d'UNITÉ ─────────────────────────
+
+def _chart_bidon(n_mesures=60, duree=2.0):
+    """Un chart minimal : une grille régulière et un accord par mesure."""
+    grid = [round(i * duree, 3) for i in range(n_mesures + 1)]
+    chords = [{"root": i % 4 * 3, "q": "", "bass": -1, "nc": False,
+               "t0": grid[i], "t1": grid[i + 1]} for i in range(n_mesures)]
+    return {"title": "bidon", "barGrid": grid, "nBars": n_mesures,
+            "prompter": {"chords": chords}, "audio_url": "/audio/absent.m4a",
+            "file": "min_bidon", "sections": []}
+
+
+def test_un_trait_dans_la_SECONDE_MOITIE_du_morceau_survit(tmp_path, monkeypatch):
+    """LA régression. `sections_inferer` passait à `traits_propres` le nombre
+    de JETONS (des bi-mesures) au lieu du nombre de MESURES : le nettoyage
+    croyait donc le morceau deux fois plus court, et tout trait tracé après la
+    moitié était jeté avec « commence après la fin du morceau ».
+
+    Louis, 2026-09-17, sur Don't Want My Love : son trait « C » sur les mesures
+    37-48 d'un morceau de 56 mesures a disparu en silence, et la machine a
+    rempli le trou avec des « A » par ressemblance.
+
+    Une erreur d'unité, le premier motif du CLAUDE.md : elle produit des
+    chiffres plausibles et faux.
+    """
+    import json
+
+    from harmonia.server import app as app_mod
+    from harmonia.server.routes import sections as sec_mod
+
+    (tmp_path / "min_bidon.json").write_text(json.dumps(_chart_bidon()),
+                                             encoding="utf-8")
+    monkeypatch.setattr(sec_mod, "CHARTS_DIR", tmp_path)
+    client = app_mod.create_app().test_client()
+
+    humain = [{"label": "A", "mesure_debut": 1, "mesure_fin": 8},
+              {"label": "C", "mesure_debut": 41, "mesure_fin": 48}]
+    out = client.post("/api/sections/inferer/min_bidon",
+                      json={"humain": humain}).get_json()
+
+    assert out.get("ecartes") == [], "aucun trait ne doit être jeté"
+    siens = [s for s in out["sections"] if s["source"] == "humain"]
+    assert {(s["label"], s["mesure_debut"], s["mesure_fin"]) for s in siens} == {
+        ("A", 1, 8), ("C", 41, 48)}, "ses deux traits, aux mesures tracées"

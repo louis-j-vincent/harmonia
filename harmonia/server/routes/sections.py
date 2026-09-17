@@ -345,7 +345,16 @@ def sections_inferer(file):
     #
     # Les morceaux à phase paire n'en voyaient rien, d'où un bug qui paraissait
     # capricieux : le décalage ne dépendait que de la parité de son trait.
-    gardes, perdus = traits_propres(humain, len(bornes) - 1)
+    # EN MESURES, pas en jetons. `bornes` compte les BI-MESURES : passer
+    # `len(bornes)-1` revenait à dire au nettoyage que le morceau fait 28
+    # mesures au lieu de 56, et TOUT trait tracé dans la seconde moitié était
+    # jeté avec la raison « commence après la fin du morceau ». Louis,
+    # 2026-09-17, sur Don't Want My Love : son trait « C » sur les mesures
+    # 37-48 a disparu, et la machine a rempli le trou avec des « A » par
+    # ressemblance. Régression introduite le matin même, en écrivant
+    # `traits_propres` — une erreur d'UNITÉ, exactement le premier motif du
+    # CLAUDE.md : elle produit des chiffres plausibles et faux.
+    gardes, perdus = traits_propres(humain, song["n_mesures"])
     if gardes:
         refait = mot_sur_traits(chart, [(b0, b1) for b0, b1, _ in gardes],
                                 audio_dir=AUDIO_DIR)
@@ -393,7 +402,7 @@ def sections_inferer(file):
     # celles où l'algorithme a propagé son nom. C'est toute la différence entre
     # « c'est moi qui l'ai dit » et « la machine a suivi », et c'est ce qui
     # rend l'outil relisible : sans ça il ne saurait plus ce qu'il a affirmé.
-    tracees = {(j0, j1) for j0, j1, _ in fixes}
+    tracees = {(j0, j1): lab for j0, j1, lab in fixes}
     siens = set(par_contenu.values())
     libres = [c for c in LETTERS if c not in siens]
     renom, k = {}, 0
@@ -444,9 +453,16 @@ def sections_inferer(file):
             ressemblance = None
     for s in secs:
         t = s["type"]
-        if t in par_contenu:
-            lab = par_contenu[t]
-            source = "humain" if (s["j0"], s["j1"] - 1) in tracees else "propage"
+        sien = tracees.get((s["j0"], s["j1"] - 1))
+        if sien is not None:
+            # SON trait garde SON étiquette. Le nom venait de `par_contenu`,
+            # une table contenu → étiquette : deux traits au contenu identique
+            # mais nommés différemment s'écrasaient l'un l'autre, et un bloc
+            # qu'il avait appelé A ressortait C. Un trait qu'il a tracé n'a pas
+            # besoin qu'on devine son nom, il le porte.
+            lab, source = sien, "humain"
+        elif t in par_contenu:
+            lab, source = par_contenu[t], "propage"
         elif ressemblance and (proche := _plus_proche(
                 ressemblance, bornes[s["j0"]],
                 bornes[s["j1"]] - bornes[s["j0"]])):
