@@ -1,37 +1,53 @@
-"""Et si la couleur disait la GAMME plutôt que la note ?
+"""La couleur dit la GAMME — celle qui règne, ou celle vers laquelle on sort.
 
-Louis, 2026-09-17 : « j'aimerais bien voir ce que ça donne si à chaque couleur
-on associait une gamme harmonique mais fais moi juste une démo pour voir si
-j'aime bien ».
+Louis, 2026-09-17, en deux temps. D'abord « j'aimerais bien voir ce que ça
+donne si à chaque couleur on associait une gamme harmonique ». Puis, après une
+première version qui donnait à chaque accord SA gamme :
 
-CE QUE ÇA CHANGE, en une phrase : aujourd'hui la couleur dit *quelle
-fondamentale*, donc deux accords de la même couleur partagent une note ; si
-elle dit *quelle gamme*, deux accords de la même couleur se jouent avec les
-MÊMES NOTES. Pour un instrumentiste ce n'est pas la même information — la
-première nomme, la seconde dit quoi jouer.
+    « je veux une couleur par gamme, mais pour les accords ils sont par défaut
+    de la couleur de la gamme dans laquelle cette partie de la chanson est,
+    sauf si l'accord lui même est en dehors de cette gamme auquel cas il est
+    de la couleur de la gamme dans laquelle il projette via les notes qui
+    sortent de la gamme, donc comme l'outil local keys dans analyse »
 
-Et surtout, la couleur-gamme montre une chose que la couleur-note ne peut pas
-montrer : les RÉGIONS du morceau. Sur Autumn Leaves, les six premiers accords
-sont tous dans si♭ majeur (six teintes différentes en couleur-note, une seule
-famille chaude en couleur-gamme), puis la cadence mineure bascule d'un coup
-dans les froides et le rouge. On voit la forme, pas les lettres.
+CE QUE ÇA CHANGE PAR RAPPORT À LA PREMIÈRE VERSION. Donner à chaque accord sa
+propre gamme faisait sept couleurs sur huit accords : joli, et muet. Ici une
+RÉGION est d'une seule couleur, et seul l'accord qui sort du jeu de notes
+change de teinte — celle de la gamme vers laquelle il pointe. La page ne
+montre plus des étiquettes, elle montre les sorties.
 
-LE TABLEAU ACCORD → GAMME. C'est la table classique des chord-scales, pas une
-invention : on prend le degré de la fondamentale dans la tonalité qui règne
-ICI (`keySegments`, la clé locale, pas la clé du morceau) et la famille de
-l'accord.
+CE QU'EST « UNE GAMME » ICI, et c'est la décision qui porte tout le reste :
+SEPT NOTES. Pas une tonique, pas un mode — un jeu de notes. La règle de Louis
+travaille sur « les notes qui sortent de la gamme », donc l'objet coloré doit
+être ce jeu-là. Conséquence assumée : si♭ majeur et sol mineur sont LA MÊME
+gamme et portent la même couleur. C'est exact — ce sont les mêmes sept notes —
+et c'est ce qui permet à un morceau en mineur de ne pas clignoter à chaque
+emprunt à sa relative.
 
-  majeur sur le I        -> ionien          majeur sur le IV   -> lydien
-  dominante sur le V     -> mixolydien      dominante vers un mineur -> altéré
-  mineur sur le ii       -> dorien          sur le iii         -> phrygien
-  mineur sur le vi (ou i)-> éolien          demi-diminué       -> locrien
-  diminué                -> demi-ton/ton    augmenté           -> par tons
+LA TEINTE EST LA POSITION DE LA GAMME SUR LE CERCLE DES QUINTES, via le
+`rootHue` de l'app : la roue des couleurs est encore la roue des quintes,
+comme dans le compas. Deux gammes voisines d'une quinte sont donc voisines de
+30° — et l'écart de teinte entre un accord et sa région EST sa distance
+harmonique, en quintes, lisible sans rien compter.
 
-CE QUE ÇA NE RÉSOUT PAS. Un accord peut appeler deux gammes également
-défendables (un mineur sur le i : dorien ou éolien, l'oreille tranche) et la
-table en choisit une. Les tensions écrites (♭9, ♯11) ne sont pas lues : elles
-devraient pouvoir forcer la gamme. C'est une DÉMO pour décider si l'idée
-mérite d'aller dans l'app, pas une règle arrêtée.
+LA PROJECTION. Un accord qui sort prend la gamme LA PLUS PROCHE (en quintes)
+qui le contient en entier. Si aucune ne le contient — un diminué, un altéré —
+on prend celle qui en contient le plus, départage par la proximité. Sur Autumn
+Leaves en sol mineur : 22 accords sur 26 sont dedans, le `D7` sort par son
+fa♯ et projette 3 quintes plus loin (la gamme de sol), le `Ab^7` sort par son
+la♭ et projette d'une quinte (mi♭), le `A-7` sort par son mi et projette d'une
+quinte (fa).
+
+CE QUE ÇA NE RÉSOUT PAS. (1) Les douze gammes sont les douze jeux
+DIATONIQUES ; la mineure harmonique n'en est pas un, donc le `D7` de sol
+mineur — qui est le V le plus ordinaire du monde — est lu comme une sortie
+vers sol, et pas comme la sensible de sa propre tonalité. C'est exact quant
+aux notes, discutable quant à la fonction, et c'est le premier arbitrage à
+rendre. (2) La région vient de `keySegments`, donc d'un seul segment sur un
+morceau qui ne module pas : la démonstration « une région = une couleur » n'est
+pas mise à l'épreuve ici. (3) Les tensions écrites (♭9, ♯11) comptent comme
+des notes de l'accord, ce qui est voulu, mais un `13` sans 11e écrite ne dit
+rien de sa 11e.
 
     .venv/bin/python -m tools.page_gammes [clé_du_chart]
 """
@@ -41,114 +57,55 @@ import html
 import json
 import sys
 
+from harmonia.harmonic_key import template
 from harmonia.settings import SETTINGS
 
 DEFAUT = "min_autumn_leaves_easy_jazz_piano_piano_cover_sheets"
 OUT = SETTINGS.repo / "docs" / "plots" / "gammes.html"
 NOMS_B = "C Db D Eb E F Gb G Ab A Bb B".split()
 NOMS_D = "C C# D D# E F F# G G# A A# B".split()
-#: mêmes majeurs bémolisés que `kit.js::FLAT_MAJ` — la page doit écrire dans
-#: la tonalité du morceau, sinon elle est illisible pour lui (2026-09-17).
+#: mêmes majeurs bémolisés que `kit.js::FLAT_MAJ`.
 FLAT_MAJ = {0, 1, 3, 5, 6, 8, 10}
-
-# ── LES GAMMES ─────────────────────────────────────────────────────────────
-# Rangées par CLARTÉ MODALE : c'est l'ordre classique, du mode qui a le plus
-# d'altérations ascendantes vers celui qui en a le plus de descendantes
-# (lydien +1 dièse, ionien 0, mixolydien -1, dorien -2, éolien -3, phrygien
-# -4, locrien -5). Cet axe est réel, il ne vient pas d'un goût : il compte les
-# altérations par rapport à la majeure de même fondamentale.
-#
-# LA COULEUR SUIT DEUX CHOSES, et c'est tout :
-#   * chaud / froid  = la tierce est majeure / mineure. La rupture entre
-#     mixolydien et dorien n'est donc pas un saut arbitraire dans la roue,
-#     c'est LE changement de mode de l'accord ;
-#   * clair / foncé  = le rang de clarté à l'intérieur de sa famille.
-# Les gammes qui ne sont pas des modes de la majeure sortent de la rampe, dans
-# les rouges : « hors de la tonalité » se voit comme hors de la rampe.
-GAMMES = {
-    "lydien":      dict(deg=[0, 2, 4, 6, 7, 9, 11], c="hsl(48 72% 70%)",  rang=1, fam="majeur"),
-    "ionien":      dict(deg=[0, 2, 4, 5, 7, 9, 11], c="hsl(34 70% 64%)",  rang=2, fam="majeur"),
-    "mixolydien":  dict(deg=[0, 2, 4, 5, 7, 9, 10], c="hsl(19 68% 59%)",  rang=3, fam="majeur"),
-    "dorien":      dict(deg=[0, 2, 3, 5, 7, 9, 10], c="hsl(158 44% 58%)", rang=4, fam="mineur"),
-    "éolien":      dict(deg=[0, 2, 3, 5, 7, 8, 10], c="hsl(203 48% 60%)", rang=5, fam="mineur"),
-    "phrygien":    dict(deg=[0, 1, 3, 5, 7, 8, 10], c="hsl(248 40% 62%)", rang=6, fam="mineur"),
-    "locrien":     dict(deg=[0, 1, 3, 5, 6, 8, 10], c="hsl(280 34% 54%)", rang=7, fam="mineur"),
-    "altéré":      dict(deg=[0, 1, 3, 4, 6, 8, 10], c="hsl(352 64% 58%)", rang=8, fam="hors rampe"),
-    "demi-ton/ton": dict(deg=[0, 1, 3, 4, 6, 7, 9, 10], c="hsl(322 54% 60%)", rang=9, fam="hors rampe"),
-    "par tons":    dict(deg=[0, 2, 4, 6, 8, 10],    c="hsl(300 32% 64%)", rang=10, fam="hors rampe"),
-}
+#: les degrés d'un jeu diatonique depuis sa tonique majeure.
+DIATONIQUE = (0, 2, 4, 5, 7, 9, 11)
 
 
-def _famille(q: str) -> str:
-    """La famille d'un accord d'après sa queue, comme l'app l'écrit."""
-    q = q or ""
-    if q.startswith("o") or q.startswith("dim"):
-        return "dim"
-    if q.startswith("-7b5") or q.startswith("h"):
-        return "hdim"
-    if q.startswith("+"):
-        return "aug"
-    if q.startswith("-"):
-        return "min"                                 # `-`, `-7`, `-^7`, `-9`…
-    if q.startswith("^") or q in ("", "6", "69") or q.startswith("add"):
-        return "maj"
-    if q.startswith("sus"):
-        return "maj"
-    return "dom"                                     # 7, 9, 13, 7sus4, …
+def collection(maj: int) -> frozenset[int]:
+    """Les sept notes de la gamme dont la tonique MAJEURE est `maj`."""
+    return frozenset((maj + i) % 12 for i in DIATONIQUE)
 
 
-def gamme_de(root: int, q: str, tonic: int, mode: str) -> tuple[str, str]:
-    """(accord, tonalité qui règne ici) -> (nom de gamme, pourquoi).
+def quintes(pc: int) -> int:
+    """La place d'une note sur le cercle des quintes — `kit.js::fifthsIndex`."""
+    return (pc * 7) % 12
 
-    ``tonic``/``mode`` viennent de la clé LOCALE. Le degré se compte dans la
-    majeure : une tonalité mineure passe par sa relative majeure, parce que la
-    table des chord-scales est la même des deux côtés.
+
+def ecart(a: int, b: int) -> int:
+    """Combien de quintes séparent deux gammes, dans le sens le plus court."""
+    d = (quintes(a) - quintes(b)) % 12
+    return min(d, 12 - d)
+
+
+def projette(pcs: frozenset[int], regne: int) -> tuple[int, bool]:
+    """Vers quelle gamme cet accord pointe-t-il ? -> (tonique majeure, entier ?)
+
+    La plus proche EN QUINTES qui le contient tout entier. Si aucune ne le
+    contient (diminué, altéré), celle qui en contient le plus — départagée par
+    la proximité, pour ne pas envoyer un accord à l'autre bout du cercle quand
+    deux gammes le servent aussi mal.
     """
-    maj = (tonic + 3) % 12 if mode == "minor" else tonic % 12
-    d = (root - maj) % 12
-    fam = _famille(q)
-    rom = {0: "I", 2: "ii", 4: "iii", 5: "IV", 7: "V", 9: "vi", 11: "vii"}.get(d)
-    ou = f"le {rom}" if rom else "hors gamme"
-    if fam == "maj":
-        if d == 0:
-            return "ionien", "majeur sur le I"
-        if d == 5:
-            return "lydien", "majeur sur le IV"
-        # UNE TRIADE MAJEURE SUR LE V EST UNE DOMINANTE, septième écrite ou
-        # non : le `F` d'Autumn Leaves va sur si♭, il appelle le mixolydien et
-        # pas le lydien. C'est l'erreur qu'a montrée la première exécution.
-        if d == 7:
-            return "mixolydien", "majeur sur le V — c'est une dominante"
-        return "lydien", f"majeur sur {ou}"
-    if fam == "dom":
-        # une dominante qui vise le mineur prend l'altérée : c'est la quinte du
-        # ton mineur, et c'est exactement le D7 d'Autumn Leaves.
-        if mode == "minor" and d == (tonic + 7 - maj) % 12:
-            return "altéré", "dominante de la tonique mineure"
-        return "mixolydien", f"dominante sur {ou}"
-    if fam == "min":
-        if d == 2:
-            return "dorien", "mineur sur le ii"
-        if d == 4:
-            return "phrygien", "mineur sur le iii"
-        if d == 9:
-            return "éolien", "mineur sur le vi"
-        if mode == "minor" and d == (tonic - maj) % 12:
-            return "éolien", "la tonique mineure"
-        return "dorien", f"mineur sur {ou}"
-    if fam == "hdim":
-        return "locrien", f"demi-diminué sur {ou}"
-    if fam == "dim":
-        return "demi-ton/ton", "diminué"
-    return "par tons", "augmenté"
+    plein = [k for k in range(12) if pcs <= collection(k)]
+    if plein:
+        return min(plein, key=lambda k: (ecart(k, regne), k)), True
+    return max(range(12), key=lambda k: (len(pcs & collection(k)), -ecart(k, regne))), False
 
 
-def collecte(cle: str, n_mesures: int = 16) -> dict:
+def collecte(cle: str, n_mesures: int = 24) -> dict:
     m = json.loads((SETTINGS.charts_dir / f"{cle}.json").read_text(encoding="utf-8"))
     segs = m.get("keySegments") or [{"t0": 0.0, "t1": 1e9,
                                      "tonic": m["key"]["tonic"], "mode": m["key"]["mode"]}]
-    maj = (m["key"]["tonic"] + 3) % 12 if m["key"]["mode"] == "minor" else m["key"]["tonic"]
-    noms = NOMS_B if maj % 12 in FLAT_MAJ else NOMS_D
+    maj0 = (m["key"]["tonic"] + 3) % 12 if m["key"]["mode"] == "minor" else m["key"]["tonic"]
+    noms = NOMS_B if maj0 % 12 in FLAT_MAJ else NOMS_D
 
     def regne(t: float) -> tuple[int, str]:
         for s in segs:
@@ -157,6 +114,7 @@ def collecte(cle: str, n_mesures: int = 16) -> dict:
         return segs[-1]["tonic"], segs[-1]["mode"]
 
     mesures: list[dict] = []
+    vues: set[int] = set()
     for sec in m["sections"]:
         b0 = sec["barRanges"][0][0]
         for bi, bar in enumerate(sec["bars"]):
@@ -167,14 +125,26 @@ def collecte(cle: str, n_mesures: int = 16) -> dict:
             for c in bar:
                 if c.get("nc"):
                     continue
+                q = c.get("q") or ""
+                ivs = template(q)
+                root = int(c["root"]) % 12
                 t0 = float(c["t0"])
                 tonic, mode = regne(t0)
-                g, pourquoi = gamme_de(int(c["root"]) % 12, c.get("q") or "", tonic, mode)
+                rmaj = (tonic + 3) % 12 if mode == "minor" else tonic % 12
+                if ivs is None:                       # queue inconnue : la triade
+                    ivs = (0, 4, 7) if not q.startswith("-") else (0, 3, 7)
+                pcs = frozenset((root + i) % 12 for i in ivs)
+                dedans = pcs <= collection(rmaj)
+                cible, entier = (rmaj, True) if dedans else projette(pcs, rmaj)
+                sortantes = sorted(pcs - collection(rmaj))
+                vues.add(cible)
+                vues.add(rmaj)
                 accs.append({
-                    "root": int(c["root"]) % 12, "q": c.get("q") or "",
-                    "ecrit": noms[int(c["root"]) % 12] + (c.get("q") or ""),
+                    "root": root, "q": q, "ecrit": noms[root] + q,
                     "t0": round(t0, 3), "t1": round(float(c["t1"]), 3),
-                    "gamme": g, "pourquoi": pourquoi,
+                    "notes": sorted(pcs), "regne": rmaj, "cible": cible,
+                    "dedans": dedans, "entier": entier, "sortantes": sortantes,
+                    "ecart": ecart(cible, rmaj),
                     "cle": f"{noms[tonic % 12]} {'mineur' if mode == 'minor' else 'majeur'}",
                 })
             mesures.append({"n": k + 1, "sec": sec["label"], "accords": accs})
@@ -184,31 +154,26 @@ def collecte(cle: str, n_mesures: int = 16) -> dict:
     stem = (m.get("audio_url") or "").rsplit("/", 1)[-1] or f"{cle}.m4a"
     return {"titre": m.get("title") or cle, "tonalite": m.get("keyName"),
             "audio": "../audio/" + stem, "noms": noms, "mesures": mesures,
-            "gammes": GAMMES}
+            "gammes": sorted(vues, key=quintes),
+            "collections": {str(k): sorted(collection(k)) for k in range(12)}}
 
 
 def page(D: dict) -> str:
     e = html.escape
+    N = D["noms"]
     grille = "".join(
         f"""<div class="mes" data-i="{i}"><span class="num">{b['n']}</span>"""
         + "".join(
             f"""<button class="ac" type="button" data-i="{i}" data-j="{j}"
-                 data-t0="{a['t0']}" data-t1="{a['t1']}"
-                 data-pc="{a['root']}" data-g="{e(a['gamme'])}"
                  ><span class="sq">{e(a['ecrit'])}</span></button>"""
             for j, a in enumerate(b["accords"]))
         + "</div>"
         for i, b in enumerate(D["mesures"]))
 
-    legende = "".join(
-        f"""<div class="lg" data-g="{e(g)}"><i style="background:{v['c']}"></i>
-            <b>{e(g)}</b><span>{e(v['fam'])}</span></div>"""
-        for g, v in sorted(D["gammes"].items(), key=lambda kv: kv[1]["rang"]))
-
     return f"""<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>La Couleur Dit La Gamme</title>
+<title>Les Gammes En Couleur</title>
 <style>
 /* la palette de l'app (`harmonia/static/ui/kit.js`), valeur pour valeur */
  :root{{--bg:#e7e0d0;--paper:#f7f3e9;--card:#fffdf6;--ink:#1c1c1c;--rule:#b9b09a;
@@ -233,13 +198,12 @@ def page(D: dict) -> str:
  button:active{{transform:translateY(1px)}}
  button:focus-visible{{outline:2px solid var(--accent);outline-offset:2px}}
 
- /* l'outil vit dans une feuille, comme le compas dans l'app */
  .feuille{{background:var(--card);border-radius:22px;padding:14px 14px 16px;
   margin:10px 0 4px;box-shadow:0 8px 28px -18px rgba(50,35,20,.55)}}
  .bascule{{display:inline-flex;background:var(--line);border-radius:10px;
   padding:3px;gap:2px;margin-bottom:12px}}
- .bascule button{{border:none;border-radius:8px;padding:7px 13px;min-height:36px;
-  background:transparent;color:var(--faint);font-weight:600}}
+ .bascule button{{border:none;border-radius:8px;padding:7px 12px;min-height:36px;
+  background:transparent;color:var(--faint);font-weight:600;font-size:12.5px}}
  .bascule button.on{{background:var(--card);color:var(--ink);
   box-shadow:0 1px 2px rgba(0,0,0,.12)}}
 
@@ -250,31 +214,40 @@ def page(D: dict) -> str:
  .mes.ici{{border-color:var(--accent);box-shadow:0 0 0 2px rgba(138,43,43,.18)}}
  .num{{position:absolute;top:3px;left:6px;font:600 9px/1 -apple-system,system-ui,sans-serif;
   color:var(--faint)}}
- .ac{{flex:1 1 auto;min-width:0;min-height:30px;padding:5px 4px;border:1.5px solid transparent;
-  border-radius:7px;display:flex;align-items:center;justify-content:center}}
- .ac .sq{{font:italic 600 13px/1 Georgia,serif;white-space:nowrap}}
+ .ac{{flex:1 1 auto;min-width:0;min-height:30px;padding:5px 4px;
+  border:1.5px solid rgba(0,0,0,.14);border-radius:7px;
+  display:flex;align-items:center;justify-content:center;color:#1c1c1c}}
+ /* un accord qui SORT de la gamme de sa région : le trait pointillé le dit
+    même pour qui ne lit pas la nuance de teinte, et le dit en noir et blanc. */
+ .ac.sort{{border-style:dashed;border-width:2px;border-color:rgba(0,0,0,.45)}}
  .ac.sel{{outline:2px solid var(--accent);outline-offset:1px}}
+ .ac .sq{{font:italic 600 13px/1 Georgia,serif;white-space:nowrap}}
 
- .fiche{{margin-top:12px;border-top:1px solid var(--line);padding-top:10px;min-height:96px}}
+ .fiche{{margin-top:12px;border-top:1px solid var(--line);padding-top:10px;min-height:122px}}
  .fiche .tete{{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}}
  .fiche .nom{{font:italic 600 19px/1 Georgia,serif}}
  .fiche .g{{font:600 12.5px/1 -apple-system,system-ui,sans-serif;padding:4px 9px;
   border-radius:20px;color:#1c1c1c}}
  .fiche .pq{{font:italic 12.5px/1.5 Georgia,serif;color:var(--faint);margin:6px 0 9px}}
+ .fiche .pq b{{color:var(--ink);font-style:normal;font-weight:600}}
  .clavier{{display:grid;grid-template-columns:repeat(12,1fr);gap:2px}}
- .clavier div{{height:38px;border-radius:5px;background:var(--line);
-  display:flex;align-items:flex-end;justify-content:center;padding-bottom:3px;
+ .clavier div{{height:40px;border-radius:5px;background:var(--line);
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+  padding-bottom:3px;gap:2px;
   font:600 8.5px/1 -apple-system,system-ui,sans-serif;color:var(--faint)}}
- .clavier div.in{{color:#1c1c1c}}
- .clavier div.fond{{outline:2px solid var(--accent);outline-offset:-2px}}
+ .clavier div.gamme{{color:#1c1c1c}}
+ .clavier div b{{font-size:9px;line-height:1}}
+ .clavier div.horsgamme{{outline:2px solid var(--accent);outline-offset:-2px}}
 
- .lgs{{display:grid;grid-template-columns:repeat(2,1fr);gap:4px;margin-top:10px}}
- .lg{{display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:7px;
-  font:500 11.5px/1 -apple-system,system-ui,sans-serif;color:var(--faint)}}
+ .roue{{display:flex;justify-content:center;padding:2px 0 0}}
+ .lgs{{display:grid;grid-template-columns:1fr;gap:4px;margin-top:8px}}
+ .lg{{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:8px;
+  font:500 12px/1.3 -apple-system,system-ui,sans-serif;color:var(--faint)}}
  .lg.vif{{background:var(--paper)}}
- .lg i{{width:15px;height:15px;border-radius:4px;flex:0 0 auto}}
+ .lg i{{width:16px;height:16px;border-radius:5px;flex:0 0 auto;
+  border:1px solid rgba(0,0,0,.15)}}
  .lg b{{color:var(--ink);font-weight:600}}
- .lg span{{margin-left:auto;font-size:10px;opacity:.75}}
+ .lg span{{margin-left:auto;font-size:10.5px;opacity:.8;text-align:right}}
 
  .barre{{display:flex;gap:10px;align-items:center;margin-top:10px}}
  .barre .av{{font:500 11.5px/1 -apple-system,system-ui,sans-serif;color:var(--faint)}}
@@ -290,8 +263,8 @@ def page(D: dict) -> str:
 </style>
 
 <div class="eyebrow">{e(D['titre'])} &middot; {e(D['tonalite'] or '')}</div>
-<h1>La couleur dit la gamme</h1>
-<p class="kick">deux accords de la même couleur se jouent avec les mêmes notes</p>
+<h1>Les gammes en couleur</h1>
+<p class="kick">une région, une couleur — et les accords qui en sortent prennent celle de leur destination</p>
 
 <div class="feuille">
   <div class="bascule" id="bascule">
@@ -308,105 +281,196 @@ def page(D: dict) -> str:
 </div>
 
 <div class="feuille">
-  <div class="eyebrow">les gammes, de la plus claire à la plus sombre</div>
-  <div class="lgs" id="lgs">{legende}</div>
+  <div class="eyebrow">les gammes du morceau, sur le cercle des quintes</div>
+  <div class="roue"><svg id="roue" width="300" height="300" viewBox="0 0 300 300"></svg></div>
+  <div class="lgs" id="lgs"></div>
 </div>
 
 <div class="note">
-  <p><b>La rampe n'est pas un dégradé décoratif.</b> Les sept modes sont rangés
-  par clarté modale&nbsp;— le compte d'altérations par rapport à la majeure de
-  même fondamentale, de&nbsp;+1 (lydien) à&nbsp;−5 (locrien). C'est un axe
-  réel, pas un goût.</p>
-  <p><b>Chaud ou froid&nbsp;= la tierce.</b> La rupture entre le mixolydien et
-  le dorien n'est donc pas un saut arbitraire dans la roue&nbsp;: c'est le
-  passage du mode majeur au mode mineur. À l'intérieur de chaque famille, plus
-  clair&nbsp;= plus brillant. Et les gammes qui ne sont pas des modes de la
-  majeure sortent de la rampe, dans les rouges&nbsp;: «&nbsp;hors de la
-  tonalité&nbsp;» se voit comme hors de la rampe.</p>
-  <p><b>Ce que la couleur-note ne peut pas montrer.</b> Bascule&nbsp;: les six
-  premiers accords d'Autumn Leaves sont six teintes différentes en
-  couleur-note, et une seule famille chaude en couleur-gamme&nbsp;— ils sont
-  tous dans si♭ majeur. Puis la cadence mineure bascule d'un coup dans les
-  froides et le rouge. On voit la FORME, pas les lettres.</p>
-  <p><b>Ce que ça ne résout pas.</b> Un accord peut appeler deux gammes
-  également défendables (un mineur sur le i&nbsp;: dorien ou éolien, l'oreille
-  tranche) et la table en choisit une. Les tensions écrites (♭9, ♯11) ne sont
-  pas lues&nbsp;— elles devraient pouvoir forcer la gamme. La clé locale
-  (<code>keySegments</code>) règne, pas la clé du morceau&nbsp;: sur un morceau
-  qui module, c'est elle qui fait le travail.</p>
+  <p><b>Une gamme, ici, c'est sept notes.</b> Pas une tonique, pas un
+  mode&nbsp;: un jeu de notes. La règle travaille sur «&nbsp;les notes qui
+  sortent&nbsp;», donc l'objet coloré doit être ce jeu-là. Conséquence assumée,
+  et il faut la dire&nbsp;: si♭ majeur et sol mineur sont LA MÊME gamme et
+  portent la même couleur. C'est exact — ce sont les mêmes sept notes — et
+  c'est ce qui permet à un morceau en mineur de ne pas clignoter à chaque
+  emprunt à sa relative.</p>
+  <p><b>La teinte est la place de la gamme sur le cercle des quintes</b>, par
+  le <code>rootHue</code> de l'app&nbsp;: la roue des couleurs reste la roue
+  des quintes, comme dans le compas. Deux gammes voisines d'une quinte sont
+  voisines de 30°, donc l'écart de teinte entre un accord et sa région EST sa
+  distance harmonique, sans rien compter.</p>
+  <p><b>Un accord qui sort prend la gamme la plus proche qui le contient en
+  entier.</b> Si aucune ne le contient — un diminué, un altéré — celle qui en
+  contient le plus, départagée par la proximité. Le pointillé le redit en noir
+  et blanc&nbsp;: pas besoin de lire la nuance pour voir qu'il sort.</p>
+  <p><b>Le premier arbitrage à rendre.</b> Les douze gammes sont les douze
+  jeux DIATONIQUES, et la mineure harmonique n'en est pas un. Donc le
+  <code>D7</code> de sol mineur — le V le plus ordinaire du monde — est lu
+  comme une sortie de 3 quintes vers la gamme de sol, et pas comme la sensible
+  de sa propre tonalité. C'est exact quant aux notes, discutable quant à la
+  fonction. Si tu préfères l'autre lecture, il faut ajouter les mineures
+  harmoniques aux gammes et la cadence redevient muette&nbsp;— on ne peut pas
+  avoir les deux.</p>
+  <p><b>Ce que la démo ne met pas à l'épreuve.</b> Ce morceau ne module pas
+  (<code>keySegments</code> n'a qu'un segment), donc «&nbsp;une région, une
+  couleur&nbsp;» n'est pas encore éprouvé ici&nbsp;— il faudra un morceau qui
+  change de tonalité.</p>
 </div>
 
 <footer>
-  table des chord-scales &middot; clé locale&nbsp;: <code>harmonic_key</code>
-  &middot; palette et feuille&nbsp;: <code>ui/kit.js</code> &middot;
-  le compas&nbsp;: <a href="/plots/compas_da.html" style="color:var(--accent)">cascade</a>
+  gammes&nbsp;: les douze jeux diatoniques &middot; région&nbsp;:
+  <code>keySegments</code> (<code>harmonic_key</code>) &middot; teinte&nbsp;:
+  <code>kit.js::rootHue</code> &middot;
+  <a href="/plots/compas_da.html" style="color:var(--accent)">le compas</a>
 </footer>
 
 <script>
 const D = {json.dumps(D, ensure_ascii=False, separators=(',', ':'))};
-const N = D.noms, G = D.gammes;
+const N = D.noms, COLL = D.collections;
 const mod = (n, m) => ((n % m) + m) % m;
-// la couleur-note de l'app : teinte au cercle des quintes, saturation et
-// clarté figées (c'est la règle posée le 2026-09-17 sur le compas).
-const fifths = pc => mod(pc * 7, 12);
-const parNote = pc => `hsl(${{Math.round(fifths(pc) / 12 * 360)}} 55% 72%)`;
-const parGamme = g => (G[g] || {{}}).c || 'var(--line)';
+const quintes = pc => mod(pc * 7, 12);
+// LA TEINTE D'UNE GAMME = sa place sur le cercle des quintes. La saturation et
+// la clarté sont figées : rien d'autre que l'identité n'entre dans la couleur
+// (même règle que le compas depuis le 2026-09-17).
+const gammeFill = maj => `hsl(${{Math.round(quintes(maj) / 12 * 360)}} 55% 72%)`;
+const gammeEdge = maj => `hsl(${{Math.round(quintes(maj) / 12 * 360)}} 59% 52%)`;
+// la couleur-note d'aujourd'hui, pour la comparaison
+const noteFill = pc => `hsl(${{Math.round(quintes(pc) / 12 * 360)}} 55% 72%)`;
+// une gamme se nomme par sa majeure ET sa relative mineure : c'est le même
+// jeu de notes, et le dire évite de croire qu'on a changé de monde.
+const nomGamme = maj => N[maj] + ' / ' + N[mod(maj + 9, 12)] + '-';
 
 let mode = 'gamme', sel = null, audio = null, stopAt = null;
-
-function accordDe(i, j){{ return D.mesures[i].accords[j]; }}
+const accordDe = (i, j) => D.mesures[i].accords[j];
 
 function peins(){{
   document.querySelectorAll('.ac').forEach(b => {{
     const a = accordDe(+b.dataset.i, +b.dataset.j);
-    b.style.background = mode === 'gamme' ? parGamme(a.gamme) : parNote(a.root);
+    b.style.background = mode === 'gamme' ? gammeFill(a.cible) : noteFill(a.root);
     // l'encre posée sur une pastille claire ne suit pas le thème : ces fonds
     // sont clairs par construction dans les deux (même règle que les pétales
     // du compas, cf. known_issues 2026-09-17).
     b.style.color = '#1c1c1c';
-    b.style.borderColor = 'rgba(0,0,0,.14)';
+    b.classList.toggle('sort', mode === 'gamme' && !a.dedans);
   }});
   document.querySelectorAll('.lg').forEach(l => {{
-    const vif = mode === 'gamme' && sel && sel.gamme === l.dataset.g;
-    l.classList.toggle('vif', !!vif);
+    l.classList.toggle('vif', !!(sel && +l.dataset.g === sel.cible));
   }});
 }}
 
 function fiche(a){{
   const f = document.getElementById('fiche');
   f.innerHTML = '';
-  if (!a) {{ f.innerHTML = '<div class="pq" style="font:italic 12.5px Georgia,serif;color:var(--faint)">touche un accord pour voir sa gamme</div>'; return; }}
+  if (!a) {{
+    const d = document.createElement('div'); d.className = 'pq';
+    d.textContent = "touche un accord pour voir sa gamme, et ce qui en sort";
+    f.appendChild(d); return;
+  }}
   const tete = document.createElement('div'); tete.className = 'tete';
   const nom = document.createElement('span'); nom.className = 'nom'; nom.textContent = a.ecrit;
   const g = document.createElement('span'); g.className = 'g';
-  g.style.background = parGamme(a.gamme);
-  g.textContent = N[mod(a.root, 12)] + ' ' + a.gamme;
+  g.style.background = gammeFill(a.cible);
+  g.textContent = nomGamme(a.cible);
   tete.appendChild(nom); tete.appendChild(g);
   f.appendChild(tete);
+
   const pq = document.createElement('div'); pq.className = 'pq';
-  pq.textContent = a.pourquoi + ' — la tonalité qui règne ici est ' + a.cle;
+  if (a.dedans) {{
+    pq.innerHTML = 'toutes ses notes sont dans la gamme qui règne ici (<b>'
+      + nomGamme(a.regne) + '</b>) — il en prend la couleur';
+  }} else {{
+    const s = a.sortantes.map(p => N[p]).join(', ');
+    pq.innerHTML = '<b>' + s + '</b> sort de ' + nomGamme(a.regne)
+      + ' — il projette vers <b>' + nomGamme(a.cible) + '</b>, à '
+      + a.ecart + (a.ecart > 1 ? ' quintes' : ' quinte') + ' d\\'ici'
+      + (a.entier ? '' : ' (aucune gamme ne le contient en entier : la plus proche qui en prend le plus)');
+  }}
   f.appendChild(pq);
-  // LES DOUZE DEMI-TONS, ceux de la gamme allumés dans sa couleur : c'est la
-  // phrase « mêmes notes » rendue vérifiable d'un coup d'œil.
+
+  // LES DOUZE DEMI-TONS. Allumés : les notes de la gamme visée. Cerclées
+  // d'accent : les notes de l'accord qui sortent de la gamme de la RÉGION —
+  // c'est-à-dire exactement ce qui a décidé de la couleur.
   const cl = document.createElement('div'); cl.className = 'clavier';
-  const deg = new Set((G[a.gamme] || {{deg: []}}).deg);
+  const dedans = new Set(COLL[String(a.cible)]);
+  const notes = new Set(a.notes), sortantes = new Set(a.sortantes);
   for (let i = 0; i < 12; i++) {{
-    const pc = mod(a.root + i, 12);
+    const pc = mod(a.regne + i, 12);
     const d = document.createElement('div');
-    if (deg.has(i)) {{ d.className = 'in'; d.style.background = parGamme(a.gamme); }}
-    if (i === 0) d.classList.add('fond');
-    d.textContent = N[pc];
+    if (dedans.has(pc)) {{ d.className = 'gamme'; d.style.background = gammeFill(a.cible); }}
+    if (sortantes.has(pc)) d.classList.add('horsgamme');
+    if (notes.has(pc)) {{ const b = document.createElement('b'); b.textContent = '●'; d.appendChild(b); }}
+    const t = document.createElement('span'); t.textContent = N[pc]; d.appendChild(t);
     cl.appendChild(d);
   }}
   f.appendChild(cl);
 }}
+
+// ── LA ROUE DES GAMMES : les douze jeux diatoniques à leur place de quintes,
+// ceux du morceau allumés, la région cerclée d'accent. C'est la légende ET la
+// carte : on y voit d'un coup à quelle distance chaque sortie emmène.
+function roue(){{
+  const svg = document.getElementById('roue');
+  svg.innerHTML = '';
+  const NS = 'http://www.w3.org/2000/svg';
+  const mk = (t, a) => {{ const n = document.createElementNS(NS, t);
+    for (const k in a) n.setAttribute(k, a[k]); return n; }};
+  const cx = 150, cy = 150, R = 108;
+  const par = {{}};
+  D.mesures.forEach(m => m.accords.forEach(a => {{
+    par[a.cible] = (par[a.cible] || 0) + 1; }}));
+  const regne = D.mesures.length && D.mesures[0].accords.length
+    ? D.mesures[0].accords[0].regne : 0;
+  svg.appendChild(mk('circle', {{cx, cy, r: R, fill: 'none',
+    stroke: getComputedStyle(document.documentElement).getPropertyValue('--line').trim(),
+    'stroke-width': 1.5}}));
+  for (let i = 0; i < 12; i++) {{
+    const maj = mod(i * 7, 12);                    // i-ème quinte depuis do
+    const ang = (-90 + i * 30) * Math.PI / 180;
+    const x = cx + R * Math.cos(ang), y = cy + R * Math.sin(ang);
+    const n = par[maj] || 0;
+    const r = n ? 15 + Math.min(11, n) : 7;
+    svg.appendChild(mk('circle', {{cx: x, cy: y, r,
+      fill: n ? gammeFill(maj) : 'transparent',
+      stroke: n ? gammeEdge(maj) : 'var(--rule)',
+      'stroke-width': maj === regne ? 3 : 1.25,
+      'stroke-opacity': n ? 1 : 0.45}}));
+    const t = mk('text', {{x, y, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+      'font-family': 'Georgia,serif', 'font-style': 'italic', 'font-weight': 600,
+      'font-size': n ? 13 : 10,
+      fill: n ? '#1c1c1c' : 'var(--faint)'}});
+    t.textContent = N[maj];
+    svg.appendChild(t);
+    if (n) {{
+      const c = mk('text', {{x, y: y + r + 9, 'text-anchor': 'middle',
+        'font-family': '-apple-system,system-ui,sans-serif', 'font-size': 9,
+        'font-weight': 600, fill: 'var(--faint)'}});
+      c.textContent = n + (maj === regne ? ' · la région' : '');
+      svg.appendChild(c);
+    }}
+  }}
+  // la légende en liste, pour les gammes réellement vues
+  const lgs = document.getElementById('lgs');
+  lgs.innerHTML = '';
+  Object.keys(par).map(Number).sort((a, b) => par[b] - par[a]).forEach(maj => {{
+    const d = document.createElement('div'); d.className = 'lg'; d.dataset.g = maj;
+    const i = document.createElement('i'); i.style.background = gammeFill(maj);
+    const b = document.createElement('b'); b.textContent = nomGamme(maj);
+    const s = document.createElement('span');
+    s.textContent = par[maj] + (par[maj] > 1 ? ' accords' : ' accord')
+      + (maj === regne ? ' · la région'
+         : ' · ' + ecartDe(maj, regne) + (ecartDe(maj, regne) > 1 ? ' quintes' : ' quinte'));
+    d.appendChild(i); d.appendChild(b); d.appendChild(s);
+    lgs.appendChild(d);
+  }});
+}}
+function ecartDe(a, b){{ const d = mod(quintes(a) - quintes(b), 12); return Math.min(d, 12 - d); }}
 
 document.querySelectorAll('.ac').forEach(b => b.addEventListener('click', () => {{
   document.querySelectorAll('.ac').forEach(x => x.classList.remove('sel'));
   b.classList.add('sel');
   sel = accordDe(+b.dataset.i, +b.dataset.j);
   fiche(sel); peins();
-  document.getElementById('av').textContent = sel.ecrit + ' · ' + sel.gamme;
+  document.getElementById('av').textContent = sel.ecrit + ' · ' + nomGamme(sel.cible);
   if (audio) {{ stopAt = sel.t1 + 0.15; audio.currentTime = Math.max(0, sel.t0);
     audio.play().catch(() => {{}}); }}
 }}));
@@ -414,7 +478,6 @@ document.querySelectorAll('.ac').forEach(b => b.addEventListener('click', () => 
 document.querySelectorAll('#bascule button').forEach(b => b.addEventListener('click', () => {{
   mode = b.dataset.m;
   document.querySelectorAll('#bascule button').forEach(x => x.classList.toggle('on', x === b));
-  document.getElementById('lgs').parentElement.style.opacity = mode === 'gamme' ? '1' : '.45';
   peins();
 }}));
 
@@ -438,11 +501,11 @@ document.getElementById('play').addEventListener('click', () => {{
   if (!audio) return;
   if (!audio.paused) {{ audio.pause(); return; }}
   stopAt = null;
-  if (!sel) audio.currentTime = D.mesures[0].accords.length ? D.mesures[0].accords[0].t0 : 0;
+  if (!sel && D.mesures[0].accords.length) audio.currentTime = D.mesures[0].accords[0].t0;
   audio.play().catch(() => {{}});
 }});
 
-peins(); fiche(null);
+peins(); fiche(null); roue();
 </script>
 """
 
@@ -452,14 +515,17 @@ def main() -> int:
     D = collecte(cle)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(page(D), encoding="utf-8")
-    n = sum(len(b["accords"]) for b in D["mesures"])
-    vues = {}
-    for b in D["mesures"]:
-        for a in b["accords"]:
-            vues[a["gamme"]] = vues.get(a["gamme"], 0) + 1
-    print(f"→ {OUT}  ({len(D['mesures'])} mesures, {n} accords)")
-    for g, k in sorted(vues.items(), key=lambda kv: -kv[1]):
-        print(f"   {g:14s} {k}")
+    N = D["noms"]
+    tout = [a for b in D["mesures"] for a in b["accords"]]
+    dedans = [a for a in tout if a["dedans"]]
+    print(f"→ {OUT}  ({len(D['mesures'])} mesures, {len(tout)} accords)")
+    print(f"   dedans : {len(dedans)}/{len(tout)}")
+    for a in tout:
+        if not a["dedans"]:
+            s = ", ".join(N[p] for p in a["sortantes"])
+            print(f"   {a['ecrit']:9s} sort par {s:6s} → {N[a['cible']]} "
+                  f"({a['ecart']} quinte{'s' if a['ecart'] > 1 else ''})"
+                  f"{'' if a['entier'] else '  [partiel]'}")
     return 0
 
 
