@@ -726,6 +726,13 @@ def _meta_par_temps(chart: dict) -> list:
     return out
 
 
+#: Ce que `accords_par_mesure` recalcule depuis la grille et la liste à plat —
+#: donc ce qu'il ne faut JAMAIS réimporter de l'accord écrit, sous peine de
+#: faire revenir les instants d'un autre passage dans un chart replié.
+_CALCULE_ICI = frozenset({"root", "q", "bass", "nc", "carry", "beat", "bar",
+                          "c", "t0", "t1", "facade"})
+
+
 def accords_par_mesure(chart: dict) -> list:
     """Le contenu de CHAQUE mesure, pris dans la liste À PLAT et par le TEMPS.
 
@@ -793,9 +800,23 @@ def accords_par_mesure(chart: dict) -> list:
                     "bar": b, "c": float(c.get("c") or 0.0),
                     "t0": a, "t1": z}
             src = _meta_du_temps(meta, neuf)
-            for k in ("sug", "n", "colour", "confirmed", "flag", "inflect"):
-                if src is not None and k in src:
-                    neuf[k] = src[k]
+            if src is not None:
+                # ON GARDE TOUT, sauf ce que cette fonction recalcule.
+                # C'était une liste blanche — ("sug", "n", "colour",
+                # "confirmed", "flag", "inflect") — qu'il fallait tenir à jour
+                # à la main. `sugBass` est arrivé dans la pipeline le
+                # 2026-09-16 à 20h01, personne n'a pensé à cette liste, et le
+                # champ disparaissait en silence de tout chart réécrit par ce
+                # chemin : 18 morceaux sur 47, exactement ceux dont les
+                # sections sont validées à la main (Louis, 2026-09-17 : « j'ai
+                # l'impression que ca a été retiré ? » — oui, là).
+                # Une liste blanche ne se plaint jamais, elle oublie. La règle
+                # inverse ne peut rien perdre : les instants, la mesure, le
+                # temps et `carry` viennent de LA GRILLE d'ici, tout le reste
+                # appartient a l'accord et le suit.
+                for k, v in src.items():
+                    if k not in _CALCULE_ICI:
+                        neuf[k] = v
             cases.append(neuf)
         out.append(cases)
     return out

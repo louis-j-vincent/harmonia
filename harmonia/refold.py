@@ -111,6 +111,22 @@ def refold(chart: dict, secs: list[dict], audio_dir) -> tuple[list, dict]:
         logger.exception("refold: empilement impossible")
         return bars, {"ok": False, "raison": f"{type(exc).__name__}: {exc}"}
 
+    # LES SUGGESTIONS SE RECALCULENT ICI, comme dans la pipeline (Louis,
+    # 2026-09-17 : « est ce que […] la suggestion des top 5 accords dans le
+    # compass est bien implémentée ? j'ai l'impression que ca a été retiré ? »).
+    #
+    # `accords_par_mesure` recolle la métadonnée de l'accord ÉCRIT qui occupe
+    # le même temps — et après un repli, la plupart des mesures n'en trouvent
+    # aucun : sur This Love, 12 accords sur 39 gardaient leurs candidats, les
+    # 27 autres ouvraient l'éditeur sur rien. Recoller vaut mieux que perdre,
+    # mais recalculer vaut mieux que recoller : les postérieures musx et la
+    # chroma sont DÉJÀ chargées trois lignes plus haut (et en cache), donc
+    # c'est une lecture en mémoire, pas une extraction.
+    from harmonia.span_rescore import bass_suggestions, musx_suggestions
+    plat = [c for bar in bars for c in bar]
+    musx_suggestions(probs, plat)
+    bass_suggestions(arr, times, plat)
+
     # le compte de répétitions se recalcule sur les accords empilés, comme
     # dans la pipeline — sinon « joué 7 fois » parle des accords d'avant.
     from collections import Counter
