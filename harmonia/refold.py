@@ -122,9 +122,11 @@ def refold(chart: dict, secs: list[dict], audio_dir) -> tuple[list, dict]:
     # mais recalculer vaut mieux que recoller : les postérieures musx et la
     # chroma sont DÉJÀ chargées trois lignes plus haut (et en cache), donc
     # c'est une lecture en mémoire, pas une extraction.
-    from harmonia.span_rescore import bass_suggestions, musx_suggestions
+    from harmonia.span_rescore import (bass_suggestions, cascade_suggestions,
+                                       musx_suggestions)
     plat = [c for bar in bars for c in bar]
     musx_suggestions(probs, plat)
+    cascade_suggestions(probs, plat)
     bass_suggestions(arr, times, plat)
 
     # le compte de répétitions se recalcule sur les accords empilés, comme

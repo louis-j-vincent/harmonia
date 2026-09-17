@@ -10,6 +10,7 @@ import { paintLoading, pollJob } from "../screens/analyse.js";
 import { buildIReal } from "../screens/chart.js";
 import { openBar1Sheet, openSectionTool } from "../screens/sections_editor.js";
 import { S } from "../state.js";
+import { buildCascade } from "./cascade.js";
 import { FAINT_ON_PETAL, INK_ON_PETAL, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, el, fifthsIndex, glyph, handle, haptic, keyTint, mod, note, overlay, petalEdge, petalFill, play, playedLabel, roleOf, sheetCol, sv, toast } from "../ui/kit.js";
 
 // The single DOM host div (`<div id="app">`) — there is exactly one call
@@ -126,7 +127,7 @@ export function openEditor(idx,opts){
     }
     hd.appendChild(meta); sheet.appendChild(hd);
     const tabs=el("div",`flex:0 0 auto;display:inline-flex;background:${T.line};border-radius:10px;padding:3px;gap:2px;margin-bottom:12px;align-self:flex-start;`);
-    [["compass","Compass"],["guide","Guide"],["hand","By hand"]].forEach(([k,lbl])=>{
+    [["compass","Compass"],["cascade","Cascade"],["guide","Guide"],["hand","By hand"]].forEach(([k,lbl])=>{
       const b=el("button",`border:none;border-radius:8px;padding:7px 13px;font:600 12.5px ${UI};cursor:pointer;`,lbl);
       b.onclick=()=>{ editTab=k; renderPane(); };
       tabs.appendChild(b);
@@ -193,10 +194,14 @@ export function openEditor(idx,opts){
     }
     function renderPane(){
       clear(pane); selBtn=null;
-      [...tabs.children].forEach((b,j)=>{ const k=["compass","guide","hand"][j]; const on=editTab===k;
+      [...tabs.children].forEach((b,j)=>{ const k=["compass","cascade","guide","hand"][j]; const on=editTab===k;
         b.style.background=on?T.card:"transparent"; b.style.color=on?T.ink:T.faint; b.style.boxShadow=on?"0 1px 2px rgba(0,0,0,.12)":"none"; });
       const bassOpts={onPickBass, picked:pickedBass};
       if(editTab==="compass") pane.appendChild(buildCompass(idx,onPick,bassOpts));
+      // Le compas en CASCADE (2026-09-17) : les extensions que musx entend,
+      // un étage par tête. Il vit à côté du compas ordinaire, il ne le
+      // remplace pas — c'est le même `onPick`, donc le même « Lock ».
+      else if(editTab==="cascade") pane.appendChild(buildCascade(idx,onPick));
       else if(editTab==="guide") pane.appendChild(buildGuide(idx,onPick,bassOpts));
       else pane.appendChild(buildHand(idx,onPick,renderPane));
     }

@@ -355,7 +355,13 @@ export function loadModel(m, opts){
             // `sugBass` = la ligne de basse LUE à l'attaque de l'accord
             // (2026-09-16). Même règle que `sug` : cette liste est blanche,
             // un champ qu'on n'y recopie pas n'arrive jamais dans l'éditeur.
+            // `casc` = les têtes d'extension de musx (7e/9e/11e/13e) mises en
+            // commun sur l'empan, pour le compas en cascade (2026-09-17).
+            // Troisième champ à tomber dans ce piège après `sug` et
+            // `sugBass` : cette liste blanche est une dette, elle ne se
+            // plaint jamais, elle oublie (cf. known_issues).
             bar:c.bar, beat:c.beat, sug:c.sug||null, sugBass:c.sugBass||null,
+            casc:c.casc||null,
             n:(c.n==null?0:c.n|0),
             var:c.var||null,   // l'autre lecture de cette case, sur un chart replié
             sec:s.label, secId:s.id, secIdx:si, reps:s.reps,
@@ -1186,9 +1192,21 @@ export function buildIReal(){
     // en notation normale — vu au premier passage de vérification).
     const imm = S.screen==="chart" && S.chartChrome===false;
     const SZ1=narrow?26:32, SZ2=narrow?22:28, SZ3=narrow?15:19;
-    const BARH=imm?(narrow?67:76):(narrow?56:64);
+    // Densité (§6, 2026-09-17): la grille respirait trop pour un téléphone —
+    // 2,5 sections à l'écran là où iRealB en montre 4. On descend les TROIS
+    // constantes d'espacement (hauteur de rangée immersive, gap de section,
+    // gap de fin). Les tailles de glyphe (SZ1/SZ2/SZ3) ne bougent PAS: elles
+    // ont déjà été arbitrées contre iRealB, et les grossir a re-créé le
+    // chevauchement des barres denses.
+    const BARH=imm?(narrow?58:66):(narrow?56:64);
+    // §3: une rangée qui ne porte QUE des mesures de fin est courte — une
+    // mesure ne doit pas coûter la hauteur de quatre. C'est une hauteur par
+    // RANGÉE, jamais par cellule: les fillers de gauche (§2) et de droite
+    // prennent la même, sinon le treillis casse.
+    const BARH_ENDING=Math.round(BARH*0.78);
+    const endingGap = narrow?10:12;
+    const secGap = narrow?16:18;
     S._cells=[];
-    const secGapRows=new Set();
     let rowCells=[];
     const bars=S.bars.map(b=>({sec:b.sec, secId:b.secId, secFirst:b.secFirst, reps:b.reps,
                                ending:b.ending, endingFirst:b.endingFirst,
@@ -1220,6 +1238,54 @@ export function buildIReal(){
     // bar count is noise on a lead sheet; Annotate/Analyse keep its bars so
     // N.C. cells stay correctable.
     let col=0,row=0,introRow=null,lastCh=null,endingAnchorCol=null;
+    // Une RANGÉE est un bloc: même hauteur, même décalage haut, quatre
+    // cellules toujours. rowH/rowMT sont posés au moment où la rangée s'ouvre
+    // et relus par toutes ses cellules — vraies cellules ET fillers. Avant
+    // (2026-09-17) les fillers rappelaient BARH en dur et n'avaient aucun
+    // margin-top: une section de 3 mesures fermait donc sa rangée avec des
+    // cellules parties `secGap` px trop haut.
+    let rowH=BARH, rowMT=0;
+    // §3/§4/§5: une fin est un BLOC de mesures consécutives portant la même
+    // étiquette (`b.ending`). Sa longueur décide trois choses — la largeur du
+    // crochet (§4), la hauteur courte de sa rangée (§3), et si les deux fins
+    // peuvent s'aligner ou doivent repartir en colonne 1 (§5). Elle se lit en
+    // avant dans `bars`, jamais dans le DOM déjà posé.
+    const endingRun=(start,fromCol)=>{
+      const first=bars[start], tag=first&&first.ending;
+      if(!tag) return 0;
+      const cap=(fromCol==null?4:4-fromCol);
+      let n=0;
+      for(let k=start;k<bars.length&&n<cap;k++){
+        const nb=bars[k];
+        if(nb.ending!==tag) break;
+        if(k>start&&(nb.secFirst||nb.endingFirst)) break;
+        n++;
+      }
+      return n;
+    };
+    // Vrai quand les cellules CHORDÉES de la rangée qui s'ouvre en `start`
+    // sont exclusivement des mesures de fin — le seul cas où §3 raccourcit.
+    const rowIsEnding=(start,fromCol)=>{
+      const n=endingRun(start,fromCol);
+      if(!n) return false;
+      if(fromCol+n>=4) return true;          // la rangée est pleine de fins
+      const nxt=bars[start+n];
+      if(!nxt) return true;                  // fin du chart
+      if(nxt.secFirst) return true;          // la suivante ouvre sa rangée
+      if(nxt.ending&&nxt.endingFirst) return true;  // la fin suivante aussi
+      return false;                          // une mesure ordinaire suit ici
+    };
+    // §1 — TOUTE rangée entamée est fermée. `fillRow` bouche les colonnes
+    // restantes avec de vraies cellules bordées (pas du papier nu);
+    // `closeRow` y ajoute la bordure basse, pour les rangées qu'un gap
+    // (secGap/endingGap) détache de la rangée suivante — une rangée pleine
+    // suivie d'une rangée collée n'en veut pas, la border-top de la suivante
+    // dessine déjà le trait et deux traits collés font 2px.
+    const filler=c=>el("div",
+      `min-height:${rowH}px;${rowMT?`margin-top:${rowMT}px;`:""}`+
+      `${c>0?`border-left:1px solid ${T.rule};`:""}${row>0?`border-top:1px solid ${T.rule};`:""}`);
+    const fillRow=()=>{ while(col!==0&&col<4){ const f=filler(col); grid.appendChild(f); rowCells.push(f); col++; } };
+    const closeRow=()=>{ fillRow(); rowCells.forEach(c=>{ c.style.borderBottom=`1px solid ${T.rule}`; }); };
     bars.forEach((b,bi)=>{
       // Louis, 2026-08-08: the chord-less leading intro does not print AT ALL
       // in Read — the form rail above still carries it. Analyse/Annotate keep
@@ -1228,7 +1294,7 @@ export function buildIReal(){
       const isIntro = S.mode==="read" && /^intro/i.test(String(b.sec||""));
       if(isIntro){
         if(!introRow){
-          if(col!==0){col=0;row++;}
+          if(col!==0){closeRow(); col=0;row++; rowMT=0; rowH=BARH;}
           introRow=el("div",`position:relative;grid-column:1/-1;display:flex;align-items:center;gap:8px;min-height:${narrow?34:40}px;padding:0 ${narrow?8:12}px;${row>0?`border-top:1px solid ${T.rule};`:""}`);
           introRow.appendChild(el("div",`font:800 ${narrow?9:11}px ${UI};color:${T.accent};border:1.5px solid ${T.accent};border-radius:4px;padding:0 3px;background:${T.paper};`,b.sec));
           introRow.appendChild(el("div",`font:italic 500 ${narrow?11:12.5}px ${SERIF};color:${T.faint};`,"…"));
@@ -1254,28 +1320,42 @@ export function buildIReal(){
       const endingForcesBreak = endingHead && b.ending!=="1";
       // A 2nd+ ending aligns under the 1st ending's column (real iRealB
       // convention — user 2026-07-21: "le 2 devrait être aligné avec le 1"),
-      // not back at column 1. endingAnchorCol remembers where "1." landed;
-      // grid-column-start explicitly jumps there, leaving the skipped
-      // columns blank (no DOM cell = no border, just paper).
+      // not back at column 1. endingAnchorCol remembers where "1." landed.
+      // §2 (2026-09-17): on n'y saute PLUS par grid-column-start. Un saut
+      // laissait des colonnes sans cellule, donc sans bordure — d'où le trou
+      // de papier nu pleine hauteur sur un tiers de l'écran, avec la mesure
+      // de fin perdue à droite. On émet pour de vrai les cellules vides
+      // bordées des colonnes 1..anchor, mêmes styles et même hauteur que la
+      // rangée: le trou devient une continuation lisible du treillis.
       let skipToCol=null;
-      // Règle d'or (Louis 2026-08-02): toutes les barres de taille uniforme.
-      // Une section qui finit en rangée incomplète: on COMPLÈTE la rangée
-      // avec des cellules vides bordées (même treillis), et la dernière
-      // rangée de chaque section reçoit sa bordure basse (le gap secGap la
-      // détache de la border-top de la rangée suivante).
-      const closeRow=()=>{
-        while(col!==0 && col<4){
-          const f=el("div",`min-height:${BARH}px;border-left:1px solid ${T.rule};${row>0?`border-top:1px solid ${T.rule};`:""}`);
-          grid.appendChild(f); rowCells.push(f); col++;
-        }
-        rowCells.forEach(c=>{ c.style.borderBottom=`1px solid ${T.rule}`; });
-      };
+      // §5: la 2e fin s'aligne sous la 1re (convention iRealB, déjà validée)
+      // — sauf si la 1re ne tient pas jusqu'au bout de la rangée depuis sa
+      // colonne d'ancrage. Dans ce cas les DEUX fins repartent en colonne 1,
+      // chacune sur sa rangée. (`anchorCol=3, endingLen=1` passe tout juste;
+      // un `tail:2` bascule.)
+      const firstEndingHead = endingHead && b.ending==="1";
+      const endingSpread = firstEndingHead && (col + endingRun(bi,null) > 4);
       if(b.secFirst && col!==0){closeRow(); col=0;row++;}
-      else if(endingForcesBreak && col!==0){row++; col=(endingAnchorCol!=null?endingAnchorCol:0); skipToCol=col;}
+      // §1 — c'était LE bug: `row++` sans `closeRow()`, donc la rangée
+      // laissée en plan n'avait ni ses cellules manquantes ni sa bordure
+      // basse (la rangée `E- F#- | A B-` de la capture).
+      else if(endingForcesBreak && col!==0){closeRow(); col=0;row++;}
+      else if(endingSpread && col!==0){closeRow(); col=0;row++;}
       else if(col===4){col=0;row++;}
-      if(col===0||skipToCol!=null) rowCells=[];
+      if(endingForcesBreak){
+        const a=(endingAnchorCol!=null?endingAnchorCol:0);
+        if(a>0 && col===0) skipToCol=a;
+      }
       const atRowStart=col===0;
       const rowBroke = skipToCol!=null;
+      if(col===0||rowBroke){
+        rowCells=[];
+        // La rangée s'ouvre: sa hauteur et son décalage haut sont décidés ici,
+        // une fois, pour toutes ses cellules (§3).
+        rowMT = b.secFirst ? secGap : (endingHead ? endingGap : 0);
+        rowH  = rowIsEnding(bi, rowBroke?skipToCol:col) ? BARH_ENDING : BARH;
+      }
+      if(rowBroke){ while(col<skipToCol){ const f=filler(col); grid.appendChild(f); rowCells.push(f); col++; } }
       if(endingHead && b.ending==="1") endingAnchorCol=col;
       // Only when an ending genuinely opens its OWN row does it get the
       // section-style left inset + the hanging bracket (digit + tick sitting
@@ -1286,11 +1366,10 @@ export function buildIReal(){
       // pushing its row out of alignment with its siblings.
       const endingOwnRow = endingHead && (atRowStart || rowBroke);
       const leftPad = endingOwnRow ? (narrow?21:26) : (narrow?3:8);
-      const endingGap = narrow?13:16;
-      const secGap = narrow?22:26;
-      if(b.secFirst) secGapRows.add(row);
-      const inSecGapRow = secGapRows.has(row);
-      const gridStart = b.secFirst ? 1 : (skipToCol!=null ? skipToCol+1 : (endingOwnRow?1:null));
+      // §2: plus de `grid-column-start` pour les fins — les cellules vides
+      // sont posées pour de vrai, le flux de la grille suffit. Il ne reste
+      // utile que pour `b.secFirst`, où il garantit la colonne 1.
+      const gridStart = b.secFirst ? 1 : null;
       const bpbQ=S.model.bpb||4;
       // Bar-expanded add-a-chord (2026-09-16): a bar with fewer onsets than
       // beats — including zero, a held "%" bar — has room to add one. Such a
@@ -1314,7 +1393,12 @@ export function buildIReal(){
       const layoutCss = tight
         ? `display:flex;align-items:center;gap:${tightGap(b.chords.length)}px;padding:0 ${narrow?3:8}px 0 ${tightPad}px;`
         : `display:grid;grid-template-columns:repeat(${bpbQ},minmax(0,1fr));align-items:center;column-gap:2px;padding:0 ${narrow?3:8}px 0 ${leftPad}px;`;
-      const cell=el("div",`position:relative;min-width:0;min-height:${BARH}px;${layoutCss}${endingOwnRow?`margin-top:${endingGap}px;`:(inSecGapRow?`margin-top:${secGap}px;`:"")}${gridStart!=null?`grid-column-start:${gridStart};`:""}${col>0?`border-left:1px solid ${T.rule};`:""}${b.ending?`border-top:2px solid ${T.accent};`:(row>0?`border-top:1px solid ${T.rule};`:"")}`);
+      // §4: plus de `border-top:2px accent` sur les mesures de fin. Rien à
+      // gauche n'arrêtait ce trait, donc il se lisait comme le soulignement
+      // de la rangée du dessus (sur la capture: une barre de séparation, pas
+      // l'ouverture d'une reprise). Le treillis reste neutre (T.rule); le
+      // crochet est un DESSIN par-dessus, posé plus bas.
+      const cell=el("div",`position:relative;min-width:0;min-height:${rowH}px;${layoutCss}${rowMT?`margin-top:${rowMT}px;`:""}${gridStart!=null?`grid-column-start:${gridStart};`:""}${col>0?`border-left:1px solid ${T.rule};`:""}${row>0?`border-top:1px solid ${T.rule};`:""}`);
       // Scale halo: a coloured underline strip per CHORD, not per bar (2026-07-21
       // fix — see chordKey's own comment above for the "A7 hidden inside bar5"
       // bug this replaces). Never on `background` — setPlayhead() stomps that
@@ -1354,7 +1438,10 @@ export function buildIReal(){
         // Louis 2026-08-02: le badge vit AU-DESSUS de la rangée (dans le
         // gap secGap), plus DANS la barre — les accords ne sont plus
         // décalés. Les ×N n'apparaissent que dans la strip FORM en tête.
-        cell.appendChild(el("div",`position:absolute;left:0;top:-${secGap-3}px;font:800 ${narrow?9:11}px ${UI};color:${T.accent};border:1.5px solid ${T.accent};border-radius:4px;padding:0 4px;background:${T.paper};z-index:2;`,b.sec));
+        // §6: secGap est descendu à 16/18 — le badge doit tenir DANS le gap
+        // sans mordre la bordure de sa rangée, donc il se pose au ras de
+        // celle-ci (top:-(secGap-1)) au lieu de flotter à -(secGap-3).
+        cell.appendChild(el("div",`position:absolute;left:0;top:-${secGap-1}px;font:800 ${narrow?9:11}px ${UI};line-height:1;color:${T.accent};border:1.5px solid ${T.accent};border-radius:4px;padding:1px 4px;background:${T.paper};z-index:2;`,b.sec));
         cell.appendChild(el("div",`position:absolute;left:2px;top:0;bottom:0;width:2px;background:${T.ink};`));
       }
       if(endingHead){

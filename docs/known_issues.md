@@ -7,6 +7,37 @@ Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 
 ## Ouvert
 
+### La liste blanche de `chart.js` a mangé un troisième champ
+
+`chart.js` reconstruit chaque accord dans `S.chords` en recopiant une LISTE
+EN DUR de champs. Un champ qu'on n'y recopie pas n'arrive jamais dans
+l'éditeur d'annotation, et rien ne se plaint. Trois fois maintenant : `sug`
+(2026-08-17), `sugBass` (2026-09-17, cf. `tests/test_meta_accord_recollee.py`)
+et `casc` (2026-09-17, le compas en cascade).
+
+Le pendant PYTHON de ce piège a été renversé — `soudure.accords_par_mesure`
+garde tout sauf ce qu'elle recalcule, et un test rougit pour n'importe quel
+champ futur. Côté JS la liste est restée, parce que la renverser change un
+chemin de rendu chaud sans test.
+
+**Et elle cache déjà un défaut visible** : `chart.js:1388` lit `ch.carry`
+pour afficher un accord tenu à `opacity:.72`. `carry` n'est PAS dans la liste
+blanche, donc il vaut toujours `undefined` et cette règle de style ne
+s'applique jamais. La corriger changerait l'aspect de tous les charts repliés
+— c'est un arbitrage de Louis, pas une correction à faire en passant.
+
+### Les queues altérées du compas en cascade n'ont pas de glyphe
+
+`TOK` (`ui/kit.js`) traduit une queue d'accord en son écriture. Le compas en
+cascade sait produire des queues altérées combinatoires (`-6b9`, `-6#9`,
+`9#11`, `13b9`…) : elles ne sont pas dans `TOK`, donc `glyph` retombe sur la
+chaîne brute et on lit `D-6b9` à côté d'un `Dm6/9`. Les queues SIMPLES ont été
+ajoutées (2026-09-17) ; les combinaisons ne peuvent pas l'être une par une.
+La sortie propre serait que `glyph` détache une altération finale et traduise
+le tronc — une modification d'un chemin de rendu partagé, à faire seule et
+vérifiée sur un chart entier, pas en marge d'une autre.
+
+
 ### RÉSOLU 2026-09-17 — le compas était illisible en thème sombre
 
 Trouvé en portant la charte du compas sur une page de démo

@@ -725,9 +725,10 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
     # dans l'éditeur d'annotation sans rien à proposer.
     # C'est un pooling de postérieures déjà en mémoire, pas une inférence :
     # quelques dizaines de millisecondes, mesurées, avant le premier rendu.
-    from harmonia.span_rescore import musx_suggestions
-    musx_suggestions(probs, [c for bar in bars for c in bar
-                             if not c.get("carry")])
+    from harmonia.span_rescore import cascade_suggestions, musx_suggestions
+    _plat_brut = [c for bar in bars for c in bar if not c.get("carry")]
+    musx_suggestions(probs, _plat_brut)
+    cascade_suggestions(probs, _plat_brut)
     _rk, _rkn = _draft_key(bars)
     yield "raw", _model(_one_section(bars, grid, n_bars),
                         {"raw_chart": True}, _rk, _rkn, None,
@@ -850,8 +851,12 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
             # below, for every chord (Louis, 2026-08-07: the annotation
             # editor must show the chords musx predicted).
             c["flag"] = H["challenges"][i]["kind"]
-    from harmonia.span_rescore import bass_suggestions, musx_suggestions
+    from harmonia.span_rescore import (bass_suggestions, cascade_suggestions,
+                                       musx_suggestions)
     musx_suggestions(probs, flat)
+    # Les têtes d'extension telles quelles, pour le compas en cascade : même
+    # mise en commun, aucune inférence de plus (voir `cascade_suggestions`).
+    cascade_suggestions(probs, flat)
     # La ligne de basse LUE, à côté des accords proposés (Louis, 2026-09-16).
     # `arr`/`times` sont déjà là (extract_bothchroma ci-dessus, en cache) :
     # c'est une lecture de 150 ms par accord dans une matrice en mémoire, pas

@@ -65,7 +65,17 @@ export const clear=n=>{ while(n.firstChild) n.removeChild(n.firstChild); };
 export const TOK={"":"","6":"6","^7":"maj7","^":"maj7","7":"7","-":"m","-7":"m7","-^7":"mMaj7","-6":"m6",
              "o":"dim","o7":"dim7","-7b5":"m7♭5","h7":"ø7","h":"ø","9":"9","-9":"m9","^9":"maj9",
              "13":"13","7b9":"7♭9","7#9":"7♯9","7b5":"7♭5","7#11":"7♯11","sus":"sus","7sus":"7sus",
-             "sus4":"sus4","7sus4":"7sus4","+":"+","+7":"+7","69":"6/9"};
+             "sus4":"sus4","7sus4":"7sus4","+":"+","+7":"+7","69":"6/9",
+             // LES QUEUES QUE LE COMPAS EN CASCADE SAIT PRODUIRE (2026-09-17).
+             // Sans elles `glyph` retombe sur la chaîne brute et écrivait
+             // `D-69` au milieu de `Dm7`, `Dm6` — deux conventions dans le
+             // même fil. N'ajouter que des clés est sans effet ailleurs : une
+             // queue absente de TOK s'affichait déjà telle quelle.
+             "-69":"m6/9","add9":"add9","-add9":"madd9","sus2":"sus2",
+             "11":"11","-11":"m11","^11":"maj11","-13":"m13","^13":"maj13",
+             "-^9":"mMaj9","-^11":"mMaj11","-^13":"mMaj13",
+             "7sus2":"7sus2","9sus2":"9sus2","9sus4":"9sus4",
+             "11sus4":"11sus4","13sus4":"13sus4","+9":"+9"};
 export const isHalfDim=q=>q.indexOf("-7b5")===0||q.indexOf("h")===0;
 export const isDim=q=>q.indexOf("o")===0||q.indexOf("dim")===0;
 export function seventhOf(q){ if(q==="6"||q.indexOf("^")===0)return "^7"; if(isHalfDim(q))return "h7"; if(isDim(q))return (q==="o7"?"o7":"o"); if(q.indexOf("-")===0)return "-7"; if(q==="")return ""; return "7"; }

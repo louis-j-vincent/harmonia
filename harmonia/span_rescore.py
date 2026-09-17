@@ -504,3 +504,99 @@ def bass_suggestions(arr: np.ndarray, times: np.ndarray, chords: list[dict],
         c["sugBass"] = sug
         n += 1
     return n
+
+
+# ── LE COMPAS EN CASCADE ────────────────────────────────────────────────────
+# Louis, 2026-09-17 : « fais en sorte qu'on puisse avoir des extensions, et
+# ensuite j'ai envie que tu me fasses une démo d'un compas amélioré, où je
+# sélectionne d'abord l'accord en maj/min, ensuite dès qu'on le sélectionne on
+# select la 7ème, puis la 9ème, puis la 11ème, puis la 13ème si elle est
+# suggérée. »
+#
+# POURQUOI UN CHAMP À PART, ET PAS `sug`. `sug` vit dans l'espace à 60 cases
+# (12 racines × QUAL5) : c'est celui du DÉCODAGE, et il replie les septièmes
+# (`maj7` -> `maj`, `min7` -> `min`). La cascade a besoin de l'inverse — la
+# triade nue d'un côté, les degrés ajoutés de l'autre — donc elle lit les
+# têtes de musx là où elles sont encore séparées. C'est la même inférence,
+# déjà en mémoire : on met en commun (`mean`) sur l'empan de l'accord et on
+# écrit, aucun modèle n'est relancé.
+#
+# CE QUE ÇA NE RÉSOUT PAS. Les têtes d'extension ne peuvent pas CONCOURIR au
+# décodage : mesuré le 2026-09-17, le vocabulaire complet (382 étiquettes)
+# donne un décodage identique, la 9e ne gagne que 3 fois sur 1255 et la
+# 11e/13e jamais, parce que la classe « aucune » domine et rafle Viterbi. On
+# ne les fait donc pas concourir, on les MONTRE — et c'est l'oreille de Louis
+# qui tranche, ce qui est exactement ce que la cascade est.
+CASCADE_TOP = 8
+#: les six familles de la tête de triade de musx, dans son ordre de colonnes.
+TRIAD_FAMILIES = ["maj", "min", "sus4", "sus2", "dim", "aug"]
+#: les quatre têtes d'extension, dans l'ordre où la cascade les demande, avec
+#: le nom de chaque classe. La colonne 0 est toujours « rien ajouté ».
+EXT_HEADS = (("sev", 2, ["", "maj7", "b7", "bb7"]),
+             ("neuf", 3, ["", "9", "#9", "b9"]),
+             ("onze", 4, ["", "11", "#11"]),
+             ("treize", 5, ["", "13", "b13"]))
+
+
+def cascade_suggestions(probs: list[np.ndarray], chords: list[dict],
+                        *, top_k: int = CASCADE_TOP) -> int:
+    """Attache à chaque accord les têtes de musx telles quelles (``c["casc"]``).
+
+    ``probs`` est le retour de ``musx.frame_posteriors`` : ``[triade(73),
+    basse(13), s7(4), s9(4), s11(3), s13(3)]``. On met en commun par moyenne
+    sur l'empan de l'accord, exactement comme ``pool_span_musx``, et on écrit :
+
+        c["casc"] = {"base": [{"root": 0-11, "type": 0-5, "c": float}, ...],
+                     "sev": [4 floats], "neuf": [4], "onze": [3], "treize": [3]}
+
+    ``base`` est le classement de la tête de TRIADE (colonne 0 = « pas
+    d'accord », exclue ; colonne j>=1 -> racine ``(j-1) % 12``, famille
+    ``(j-1) // 12``), tronqué à ``top_k``. Aucun plancher : le compas en
+    cascade dessine ce qu'il peut et dit lui-même ce qui passe sous le seuil
+    de suggestion.
+
+    Les accords ``nc`` et ceux dont l'empan est illisible sont sautés.
+    Modifie sur place, rend le nombre d'accords annotés.
+    """
+    from harmonia.musx import FRAME_DT
+
+    spans, kept = [], []
+    for c in chords:
+        if c.get("nc"):
+            continue
+        try:
+            t0, t1 = float(c["t0"]), float(c["t1"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        spans.append((t0, t1))
+        kept.append(c)
+    if not kept:
+        return 0
+
+    def _pool(head: np.ndarray) -> np.ndarray:
+        n_frame = head.shape[0]
+        out = np.zeros((len(spans), head.shape[1]), dtype=np.float64)
+        for i, (t0, t1) in enumerate(spans):
+            f0 = max(0, int(round(t0 / FRAME_DT)))
+            f1 = min(n_frame, int(round(t1 / FRAME_DT)))
+            if f1 <= f0:                      # empan plus court qu'une trame
+                j = int(np.clip(round(0.5 * (t0 + t1) / FRAME_DT),
+                                0, max(n_frame - 1, 0)))
+                out[i] = head[j]
+            else:
+                out[i] = head[f0:f1].mean(0)
+        return out
+
+    tri = _pool(np.asarray(probs[0], dtype=float))
+    ext = {nom: _pool(np.asarray(probs[i], dtype=float))
+           for nom, i, _lab in EXT_HEADS}
+    for k, c in enumerate(kept):
+        p = tri[k]
+        ordre = np.argsort(p[1:])[::-1][:top_k] + 1
+        c["casc"] = {
+            "base": [{"root": int((j - 1) % 12), "type": int((j - 1) // 12),
+                      "c": round(float(p[j]), 4)} for j in map(int, ordre)],
+            **{nom: [round(float(x), 4) for x in ext[nom][k]]
+               for nom, _i, _lab in EXT_HEADS},
+        }
+    return len(kept)
