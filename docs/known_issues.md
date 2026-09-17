@@ -398,6 +398,33 @@ inchangée.
 
 ## Ouvert — à arbitrer
 
+- **On demande à musx 26 accords sur les 382 que son décodeur sait exprimer**
+  (2026-09-17, audit demandé par Louis : « vérifie que tous les accords
+  détectés par musx sont bien transférables dans nos charts, je ne veux perdre
+  aucune info »).
+  Le transfert lui-même est SAIN — voir « Résolu » ci-dessous. La perte est en
+  AMONT : `musx.redecode` passe `chord_dict="submission"`, c'est-à-dire
+  `third_party/musx_ismir2019/data/submission_chord_list.txt`, 26 entrées.
+  Le clone en livre trois autres : `full` (382), `extended` (26), `ismir2017`
+  (15).
+  Ce que `full` a en plus et qu'on ne peut donc jamais écrire : `maj6`, `min6`,
+  `minmaj7`, `maj13`, `min11`, `min13`, tous les dominants altérés
+  (`7(b9)`, `7(#11)`, `7(#9)`, `7(b13)`…), et une centaine de renversements.
+  Les têtes du modèle savent les exprimer : il y a une tête de NEUVIÈME
+  (none / 9 / #9 / b9), d'ONZIÈME et de TREIZIÈME (none / 13 / b13) — donc un
+  `maj6` est à la portée du modèle, on ne le lui demande simplement pas.
+  ATTENTION, `extended` n'est PAS un sur-ensemble : il ajoute `maj/4`, `maj6`,
+  `min6` mais RETIRE `maj/b7`, `min/2`, `min/b7` — dont `maj/2` que notre
+  échantillon voit réellement sortir. Passer à `full` est le seul vrai
+  élargissement, et il réécrirait tous les charts : c'est une décision de
+  Louis, avec sa page avant/après.
+  **Ce que ça ne dit pas** : si le modèle a été ENTRAÎNÉ à prédire ces
+  combinaisons. Le commentaire de `span_rescore._TRIAD_SEV_TO_QUAL5` affirme
+  que seules sept combinaisons (triade, septième) l'ont été. Avant d'élargir,
+  il faudrait le vérifier dans le papier ISMIR 2019, pas dans nos commentaires.
+
+
+
 - **Les 4 slashes en b9 de Virtual Insanity** (2026-09-16). En retirant le
   filtre d'intervalle (Louis : « utilise cette basse a chaque fois »), 47
   slashes apparaissent sur 9 morceaux. Quarante-trois sont des renversements
@@ -414,6 +441,25 @@ inchangée.
   arbitrages pour le jour où on écrira cette règle-là.
 
 ## Résolu récemment
+
+- **Audit : rien ne se perd entre musx et nos charts** (2026-09-17, demandé par
+  Louis). Les 25 types du vocabulaire `submission` passent tous dans
+  `labels._QUAL` — aucun absent. Une seule COLLISION : `sus4(b7)` et `11`
+  deviennent tous deux `7sus4` (mapping assumé, « nearest iReal tail »), donc
+  deux accords musx distincts deviennent indistinguables.
+  Toutes les qualités que le décodeur émet réellement se retrouvent écrites
+  dans la bibliothèque (`+`, `h7`, `sus4`, `o`, `9` compris). Les cinq que
+  notre table sait produire sans qu'aucun chart ne les porte (`-9`, `13`,
+  `^9`, `o7`, `sus2`) ne sont jamais émises par le décodeur sur le corpus —
+  elles ne sont pas perdues, elles ne sont pas produites.
+  Les RENVERSEMENTS que le décodeur écrit lui-même (`maj/5`, `min/5`, `maj/3`,
+  `min/b3`, `maj/2`) sont écrasés par la règle de basse depuis le 2026-09-16 —
+  mais les deux sont **d'accord 15 fois sur 15** sur un échantillon de six
+  morceaux, donc rien n'est perdu en pratique. C'est aussi une validation
+  indépendante de la tête basse : elle retombe sur la décision JOINTE du
+  décodeur (triade+basse ensemble, lissée par Viterbi) à chaque fois.
+
+
 
 - **Le compas ne pouvait proposer ni maj7 ni min7** (2026-09-17, Louis :
   « typiquement l'endroit ou j'ai marqué un Emaj7, ca ne le proposait jamais,
