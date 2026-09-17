@@ -70,3 +70,43 @@ Billie Jean sort du lot : il a DEUX réponses justes (le début de la batterie
 et l'entrée de la basse), et sa vérité terrain a été corrigée en conséquence
 (`state/human/debuts.json`). Chain of Fools est marqué « à revoir », Louis
 pensant que le vrai début est un peu avant sa marque.
+
+## Quatre tentatives, quatre échecs — et ce qu'ils prouvent
+
+Les trois mécanismes ci-dessus ont été implémentés et mesurés le jour même,
+sur les 40 morceaux dont la grille est exploitable. Référence : la règle de la
+basse seule, **35/40**.
+
+| tentative | résultat | mécanisme de l'échec |
+|---|---|---|
+| la récurrence harmonique SEULE (première mesure dont la matière se rejoue) | 27/40 | — |
+| la récurrence harmonique en VETO sur la basse | 35/40, **0 gagné 0 perdu** à tous les réglages | la ressemblance chord-tone d'une intro de clip avec le corps du morceau est déjà au-dessus de 0,90 : ils partagent la tonalité et le vocabulaire d'accords. La matrice n'a AUCUN rythme dedans, or les six explications de Louis parlent toutes de rythme. |
+| la récurrence RYTHMIQUE en veto (profil d'attaques aiguës, 16 cases par mesure) | au mieux **+1 gagné, −10 perdus** | un profil de 16 cases normalisé ne distingue pas deux batteries au même tempo, et distingue à tort le même motif joué avec un autre mixage. Le seuil qui attrape le seul vrai cas en casse dix autres. |
+| le changement de TEMPO après la pause, sur `beatTimes` | 0/2 des intros mesurables | **Beat This! impose un tempo unique sur tout le fichier.** La rupture que Louis décrit est déjà effacée par le traqueur avant que je puisse la lire. Urdlvw0SSEc et fd02pGJx0s0 affichent 0,0 % d'écart. |
+| le changement de tempo LOCAL, mesuré sur l'audio (autocorrélation glissante) | aucun seuil ne sépare | 17–22 % d'écart sur les trois intros de clip, mais 33 % sur The Walk et 21 % sur She Will Be Loved, qui sont justes. Dans une intro clairsemée (quelques notes, pas de batterie) l'autocorrélation n'a pas de période franche et rend un tempo quasi arbitraire. |
+
+### Ce que ça prouve vraiment
+
+Le problème n'est PAS le choix de l'indice. Chaque règle que Louis décrit est
+une **conjonction** de deux ou trois conditions seuillées (un trou, ET un
+changement de bpm, ET un changement de matière). Or la bibliothèque ne compte
+que **trois à six exemples** du mode d'échec. Un seuil ajusté sur trois
+exemples positifs sépare par chance, et les tableaux ci-dessus le montrent :
+dès qu'un réglage attrape le vrai cas, il en casse dix autres.
+
+**La contrainte qui bloque est le nombre d'exemples, pas la finesse du
+détecteur.** Deux suites possibles, dans cet ordre de coût :
+
+1. **Brancher la règle de la basse telle quelle** (35/40), les marques à la
+   main de Louis restant souveraines sur les ratés. Le gain est réel et
+   disponible tout de suite ; il passe par un rapport d'or qu'il arbitre.
+2. **Récolter plus d'intros de clip** avant de retenter. Louis sait lesquels
+   de ses fichiers viennent d'un « official music video » ; une dizaine
+   d'exemples rendrait un seuil de conjonction mesurable au lieu d'être
+   ajusté au hasard.
+
+Une piste non testée, faute de temps et parce qu'elle mérite ses propres
+exemples : une intro de clip contient souvent de la **parole**, et la courbe
+de bruit ambiant la montre franchement sur Sam Smith (platitude spectrale
+haute pendant 40 s, effondrée dès l'entrée du groupe). Détecter la parole est
+un problème mieux posé que « détecter une autre musique ».
