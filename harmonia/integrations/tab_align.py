@@ -381,18 +381,50 @@ def aligner(seq: list[dict], P: np.ndarray, decalage: int = 0,
        la ligne « cases utilisées » de la page. Sur les deux morceaux du POC
        `r` vaut 1,44 et 1,05, et le chemin atteint bien la dernière case.
     """
+    t = table(seq, P, decalage, saut_max, raideur)
+    if t is None:
+        return []
+    best, prov = t["best"], t["prov"]
+    n = best.shape[0]
+    i = int(np.argmax(best[n - 1]))
+    chemin = [0] * n
+    for b in range(n - 1, -1, -1):
+        chemin[b] = i
+        if b:
+            i = max(0, i - int(prov[b, i]))
+    return chemin
+
+
+def table(seq: list[dict], P: np.ndarray, decalage: int = 0,
+          saut_max: int = 3, raideur: float = RAIDEUR) -> dict | None:
+    """La table de programmation dynamique, et tout ce qui a servi à la remplir.
+
+    `aligner` en lit le chemin ; `detail_mesure` en lit le raisonnement. Une
+    seule implémentation, donc la page d'explication ne peut pas diverger de
+    ce que le code fait vraiment — une erreur que ce projet a déjà payée
+    (« vérifier ce qu'une chose FAIT avant d'expliquer pourquoi ça marche »).
+
+    Rend `None` si la table n'a pas de sens (aucune mesure, ou aucune case).
+
+      best[b, i]  le meilleur score cumulé d'un chemin qui finit sur la case i
+                  à la mesure b ;
+      prov[b, i]  de combien de cases on a avancé pour y arriver ;
+      E[b, i]     la log-vraisemblance de la case i sur la mesure b ;
+      cout[k]     le prix a priori d'avancer de k cases dans une mesure ;
+      r           la cadence attendue, en cases par mesure.
+    """
     n, m = P.shape[0], len(seq)
     if n == 0 or m == 0:
-        return []
+        return None
     poids = np.array([max(1, a.get("repetitions", 1)) for a in seq], dtype=float)
     # la cadence attendue : combien de cases une mesure consomme en moyenne
     r = float(poids.sum()) / max(1, n)
     saut = min(saut_max, max(1, int(np.ceil(r)) + 1))
     # log P(k cases consommées) sous un Poisson de moyenne r, pesé par
-    # `raideur`. Une loi normalisée, pas un V arbitraire : voir le docstring.
-    cout_saut = np.array([raideur * (k * math.log(max(1e-9, r)) - r
-                                     - math.lgamma(k + 1))
-                          for k in range(saut + 1)])
+    # `raideur`. Une loi normalisée, pas un V arbitraire : voir `aligner`.
+    cout = np.array([raideur * (k * math.log(max(1e-9, r)) - r
+                                - math.lgamma(k + 1))
+                     for k in range(saut + 1)])
 
     E = np.array([[vraisemblance(P[b], ((seq[i]["root"] + decalage) % 12,
                                         seq[i]["q5"]))
@@ -408,15 +440,64 @@ def aligner(seq: list[dict], P: np.ndarray, decalage: int = 0,
                 j = i - k
                 if j < 0 or best[b - 1, j] <= NEG / 2:
                     continue
-                v = best[b - 1, j] + cout_saut[k]
+                v = best[b - 1, j] + cout[k]
                 if v > meilleur:
                     meilleur, dk = v, k
             if meilleur > NEG / 2:
                 best[b, i], prov[b, i] = meilleur + E[b, i], dk
-    i = int(np.argmax(best[n - 1]))
-    chemin = [0] * n
-    for b in range(n - 1, -1, -1):
-        chemin[b] = i
-        if b:
-            i = max(0, i - int(prov[b, i]))
-    return chemin
+    return {"best": best, "prov": prov, "E": E, "cout": cout, "r": r,
+            "saut": saut, "NEG": NEG}
+
+
+def detail_mesure(seq: list[dict], P: np.ndarray, b: int, decalage: int = 0,
+                  combien: int = 4, **kw) -> dict:
+    """Pourquoi la mesure `b` a reçu la case qu'elle a reçue.
+
+    Rend les cases que l'alignement pouvait choisir à cette mesure, chacune
+    avec ses DEUX termes — ce que l'audio en pense (`lv`) et ce que la grille
+    en pense (`prior`) — et leur somme. C'est la page d'explication de Louis
+    (2026-09-18 : « montre-moi exactement comment tu fais matcher le prior et
+    la logproba, j'aimerais comprendre tout le chemin »).
+
+    Les deux termes sont des LOGS, dans la même unité (des nats), donc ils
+    s'additionnent. C'est tout le truc : pas de poids à régler entre eux,
+    juste une probabilité jointe qu'on lit en logarithme.
+    """
+    t = table(seq, P, decalage, **kw)
+    chemin = aligner(seq, P, decalage, **kw)
+    if t is None:
+        return {}
+    best, prov, E, cout, NEG = (t["best"], t["prov"], t["E"], t["cout"], t["NEG"])
+    retenue = chemin[b]
+    precedente = chemin[b - 1] if b else 0
+    cands = []
+    for k in range(len(cout)):
+        i = precedente + k
+        if i >= len(seq) or (b and best[b - 1, precedente] <= NEG / 2):
+            continue
+        c = seq[i]
+        cands.append({
+            "case": i, "saut": k,
+            "accord": nom_q5((c["root"] + decalage) % 12, c["q5"]),
+            "section": c.get("section"),
+            "lv": float(E[b, i]), "prior": float(cout[k]) if b else 0.0,
+            "total": float(E[b, i] + (cout[k] if b else 0.0)),
+            "retenue": i == retenue})
+    return {"mesure": b, "case_precedente": precedente, "case_retenue": retenue,
+            "candidats": cands, "r": t["r"]}
+
+
+def part_des_temoins(p_mesure: np.ndarray, case: tuple,
+                     combien: int = 4) -> list[tuple]:
+    """Qui, dans ce que musx entend, soutient cette case — et de combien.
+
+    La vraisemblance d'une case est `log Σ_c P(c) × proximité(c, case)`. Cette
+    somme se décompose : chaque accord que musx envisage y verse sa
+    probabilité, escomptée par sa distance musicale à la case. On rend les
+    plus gros versements, pour que la somme se lise au lieu d'être crue.
+    """
+    M = prox()[case[0] * 5 + case[1]]
+    parts = [(int(c), float(p_mesure[c]), float(M[c]), float(p_mesure[c] * M[c]))
+             for c in range(60) if p_mesure[c] * M[c] > 1e-4]
+    parts.sort(key=lambda x: -x[3])
+    return parts[:combien]

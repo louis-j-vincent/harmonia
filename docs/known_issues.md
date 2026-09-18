@@ -5,6 +5,50 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Tabs : frontières de section décalées d'une mesure (2026-09-18, OUVERT — arbitrage)
+
+Louis, sur la page POC : « le découpage de sections est quasi bon mais pas bon,
+il est bon à une mesure ou deux près ».
+
+MESURÉ. Sur Grenade, six frontières sur neuf sont en retard d'exactement +1
+mesure par rapport à notre chart. Le signe est constant, donc ce n'est pas du
+bruit. Les cinq frontières concernées tombent toutes sur le même accord :
+
+    m15 Dm   m16 Bb   m17 A  ← notre chart ouvre ici   m18 Dm  ← le tab ouvre ici
+
+Le tab termine chaque section sur le A (la dominante) et ouvre la suivante sur
+le Dm (la tonique) ; notre chart ouvre la section sur le A. **Ce n'est pas un
+bug d'alignement : c'est un désaccord de lecture**, et il attend l'oreille de
+Louis. Page : /reports/tabs_chemin.html, étape 6, chaque frontière s'écoute.
+
+Sur This Love l'écart est plus gros (−4 puis −3) et la cause est encore
+ailleurs : le tab appelle « Intro » le 1er passage de la boucle de 4 accords et
+« Verse 1 » les deux suivants, là où notre chart appelle « intro » les deux
+premiers passages. L'alignement, lui, est juste — les mesures 1 à 12 tombent
+une pour une sur les cases 0 à 11.
+
+HYPOTHÈSE TESTÉE ET REJETÉE. 25 % des mesures de Grenade voient le chemin
+global contredire le meilleur coup local ; sur cinq d'entre elles on écrit Bb
+là où musx dit Dm à 0,50, et Dm est la case qui précède Bb. D'où l'idée :
+quand une mesure avale deux accords du tab, écrire le PREMIER (l'accord du
+premier temps) plutôt que le dernier. Testé deux fois —
+
+  * en réétiquetant après coup : 95 % → 73 % (Grenade), 79 % → 43 % (This Love).
+    Test invalide : la PD avait optimisé la case d'arrivée, je réétiquetais un
+    accord jamais évalué ;
+  * en notant la mesure sur le premier accord avalé DANS la PD, ce qui est le
+    vrai test : 95 % → 94 %, 79 % → 74 %.
+
+Donc **le modèle actuel est meilleur**, et ces cinq mesures sont la PD qui
+échange une petite perte locale contre un meilleur enchaînement. Consigné pour
+que l'idée ne soit pas retentée dans un mois.
+
+CE QUI RESTE OUVERT : un tab écrit une boucle une fois là où le disque la joue
+deux ou quatre fois. L'alignement ne sait pas « rejouer un bloc », seulement
+tenir une case plus longtemps — il écrit `Am Am F F` au lieu de `Am F Am F`.
+C'est la même loi que l'algo du retour (une section = une mini-boucle jouée
+≥ 2 fois) et c'est le prochain vrai levier.
+
 ## Ouvert
 
 ### La liste blanche a mangé un QUATRIÈME champ — dans `buildIReal` cette fois
