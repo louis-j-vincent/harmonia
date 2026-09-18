@@ -8,7 +8,7 @@ import { api } from "../api.js";
 import { go } from "../router.js";
 import { paintLoading, pollJob } from "../screens/analyse.js";
 import { deleteChart } from "../screens/library.js";
-import { buildIReal } from "../screens/chart.js";
+import { buildIReal, renderChart } from "../screens/chart.js";
 import { openBar1Sheet, openSectionTool } from "../screens/sections_editor.js";
 import { S } from "../state.js";
 import { buildCascade } from "./cascade.js";
@@ -86,6 +86,34 @@ export function openAnnotateTools(){
        c'est la raison pour laquelle l'undo-snackbar a été choisi en juillet.
        Et côté serveur, rien de fait à la main n'est détruit : tout part dans
        `state/human/corbeille/`, suivi par git. */
+    /* Louis, 2026-09-18 : « branche-nous ça comme façon alternative de choper
+       des charts, et tu vas t'en servir pour flagger si on a fait des
+       détections d'accords douteux ».
+       Deux gestes, un seul calcul derrière (harmonia/integrations/tab_chart.py).
+       Ils vont sur le réseau (Ultimate Guitar) et prennent quelques secondes :
+       on le DIT avant, on ne laisse pas la feuille se fermer sur du silence. */
+    line("Demander l'avis d'un tab","un deuxième avis marque les accords douteux",
+      ()=>{
+        toast("on cherche un tab…");
+        api.post("/api/tab-doutes",{file:m.file}).then(r=>{
+          if(!r || r.etat!=="ok"){ toast(r&&r.etat?r.etat:"aucun tab trouvé"); return; }
+          S.tabDoutes={};
+          for(const d of r.doutes||[]) S.tabDoutes[d.bar+":"+(d.beat||0)]=d;
+          renderChart();
+          const n=(r.doutes||[]).length;
+          toast(n? n+" accord"+(n>1?"s":"")+" à réécouter · tab "+(r.tab&&r.tab.note)+"★"
+                 : "le tab est d'accord partout");
+        }).catch(()=>toast("tab injoignable"));
+      });
+    line("Importer le tab comme chart","une grille alternative, à côté de celle-ci",
+      ()=>{
+        toast("on pose le tab sur l'audio…");
+        api.post("/api/tab-import",{file:m.file}).then(r=>{
+          if(!r || r.error){ toast(r&&r.error?r.error:"import impossible"); return; }
+          toast(r.sections+" sections · "+(r.occam&&r.occam.forme||""));
+          go("chart",{file:r.file});
+        }).catch(()=>toast("tab injoignable"));
+      });
     line("Supprimer ce morceau","il quitte la bibliothèque — ton travail est gardé",
       ()=>{
         const r=(S.library||[]).find(x=>x.file===m.file)

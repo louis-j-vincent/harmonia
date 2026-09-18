@@ -260,6 +260,20 @@ export async function openChart(file,opts){
   // and any re-infer still have to address both).
 export function loadModel(m, opts){
     opts = opts || {};
+    /* Les doutes du tab appartiennent AU MORCEAU, pas à la session : les
+       garder d'un chart à l'autre poserait les anneaux d'un morceau sur les
+       accords d'un autre (les clés sont « mesure:temps », elles collident).
+       On les vide, puis on relit le cache — une lecture, jamais un calcul :
+       aller sur Ultimate Guitar à chaque ouverture serait lent et impoli, le
+       calcul se demande à la main depuis la feuille Outils. */
+    S.tabDoutes = null;
+    if(m && m.file) api.get("/api/tab-doutes?file="+encodeURIComponent(m.file))
+      .then(r=>{
+        if(!r || !(r.doutes||[]).length || !S.model || S.model.file!==m.file) return;
+        S.tabDoutes={};
+        for(const d of r.doutes) S.tabDoutes[d.bar+":"+(d.beat||0)]=d;
+        if(S.mode==="annotate") renderChart();
+      }).catch(()=>{});
     /* GARDER L'OUTIL, C'EST GARDER LE CONTEXTE DE TRAVAIL (Louis, 2026-09-17,
        sur iPhone : « quand je clique, je suis renvoyé sur la page read, je
        devrais rester sur annotate et avoir direct l'outil qui s'affiche »).
@@ -1797,14 +1811,32 @@ export function buildIReal(){
         // marque l'accord que le morceau ne rejoue jamais — juste 14 % du temps,
         // le seul signal sur lequel il vaut la peine d'agir.
         // En Read et en Analyse : rien. La couleur du texte suffit.
+        // Louis, 2026-09-18 : « tu vas t'en servir pour flagger si on a fait
+        // des détections d'accords douteux ». Un tab bien noté est un
+        // DEUXIÈME AVIS : quand il nous contredit sur la majorité des
+        // passages d'un accord, on pose un anneau. Ce n'est pas « le tab a
+        // raison » — nos charts battent les tabs UG (2026-08-05) — c'est
+        // « deux sources ne disent pas la même chose, écoute ici ».
+        // L'anneau passe AVANT le point de confiance : un désaccord entre
+        // deux sources en dit plus qu'un score bas d'une seule. Il ne passe
+        // jamais avant le tiret vert — ce que Louis a confirmé est la vérité
+        // terrain, et `doutes()` ne marque déjà aucun accord confirmé.
+        const dt = S.tabDoutes && S.tabDoutes[ch.bar+":"+(ch.beat||0)];
         if(S.mode==="annotate"){
           const mk=el("div","flex:0 0 auto;display:flex;align-items:center;height:5px;margin-top:1px;");
           if(ch.confirmed)
             mk.appendChild(el("div",`width:14px;height:2px;border-radius:1px;background:${T.green};`));
+          else if(dt)
+            mk.appendChild(el("div",`width:7px;height:7px;border-radius:50%;box-sizing:border-box;`+
+              `border:1.5px solid ${dt.gravite==="fondamentale"?T.accent:T.faint};`));
           else if(ch.c<.42)
             mk.appendChild(el("div",`width:5px;height:5px;border-radius:50%;background:${confColor(ch.c)};`));
           item.appendChild(mk);
         }
+        if(dt && S.mode==="annotate")
+          item.appendChild(el("span",
+            `font:italic 600 ${narrow?9:10.5}px ${SERIF};color:${T.faint};margin-top:1px;white-space:nowrap;`,
+            "tab "+dt.tab));
         const gt=gtForSpan(ch.t0,ch.t1);
         if(gt){
           const ok=gtMatches(gt,ch);

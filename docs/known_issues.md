@@ -5,6 +5,46 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Tabs branchés : source de chart alternative + marque de doute (2026-09-18)
+
+Louis : « branche-nous ça comme façon alternative de choper des charts, et tu
+vas t'en servir pour flagger si on a fait des détections d'accords douteux ».
+
+L'import de tablature avait été abandonné au refactor pour une raison écrite
+dans `routes/irealb.py` : « une tablature n'a ni mesures ni temps, en faire un
+chart demande l'alignement audio, pas construit ». L'alignement existe
+(`tab_align.poser_tout`), donc la raison est tombée.
+
+TROIS ROUTES, un seul calcul derrière (`harmonia/integrations/tab_chart.py`) :
+
+    POST /api/tab-doutes   va chercher un tab, marque les accords contestés,
+                           met en cache dans state/cache/tab_doutes/
+    GET  /api/tab-doutes   relit le cache, ne recalcule jamais
+    POST /api/tab-import   écrit un NOUVEAU chart `tab_<stem>` — jamais
+                           d'écrasement, les annotations sont indexées par stem
+
+UI : deux lignes dans la feuille Outils d'Annotate, et en mode annotate un
+ANNEAU sous l'accord contesté + la mention « tab X ». L'anneau passe avant le
+point de faible confiance (un désaccord entre deux sources en dit plus qu'un
+score bas d'une seule) et jamais avant le tiret vert d'un accord confirmé.
+
+MESURÉ en vrai sur :7772 : Grenade 6 accords douteux sur 68 écrits, tab 4,86★,
+requête « Bruno Mars Grenade » construite toute seule depuis chart_meta + le
+titre nettoyé de « official music video ». Chart importé : 100 mesures,
+8 sections, 44 mesures à écrire contre 68 au nôtre, forme
+`A B C C D E E F E B C C D G B C C D E E H`.
+
+CE QUI EST REFUSÉ, et c'est le cœur : un accord CONFIRMÉ à la main n'est jamais
+marqué ; un N.C. non plus ; un passage que le tab ne couvre pas n'est compté ni
+pour ni contre ; et il faut que le tab conteste au moins la MOITIÉ des passages
+d'un accord écrit — contester un passage sur quatre est du bruit d'alignement.
+Deux gravités : « fondamentale » (fondamentale ou basse différente — la cible
+du projet est la basse qui SONNE) et « couleur » (même fondamentale et basse,
+autre famille : le `D°` du tab contre notre `Dø`).
+
+CE QUE ÇA NE DIT PAS : qui a raison. Nos charts battent les tabs UG
+(2026-08-05) ; la marque dit où ÉCOUTER, pas quoi écrire.
+
 ## Tabs : la basse était dans le tab, et la forme au rasoir d'Occam (2026-09-18)
 
 Louis : « alors le tab a bien le slash chord, juste on le choppe pas, et bon
