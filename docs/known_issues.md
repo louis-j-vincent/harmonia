@@ -5,6 +5,45 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Tabs : la comparaison qui compte, contre NOTRE chart (2026-09-18)
+
+Louis : « alors pas bon, compare maintenant au vrai chart qu'on ferait pour
+cette chanson, et compare les alignements ».
+
+Il a raison que l'accord-avec-musx ne prouvait rien : musx est la matière
+première des deux côtés. `tools/tabs_vs_chart.py` compare au chart servi,
+déplié (le chart est REPLIÉ — 54 mesures écrites pour 100 jouées sur Grenade,
+via `barSpans`), les deux vocabulaires ramenés aux cinq familles.
+
+    This Love   même accord 72,3 %   même fondamentale 88,9 %
+                100 des 113 changements au MÊME temps
+    Grenade     même accord 93,8 %   même fondamentale 94,4 %
+                100 des 130 changements au même temps
+
+LECTURE. L'ALIGNEMENT est bon : 100 changements sur 113 tombent au même temps
+sur This Love. Ce qui diffère, ce sont les ACCORDS, et 17 des 28 points
+d'écart ne sont que de l'orthographe du tab :
+
+    Dø → D°    20 temps   le ii de do mineur, demi-diminué chez nous
+    G/B → G7   19 temps   même fonction, la basse en plus chez nous
+    Cm → Fm     8 temps   vrai désaccord
+    Bb → Eb     5 temps   vrai désaccord
+
+Les deux premières familles disent la même chose : **notre chart est plus
+riche que le tab**, pas l'inverse — ce qui va dans le sens de la règle du
+2026-08-05 (« nos charts battent les tabs UG »). Le tab reste utile pour
+l'ORDRE et la STRUCTURE, pas comme vérité d'accord.
+
+PIÈGE DE MESURE corrigé en route : apparier un accord du tab au PREMIER accord
+du chart qui le chevauche donnait 25 « fondamentales différentes » ; apparier
+à celui qui le chevauche le PLUS en donne 13. La moitié des erreurs était dans
+la comparaison, pas dans le placement.
+
+RESTE OUVERT : sur This Love le tab tient un accord là où nous changeons
+(mesures 13, 16, 17, 30) et double là où nous tenons (mesure 29). C'est le
+défaut « une boucle écrite une fois, jouée quatre » — l'alignement ne sait pas
+rejouer un bloc.
+
 ## Tabs : le modèle de placement, corrigé par Louis (2026-09-18, RÉSOLU)
 
 Louis, en lisant la page d'explication : « le tab n'a aucune mesure ?? on est
