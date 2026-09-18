@@ -51,6 +51,36 @@ C'est la même loi que l'algo du retour (une section = une mini-boucle jouée
 
 ## Ouvert
 
+### RÉSOLU 2026-09-18 — la tête de lecture ne suivait qu'un passage sur N
+
+Louis : « la case highlighted ne suit plus à un moment ». Mesuré : sur
+*Don't Know Why*, **92 s sur 183** sans aucune mesure allumée — et **27 charts
+sur 85** touchés, tous réécrits dans le même lot.
+
+`soudure.sections_pour_chart` construisait `barSpans` depuis la seule passe
+représentative (`for b in range(b0, b1+1)` → une fenêtre par rangée), alors
+que `reps`, `spans` et `barRanges` listaient bien les N occurrences. La case
+suivait donc le premier passage puis s'éteignait pour tous les suivants.
+`tools.golden --publish` passe par cette fonction : republier la bibliothèque
+DÉTRUISAIT la carte de lecture de chaque chart replié.
+
+Ce n'était pas visible depuis le code : `folding.minimal_fold` (le chemin
+pipeline) fait la bonne chose depuis toujours, et les deux fonctions écrivent
+le même chart sans que rien ne les compare. `tests/test_carte_de_lecture.py`
+ajoute cette comparaison — c'est le test qui manquait, plus que le correctif.
+
+Correction : `soudure._carte_de_lecture()`, même loi proportionnelle que
+`minimal_fold`. Les 27 charts en cache ont été réparés en place (sauvegarde
+dans `state/cache/charts_avant_carte/`, accords vérifiés identiques). Zéro
+trou > 1 s sur les 85 après coup.
+
+**Ce que ça ne résout pas** : un passage plus court que le bloc écrit répartit
+ses mesures (rangées 0, 2, 4… pour 4 mesures sur 8) — la case saute alors des
+rangées pendant ce passage. C'est la loi arbitrée de `minimal_fold`, gardée
+telle quelle pour que les deux chemins s'accordent ; personne n'a arbitré si
+c'est la bonne lecture.
+
+
 ### La liste blanche a mangé un QUATRIÈME champ — dans `buildIReal` cette fois
 
 Le piège déjà décrit plus bas (`chart.js` recopie les accords par une liste de
@@ -118,6 +148,37 @@ La sortie propre serait que `glyph` détache une altération finale et traduise
 le tronc — une modification d'un chemin de rendu partagé, à faire seule et
 vérifiée sur un chart entier, pas en marge d'une autre.
 
+
+### RÉSOLU 2026-09-18 (3) — la demi-barre de 2/4 était effacée
+
+Louis, sur *Virtual Insanity* : « il y a un passage à la fin qui ne fait que
+2 temps, qui est noté comme du 2/4 ; en fait c'est une demi-barre et puis ça
+reprend, très jamiroquai, et il faut le noter ».
+
+iReal change de chiffrage EN COURS de morceau. On ne lisait que le premier :
+toutes les mesures duraient donc pareil, et **701 mesures dans 101 des 2207
+standards** étaient écrites à la mauvaise longueur. Sur ce morceau, trois
+demi-barres — et le repli fusionnait la fin de 2 temps avec la fin de 4,
+c'est-à-dire qu'il effaçait exactement le trait qui fait le morceau.
+
+Ce qui a changé :
+* chaque mesure porte ses PULSATIONS (`_Bar.meter` → `beats`), et la grille se
+  construit en les ACCUMULANT — jamais en multipliant un index par une durée
+  fixe. `barGrid` est désormais la seule source des temps, ici comme en aval ;
+  `beatTimes` n'est plus `nBars × bpb` (une demi-barre n'apporte que 2 temps).
+* la signature de repliement inclut les pulsations : une mesure de 2 temps
+  n'est plus « la même » qu'une de 4, même avec les mêmes accords.
+* une queue qui ne change QUE de durée compte comme une vraie 2e fin —
+  l'exigence de `folding._ireal_endings` (« changer de fondamentale ») est
+  élargie à la durée, sinon le cas de Louis passait à travers.
+* le modèle porte `sections[].meters`, dans le même ordre d'émission que
+  `barSpans` (tronc puis queue de chaque variant), et `chart.js` écrit le
+  chiffrage DANS la mesure qui change, à gauche, en poussant l'accord — comme
+  iReal. Une grille en 4/4 du début à la fin ne porte aucune marque.
+
+Vérifié sur les 2207 standards : `somme(reps × longueur) == nBars`, grille
+strictement croissante, accords contenus dans leur propre mesure, et
+`len(meters) == len(barSpans)` partout.
 
 ### RÉSOLU 2026-09-18 (2) — un chart iReal importé ne se repliait pas
 

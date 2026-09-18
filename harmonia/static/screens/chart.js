@@ -340,6 +340,13 @@ export function loadModel(m, opts){
         const cur={idxs:[], t0:null, t1:null, sec:s.label, secId:s.id,
                    reps:s.reps, held: bar.length===0,
                    barSpans: meta.spansRow || (s.barSpans && s.barSpans[rbCursor]) || null,
+                   // LES PULSATIONS DE CETTE MESURE-LÀ (2026-09-18, Louis sur
+                   // Virtual Insanity : « un passage à la fin qui ne fait que
+                   // 2 temps, noté comme du 2/4, en fait c'est une demi-barre
+                   // et puis ça reprend, très jamiroquai — il faut le noter »).
+                   // `s.meters` suit exactement l'ordre d'émission de
+                   // `s.barSpans` : tronc, puis la queue de chaque variant.
+                   beats: (s.meters && s.meters[rbCursor]) || null,
                    secFirst: !!meta.secFirst, ending: meta.ending||null,
                    endingFirst: !!meta.endingFirst, endingOwn: !!meta.endingOwn,
                    endingPasses: meta.endingPasses||null};
@@ -872,6 +879,15 @@ export function renderChart(){
       if(S.mode==="annotate") w.appendChild(annotateHint());
     } else {
       w.appendChild(immersiveProgress());
+      // LA FORME NE SE REPLIE JAMAIS (Louis, 2026-09-18 : « le overhead view
+      // des sections il faudrait qu'il soit tout le temps visible sur le
+      // chart, même en vue minimaliste »). C'est la seule chose qui dit OÙ
+      // ON EN EST dans le morceau — et c'est justement en lecture, quand
+      // tout le reste a disparu, qu'on en a le plus besoin. Elle descend à
+      // 16px ici (le chrome complet en prend 22) : la place gagnée par le
+      // mode immersif reste gagnée, la forme ne coûte que 16px de plus que
+      // la barre de progression qu'elle prolonge.
+      const railImm=buildFormRail({h:16}); if(railImm) w.appendChild(railImm);
       w.appendChild(immersiveHandle());
       // le clavier qui accompagne (Follow) ne vit QUE dans cet état — quand
       // tout le reste a disparu (Louis, 2026-08-08, l'inverse d'avant)
@@ -1325,7 +1341,7 @@ export function buildIReal(){
     const secGap = narrow?16:18;
     S._cells=[];
     let rowCells=[];
-    const bars=S.bars.map(b=>({sec:b.sec, secId:b.secId, secFirst:b.secFirst, reps:b.reps,
+    const bars=S.bars.map(b=>({sec:b.sec, secId:b.secId, secFirst:b.secFirst, reps:b.reps, beats:b.beats,
                                ending:b.ending, endingFirst:b.endingFirst, endingOwn:b.endingOwn,
                                chords:b.idxs.map(i=>({ch:S.chords[i], idx:i}))}));
     // Key/scale halo (2026-07-21 rework of the old per-root keyFill text colour).
@@ -1348,6 +1364,10 @@ export function buildIReal(){
     // silent bar with nothing to inherit falls back to the song's home key (bar
     // 1 of "The Jackson 5 - ABC" had neither, and went halo-less before this).
     let lastKeyLabel=null;
+    // Le chiffrage de la mesure précédente — la marque ne s'écrit qu'au
+    // CHANGEMENT. Part du chiffrage principal du morceau, pour qu'une grille
+    // qui n'en change jamais n'écrive rien.
+    let lastBeats=(S.model&&S.model.bpb)||4;
     // iReal-style layout (user request 2026-07-19): every section change starts
     // a NEW ROW (grid-column-start:1), even if the previous row is left short;
     // col/row are therefore tracked explicitly (bi%4 no longer holds). In Read
@@ -1561,7 +1581,12 @@ export function buildIReal(){
       // fin partie en colonne 1). Il vaut pour TOUTES les mesures de la fin,
       // pas seulement sa tête, sinon la rangée perd sa ligne de base.
       const endingPadTop = b.ending ? `padding-top:${narrow?9:11}px;` : "";
-      const cell=el("div",`position:relative;min-width:0;min-height:${rowH}px;${layoutCss}${endingPadTop}${rowMT?`margin-top:${rowMT}px;`:""}${gridStart!=null?`grid-column-start:${gridStart};`:""}${bareEdge}`);
+      // LE CHANGEMENT DE CHIFFRAGE PREND SA PLACE (2026-09-18). iReal pose le
+      // `2/4` DANS la mesure, à gauche, et pousse l'accord — pas par-dessus.
+      // Sans ce retrait les deux chiffres se posaient sur le glyphe.
+      const marqueChiffrage = !!b.beats && b.beats!==lastBeats;
+      const meterPadLeft = marqueChiffrage ? `padding-left:${narrow?11:13}px;` : "";
+      const cell=el("div",`position:relative;min-width:0;min-height:${rowH}px;${layoutCss}${endingPadTop}${meterPadLeft}${rowMT?`margin-top:${rowMT}px;`:""}${gridStart!=null?`grid-column-start:${gridStart};`:""}${bareEdge}`);
       // Scale halo: a coloured underline strip per CHORD, not per bar (2026-07-21
       // fix — see chordKey's own comment above for the "A7 hidden inside bar5"
       // bug this replaces). Never on `background` — setPlayhead() stomps that
@@ -1597,6 +1622,21 @@ export function buildIReal(){
         const coll=collOf(S.key,S.keyMode), hue=keyHue(coll), minor=S.keyMode==="minor";
         cell.appendChild(el("div",`position:absolute;inset:0;background:${lensBand(hue,minor)};z-index:0;pointer-events:none;`));
       }
+      // LE CHANGEMENT DE CHIFFRAGE, ÉCRIT (2026-09-18). iReal pose un `2/4`
+      // devant la mesure qui n'a que deux temps, et un `4/4` sur celle qui
+      // reprend — on fait pareil, et seulement quand ça CHANGE: une grille
+      // en 4/4 du début à la fin ne porte aucune marque. Posé en haut à
+      // gauche de la cellule, au-dessus des bandes de tonalité, jamais dans
+      // le flux des accords (il ne doit pas décaler un glyphe).
+      if(marqueChiffrage){
+        // Centré en hauteur dans la cellule, comme un chiffrage de portée —
+        // et sous le crochet de reprise quand la mesure ouvre une fin.
+        const d=el("div",`position:absolute;left:1px;top:calc(50% + ${b.ending?(narrow?5:6):0}px);transform:translateY(-50%);z-index:2;pointer-events:none;display:flex;flex-direction:column;align-items:center;line-height:.9;font:700 ${narrow?8.5:10}px ${UI};color:${T.faint};`);
+        d.appendChild(el("span","",String(b.beats)));
+        d.appendChild(el("span","","4"));
+        cell.appendChild(d);
+      }
+      if(b.beats) lastBeats=b.beats;
       if(b.secFirst){
         // Louis 2026-08-02: le badge vit AU-DESSUS de la rangée (dans le
         // gap secGap), plus DANS la barre — les accords ne sont plus

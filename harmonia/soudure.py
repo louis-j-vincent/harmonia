@@ -864,6 +864,24 @@ def _bars_par_mesure(chart: dict) -> list:
     return accords_par_mesure(chart)
 
 
+def _carte_de_lecture(occ, b0, b1, grid, n) -> list[list[list[float]]]:
+    """`barSpans` : une fenêtre de temps par (mesure écrite × occurrence).
+
+    Le bloc écrit fait `b1-b0+1` rangées ; chaque occurrence `(a, b)` y pose
+    SES mesures, réparties proportionnellement quand elle n'a pas la même
+    longueur que le bloc. Même loi que `folding.minimal_fold`, pour que les
+    deux chemins qui écrivent un chart rendent la même carte de lecture.
+    """
+    lb = b1 - b0 + 1
+    rows: list[list[list[float]]] = [[] for _ in range(lb)]
+    for a, b in occ:
+        lk = max(1, b - a + 1)
+        for x in range(a, b + 1):
+            r = min(lb - 1, (x - a) * lb // lk)
+            rows[r].append([grid[x], grid[min(x + 1, n)]])
+    return rows
+
+
 def sections_pour_chart(chart: dict, secs: list[dict],
                         bars: list | None = None,
                         fold_report: dict | None = None) -> list[dict]:
@@ -932,8 +950,20 @@ def sections_pour_chart(chart: dict, secs: list[dict],
             "spans": [[grid[a], grid[min(b + 1, n)]] for a, b in occ],
             "barRanges": [[a, b] for a, b in occ],
             "bars": vue[b0:b1 + 1],
-            "barSpans": [[[grid[b], grid[min(b + 1, n)]]]
-                         for b in range(b0, b1 + 1)],
+            # LA CARTE DE LECTURE PORTE TOUTES LES PASSES, PAS UNE SEULE
+            # (2026-09-18). `barSpans[r]` donne l'instant de la mesure écrite
+            # `r` à CHAQUE passage — c'est ce que la tête de lecture consomme
+            # (`S.barTimeIndex`). Cette ligne n'en écrivait qu'un, celui du
+            # passage représentatif, alors que `reps`, `spans` et `barRanges`
+            # listaient bien les N occurrences : la case allumée suivait le
+            # premier passage puis s'éteignait pour tous les suivants. Sur
+            # « Don't Know Why » (A ×5, queue ×2) ça faisait 92 s de silence
+            # visuel sur 183 — et 27 charts sur 85 étaient touchés, tous
+            # republiés par `tools.golden --publish`, qui passe par ici.
+            # La carte est PROPORTIONNELLE, comme dans `folding.minimal_fold` :
+            # un passage plus court que le bloc écrit répartit ses mesures sur
+            # les rangées au lieu de laisser les dernières sans instant.
+            "barSpans": _carte_de_lecture(occ, b0, b1, grid, n),
         })
     out.sort(key=lambda s: s["barRanges"][0][0])
     # LA FAÇON IREAL, ICI AUSSI (2026-09-14). Ce chemin-là sert les morceaux
