@@ -30,6 +30,7 @@ from pathlib import Path
 
 import numpy as np
 
+from harmonia.integrations import tab_structure as TS
 from harmonia.integrations.tab_align import (NOMS, compresser, lire_accord,
                                              meilleure_transposition, nom_q5,
                                              poser_tout, priors_musx,
@@ -87,6 +88,8 @@ def deplier(chart: dict) -> list[dict]:
                                         else lu["root"],
                                 "q5": None if (lu is None or ch.get("nc"))
                                       else lu["q5"],
+                                "bass": (None if int(ch.get("bass", -1)) < 0
+                                         else int(ch["bass"]) % 12),
                                 "section": sec.get("label"), "occ": j})
     out.sort(key=lambda x: x["t0"])
     return out
@@ -130,10 +133,15 @@ def etudier(cle: str, requete: str) -> dict | None:
             tabseg[-1]["t1"] = temps[min(t + 1, len(temps) - 1)]
             continue
         c = seq[i]
+        # la basse est DANS le tab (« E7/G# » huit fois sur This Love) et se
+        # transpose comme la fondamentale. La jeter, c'est jeter la moitié de
+        # ce que le projet cherche : sa cible est la basse qui SONNE.
+        b = None if c.get("bass") is None else (c["bass"] + dec) % 12
         tabseg.append({"i": i, "t0": temps[t],
                        "t1": temps[min(t + 1, len(temps) - 1)],
                        "root": (c["root"] + dec) % 12, "q5": c["q5"],
-                       "texte": nom_q5((c["root"] + dec) % 12, c["q5"]),
+                       "bass": b,
+                       "texte": nom_q5((c["root"] + dec) % 12, c["q5"], b),
                        "section": c.get("section") or ""})
     notre = deplier(chart)
 
@@ -144,7 +152,7 @@ def etudier(cle: str, requete: str) -> dict | None:
         return None
 
     # l'accord de chaque côté, temps par temps
-    pareil = racine = compares = 0
+    pareil = racine = avec_basse = compares = 0
     ecarts = []
     for t in range(len(chemin)):
         x, y = a_l_instant(notre, temps[t]), a_l_instant(tabseg, temps[t])
@@ -153,6 +161,10 @@ def etudier(cle: str, requete: str) -> dict | None:
         compares += 1
         if x["root"] == y["root"]:
             racine += 1
+            bx = x.get("bass") if x.get("bass") is not None else x["root"]
+            by = y.get("bass") if y.get("bass") is not None else y["root"]
+            if bx % 12 == by % 12:
+                avec_basse += 1
         if (x["root"], x["q5"]) == (y["root"], y["q5"]):
             pareil += 1
         else:
@@ -168,7 +180,28 @@ def etudier(cle: str, requete: str) -> dict | None:
         return d
 
     dn, dt = departs(notre), departs(tabseg)
+
+    # la forme déduite de la grille posée, au rasoir d'Occam
+    mots = TS.mots_par_mesure(tabseg, grille, temps)
+    f = TS.forme(mots)
+    # et celle de notre chart, pour comparer : une lettre par mesure, repliée
+    par_mesure = [None] * (len(grille) - 1)
+    for sec in chart.get("sections") or []:
+        for a, b in (sec.get("barRanges") or []):
+            for k in range(max(0, a), min(len(par_mesure), b + 1)):
+                par_mesure[k] = sec.get("label")
+    notre_forme, prec = [], object()
+    for lab in par_mesure:
+        if lab != prec:
+            notre_forme.append([lab, 1])
+            prec = lab
+        else:
+            notre_forme[-1][1] += 1
+
     return {
+        "forme": f, "mots": mots,
+        "notre_forme": " ".join(f"{l or '?'}" for l, _ in notre_forme),
+        "variantes": TS.variantes(f["motifs"]),
         "cle": cle, "titre": chart.get("title") or cle,
         "audio": chart.get("audio_url") or f"/audio/{stem}.m4a",
         "grille": grille, "temps": temps, "bpb": bpb,
@@ -179,6 +212,7 @@ def etudier(cle: str, requete: str) -> dict | None:
                            for b in (s.get("bars") or [])),
         "accord": pareil / max(1, compares), "compares": compares,
         "racine": racine / max(1, compares),
+        "basse": avec_basse / max(1, compares),
         "changements_communs": len(dn & dt),
         "changements_notre": len(dn), "changements_tab": len(dt),
         "ecarts": ecarts,
@@ -210,11 +244,15 @@ def ranger(segs: list[dict], grille: list[float], temps: list[float],
 
 
 def verdict(x: dict | None, y: dict | None) -> str:
-    """Vert : le même accord. Ambre : la même fondamentale, écrite autrement.
-    Rouge : pas la même fondamentale — la seule vraie erreur."""
+    """Vert : le même accord, basse comprise. Ambre : la même fondamentale et
+    la même basse, une couleur différente. Rouge : pas la même fondamentale,
+    ou pas la même basse — les deux sont de vraies erreurs, parce que la cible
+    de ce projet est la basse qui SONNE (2026-07-16)."""
     if x is None or y is None or x.get("root") is None:
         return ""
-    if x["root"] != y["root"]:
+    bx = x.get("bass") if x.get("bass") is not None else x["root"]
+    by = y.get("bass") if y.get("bass") is not None else y["root"]
+    if x["root"] != y["root"] or bx % 12 != by % 12:
         return "faux"
     return "" if x["q5"] == y["q5"] else "ortho"
 
@@ -230,6 +268,18 @@ h2{font-size:16px;margin:0 0 4px}
 .note{color:#6b6453;font-size:12.5px;margin:8px 0 0}
 .carte{background:#fff;border:1px solid #e6dfcc;border-radius:12px;
  padding:13px;margin:16px 0}
+.forme{background:#fbf7ea;border:1px solid #ece2c6;border-radius:9px;
+ padding:10px;margin:0 0 10px}
+.fl{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin:0 0 4px}
+.fl span{font-size:11.5px;color:#8a8371;min-width:150px}
+.fl b{font:700 13.5px ui-monospace,monospace;letter-spacing:.09em;
+ word-break:break-word}
+.mot{display:flex;gap:3px;align-items:center;flex-wrap:wrap;margin:5px 0 0;
+ font-size:11.5px}
+.mot>b{width:16px;font-weight:700}
+.mot>span{min-width:46px;color:#a49b82}
+.mot i{font:600 11px ui-monospace,monospace;font-style:normal;background:#fff;
+ border-radius:4px;padding:2px 4px;white-space:nowrap}
 .chiffres{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;
  color:#6b6453;margin:4px 0 10px}
 .grille{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px}
@@ -289,14 +339,39 @@ def carte(d: dict) -> str:
     n = d["n_mesures"]
     A = ranger(d["notre"], d["grille"], d["temps"], n)
     B = ranger(d["tab"], d["grille"], d["temps"], n)
+    f = d["forme"]
     L = [f"<div class=carte data-cle=\"{html.escape(d['cle'])}\">",
          f"<h2>{html.escape(d['titre'])}</h2>",
+         "<div class=forme>",
+         f"<div class=fl><span>la forme déduite du tab</span>"
+         f"<b>{html.escape(TS.mot(f['sections']))}</b></div>",
+         f"<div class=fl><span>la forme de notre chart</span>"
+         f"<b>{html.escape(d['notre_forme'])}</b></div>",
+         f"<p class=note>{f['cout'][0]} mesures à écrire, "
+         f"{f['cout'][1]} sections différentes, {f['cout'][2]} posées — "
+         f"c'est l'écriture la plus courte qui explique les "
+         f"{d['n_mesures']} mesures du morceau.</p>"]
+    for lettre, bloc in sorted(f["motifs"].items()):
+        L.append(f"<div class=mot><b>{lettre}</b>"
+                 f"<span class=g>{len(bloc)} mes.</span>"
+                 + "".join(f"<i>{html.escape(' '.join(x) or '·')}</i>"
+                           for x in bloc) + "</div>")
+    if d["variantes"]:
+        L.append("<p class=note>Ne diffèrent que par la FIN, donc peut-être "
+                 "une seule section : "
+                 + ", ".join(f"<b>{a}</b> et <b>{b}</b> ({k} mesure"
+                             f"{'s' if k > 1 else ''})"
+                             for a, b, k in d["variantes"])
+                 + ". On ne les fond pas tout seul — c'est à toi.</p>")
+    L.append("</div>")
+    L += [
          "<div class=chiffres>"
          f"<span>notre chart <b>{d['ecrit_notre']}</b> accords écrits, "
          f"<b>{d['n_notre']}</b> joués</span>"
          f"<span>le tab <b>{d['n_tab']}</b> posés</span>"
          f"<span>même accord <b>{d['accord']:.0%}</b> des temps</span>"
          f"<span>même fondamentale <b>{d['racine']:.0%}</b></span>"
+         f"<span>même fondamentale ET basse <b>{d['basse']:.0%}</b></span>"
          f"<span>changements au même temps <b>{d['changements_communs']}</b> "
          f"sur {d['changements_notre']} / {d['changements_tab']}</span>"
          "</div>", "<div class=grille>"]
@@ -364,7 +439,9 @@ def page(songs: list[dict]) -> str:
          "déplié ici pour que chaque occurrence soit à sa place.<br>"
          "Les deux vocabulaires sont ramenés aux cinq familles de musx, donc "
          "on compare des accords et pas des orthographes. Touche une mesure "
-         "pour l'écouter.</div>"]
+         "pour l'écouter.<br>En tête de chaque morceau, <b>la forme déduite "
+         "de la grille</b> : l'écriture la plus courte qui l'explique, une "
+         "lettre par section, ce qui se répète n'étant écrit qu'une fois.</div>"]
     for s in songs:
         B.append(carte(s))
     return ("<!-- tools/tabs_vs_chart.py -->"

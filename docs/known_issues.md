@@ -5,6 +5,59 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Tabs : la basse était dans le tab, et la forme au rasoir d'Occam (2026-09-18)
+
+Louis : « alors le tab a bien le slash chord, juste on le choppe pas, et bon
+avec cette vérité-là en tête et la règle qu'un pattern en général se répète,
+tu peux déduire la structure finale de la grille → rasoir d'Occam ».
+
+LA BASSE. Vrai, et vérifié : le tab de This Love écrit `E7/G#` huit fois, soit
+`G7/B` transposé de +3 — exactement la basse que notre chart écrit sous son
+`G/B`. `lire_accord` la lisait déjà et `compresser` la gardait ; c'est
+l'affichage et la comparaison qui la jetaient, et la transposition ne
+l'appliquait pas. Corrigé. Effet sur la comparaison de This Love : les
+19 temps `G/B → G7` deviennent `G/B → G7/B`, une différence de COULEUR et plus
+de basse. Nouveau chiffre : 85,5 % de fondamentale ET basse identiques. Et
+6 temps où le TAB a une basse que nous n'avons pas (`G` chez nous, `G7/B` chez
+lui).
+
+LA FORME. `harmonia/integrations/tab_structure.py` : la suite de mesures
+posée est SYMBOLIQUE et exacte, donc la question redevient celle d'un
+compresseur — quelle est la plus courte écriture qui l'explique. Résultat :
+
+    Grenade    A B C C D E E F E B C C D G B C C D E E H
+               44 mesures à écrire, 8 sections, 21 posées
+               `B C C D` est le refrain, joué trois fois ; `E E` le couplet ;
+               `G` le pont ; `E` et `F` ne diffèrent que d'UNE mesure
+    This Love  A A A B C A D A E C F E C E C E C
+               36 mesures à écrire, 6 sections, 17 posées
+               `A` = G7/B | Cm | Fm | D°, la boucle de 4 mesures, 5 fois
+
+TROIS ERREURS MESURÉES EN ROUTE, consignées pour ne pas les refaire.
+
+1. **Compter d'abord les sections DIFFÉRENTES ne marche pas.** Ça semble être
+   ce que demande « le moins de sections différentes », mais la façon la moins
+   chère d'avoir peu de lettres est d'en faire de très longues : This Love
+   sortait « A B C C » en blocs de 32 mesures. C'est la LONGUEUR ÉCRITE qui
+   fait payer la répétition ; le peu de lettres en découle.
+2. **Une mesure vaut ce qui y SONNE, pas ce qui y commence.** Le premier jet
+   prenait les accords démarrant dans la mesure : la même boucle sortait
+   `· Cm Fm D°` puis `G7/B Cm Fm D°` selon qu'un accord démarrait une fraction
+   de temps avant la barre ou après, et la répétition était perdue. 72 → 64
+   mesures écrites en corrigeant.
+3. **Le choix de LZ est trop permissif.** Rendre une reprise gratuite dès que
+   le bloc est APPARU plus tôt (et pas seulement s'il a été POSÉ) tombe à
+   32 mesures écrites — mais sort dix lettres pour quatre payées, parce qu'un
+   bloc devient gratuit en citant un passage à cheval sur deux sections. Aucun
+   musicien n'écrit ça. On compte le CHART qu'on écrirait, donc une reprise
+   n'est gratuite que si la même section a déjà été posée — au prix d'un coût
+   qui dépend du chemin, traité par un faisceau de 24.
+
+CE QUE ÇA NE RÉSOUT PAS : l'égalité est exacte, donc un couplet dont la
+dernière mesure change compte pour une section neuve. `variantes()` signale
+les lettres qui ne diffèrent que par leur fin (Grenade : `E` et `F`, une
+mesure) sans les fondre — « under-fold, never over-fold ».
+
 ## Tabs : la comparaison qui compte, contre NOTRE chart (2026-09-18)
 
 Louis : « alors pas bon, compare maintenant au vrai chart qu'on ferait pour
