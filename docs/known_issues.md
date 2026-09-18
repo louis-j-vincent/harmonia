@@ -222,6 +222,52 @@ C'est la même loi que l'algo du retour (une section = une mini-boucle jouée
 
 ## Ouvert
 
+### Fusion de lettres : la règle est prête et mesurée, elle reste ÉTEINTE
+
+Le remplacement du comparateur est fait et testé (`folding.merge_similar_letters`
+compare désormais les ACCORDS DÉCODÉS, 21 tests) ; `SETTINGS.merge_letters`
+reste à `False`. Pourquoi, et ce qu'il faut pour l'allumer :
+
+LA RÈGLE EST BONNE DANS LE RÉGIME OÙ ELLE A ÉTÉ MESURÉE. Sur les lettres que
+portent les charts EN CACHE, les six morceaux arbitrés sortent tous justes
+(Fallin' 6→1, Stand By Me A+C, Sunny A+B et C+D, Every Breath A+A′+A″,
+Yesterday et Let It Be intacts), Autumn Leaves et Built For Love d'iReal sont
+intacts, et le corpus passe de 435 à 279 lettres.
+
+ELLE N'EST PAS VALIDÉE DANS LE RÉGIME OÙ ELLE SERVIRAIT. La fusion vit à
+l'ANALYSE. Une ré-analyse fraîche (caches chauds, ~1 s par morceau) donne un
+découpage amont très différent de ce que portent les charts en cache — le
+détecteur a bougé le 2026-09-18 même. Contrôle merge ON/OFF sur les six, à
+code égal :
+
+    morceau         en cache            ré-analyse SANS     ré-analyse AVEC
+    Fallin'         A B A′ B′ C B″      A B C D C′ C″       A A′
+    Stand By Me     A C B′              A′ A″ B A C B′      A′ A″ B A B′
+    Sunny           A B C D             A B C D C′          A B C D C′   (aucun effet)
+    Yesterday       A B                 A B B′              A B B′       (intact ✔)
+    Let It Be       A B B′ C bridge     A B B′ C C′         A B B′ A′    (RÉGRESSION)
+
+Sur Let It Be ré-analysé, `A` absorbe `C` à 1.00 — c'est exactement le morceau
+qui doit rester séparé, et c'est lui qui avait déjà tué la version chroma.
+
+CE QU'IL FAUT POUR ALLUMER, dans l'ordre :
+ 1. refaire l'arbitrage sur des charts RÉ-ANALYSÉS, pas sur le cache : c'est le
+    piège n°6 de CLAUDE.md (un composant a bougé, tout l'aval a bougé avec) ;
+ 2. comprendre pourquoi le détecteur segmente aujourd'hui bien plus finement
+    qu'au moment où le cache a été cuit (Yesterday gagne un `B′`, Stand By Me
+    passe de 3 lettres à 6) — c'est peut-être ÇA le vrai problème, et la
+    fusion n'en serait que le pansement ;
+ 3. une page avant/après sur les charts ré-analysés, que Louis arbitre.
+
+DEUX CHANGEMENTS REPRIS EN ARRIÈRE le même jour, pour la même raison (mesurés
+dans le régime du cache, pas dans celui de la ré-analyse) : `_merge_coupe`
+acceptant un bloc PLUS LONG qui n'est que de la répétition (sans lui, Fallin'
+garde trois blocs pour une boucle de 2 mesures), et le même `_merge_coupe`
+comparant à la granularité (fondamentale, famille) plutôt qu'à l'accord exact
+(sans lui, un seul `B-7` au lieu d'un `B-` suffit à déclarer deux passages
+différents). `folding._barsig_famille` est écrit et documenté, prêt à servir.
+
+
 ### `merge_letters` mesuré : il répare 5 morceaux sur 6 et aucun seuil ne sauve le 6e
 
 Six morceaux analysés à la main le 2026-09-18 (Fallin', Stand By Me, Sunny,

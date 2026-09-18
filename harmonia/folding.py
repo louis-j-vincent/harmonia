@@ -1325,8 +1325,26 @@ _ENDING_TAIL_MAX = 2
 
 
 def _barsig(bar) -> tuple:
-    """Ce qu'une mesure JOUE, pour comparer deux passages entre eux."""
+    """Ce qu'une mesure JOUE, à la note près — sert à REPÉRER UNE DIFFÉRENCE
+    (les queues divergentes d'une 1re/2e fin), où l'exactitude est ce qu'on
+    veut."""
     return tuple((c["root"], c["q"], bool(c["nc"])) for c in (bar or []))
+
+
+def _barsig_famille(bar) -> tuple:
+    """La même mesure à la granularité où `B-` et `B-7` sont LE MÊME MOMENT —
+    sert à RECONNAÎTRE UN MÊME PASSAGE, où la septième entendue une fois sur
+    deux est du bruit de décodage, pas de la musique.
+
+    Deux usages, deux granularités, et c'est voulu : `_barsig` cherche une
+    différence, celle-ci cherche une ressemblance. Sur Fallin', dont toutes
+    les lettres sont la boucle `E-|B-`, l'exactitude de `_barsig` empêchait
+    `_merge_coupe` d'absorber les passages courts — un seul `B-7` au lieu d'un
+    `B-` suffisait à les déclarer autres, et le chart gardait trois blocs pour
+    une boucle.
+    """
+    return tuple((c["root"] % 12, famille_de(c.get("q")), bool(c.get("nc")))
+                 for c in (bar or []))
 
 
 def _ireal_endings(blk: dict, bars, grid) -> None:
@@ -1447,6 +1465,13 @@ def _merge_coupe(host: dict, blk: dict, cell, P, grid) -> bool:
     """
     if host.get("endings") or len(blk["bars"]) >= len(host["bars"]):
         return False
+    # UN BLOC PLUS LONG RESTE REFUSÉ, et c'est un choix repris en arrière.
+    # Essayé le 2026-09-18 (un bloc plus long qui n'est QUE de la répétition
+    # n'ajoute aucune musique — sur Fallin' il restait trois blocs pour une
+    # boucle de deux mesures) : ça marche dans le régime des charts en cache,
+    # ça n'a PAS été validé sur une ré-analyse fraîche, où le découpage amont
+    # est tout autre. Tant que ce n'est pas mesuré dans le bon régime, on ne
+    # le livre pas. Voir known_issues, « fusion de lettres ».
     if not P or not cell:
         # Pas de cellule connue (repli refusé, ou découpage fait à la main :
         # le chemin Soudure n'a pas de rapport de repli) — on retombe sur le
