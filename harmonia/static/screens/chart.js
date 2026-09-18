@@ -12,7 +12,7 @@ import { candList, openAnnotateTools, openBarExpanded, openEditor } from "../scr
 import { openChordSheet, openPrefsSheet, openRotor, transposeTo } from "../screens/prefs.js";
 import { attachSectionDrag, buildSectionTool, closeSectionTool, paintSectionTool, sectToolOn, setPlayhead, spanTime } from "../screens/sections_editor.js";
 import { S } from "../state.js";
-import { PREF, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, ctlSkin, dispQ, el, fmt, fnColor, glyph, handle, haptic, keyFill, keyHue, kitIcon, kitLegend, kitSegmented, learnLevel, lensLabelColor, mod, note, overlay, play, playGlyph, playMidis, playedLabel, qClass, renderHand, setSpelling, songTitle, splitHands, tightGap, tightSize, toast, vlTrack, voClose, voicingByStyle, withBass } from "../ui/kit.js";
+import { PREF, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, ctlSkin, dispQ, el, fmt, fnColor, glyph, pedalGlyph, handle, haptic, keyFill, keyHue, kitIcon, kitLegend, kitSegmented, learnLevel, lensLabelColor, mod, note, overlay, play, playGlyph, playMidis, playedLabel, qClass, renderHand, setSpelling, songTitle, splitHands, tightGap, tightSize, toast, vlTrack, voClose, voicingByStyle, withBass } from "../ui/kit.js";
 
 // The single DOM host div (`<div id="app">`) — there is exactly one call
 // site, `window.APP.build(document.getElementById("app"))` in main.js, so
@@ -339,9 +339,10 @@ export function loadModel(m, opts){
       const emitBar=(bar, meta, spanFor)=>{
         const cur={idxs:[], t0:null, t1:null, sec:s.label, secId:s.id,
                    reps:s.reps, held: bar.length===0,
-                   barSpans:(s.barSpans && s.barSpans[rbCursor]) || null,
+                   barSpans: meta.spansRow || (s.barSpans && s.barSpans[rbCursor]) || null,
                    secFirst: !!meta.secFirst, ending: meta.ending||null,
-                   endingFirst: !!meta.endingFirst, endingPasses: meta.endingPasses||null};
+                   endingFirst: !!meta.endingFirst, endingOwn: !!meta.endingOwn,
+                   endingPasses: meta.endingPasses||null};
         rbCursor++;
         bar.forEach((c,ci)=>{
           const spans=spanFor(c);
@@ -362,6 +363,11 @@ export function loadModel(m, opts){
             // plaint jamais, elle oublie (cf. known_issues).
             bar:c.bar, beat:c.beat, sug:c.sug||null, sugBass:c.sugBass||null,
             casc:c.casc||null,
+            // `pedal` (2026-09-18) : quatrième champ à passer par cette liste
+            // blanche — un champ qu'on n'y recopie pas n'arrive JAMAIS dans le
+            // rendu ni dans l'éditeur, en silence (cf. known_issues.md, `sug`,
+            // `sugBass`, `casc`, et le `carry` encore mort aujourd'hui).
+            pedal:!!c.pedal,
             n:(c.n==null?0:c.n|0),
             var:c.var||null,   // l'autre lecture de cette case, sur un chart replié
             sec:s.label, secId:s.id, secIdx:si, reps:s.reps,
@@ -378,13 +384,21 @@ export function loadModel(m, opts){
       const prefixBars = tail ? s.bars.slice(0, prefixLen) : s.bars;
       prefixBars.forEach((bar,bi)=>emitBar(bar, {secFirst: bi===0}, allPass));
       if(tail && s.endings){
-        s.endings.variants.forEach((v,vi)=>{
-          const baseV = s.spans[v.passes[0]][0];
-          const passSpan = c => v.passes.map(p=>[c.t0 + (s.spans[p][0]-baseV), c.t1 + (s.spans[p][0]-baseV)]);
-          v.bars.forEach((bar,bi)=>emitBar(bar,
-            {secFirst:false, ending:String(vi+1), endingFirst: bi===0, endingPasses: v.passes},
+        const blocs = endingBlocks(s, tail, prefixLen);
+        blocs.forEach(g=>{
+          const baseV = s.spans[g.passes[0]][0];
+          const passSpan = c => g.passes.map(p=>[c.t0 + (s.spans[p][0]-baseV), c.t1 + (s.spans[p][0]-baseV)]);
+          g.bars.forEach((bar,bi)=>emitBar(bar,
+            {secFirst:false, ending:g.label, endingFirst: bi===0, endingOwn:g.own,
+             endingPasses:g.passes, spansRow:g.spans[bi]},
             passSpan));
         });
+        // Les passes qui prennent une fin ALTERNÉE, gardées sur la section :
+        // c'est la bande de forme qui porte l'ordre (Louis : « noter pareil
+        // sur le haut de la grille qui permet de suivre où on en est »),
+        // puisque le crochet ne le porte plus dès qu'on écrit `B` / `B alt`.
+        const alt=[]; blocs.forEach(g=>{ if(g.alt) alt.push(...g.passes); });
+        if(S.sections[si]) S.sections[si].altPasses=alt;
       }
     });
     S.chords=chords;
@@ -589,11 +603,23 @@ export function immersiveCoach(){
      transport; syncTransport()/setPlayhead() target the S._dock* elements.
      "Practise" opens the prompter — the screen the old 9px reel toggle led
      to; a fourth segment beats hiding a whole screen behind a sheet. */
+  // UNE GRILLE ÉCRITE N'A RIEN À JOUER (2026-09-18, import iReal). Un chart
+  // importé depuis iReal Pro n'a pas d'audio : le transport (lecture, scrub,
+  // A-B) et l'onglet Practise sont alors trois commandes visibles qui ne
+  // font rien — et pire, `S.audio` n'est jamais remis à zéro entre deux
+  // charts, donc Play jouait la chanson PRÉCÉDENTE par-dessus cette grille.
+  // Le nettoyage de l'élément audio est dans `audio.js` (`syncTransport`) ;
+  // ici, on ne montre simplement pas ce qui n'existe pas.
+export const chartHasAudio=()=>!!S.audioUrl;
+  // Taper une mesure ne peut « aller à » nulle part sans audio : le réglage
+  // « tap = play » avale alors le geste au lieu d'ouvrir la fiche d'accord.
+export const tapSeeks=()=>S.tapSeek && chartHasAudio();
 export function chartDock(){
     const dock=el("div",
       `flex:0 0 auto;background:${T.card};border-top:1px solid ${T.line};`+
       `padding:12px 14px calc(10px + env(safe-area-inset-bottom));`+
       `box-shadow:0 -12px 30px -22px rgba(50,38,20,.5);`);
+    const audible=chartHasAudio();
 
     const row=el("div","display:flex;align-items:center;gap:14px;");
     const play=el("button",
@@ -634,10 +660,12 @@ export function chartDock(){
     loop.setAttribute("aria-label","Loop the four-bar phrase you are in");
     loop.onclick=()=>{ chartLoopToggle(); go("chart",{push:false}); };
     row.appendChild(loop);
-    dock.appendChild(row);
+    if(audible) dock.appendChild(row);
 
     const modes=kitSegmented(
-      [["read","Read"],["analyse","Analyse"],["annotate","Annotate"],["practise","Practise"]],
+      audible
+        ? [["read","Read"],["analyse","Analyse"],["annotate","Annotate"],["practise","Practise"]]
+        : [["read","Read"],["analyse","Analyse"],["annotate","Annotate"]],
       ()=>S.mode,
       v=>{
         // QUITTER L'OUTIL DE SECTIONS PAR CE BOUTON REND AUSSI LA VUE REPLIÉE
@@ -652,7 +680,7 @@ export function chartDock(){
         if(S.sectTool) closeSectionTool();
         if(v==="practise"){ go("prompter"); return; } S.mode=v; go("chart",{push:false}); },
       {font:13.5});
-    modes.style.marginTop="12px";
+    if(audible) modes.style.marginTop="12px";
     dock.appendChild(modes);
     return dock;
   }
@@ -939,6 +967,71 @@ export function paintChartRefining(){
   // seconds (what the highlight is keyed on — see paintFormChip); rb0 is where
   // the run starts in the RENDERED grid, which is a different index space again
   // because the grid writes each section once.
+  // LES FINS, REGROUPÉES ET NOMMÉES (Louis, 2026-09-18, sur This Love :
+  // « 3 des 4 fins sont les mêmes, ça sert à rien de les écrire 3 fois »).
+  //
+  // DEUX FINS SONT LA MÊME quand elles posent les mêmes FONDAMENTALES, mesure
+  // par mesure. La qualité (`F-` / `F7` / `F`) et un N.C. terminal sont du
+  // bruit de modèle : c'est ce qui faisait écrire trois fois la même fin.
+  // Mesuré avant d'agir (2026-09-18) : sur les 48 fins de la bibliothèque
+  // cette fusion n'en retire que 2, et les deux sont sur ce morceau — ce
+  // n'est donc PAS un levier général, c'est ce qui rend ce chart-là lisible.
+  // Ce qu'elle ne résout pas : le groupe s'écrit avec les accords de sa
+  // PREMIÈRE passe, pas avec un consensus des siennes. Voter entre elles
+  // serait une loi de repli, à arbitrer à l'oreille, pas une règle d'écriture.
+  //
+  // COMMENT ON LES NOMME — le critère n'est pas combien de fins, c'est :
+  // une fin couvre-t-elle plusieurs passes ?
+  //   * chaque fin = une passe  → `1.` `2.` `3.` : « 1re fois ceci, 2e fois
+  //     cela » est vrai (14 des 21 sections à fins de la bibliothèque) ;
+  //   * une fin en couvre plusieurs → il n'y a plus de « deuxième fois » et
+  //     le numéro ment (7 sections sur 21). On écrit alors la fin CLASSIQUE
+  //     en ligne, comme la vraie queue de la section, et les autres dessous
+  //     en `B alt`.
+  // « Classique » = LA PREMIÈRE RÉPÉTITION, pas la plus fréquente (arbitrage
+  // de Louis, 2026-09-18, sur la page docs/plots/fins_alt_3morceaux.html).
+  // Conséquence assumée : sur This Love l'« alt » est jouée 3 fois et la
+  // classique 2 — c'est l'ordre d'écoute qui nomme, pas le décompte.
+export function endingBlocks(s, tail, prefixLen){
+    const vs=(s.endings && s.endings.variants) || [];
+    const bs=s.barSpans || [];
+    const cle=bars=>bars.map(b=>b.filter(c=>!c.nc).map(c=>((c.root%12)+12)%12).join(",")).join("|");
+    const gs=[];
+    vs.forEach((v,vi)=>{
+      const k=cle(v.bars);
+      let g=gs.find(x=>x.k===k);
+      if(!g) gs.push(g={k, vi:[], passes:[]});
+      g.vi.push(vi); g.passes=g.passes.concat(v.passes||[]);
+    });
+    gs.forEach(g=>{
+      g.passes.sort((a,b)=>a-b);
+      // l'écriture de référence est celle de la passe la PLUS TÔT jouée: ses
+      // temps d'accord sont calés sur `s.spans[g.passes[0]]`, ce que
+      // `passSpan` suppose chez l'appelant.
+      let rep=g.vi[0], best=Infinity;
+      g.vi.forEach(vi=>{ const p=Math.min.apply(null, vs[vi].passes||[Infinity]);
+                         if(p<best){ best=p; rep=vi; } });
+      g.bars=vs[rep].bars;
+      // les temps: une ligne par mesure de queue, toutes les passes du groupe,
+      // remises dans l'ordre chronologique — `playRep` indexe cette liste.
+      g.spans=[];
+      for(let j=0;j<tail;j++){
+        let row=[];
+        g.vi.forEach(vi=>{ row=row.concat(bs[prefixLen+vi*tail+j]||[]); });
+        g.spans.push(row.slice().sort((a,b)=>a[0]-b[0]));
+      }
+    });
+    gs.sort((a,b)=>a.passes[0]-b.passes[0]);
+    const lettre=String(s.label||"");
+    const chacunSaPasse=gs.every(g=>g.passes.length===1);
+    gs.forEach((g,gi)=>{
+      if(chacunSaPasse){ g.label=(gi+1)+"."; g.own=gi>0; g.alt=false; }
+      else if(gi===0){ g.label=lettre; g.own=false; g.alt=false; }
+      else { g.label=lettre+" alt"+(gs.length>2?(" "+gi):""); g.own=true; g.alt=true; }
+    });
+    return gs;
+  }
+
 export function formRuns(){
     const m=S.model; if(!m||!m.sections) return [];
     const occ=[];
@@ -950,8 +1043,12 @@ export function formRuns(){
     const runs=[];
     occ.forEach(o=>{
       const L=runs[runs.length-1];
-      if(L && L.label===o.label && L.b1+1===o.b0){ L.b1=o.b1; L.n++; if(o.t1!=null) L.t1=o.t1; }
-      else runs.push({label:o.label, b0:o.b0, b1:o.b1, n:1, t0:o.t0, t1:o.t1,
+      // `ks` = l'indice de PASSE de chaque occurrence du segment. Sans lui la
+      // bande sait « jouée n fois » mais plus LAQUELLE est laquelle — or
+      // c'est exactement ce qu'on doit y lire depuis qu'une fin peut être
+      // `B alt` sur certaines passes seulement (Louis, 2026-09-18).
+      if(L && L.label===o.label && L.b1+1===o.b0){ L.b1=o.b1; L.n++; L.ks.push(o.k); if(o.t1!=null) L.t1=o.t1; }
+      else runs.push({label:o.label, b0:o.b0, b1:o.b1, n:1, t0:o.t0, t1:o.t1, ks:[o.k], si:o.si,
                       secId:o.secId, rb0:(S.bars||[]).findIndex(b=>b.secId===o.secId)});
     });
     return runs;
@@ -978,11 +1075,11 @@ export function formGroups(){
     formRuns().forEach(r=>{
       const L=out[out.length-1];
       if(L && L.secId===r.secId){
-        L.n+=r.n; L.b1=r.b1;
+        L.n+=r.n; L.b1=r.b1; L.ks=L.ks.concat(r.ks||[]);
         if(r.t1!=null) L.t1=r.t1;
         if(L.t0==null && r.t0!=null) L.t0=r.t0;
-      } else out.push({secId:r.secId, label:r.label, b0:r.b0, b1:r.b1,
-                       n:r.n, t0:r.t0, t1:r.t1, rb0:r.rb0});
+      } else out.push({secId:r.secId, label:r.label, b0:r.b0, b1:r.b1, si:r.si,
+                       n:r.n, t0:r.t0, t1:r.t1, rb0:r.rb0, ks:(r.ks||[]).slice()});
     });
     return out;
   }
@@ -998,7 +1095,13 @@ export function formTag(label){
     // italique bordeaux à côté d'un « A » droit, deux choses qui se ressemblent
     // pour deux choses qui n'ont rien à voir. Une lettre garde son prime ou son
     // chiffre et son dessin de lettre.
-    if(/^[A-H]['′´0-9]?$/.test(s)) return {text:s, css:`font:700 11px ${UI};color:${T.ink};`};
+    // A-Z, pas A-H (2026-09-18) : la borne à H datait d'un temps où seul le
+    // détecteur audio nommait les sections et dépassait rarement 8. Un chart
+    // iReal importé numérote dans l'ordre de jeu et va jusqu'à J ou plus —
+    // ses lettres tombaient dans la branche « nom de section » et s'écrivaient
+    // en bas de casse, italique, bordeaux, juste à côté des vraies lettres :
+    // exactement le défaut que le commentaire ci-dessus décrit sur Bora Bora.
+    if(/^[A-Z]['′´0-9]?$/.test(s)) return {text:s, css:`font:700 11px ${UI};color:${T.ink};`};
     return {text:(s[0]||"?").toLowerCase(), css:`font:italic 700 11px ${SERIF};color:${T.accent};`};
   }
 
@@ -1030,6 +1133,19 @@ export function buildFormRail(opts){
       const vis=el("div",`position:absolute;inset:0;border-radius:5px;overflow:hidden;`+
         `background:${T.card};border:1px solid ${T.line};pointer-events:none;`+
         `transition:border-color .14s;`);
+      // LA PASSE QUI FINIT AUTREMENT (Louis, 2026-09-18 : « noter pareil sur
+      // le haut de la grille qui permet de suivre où on en est »). Depuis
+      // qu'une fin peut s'écrire `B` / `B alt` au lieu de `1.` / `2.`, le
+      // crochet ne dit plus QUAND — il dit seulement qu'une autre fin
+      // existe. C'est ici que l'ordre se lit : la cellule de la passe
+      // concernée porte le lavis et le trait d'accent du crochet.
+      const alt=new Set(((S.sections[g.si]||{}).altPasses)||[]);
+      if(alt.size) (g.ks||[]).forEach((k,i)=>{
+        if(!alt.has(k)) return;
+        vis.appendChild(el("div",`position:absolute;top:0;bottom:0;left:${i*100/g.n}%;`+
+          `width:${100/g.n}%;background:rgba(138,43,43,.13);`+
+          `border-bottom:2px solid ${T.accent};`));
+      });
       const head=el("div",`position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(138,43,43,.14);`);
       vis.appendChild(head);
       for(let i=1;i<g.n;i++)
@@ -1041,7 +1157,9 @@ export function buildFormRail(opts){
       lab.appendChild(tw); vis.appendChild(lab);
       seg.appendChild(vis);
 
-      const name=g.label+(g.n>1?(" ×"+g.n):"")+", bars "+(g.b0+1)+"–"+(g.b1+1);
+      const nAlt=(g.ks||[]).filter(k=>alt.has(k)).length;
+      const name=g.label+(g.n>1?(" ×"+g.n):"")+", bars "+(g.b0+1)+"–"+(g.b1+1)+
+        (nAlt?(" — "+nAlt+(nAlt>1?" passes finissent":" passe finit")+" en « "+g.label+" alt »"):"");
       seg.title=name;
 
       // ONE TAP ZONE PER PASS, not one per group: three A's must still let you
@@ -1208,7 +1326,7 @@ export function buildIReal(){
     S._cells=[];
     let rowCells=[];
     const bars=S.bars.map(b=>({sec:b.sec, secId:b.secId, secFirst:b.secFirst, reps:b.reps,
-                               ending:b.ending, endingFirst:b.endingFirst,
+                               ending:b.ending, endingFirst:b.endingFirst, endingOwn:b.endingOwn,
                                chords:b.idxs.map(i=>({ch:S.chords[i], idx:i}))}));
     // Key/scale halo (2026-07-21 rework of the old per-root keyFill text colour).
     // chordKey is aligned 1:1 with S.chords — PER CHORD, not per bar (2026-07-21
@@ -1259,6 +1377,8 @@ export function buildIReal(){
     const endingRun=(start,fromCol)=>{
       const first=bars[start], tag=first&&first.ending;
       if(!tag) return 0;
+      // (la longueur d'un bloc sert à trois choses : la largeur du crochet,
+      //  la hauteur courte d'une rangée nue, et l'arbitrage du §5)
       const cap=(fromCol==null?4:4-fromCol);
       let n=0;
       for(let k=start;k<bars.length&&n<cap;k++){
@@ -1272,6 +1392,9 @@ export function buildIReal(){
     // Vrai quand les cellules CHORDÉES de la rangée qui s'ouvre en `start`
     // sont exclusivement des mesures de fin — le seul cas où §3 raccourcit.
     const rowIsEnding=(start,fromCol)=>{
+      // Seule une fin qui a SA rangée la rend nue. La fin classique partage
+      // la rangée de son préfixe: le treillis y reste entier.
+      if(!(bars[start] && bars[start].endingOwn)) return false;
       const n=endingRun(start,fromCol);
       if(!n) return false;
       if(fromCol+n>=4) return true;          // la rangée est pleine de fins
@@ -1308,7 +1431,7 @@ export function buildIReal(){
           introRow.appendChild(el("div",`font:800 ${narrow?9:11}px ${UI};color:${T.accent};border:1.5px solid ${T.accent};border-radius:4px;padding:0 3px;background:${T.paper};`,b.sec));
           introRow.appendChild(el("div",`font:italic 500 ${narrow?11:12.5}px ${SERIF};color:${T.faint};`,"…"));
           introRow.dataset.bar=String(bi);
-          if(S.mode!=="annotate") introRow.onclick=()=>{ if(S.tapSeek) seekToBar(bi); };
+          if(S.mode!=="annotate") introRow.onclick=()=>{ if(tapSeeks()) seekToBar(bi); };
           grid.appendChild(introRow);
           row++;
         }
@@ -1325,8 +1448,13 @@ export function buildIReal(){
       // same rule as any other bar) or a section changes. A 2nd+ ending
       // still forces its OWN row — it can't share a column with the 1st
       // ending's bars, so it has nowhere else to go but the next line.
+      // `endingOwn` remplace le test `b.ending!=="1"` : ce n'est plus le
+      // NUMÉRO qui dit si une fin prend sa propre rangée, c'est le bloc
+      // lui-même (voir endingBlocks). La fin classique — `1.` d'une vraie
+      // 1re/2e fin, ou `B` quand elle couvre plusieurs passes — continue la
+      // rangée de son préfixe : « c'est la suite du A » (Louis, 2026-07-21).
       const endingHead = b.ending && b.endingFirst;
-      const endingForcesBreak = endingHead && b.ending!=="1";
+      const endingForcesBreak = endingHead && b.endingOwn;
       // A 2nd+ ending aligns under the 1st ending's column (real iRealB
       // convention — user 2026-07-21: "le 2 devrait être aligné avec le 1"),
       // not back at column 1. endingAnchorCol remembers where "1." landed.
@@ -1342,7 +1470,7 @@ export function buildIReal(){
       // colonne d'ancrage. Dans ce cas les DEUX fins repartent en colonne 1,
       // chacune sur sa rangée. (`anchorCol=3, endingLen=1` passe tout juste;
       // un `tail:2` bascule.)
-      const firstEndingHead = endingHead && b.ending==="1";
+      const firstEndingHead = endingHead && !b.endingOwn;
       const endingSpread = firstEndingHead && (col + endingRun(bi,null) > 4);
       if(b.secFirst && col!==0){closeRow(); col=0;row++;}
       // §1 — c'était LE bug: `row++` sans `closeRow()`, donc la rangée
@@ -1371,7 +1499,7 @@ export function buildIReal(){
         rowH  = rowBare ? BARH_ENDING : BARH;
       }
       if(rowBroke){ while(col<skipToCol){ const f=filler(col); grid.appendChild(f); rowCells.push(f); col++; } }
-      if(endingHead && b.ending==="1") endingAnchorCol=col;
+      if(firstEndingHead) endingAnchorCol=col;
       // Only when an ending genuinely opens its OWN row does it get the
       // section-style left inset + the hanging bracket (digit + tick sitting
       // in a margin-top gap ABOVE the row, so it doesn't read as the
@@ -1504,7 +1632,7 @@ export function buildIReal(){
         cell.appendChild(el("div",
           `position:absolute;left:7px;top:${y+3}px;`+
           `font:800 ${narrow?9:11}px ${UI};line-height:1;color:${T.accent};z-index:3;pointer-events:none;`,
-          b.ending+"."));
+          b.ending));
       }
       // Learn reduction can collapse two different chords in one bar to the
       // same label (B♭maj7 · B♭7 both read B♭ at L1). A lead sheet never
@@ -1523,12 +1651,34 @@ export function buildIReal(){
         // 56-64 tall so the box fits; in a dense 3-4 chord bar the 44-wide
         // boxes overlap and DOM order arbitrates — each glyph itself always
         // stays inside its own exclusive zone).
-        const item=el(S.mode==="annotate"?"button":"div",`position:relative;z-index:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;background:none;border:none;cursor:${ch.nc&&S.mode!=="annotate"?"default":"pointer"};padding:0 ${tight?0:2}px;${S.mode==="annotate"?"min-height:44px;min-width:44px;":""}${tight?"":`grid-column:${q4+1};grid-row:1;justify-self:start;`}${ch.carry?"opacity:.72;":""}`);
         // 3-4 chords/bar (trusted iReal walking turnarounds) need a third,
         // smaller size tier — SZ1/SZ2 alone only split 1 vs >1 (2026-07-21).
         // En serré (§7) la taille suit le nombre d'accords: 30/25/22/19,
         // plancher dur à 19 — la seule échelle, quel que soit narrow.
         const size=tight?tightSize(b.chords.length):(b.chords.length>=3?SZ3:(b.chords.length>1?SZ2:SZ1));
+        // Learn mode relabels through the ladder (dispQ); slash bass is an
+        // L3 concept and hides below it. The tiny amber tag marks cells whose
+        // label genuinely simplified, so Learn never silently lies.
+        // (Défini ICI, avant la boîte: la mise en page de la pédale en dépend.)
+        const bassHidden=S.learn&&S.level<3&&ch.bass!=null&&ch.bass>=0&&mod(ch.bass,12)!==mod(ch.root,12);
+        // `ch.pedal` = l'accord ne change pas, seule la basse bouge (iReal
+        // `W/G♭`). On n'écrit que la basse, comme iReal — sauf en Learn sous
+        // L3, où la basse slash n'existe pas encore : là, l'accord complet
+        // revient, sinon la case serait vide.
+        const pedale=ch.pedal && ch.bass!=null && ch.bass>=0 && !bassHidden;
+        // LA BASSE PÉDALE EST SUSPENDUE, PAS ALIGNÉE (2026-09-18). iReal écrit
+        // le refrain de Virtual Insanity `E♭m7 · ⌄G♭ · A♭m11 · ⌄B♭` : la 2e et
+        // la 4e case ne prennent AUCUNE largeur, elles pendent sous l'accord
+        // précédent. C'est ce qui fait tenir quatre cases dans une mesure — en
+        // flux, la même mesure débordait de sa cellule. Sortie du flux, donc,
+        // à l'abscisse de son propre temps et juste sous la ligne d'accords.
+        // Pas en Annotate : là, la cible de 44px prime sur la densité.
+        const pendu = pedale && S.mode!=="annotate";
+        const place = pendu
+          ? `position:absolute;left:calc(${q4/bpbQ*100}% + 1px);top:calc(50% + ${Math.round(size*0.16)}px);z-index:2;`
+          : `position:relative;z-index:1;${tight?"":`grid-column:${q4+1};grid-row:1;justify-self:start;`}`;
+        const item=el(S.mode==="annotate"?"button":"div",`${place}min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;background:none;border:none;cursor:${ch.nc&&S.mode!=="annotate"?"default":"pointer"};padding:0 ${tight||pendu?0:2}px;${S.mode==="annotate"?"min-height:44px;min-width:44px;":""}${ch.carry?"opacity:.72;":""}`);
+
         // No-chord (N.C.) cell: music-x-lab detected silence/no harmony here.
         // Render a faint "N.C." rather than an invented glyph (the intro/outro
         // of a track, or an a-cappella bridge) — known_issues.md 2026-07-19
@@ -1543,12 +1693,10 @@ export function buildIReal(){
           cell.appendChild(item);
           return;
         }
-        // Learn mode relabels through the ladder (dispQ); slash bass is an
-        // L3 concept and hides below it. The tiny amber tag marks cells whose
-        // label genuinely simplified, so Learn never silently lies.
         const dq=dispQ(ch.q);
-        const bassHidden=S.learn&&S.level<3&&ch.bass!=null&&ch.bass>=0&&mod(ch.bass,12)!==mod(ch.root,12);
-        item.appendChild(glyph(ch.root,dq,size,chordDepth(ch),chordColor(ch),bassHidden?-1:ch.bass,b.chords.length===1));
+        item.appendChild(pedale
+          ? pedalGlyph(ch.bass,size,chordColor(ch))
+          : glyph(ch.root,dq,size,chordDepth(ch),chordColor(ch),bassHidden?-1:ch.bass,b.chords.length===1));
         // LA VARIANTE, en petit au-dessus — comme iRealb (Louis, 2026-08-17 :
         // « indiquer le moins commun comme une variation, en petit en haut de
         // l'accord comme on fait sur irealb »). Elle n'apparaît que sur un
@@ -1615,7 +1763,7 @@ export function buildIReal(){
         else if(S.mode!=="annotate"){
           item.setAttribute("data-chord-cell","1");
           item.onclick=()=>{
-            if(S.tapSeek){ seekToBar(bi); return; }
+            if(tapSeeks()){ seekToBar(bi); return; }
             if(S.playing && S.mode==="read"){
               if(S.piano==="tap") openVoicingCard(idx, cell);
               else if(S.piano==="follow") openChordSheet(idx);
@@ -1650,7 +1798,7 @@ export function buildIReal(){
       // Le réglage est lu AU CLIC, pas à la construction : le basculer dans la
       // feuille Aa agit tout de suite, sans re-rendre la grille sous une
       // feuille ouverte.
-      if(S.mode!=="annotate" && !sectToolOn()) cell.onclick=()=>{ if(S.tapSeek) seekToBar(bi); };
+      if(S.mode!=="annotate" && !sectToolOn()) cell.onclick=()=>{ if(tapSeeks()) seekToBar(bi); };
       else if(S.mode==="annotate" && !sectToolOn() && roomToAdd) cell.onclick=()=>openBarExpanded(bi);
       S._cells.push({el:cell, bar:bi, idxs:b.chords.map(x=>x.idx), ph, sel});
       grid.appendChild(cell);

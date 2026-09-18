@@ -7,6 +7,22 @@ Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 
 ## Ouvert
 
+### La liste blanche a mangé un QUATRIÈME champ — dans `buildIReal` cette fois
+
+Le piège déjà décrit plus bas (`chart.js` recopie les accords par une liste de
+champs EN DUR) a un second exemplaire, dans la même fonction de rendu :
+`buildIReal` remappe chaque MESURE avec sa propre liste en dur
+(`sec, secId, secFirst, reps, ending, endingFirst, …`). Le champ `endingOwn`
+ajouté le 2026-09-18 y a été oublié : la fin alternée s'écrivait en colonne 1
+au lieu de s'aligner sous la classique, et sa rangée gardait son quadrillage.
+Aucune erreur, aucun test rouge — juste un chart faux, trouvé en sondant le
+DOM. Quatrième occurrence (`sug`, `sugBass`, `casc`, `endingOwn`).
+
+Les deux listes se renversent de la même façon (copier l'objet, écraser ce
+qu'on recalcule) et le pendant Python l'a déjà fait. Ce qui manque des deux
+côtés JS est un test : c'est un chemin de rendu chaud qui n'en a aucun.
+
+
 ### Deux accords larges dans une mesure débordent de leur cellule
 
 En notation NORMALE, une mesure à deux accords aux étiquettes longues sort de
@@ -58,6 +74,145 @@ La sortie propre serait que `glyph` détache une altération finale et traduise
 le tronc — une modification d'un chemin de rendu partagé, à faire seule et
 vérifiée sur un chart entier, pas en marge d'une autre.
 
+
+### RÉSOLU 2026-09-18 (2) — un chart iReal importé ne se repliait pas
+
+Louis, sur *Virtual Insanity* : « il n'y a pas un repliement comme je
+l'attendrais des sections ». Trois défauts empilés, trouvés en comparant
+notre lecture à la chaîne brute d'iReal.
+
+1. **Aucun repliement.** iReal écrit un chart LINÉAIRE : son refrain `*B` est
+   réécrit en entier à chacune de ses quatre reprises. On les recopiait telles
+   quelles — quatre blocs « B » l'un sous l'autre. Harmonia écrit la musique
+   une fois et compte les passages : `_fold_blocks` fusionne les blocs
+   identiques (`B ×6` sur ce morceau) et `_lay_out_time` pose leurs passages
+   là où ils se jouent. 391 blocs du corpus se replient désormais.
+2. **Les blocs sans repère volaient les lettres d'iReal.** Ils prenaient A, B,
+   C dans l'ordre et tombaient pile sur les `*A`, `*B`, `*C` du
+   transcripteur : le chart affichait deux « A » qui n'avaient pas les mêmes
+   accords, et un « B » de 8 mesures à côté du vrai `*B` de 4. On réserve
+   maintenant les lettres d'iReal d'abord ; deux blocs sous un même repère
+   mais avec une musique différente prennent un prime (A, A′), comme
+   `folding._ireal_cascade`. Vérifié : **0 étiquette en double sur les 2207
+   standards.**
+3. **`W/G♭` était lu comme un accord de sol♭ majeur.** C'est en fait « le même
+   accord, une autre basse » — la basse qui marche sous un accord tenu
+   (`E♭m7 · /G♭ · A♭m11 · /B♭`). **877 occurrences dans 154 des 2207
+   standards**, *Round Midnight* compris : on écrivait donc des accords que
+   personne n'avait écrits. Le modèle porte l'accord complet, le rendu n'écrit
+   que `/G♭` (`ch.pedal` → `kit.pedalGlyph`) — comme iReal, et c'est aussi ce
+   qui fait tenir quatre cases dans une mesure.
+
+Au passage : le chiffrage du chart est désormais le PREMIER rencontré, pas le
+dernier (*Virtual Insanity* est en 4/4 avec des mesures de 2/4 de passage — la
+grille entière pouvait basculer sur une mesure de transition).
+
+**`ch.pedal` est le QUATRIÈME champ à passer par la liste blanche de
+`loadModel`** (après `sug`, `sugBass`, `casc`). Voir la section dédiée
+ci-dessus : la dette est toujours là, elle ne se plaint jamais.
+
+### Ouvert — l'intro à accords est cachée sur 44 charts (arbitrage)
+
+En lecture, `chart.js` réduit TOUTE section nommée « intro » à une bande
+« intro … » d'une ligne. L'intention écrite dans le code (Louis, 2026-08-08)
+dit pourtant « the CHORD-LESS leading intro » : le test, lui, ne regarde que
+le NOM. **44 des charts de la bibliothèque ont un intro qui porte de vrais
+accords et qui n'est donc jamais imprimé.**
+
+L'import iReal contourne : un `*i` qui porte des accords prend une lettre au
+lieu du nom « intro ». Corriger la règle elle-même (n'escamoter que les
+intros sans accord) changerait ces 44 charts d'un coup — c'est un arbitrage
+de Louis, pas une correction à faire en marge.
+
+### TRANCHÉ 2026-09-18 — les lettres suivent l'ordre de jeu
+
+Louis : « l'ordre des sections c'est TOUJOURS ABCDE… ». On n'hérite donc plus
+des repères d'iReal — ils ne sortent pas dans l'ordre (sur *Virtual Insanity*
+son `*A` arrive en 3e position, son `*B` en 5e, entre deux passages qu'il ne
+nomme pas). Les lettres sont réattribuées A, B, C… à la première apparition,
+et une section qui revient reprend la sienne : la forme se lit
+`A B C×2 D E×2 F×2 E×2 G×2 H×2 I×2 E×2 J`.
+
+Conséquence assumée : le repliement ne regarde plus QUE la musique. 131 des
+2207 standards nomment `*A` et `*C` deux passages rigoureusement identiques ;
+les garder séparés aurait affiché deux fois la même musique sous deux lettres.
+
+Corrigé dans la foulée : `formTag` (`chart.js`) ne reconnaissait que `A-H`
+comme une lettre — au-delà, le bandeau de forme écrivait la lettre en bas de
+casse, italique et bordeaux, à côté des vraies. Exactement le défaut que son
+propre commentaire décrit sur *Bora Bora*. Deux charts de la bibliothèque
+étaient concernés.
+
+### Ouvert — lisibilité d'un chart iReal dense (arbitrage)
+
+*Virtual Insanity* tient sur une page en écriture COMPACTE et déborde en
+NORMALE — c'est le défaut « deux accords larges » ci-dessus, pas une
+régression de l'import. Deux leviers de repliement supplémentaires ont été
+mesurés sur les 2207 standards, sans être implémentés :
+
+| levier | sections écrites | charts touchés |
+| --- | --- | --- |
+| aujourd'hui | 7315 | — |
+| tolérer la 7e/l'extension pour DÉCIDER que c'est la même section | 7102 (−213) | 204 |
+| + absorber un passage coupé (début exact d'un plus long) | 6611 (−491) | 380 |
+
+Sur *Virtual Insanity* : 10 sections → 8. Le premier levier a un coût réel —
+il faut choisir UNE écriture pour un accord que le transcripteur écrit de deux
+façons (`Cø` / `Cø7`, `B△` / `B△7`, `E♭m7` / `E♭m9` sur ce morceau), donc le
+chart n'écrit plus exactement ce qu'iReal écrit. À arbitrer par Louis.
+
+Ce qui reste VRAIMENT illisible sur ce morceau, c'est la mesure à quatre cases
+du refrain (`E♭m7 · /G♭ · A♭m11 · /B♭`). iReal la résout en suspendant la
+basse SOUS l'accord précédent, sans lui donner de largeur — ce que
+`glyphTight` sait déjà faire pour une basse slash, et que `pedalGlyph` ne fait
+pas encore.
+
+### RÉSOLU 2026-09-18 — la source « iReal Pro » ne pouvait ouvrir aucun morceau
+
+L'onglet iReal de la recherche cherchait bien (`/api/irealb-search`, en place
+depuis les sprints 11-14) mais n'importait rien : `search.js` appelait un
+`importIrealChart` **qui n'a jamais existé**, et la carte d'un résultat iReal
+retombait dans la branche YouTube — elle partait analyser
+`watch?v=undefined`. La moitié « import » du portage avait été laissée de côté
+(`irealb_fetcher.py` le dit dans sa propre en-tête : « sans sa seconde
+moitié : la conversion irealb:// → ChordChart »).
+
+Ajouté : `harmonia/integrations/irealb_import.py` (lecture de la grille) +
+`POST /api/irealb-import` + le geste dans l'écran de recherche. Vérifié sur
+les **2207 standards** du corpus iReal : 0 échec de lecture, médiane 34
+mesures. Tests : `tests/test_irealb_import.py` (la grille),
+`tests/test_irealb_import_route.py` (la chaîne serveur, bout en bout).
+
+**Pourquoi un parseur maison plutôt que `pyRealParser.measures_as_strings`** :
+celui-ci APLATIT — il efface les repères `*A`, déroule les `{…}` et fusionne
+les 1re/2e fins, c'est-à-dire exactement ce qu'on veut garder. On ne lui
+emprunte que le désembrouillage et les métadonnées.
+
+**Ce que l'import NE fait PAS** (à savoir avant de s'y fier) :
+* **Pas de D.C. / D.S. al Coda.** Les repères `S` et `Q` sont ignorés : la
+  grille écrit ce qui est écrit, sans dérouler les sauts. Sur un morceau à
+  coda, la section finale peut être découpée d'une façon qui n'est pas celle
+  d'iReal.
+* **Pas d'audio, donc pas de tempo mesuré.** Les temps sont une grille
+  NOMINALE à 120 BPM (`irealb_import.NOMINAL_BPM`), là seulement pour que les
+  empans soient monotones. Le transport et l'onglet Practise sont masqués sur
+  un chart sans audio ; les recoller à un enregistrement est un autre chantier
+  (c'est le problème d'alignement chart↔audio, déjà ouvert).
+* **Le placement dans la mesure est déduit, pas lu.** Les barres obliques `p`
+  d'iReal sont respectées (`C7 p p F7` → temps 1 et 4) ; sans elles, les
+  accords d'une mesure sont répartis également. iReal encode la position réelle
+  dans un compte de cellules que ce parseur n'exploite pas.
+* **L'EXPORT, lui, écrit tout en dièses.** `irealb_export.NOTE_SHARP` ne connaît
+  pas les bémols : un B♭ de *Autumn Leaves* repart en A♯ dans iReal Pro. Même
+  hauteur, mauvaise orthographe. Défaut ancien de l'exportateur, pas de
+  l'import — épinglé dans
+  `tests/test_irealb_import_route.py::test_l_aller_retour_avec_l_export_garde_les_accords`.
+
+Au passage, 31 queues d'accord iReal ont été ajoutées à `TOK` (`ui/kit.js`) —
+3,9 % des accords du corpus les portent, et sans clé elles s'écrivaient avec un
+`b` et un `#` d'ASCII au milieu d'une grille qui écrit ♭ et ♯ partout ailleurs.
+Mesuré : ces ajouts ne changent AUCUN débordement (le défaut « deux accords
+larges » ci-dessus est identique avec et sans).
 
 ### RÉSOLU 2026-09-17 — le compas était illisible en thème sombre
 

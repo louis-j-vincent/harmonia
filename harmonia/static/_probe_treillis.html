@@ -40,6 +40,7 @@ function bar(spec, meta){
   });
   bars.push(Object.assign({sec:meta.sec, secId:meta.secId, secFirst:!!meta.secFirst,
       reps:1, ending:meta.ending||null, endingFirst:!!meta.endingFirst,
+      endingOwn:!!meta.endingOwn,
       idxs, t0:t, t1:t+4, held:!toks.length, barSpans:null}, {}));
   t+=4;
 }
@@ -49,8 +50,8 @@ if(CASE==="aaba"){
   ["B-7","E-7","F#7","B-7","G^7","F#7"].forEach((s,i)=>bar(s,{sec:"A",secId:"a",secFirst:i===0}));
   // A' — préfixe 6 mesures puis 1re/2e fin (contrôle #1 et #4)
   ["B-7","E-7","F#7","B-7","E- F#-","A B-"].forEach((s,i)=>bar(s,{sec:"A2",secId:"a2",secFirst:i===0}));
-  bar("F#- B-7",{sec:"A2",secId:"a2",ending:"1",endingFirst:true});
-  bar("F#-7 B-7",{sec:"A2",secId:"a2",ending:"2",endingFirst:true});
+  bar("F#- B-7",{sec:"A2",secId:"a2",ending:"1.",endingFirst:true});
+  bar("F#-7 B-7",{sec:"A2",secId:"a2",ending:"2.",endingFirst:true,endingOwn:true});
   // B — 4 mesures, dont une à UN accord avec basse (contrôle #6) et une à 4
   bar("D/A",{sec:"B",secId:"b",secFirst:true});
   bar("D/A B-7",{sec:"B",secId:"b"});
@@ -67,10 +68,10 @@ if(CASE==="aaba"){
 } else if(CASE==="tail2"){
   // contrôle #5: anchorCol=3 avec une fin de 2 mesures → les deux fins en col 1
   ["B-7","E-7","F#7","B-7","G^7","F#7","E-7"].forEach((s,i)=>bar(s,{sec:"A",secId:"a",secFirst:i===0}));
-  bar("F#- B-7",{sec:"A",secId:"a",ending:"1",endingFirst:true});
-  bar("E-7",{sec:"A",secId:"a",ending:"1"});
-  bar("F#-7",{sec:"A",secId:"a",ending:"2",endingFirst:true});
-  bar("B-7",{sec:"A",secId:"a",ending:"2"});
+  bar("F#- B-7",{sec:"A",secId:"a",ending:"1.",endingFirst:true});
+  bar("E-7",{sec:"A",secId:"a",ending:"1."});
+  bar("F#-7",{sec:"A",secId:"a",ending:"2.",endingFirst:true,endingOwn:true});
+  bar("B-7",{sec:"A",secId:"a",ending:"2.",endingOwn:true});
 }
 Object.assign(S,{ screen:"chart", mode:P.get("mode")||"read", colorMode:"function",
   model:{file:P.get("file")||"B6ahb9w_Lkm", title:P.get("title")||"B6ahb9w Lkm", bpb:4, form:"AABA"},
