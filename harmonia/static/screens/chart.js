@@ -1374,7 +1374,7 @@ export function buildIReal(){
     // mode the Intro section collapses to a single label-only row — an intro's
     // bar count is noise on a lead sheet; Annotate/Analyse keep its bars so
     // N.C. cells stay correctable.
-    let col=0,row=0,introRow=null,lastCh=null,endingAnchorCol=null;
+    let col=0,row=0,lastCh=null,endingAnchorCol=null;
     // Une RANGÉE est un bloc: même hauteur, même décalage haut, quatre
     // cellules toujours. rowH/rowMT sont posés au moment où la rangée s'ouvre
     // et relus par toutes ses cellules — vraies cellules ET fillers. Avant
@@ -1443,24 +1443,15 @@ export function buildIReal(){
       // in Read — the form rail above still carries it. Analyse/Annotate keep
       // its bars (N.C. cells stay inspectable and correctable).
       if(S.mode==="read" && S._hiddenIntroId && b.secId===S._hiddenIntroId) return;
-      const isIntro = S.mode==="read" && /^intro/i.test(String(b.sec||""));
-      if(isIntro){
-        if(!introRow){
-          if(col!==0){closeRow(); col=0;row++; rowMT=0; rowH=BARH;}
-          introRow=el("div",`position:relative;grid-column:1/-1;display:flex;align-items:center;gap:8px;min-height:${narrow?34:40}px;padding:0 ${narrow?8:12}px;${row>0?`border-top:1px solid ${T.rule};`:""}`);
-          introRow.appendChild(el("div",`font:800 ${narrow?9:11}px ${UI};color:${T.accent};border:1.5px solid ${T.accent};border-radius:4px;padding:0 3px;background:${T.paper};`,b.sec));
-          introRow.appendChild(el("div",`font:italic 500 ${narrow?11:12.5}px ${SERIF};color:${T.faint};`,"…"));
-          introRow.dataset.bar=String(bi);
-          if(S.mode!=="annotate") introRow.onclick=()=>{ if(tapSeeks()) seekToBar(bi); };
-          grid.appendChild(introRow);
-          row++;
-        }
-        const ph=el("div",`position:absolute;right:0;top:0;bottom:0;width:3px;background:${T.accent};display:none;`); introRow.appendChild(ph);
-        const sel=el("div","position:absolute;inset:0;pointer-events:none;display:none;"); introRow.appendChild(sel);
-        S._cells.push({el:introRow, bar:bi, idxs:b.chords.map(x=>x.idx), ph, sel});
-        return;
-      }
-      introRow=null;
+      // L'INTRO ÉCRIT SES ACCORDS, COMME TOUT LE MONDE (Louis, 2026-09-18 :
+      // « fais en sorte qu'on affiche toujours les accords de l'intro »).
+      // Elle se repliait en UNE rangée « intro … » en Read : sur Lost Without
+      // U, quatre mesures jouées disparaissaient derrière trois points. La
+      // raison d'origine (2026-08-08, « le compte de mesures d'une intro est
+      // du bruit sur une lead sheet ») visait l'intro SANS accord — et
+      // celle-là est déjà traitée une ligne plus haut, par `_hiddenIntroId`,
+      // qui ne se lève que quand aucune mesure ne porte autre chose qu'un
+      // N.C. Une intro qui a des accords n'a jamais rien eu à cacher.
       // A 1st ending CONTINUES the row its shared prefix left off on — it's
       // still the same A, not a new line (user correction 2026-07-21: my
       // earlier "always start a fresh row" was wrong, "c'est la suite du
