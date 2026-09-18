@@ -5,6 +5,7 @@
 
 
 import { api } from "../api.js";
+import { loadFolders, ranger } from "../folders.js";
 import { appBar, go, screenWrap } from "../router.js";
 import { buildIReal, loadModel, openChart, paintChartRefining } from "../screens/chart.js";
 import { S } from "../state.js";
@@ -156,7 +157,12 @@ export async function pollJob(id){
         S.job.id=id;               // paintLoading en a besoin pour la sortie
       }                            // anticipée vers le chart (voir plus bas)
       const file=(j.chart_url||j.url||"").replace("/chart/","");
-      if(file && S.job) S.job.file=file;
+      if(file && S.job){
+        S.job.file=file;
+        // Le dossier qu'il a choisi PENDANT l'attente n'avait pas encore de
+        // chart à ranger : on l'applique dès que la clé existe.
+        if(S.job.dossier && !S.job._range){ S.job._range=true; ranger(file, S.job.dossier); }
+      }
       if(j.status==="error"){
         if(S.job){ S.job.error=j.error||"L’analyse a échoué"; paintLoading(); }
         S.refining=null; return;
@@ -252,6 +258,43 @@ export function renderLoading(){
     paintLoading();
     return w;
   }
+/* « Dans quel dossier le ranger ? », posé PENDANT l'analyse (Louis,
+   2026-09-18). Le moment est le bon : il vient de lancer le morceau, il sait
+   pourquoi il l'a pris, et il a une minute à attendre. Après coup il faudrait
+   rouvrir la bibliothèque, entrer en mode Édition et le chercher.
+   Le choix est gardé sur le job et appliqué quand le chart existe — avant,
+   il n'a pas de clé à ranger. */
+function choixDossier(){
+    const j=S.job; const f=loadFolders();
+    const w=el("div","display:flex;flex-direction:column;gap:7px;");
+    w.appendChild(el("div",
+      `font:600 11px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};`,
+      "dans quel dossier le ranger ?"));
+    const row=el("div","display:flex;gap:6px;flex-wrap:wrap;");
+    const pose=(nom)=>{
+      const on=(j.dossier||null)===nom;
+      const b=el("button",
+        `border:1px solid ${on?T.deep:T.line};border-radius:18px;background:${on?T.deep:T.card};`+
+        `color:${on?"#fff":T.ink};font:600 12.5px ${UI};padding:7px 12px;min-height:38px;`+
+        `cursor:pointer;-webkit-tap-highlight-color:transparent;`, nom||"Hors dossier");
+      b.onclick=()=>{ j.dossier=nom; if(j.file) ranger(j.file, nom); paintLoading(); };
+      row.appendChild(b);
+    };
+    pose(null);
+    for(const nom of (f.order||[])) pose(nom);
+    const plus=el("button",
+      `border:1px dashed ${T.line};border-radius:18px;background:transparent;color:${T.faint};`+
+      `font:600 12.5px ${UI};padding:7px 12px;min-height:38px;cursor:pointer;`, "+ nouveau");
+    plus.onclick=()=>{
+      const nom=(prompt("Nom du dossier")||"").trim().slice(0,80);
+      if(!nom) return;
+      j.dossier=nom; if(j.file) ranger(j.file, nom); paintLoading();
+    };
+    row.appendChild(plus);
+    w.appendChild(row);
+    return w;
+  }
+
 export function paintLoading(){
     const L=S._load, j=S.job;
     if(!L || !j || S.screen!=="analysing") return;
@@ -324,7 +367,7 @@ export function paintLoading(){
         L.shown="wait";
       }
       clear(L.foot);
-      L.foot.appendChild(el("div",`height:${SZ.primary}px;`));   // hold the space
+      L.foot.appendChild(choixDossier());
       return;
     }
 

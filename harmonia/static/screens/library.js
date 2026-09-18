@@ -5,6 +5,8 @@
 
 
 import { api } from "../api.js";
+import { FOLDERS_KEY, folderCount, fusionnerDossiersServeur, loadFolders,
+         ranger, saveFolders } from "../folders.js";
 import { go, screenWrap } from "../router.js";
 import { HTTPS_HOST, micDispo } from "../screens/analyse.js";
 import { openChart } from "../screens/chart.js";
@@ -58,29 +60,24 @@ export function nameEl(c, size){
     return w;
   }
 
-  // ── dossiers ─────────────────────────────────────────────────────────────
-  // Un chart appartient à AU PLUS un dossier (c'est un classeur, pas des
-  // tags): « ranger » vide « Hors dossier ». Si des tags deviennent
-  // nécessaires un jour, ce sera une autre fonctionnalité. Stockage:
-  // localStorage source de vérité, POST /api/folders en write-through (le
-  // serveur en garde une copie). Un chart supprimé disparaît des dossiers
-  // tout seul parce qu'on filtre toujours sur S.library.
-export const FOLDERS_KEY="harmFolders";
-export function loadFolders(){
-    try{ return JSON.parse(localStorage.getItem(FOLDERS_KEY))||{order:[],of:{}}; }
-    catch(e){ return {order:[],of:{}}; }
-  }
-export function saveFolders(f){
-    try{ localStorage.setItem(FOLDERS_KEY, JSON.stringify(f)); }catch(e){}
-    api.post("/api/folders", f).catch(()=>{});
-  }
-export function folderCount(name){
-    const f=S.folders||loadFolders();
-    return S.library.filter(c=>f.of[c.file]===name).length;
-  }
+  // Les dossiers vivent maintenant dans `../folders.js` : l'écran
+  // d'analyse en a besoin aussi, et les laisser ici aurait fait un
+  // cycle d'imports entre les deux écrans. On les ré-exporte pour ne
+  // rien casser de ce qui les importait depuis ici.
+export { FOLDERS_KEY, folderCount, fusionnerDossiersServeur, loadFolders,
+         ranger, saveFolders } from "../folders.js";
+
 export function renderLibrary(){
     resetSpelling();
     S.folders=loadFolders();
+    // une seule fois par session : on récupère ce que le serveur sait des
+    // dossiers, puis on redessine SI ça change quelque chose.
+    if(!S._dossiersFusionnes){
+      S._dossiersFusionnes=true;
+      fusionnerDossiersServeur().then(bouge=>{
+        if(bouge && S.screen==="library") go("library",{push:false});
+      });
+    }
     const w=screenWrap();
 
     const head=el("div",`flex:0 0 auto;padding:calc(14px + env(safe-area-inset-top)) 20px 22px;`);

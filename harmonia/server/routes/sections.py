@@ -227,6 +227,26 @@ def soudure_valider(file):
         bak = SETTINGS.cache_dir / "charts.bak_soudure"
         bak.mkdir(parents=True, exist_ok=True)
         (bak / p.name).write_text(p.read_text(encoding="utf-8"), encoding="utf-8")
+        # LE REGISTRE DES CORRECTIONS (Louis, 2026-09-18). Ici on tient les
+        # deux versions en main : le découpage d'AVANT est encore dans
+        # `chart["sections"]`, celui qu'il valide est dans `neuves`. C'est le
+        # seul endroit où l'écart est calculable sans le reconstituer.
+        #
+        # Il ne doit JAMAIS faire échouer l'écriture : son découpage est le
+        # travail, la ligne de registre n'est qu'une trace.
+        try:
+            from harmonia import corrections
+            corrections.note_corrections_sections(
+                # La clé du CHART, comme pour les accords : c'est l'unité
+                # que Louis corrige, et deux registres nommés autrement ne se
+                # recouperaient jamais.
+                Path(file).stem, chart.get("sections") or [], neuves,
+                int(n or 0),
+                sources={s_.get("label"): s_.get("source") for s_ in secs
+                         if s_.get("label")})
+        except Exception:                                    # noqa: BLE001
+            log.exception("registre des corrections : sections non notées "
+                          "pour %s", file)
         chart["sections"] = neuves
         # Le repli d'origine décrivait les ANCIENNES sections : le garder
         # ferait lire au chart une carte qui ne correspond plus au terrain.

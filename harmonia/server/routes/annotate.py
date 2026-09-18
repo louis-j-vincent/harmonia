@@ -46,6 +46,24 @@ def save_annotations(file):
         return jsonify({"error": "could not persist annotations"}), 500
     log.info("annotations %s: %d chord(s), %d merge(s)",
              file, len(saved["chords"]), len(saved["merges"]))
+    # LE REGISTRE DES CORRECTIONS (Louis, 2026-09-18 : « récupère
+    # automatiquement toutes les différences d'annotation et persiste-les,
+    # afin qu'un agent dédié puisse apprendre de mes corrections »). On compare
+    # ce qu'il vient d'écrire au chart CUIT — celui qui porte encore ce que la
+    # machine pensait — et on ajoute une ligne par écart.
+    #
+    # Le registre ne doit JAMAIS faire échouer une sauvegarde : son annotation
+    # est le travail, la ligne de registre n'est qu'une trace.
+    try:
+        from harmonia import corrections
+        p = CHARTS_DIR / f"{Path(file).stem}.json"
+        if p.exists():
+            corrections.note_corrections_accords(
+                Path(file).stem, json.loads(p.read_text(encoding="utf-8")),
+                saved.get("chords") or [])
+    except Exception:                                        # noqa: BLE001
+        log.exception("registre des corrections : accords non notés pour %s",
+                      file)
     return jsonify(saved)
 
 

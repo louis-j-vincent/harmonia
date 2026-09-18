@@ -116,6 +116,23 @@ def chart_meta(file):
 # write-through; le serveur n'en fait (pour l'instant) qu'une copie de
 # sauvegarde — {"order": [...], "of": {"<file>": "<dossier>"}}.
 
+@bp.get("/api/folders")
+def read_folders():
+    """La copie serveur des dossiers — pour que le téléphone la retrouve.
+
+    Le `localStorage` reste la source de vérité côté client (voir
+    `library.js`), mais il est PAR APPAREIL : un classement fait sur le Mac
+    n'existait pas sur l'iPhone, et un navigateur vidé le perdait. L'écran
+    fusionne maintenant cette copie pour les charts qu'il ne classe pas
+    lui-même — il ne l'écrase jamais avec, donc un classement local gagne
+    toujours sur la copie.
+    """
+    try:
+        return jsonify(json.loads(FOLDERS_PATH.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return jsonify({"order": [], "of": {}})
+
+
 @bp.post("/api/folders")
 def save_folders():
     doc = request.get_json(silent=True) or {}
