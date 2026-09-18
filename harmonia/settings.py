@@ -75,10 +75,16 @@ class Settings:
     fold_loop: str = "occurrence"     # l'occurrence entière se replie (2026-08-08)
     fold_gate: str = "letter"         # veto de cohérence par lettre entière
     fold_transpose: bool = False      # pas de transposition avant l'empilement
-    #: fusion des lettres identiques nommées différemment — reste un argument
-    #: explicite de `fold_letter_groups` (2026-09-14, Louis) : recherche de
-    #: qualité de section en cours, pas encore une loi tranchée.
-    merge_letters: bool = False
+    #: FUSIONNER LES LETTRES QUI SONT LE MÊME PASSAGE — loi depuis le
+    #: 2026-09-18. songformer nomme par le RÔLE (couplet/refrain/instrumental),
+    #: pas par la musique : sur Fallin', qui est une seule boucle E-…B- du
+    #: début à la fin, il rend huit lettres. La comparaison se fait sur les
+    #: ACCORDS DÉCODÉS (voir `folding.MERGE_LETTERS_ACCORDS` pour ce qui a été
+    #: mesuré, essayé et écarté — la version chroma cassait Let It Be).
+    #: Arbitré sur six morceaux que Louis a vérifiés à l'oreille, et contrôlé
+    #: contre les structures iReal, seules structures écrites par un humain
+    #: qu'on ait : `docs/plots/sections_6morceaux.html`.
+    merge_letters: bool = True
 
 
 SETTINGS = Settings()

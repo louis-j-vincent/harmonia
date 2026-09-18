@@ -121,40 +121,187 @@ CV_MAX = 0.51            # Louis's validated metric (2026-08-01): CV =
                          # NOT squashed.
 
 
-#: Cosinus minimal entre les CENTROÏDES de deux lettres pour les fusionner
-#: avant le repli (Louis, 2026-09-14, en écoutant les mesures de Sunny
-#: Afternoon : « la section A et C sont les mêmes, il faudrait les merger »).
-#: Vérifié : A (instrumental) et C (refrain) partagent la même progression —
-#: cosinus 0.98–0.99 selon l'occurrence de C comparée, PLUS haut que la
-#: cohérence interne de A elle-même (0.96) ou de B (0.98). songformer nomme
-#: un passage par son RÔLE (couplet/refrain/instrumental…), pas par sa
-#: musique — un instrumental qui rejoue le refrain reçoit sa propre lettre
-#: même si les accords sont identiques.
-#: Volontairement très haut : ça ne doit fusionner que ce qui est
-#: authentiquement le même passage. HYPOTHÈSE, un seul morceau — à vérifier
-#: sur le corpus avant de devenir le défaut (voir `SETTINGS.merge_letters`,
-#: passé à `fold_letter_groups(merge_letters=...)` — plus de variable
-#: d'environnement depuis le refactor, 2026-09-14).
+#: FUSIONNER DEUX LETTRES : on compare ce qu'on a DÉCODÉ, pas ce qu'on a
+#: ENTENDU (2026-09-18, six morceaux analysés puis vérifiés à l'oreille par
+#: Louis — `docs/plots/sections_6morceaux.html`).
+#:
+#: songformer nomme un passage par son RÔLE (couplet/refrain/instrumental),
+#: pas par sa musique : sur Fallin', qui est UNE boucle E-…B- du début à la
+#: fin, il rend huit lettres. Rien en aval ne lui répond « harmoniquement,
+#: c'est le même passage » — d'où cette fonction.
+#:
+#: CE QUI A ÉTÉ MESURÉ ET ÉCARTÉ. La première version comparait les
+#: CENTROÏDES de chroma (seuil 0.93). Mesurée sur les six : juste sur cinq,
+#: elle CASSE Let It Be (couplet ↔ refrain à 0.970, ils fusionnaient), et
+#: aucun seuil ne sauve les six — fusionner Fallin' exige ≤ 0.961, garder
+#: Let It Be exige > 0.967. Deux défauts du substrat, pas du seuil : un
+#: centroïde est un SAC de notes (`C G | A- F | C G | F C` et
+#: `A- G | F C | C G | F C` ont le même sac), et la chroma NNLS porte la
+#: PRODUCTION en plus de l'harmonie. Rendre la mesure sensible à l'ordre en
+#: comparant les SÉQUENCES de chroma a été essayé aussi : échoue pareil
+#: (Fallin' 0.839 contre Let It Be 0.864, l'ordre reste inversé).
+#:
+#: CE QUI SÉPARE : les accords décodés. Une mesure devient ses couples
+#: (fondamentale, famille) — `B-` et `B-7` sont le même moment, `B-` et `B`
+#: non ; une mesure muette est un JOKER, sinon un couplet nu de basse ne
+#: ressemble plus à sa propre reprise (Stand By Me : 0.67 → 0.88). Sur les
+#: six, la fenêtre valable est (0.50, 0.75] — on prend le milieu.
+MERGE_LETTERS_ACCORDS = 0.65
+#: Deux lettres qui ne se ressemblent pas ASSEZ mais partagent leur TÊTE sont
+#: un même passage à deux queues — une 1re/2e fin, pas deux sections (Sunny
+#: A/B et C/D, Every Breath A/A″). Les fusionner ici est ce qui permet à
+#: `_ireal_endings`, qui ne regarde jamais à travers deux lettres, de voir
+#: enfin les queues divergentes. Mesuré : les trois cas partagent 3 mesures
+#: de tête, TOUTES les paires qui doivent rester séparées en partagent 0.
+MERGE_LETTERS_PREFIXE = 3
+#: Un bloc plus court que ça ne sert pas de preuve de préfixe : c'est un
+#: fragment (Let It Be écrit trois « sections » de 2 mesures).
+MERGE_LETTERS_MIN_BARS = 4
+#: Gardé pour la page de mesure `tools/page_sections.py`, qui montre les deux
+#: substrats côte à côte. N'est plus consulté par la production.
 MERGE_LETTERS_COS = 0.93
 
 
-def merge_similar_letters(sections: list[dict], Vb: np.ndarray,
-                          threshold: float = MERGE_LETTERS_COS) -> None:
-    """Réétiquette IN PLACE les lettres dont les centroïdes se confondent.
+def _sig_repli(bar) -> tuple | None:
+    """Une mesure vue par la fusion : ses couples (fondamentale, famille).
 
-    Compare la moyenne des vecteurs de mesure (même substrat que la
-    détection et le repli) de chaque lettre à chaque autre ; au-dessus du
-    seuil, la plus tardive des deux prend le nom de la plus ancienne
-    (`_lettres()` nomme déjà par ordre de première apparition — on prolonge
-    la même convention). `intro`/`outro` ne sont jamais comparées : ce sont
-    des repères de structure, pas de la matière musicale à confondre avec
-    autre chose.
+    `None` quand la mesure ne porte aucun accord réel — c'est un JOKER, qui
+    s'accorde avec n'importe quoi. Sans ça, le couplet nu de Stand By Me (que
+    la basse seule tient, donc décodé en N.C.) ne ressemblait plus à sa propre
+    reprise complète : 0.67 au lieu de 0.88.
+    """
+    reels = [c for c in (bar or []) if not c.get("nc")]
+    if not reels:
+        return None
+    return tuple((c["root"] % 12, famille_de(c.get("q"))) for c in reels)
+
+
+def famille_de(q: str | None) -> str:
+    """maj / min / dim / aug — la granularité à laquelle `B-` et `B-7` sont le
+    même moment musical, et `B-` et `B` deux moments différents."""
+    q = q or ""
+    if q.startswith(("o", "h")) or q.startswith("-7b5"):
+        return "o"
+    if q.startswith("-"):
+        return "m"
+    if q.startswith("+"):
+        return "+"
+    return "M"
+
+
+def periode_interne(A: list) -> int:
+    """La plus petite période qui décrit la suite — 2 pour `E-|B-|E-|B-`, la
+    longueur entière pour un passage à travers-composé.
+
+    Elle borne les ROTATIONS qu'on s'autorise. Sans cette borne, la
+    concordance cyclique fait passer n'importe quelle rotation pour le même
+    passage : sur l'Autumn Leaves d'iReal — une structure écrite par un
+    humain, donc notre vérité terrain — la section B est la section A
+    décalée de 4 mesures, et elles fusionnaient. Une boucle de 2 mesures a le
+    droit de commencer sur l'une ou l'autre (c'est Fallin', dont les lettres
+    sont coupées à des endroits différents de la même boucle) ; un couplet de
+    8 mesures n'a pas le droit de commencer au milieu de lui-même.
+    """
+    n = len(A)
+    for p in range(1, n + 1):
+        if n % p != 0:
+            continue
+        if not any(x is not None for x in A[:p]) and any(x is not None for x in A):
+            continue          # une cellule faite QUE de jokers ne décrit rien
+        if all(A[i] is None or A[i % p] is None or A[i] == A[i % p]
+               for i in range(n)):
+            return p
+    return n
+
+
+def concordance(A: list, B: list) -> float:
+    """Meilleure concordance de deux passages, rapportée au plus court.
+
+    ON COMPARE LES CELLULES, PAS LES BLOCS TUILÉS. Chaque suite est d'abord
+    réduite à sa période interne : sinon un accord commun est compté autant de
+    fois que la boucle se répète, et deux progressions différentes se
+    rapprochent artificiellement. Sur Hot N Cold, `G D A- C` et `E- C G D`
+    sortaient à 0.75 en tuilé sur 8 mesures (le `G D` compté deux fois) — et
+    à 0.50 cellule contre cellule, ce qui est la vérité : deux des quatre
+    accords diffèrent.
+
+    UNE ROTATION NE SE JUSTIFIE QUE SUR UNE BOUCLE : quand la plus petite
+    période est strictement plus courte que le plus long des deux passages.
+    Fallin' (période 2, blocs de 2 à 9) oui ; Autumn Leaves (période 8, blocs
+    de 8) non — sans ça la section B, qui est la A décalée de 4 mesures, passe
+    pour la même section.
+
+    UN JOKER (mesure sans accord propre) s'accorde avec tout mais ne prouve
+    rien : si moins de la moitié des positions comparées sont de vrais accords
+    des deux côtés, on rend 0. Sans ça, sur le Syracuse d'iReal, une section
+    de 2 mesures tombait en face de mesures tenues d'une section sans rapport
+    et sortait à 1.00.
+    """
+    if not A or not B:
+        return 0.0
+    # La preuve qu'on a affaire à une BOUCLE se lit sur les longueurs
+    # d'ORIGINE (une cellule de 2 vue sur 8 mesures), pas après réduction —
+    # une fois réduites, deux cellules ont souvent la même taille et la
+    # preuve aurait disparu.
+    pa, pb = periode_interne(A), periode_interne(B)
+    boucle = min(pa, pb) < max(len(A), len(B))
+    A, B = A[:pa], B[:pb]
+    k = min(len(A), len(B))
+    rot = len(B) if boucle else 1
+    best = 0.0
+    for r in range(rot):
+        ok = reels = 0
+        for j in range(k):
+            a, b = A[j % len(A)], B[(j + r) % len(B)]
+            if a is not None and b is not None:
+                reels += 1
+                if a == b:
+                    ok += 1
+            else:
+                ok += 1                        # joker : s'accorde, ne prouve rien
+        if reels * 2 < k:
+            continue                           # trop de jokers pour conclure
+        best = max(best, ok / k)
+    return best
+
+
+def tete_commune(A: list, B: list) -> int:
+    """Combien de mesures de TÊTE deux passages partagent VRAIMENT — les
+    jokers ne comptent pas.
+
+    C'est la mesure d'un passage à deux queues (1re/2e fin) que la
+    concordance globale rate. Compter les jokers ici était un trou béant : la
+    lettre A de Hot N Cold porte 5 mesures muettes sur 8, elle « partageait
+    donc sa tête » avec toutes les autres et absorbait le morceau entier.
+    """
+    n = 0
+    for a, b in zip(A, B):
+        if a is None or b is None:
+            continue                           # ne prouve rien, ne casse rien
+        if a != b:
+            break
+        n += 1
+    return n
+
+
+def merge_similar_letters(sections: list[dict], bars: list,
+                          seuil: float = MERGE_LETTERS_ACCORDS,
+                          prefixe: int = MERGE_LETTERS_PREFIXE) -> None:
+    """Réétiquette IN PLACE les lettres qui sont le même passage.
+
+    Deux lettres se rencontrent si leurs ACCORDS DÉCODÉS concordent (voir
+    `MERGE_LETTERS_ACCORDS` pour ce qui a été mesuré et écarté), ou si elles
+    partagent assez de mesures de tête pour n'être qu'un passage à deux
+    queues. La plus tardive prend le nom de la plus ancienne — `_lettres()`
+    nomme déjà par ordre de première apparition, on prolonge la convention.
+    `intro`/`outro` ne sont jamais comparées : ce sont des repères de
+    structure, pas de la matière à confondre.
 
     NE RÈGLE PAS : deux occurrences fusionnées peuvent avoir des longueurs
-    différentes (ex. le refrain court de 6 mesures) — `fold_letter_groups`
-    et `minimal_fold` gèrent déjà ce cas (empilement occurrence contre
-    occurrence, groupage par (lettre, longueur)), donc rien de plus n'est
-    nécessaire ici, mais ce n'est pas cette fonction qui le garantit.
+    différentes — `fold_letter_groups` et `minimal_fold` gèrent déjà ce cas
+    (empilement occurrence contre occurrence, groupage par (lettre,
+    longueur)) ; ni la TRANSPOSITION (Sunny rejoue sa forme un demi-ton plus
+    haut, et le repli ne compare jamais deux hauteurs).
     """
     from collections import defaultdict
     groups: dict[str, list[dict]] = defaultdict(list)
@@ -164,13 +311,11 @@ def merge_similar_letters(sections: list[dict], Vb: np.ndarray,
     if len(letters) < 2:
         return
 
-    def centroid(label):
-        idx = [b for s in groups[label]
-               for b in range(s["barRanges"][0][0], s["barRanges"][0][1] + 1)]
-        v = Vb[idx].mean(axis=0)
-        return v / max(np.linalg.norm(v), 1e-9)
+    def suite(label):
+        b0, b1 = groups[label][0]["barRanges"][0]
+        return [_sig_repli(bars[b]) for b in range(b0, min(b1 + 1, len(bars)))]
 
-    cent = {l: centroid(l) for l in letters}
+    suites = {l: suite(l) for l in letters}
     first = {l: min(s["barRanges"][0][0] for s in groups[l]) for l in letters}
     order = sorted(letters, key=lambda l: first[l])
     remap = {l: l for l in letters}
@@ -178,15 +323,24 @@ def merge_similar_letters(sections: list[dict], Vb: np.ndarray,
         for lj in order[i + 1:]:
             if remap[li] != li or remap[lj] != lj:
                 continue                      # déjà fusionnée ce tour-ci
-            sim = float(cent[li] @ cent[lj])
-            if sim >= threshold:
-                remap[lj] = li
-                logger.info("fold: lettres %s et %s fusionnées (centroïdes "
-                            "à %.3f) — %s absorbe %s", li, lj, sim, li, lj)
+            A, B = suites[li], suites[lj]
+            sim = concordance(A, B)
+            tete = tete_commune(A, B)
+            assez_long = min(len(A), len(B)) >= MERGE_LETTERS_MIN_BARS
+            if sim >= seuil:
+                pourquoi = f"accords concordants à {sim:.2f}"
+            elif assez_long and tete >= prefixe:
+                pourquoi = f"{tete} mesures de tête communes (passage à deux queues)"
+            else:
+                continue
+            remap[lj] = li
+            logger.info("fold: lettres %s et %s fusionnées (%s) — %s absorbe %s",
+                        li, lj, pourquoi, li, lj)
     if all(v == k for k, v in remap.items()):
         return
     for s in sections:
-        s["label"] = remap.get(s["label"], s["label"])
+        if s["label"] in remap:
+            s["label"] = remap[s["label"]]
 
 
 def _bar_vecs(F: np.ndarray, n_bars: int) -> np.ndarray:
@@ -381,7 +535,7 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
     Lf = max(bpb, int(round(med_bar / _musx.FRAME_DT)))   # frames per bar
 
     if merge_letters:
-        merge_similar_letters(sections, Vb)
+        merge_similar_letters(sections, bars)
 
     # ── group sections by letter, pick the group period ─────────────────────
     groups: dict[str, list[dict]] = {}
