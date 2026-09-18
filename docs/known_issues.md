@@ -5,6 +5,45 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Tabs : le modèle de placement, corrigé par Louis (2026-09-18, RÉSOLU)
+
+Louis, en lisant la page d'explication : « le tab n'a aucune mesure ?? on est
+d'accord on matche bien toute la longueur des accords consécutifs à toute la
+longueur du chart, et ensuite la seule question qui permet de maximiser la
+log-proba totale c'est comment je pose mes accords du tab à l'intérieur, sans
+jamais en changer l'ordre (un accord toujours après un autre) ».
+
+Deux erreurs de ma part, les deux réelles.
+
+1. **J'ai parlé de « la mesure 18 du tab ».** Un tab n'a pas de mesures. Le
+   numéro venait de MON alignement. Ce que le tab dit est ordinal : quel
+   accord ouvre la section.
+2. **`aligner` ancrait le début et laissait la fin flotter**, et jetait les
+   accords qu'il n'arrivait pas à caser (39 sur 115 sur This Love) parce
+   qu'une mesure ne porte qu'un accord. Le chiffre était affiché sur la page
+   depuis le début — « cases utilisées 76/115 » — et je n'en ai pas tiré la
+   conclusion.
+
+`poser_tout` applique son modèle : unité = le TEMPS, les deux bouts ancrés,
+aucun accord jeté, ordre préservé. Mesuré sur la même grille de temps, contre
+le top-1 de musx :
+
+    This Love   61,1 % (76/115 accords posés)  →  80,7 % (115/115)
+    Grenade     81,7 % (73/105)                →  96,7 % (105/105)
+
+Deux priors, tous deux tirés du tab seul : la DURÉE annoncée (un accord écrit
+sur trois lignes dure trois fois plus) et la PLACE (un accord change sur un
+temps fort). Le second à 0,4 nat coûte 0,3 point d'accord et fait passer le
+placement sur temps fort de 93 % à 97 %.
+
+FAUSSE ALERTE, consignée. Le prior de temps fort semblait d'abord inutilisable :
+5 % des changements « sur le temps fort » sur This Love contre 63 % sur
+Grenade. C'était ma MESURE qui était fausse — This Love a une levée d'un temps,
+donc ses premiers temps de mesure sont les indices 1, 5, 9…, pas 0, 4, 8. Avec
+la bonne origine les deux morceaux se comportent pareil (62 % / 63 % sur le
+premier temps, 93 % / 92 % sur un temps fort). `_cout_depart` prend maintenant
+une `origine`.
+
 ## Tabs : frontières de section décalées d'une mesure (2026-09-18, OUVERT — arbitrage)
 
 Louis, sur la page POC : « le découpage de sections est quasi bon mais pas bon,

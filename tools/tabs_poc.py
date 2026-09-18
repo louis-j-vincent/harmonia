@@ -29,8 +29,9 @@ from pathlib import Path
 
 import numpy as np
 
-from harmonia.integrations.tab_align import (NOMS, aligner, compresser,
+from harmonia.integrations.tab_align import (NOMS, compresser,
                                              meilleure_transposition, nom_q5,
+                                             poser_tout,
                                              prior_de_grille, priors_musx,
                                              sequence_du_tab, vraisemblance)
 from harmonia.settings import SETTINGS
@@ -51,7 +52,8 @@ def etudier(cle: str, requete: str) -> dict | None:
     stem = Path(chart.get("audio_url") or "").stem
     audio = SETTINGS.audio_dir / f"{stem}.m4a"
     grille = [float(t) for t in (chart.get("barGrid") or [])]
-    if not audio.exists() or len(grille) < 3:
+    temps = [float(t) for t in (chart.get("beatTimes") or [])]
+    if not audio.exists() or len(grille) < 3 or len(temps) < 8:
         print(f"   {cle} : pas d'audio ou grille trop courte")
         return None
 
@@ -69,25 +71,68 @@ def etudier(cle: str, requete: str) -> dict | None:
     if not seq:
         print(f"   {requete} : aucun accord dans le tab")
         return None
+    # La transposition se cherche sur les mesures (c'est une statistique
+    # globale), mais le placement se fait sur les TEMPS : le tab a plus
+    # d'accords que le morceau n'a de mesures, et une mesure peut en porter
+    # deux — comme sur un vrai chart.
     P = priors_musx(audio, grille)
     dec, scores = meilleure_transposition(seq, P)
-    chemin = aligner(seq, P, dec)
+    Pt = priors_musx(audio, temps)
+    # l'origine des mesures n'est pas toujours le temps zéro : This Love a une
+    # levée d'un temps. Sans ça le prior de temps fort compte la phase à
+    # partir du mauvais endroit.
+    origine = int(np.argmin([abs(t - grille[0]) for t in temps]))
+    chemin = poser_tout(seq, Pt, dec, bpb=int(chart.get("bpb") or 4),
+                        origine=origine)
+    if chemin is None:
+        print(f"   {requete} : le tab a plus d'accords ({len(seq)}) que le "
+              f"morceau n'a de temps ({len(temps) - 1})")
+        return None
 
     cases = [{"root": (a["root"] + dec) % 12, "q5": a["q5"],
               "texte_tab": a["texte"], "section": a["section"],
               "repetitions": a.get("repetitions", 1)} for a in seq]
-    par_mesure, total = [], 0.0
-    for b, i in enumerate(chemin):
+    # chaque accord devient un segment [premier temps, dernier temps]
+    segments, total, d_accord = [], 0.0, 0
+    for t, i in enumerate(chemin):
         c = cases[i]
-        lv = vraisemblance(P[b], (c["root"], c["q5"]))
+        lv = vraisemblance(Pt[t], (c["root"], c["q5"]))
         total += lv
-        top = int(np.argmax(P[b]))
-        par_mesure.append({
+        top = int(np.argmax(Pt[t]))
+        if nom_q5(c["root"], c["q5"]) == nom_q5(top // 5, top % 5):
+            d_accord += 1
+        if segments and segments[-1]["case"] == i:
+            segments[-1]["t1"] = round(temps[t + 1], 2)
+            segments[-1]["musx"].append((nom_q5(top // 5, top % 5),
+                                         round(float(Pt[t][top]), 3)))
+            continue
+        segments.append({
             "case": i, "tab": nom_q5(c["root"], c["q5"]),
-            "musx": nom_q5(top // 5, top % 5),
-            "p_musx": round(float(P[b][top]), 3),
-            "lv": round(lv, 3), "section": c["section"],
-            "t0": round(grille[b], 2), "t1": round(grille[b + 1], 2)})
+            "section": c["section"], "lv": round(lv, 3),
+            "t0": round(temps[t], 2), "t1": round(temps[t + 1], 2),
+            "musx": [(nom_q5(top // 5, top % 5), round(float(Pt[t][top]), 3))]})
+
+    # puis on range les segments dans les mesures, pour que ça se lise.
+    # Un accord qui déborde d'une mesure sur l'autre est dessiné dans les
+    # deux, mais marqué « tenu » dans la seconde et large de ce qu'il occupe
+    # VRAIMENT : sans ça une mesure qui porte deux accords en paraît quatre,
+    # et chaque accord paraît durer autant que ses voisins.
+    par_mesure = []
+    for b in range(len(grille) - 1):
+        a0, a1 = grille[b], grille[b + 1]
+        dedans = []
+        for g in segments:
+            if not (g["t0"] < a1 - 1e-6 and g["t1"] > a0 + 1e-6):
+                continue
+            part = sum(1 for t in temps[:len(chemin)]
+                       if max(a0, g["t0"]) - 1e-6 <= t < min(a1, g["t1"]) - 1e-6)
+            dedans.append({**g, "part": max(1, part),
+                           # un accord n'est « tenu » que s'il a commencé dans
+                           # une mesure PRÉCÉDENTE — la première n'en a pas
+                           "tenu": b > 0 and g["t0"] < a0 - 1e-6})
+        par_mesure.append({"n": b + 1, "t0": round(a0, 2), "t1": round(a1, 2),
+                           "accords": dedans,
+                           "section": dedans[0]["section"] if dedans else ""})
 
     k = chart.get("key") or {}
     return {
@@ -101,13 +146,14 @@ def etudier(cle: str, requete: str) -> dict | None:
         "marge": round(scores[0][0] - scores[1][0], 3),
         "scores": [(s, round(v, 3)) for v, s in scores],
         "n_cases": len(seq), "cases_utilisees": len(set(chemin)),
+        "n_temps": len(chemin),
+        "n_partagees": sum(1 for m in par_mesure if len(m["accords"]) > 1),
         "prior": {nom_q5(r_, q): round(v, 3) for (r_, q), v
                   in sorted(prior_de_grille(seq)["part"].items(),
                             key=lambda x: -x[1])},
         "mesures": par_mesure,
-        "lv_moyenne": round(total / max(1, len(par_mesure)), 3),
-        "accord_musx": round(
-            float(np.mean([m["tab"] == m["musx"] for m in par_mesure])), 3),
+        "lv_moyenne": round(total / max(1, len(chemin)), 3),
+        "accord_musx": round(d_accord / max(1, len(chemin)), 3),
     }
 
 
@@ -125,8 +171,19 @@ h2{font-size:16px;margin:24px 0 4px}
 .chiffres{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:#8a8371;
  margin:4px 0 8px}
 .chiffres b{color:#2c2820}
-.grille{display:grid;grid-template-columns:repeat(4,1fr);gap:3px}
-.mes{position:relative;min-height:52px;border-radius:5px;padding:14px 4px 4px;
+.grille{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px}
+.dans{display:flex;gap:3px}
+.ac{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:6px;background:#fdfbf4;padding:3px 2px}
+.ac.dacc{background:#e9f3e6}
+/* un accord tenu depuis la mesure d'avant : il ne COMMENCE pas ici */
+.ac.tenu{background:transparent}
+.ac.tenu.dacc{background:transparent}
+.lien{width:60%;height:2px;border-radius:2px;background:#cfc6ab}
+.ac.dacc .lien{background:#a9c69c}
+.ac .t{font:700 15px ui-monospace,monospace;color:#2c2820}
+.dans:has(.ac+.ac) .t{font-size:12px}
+.ac .m{color:#b4553c;font-size:10.5px;font-variant-numeric:tabular-nums}
+.mes{position:relative;min-width:0;min-height:52px;border-radius:5px;padding:14px 4px 4px;
  background:#f3edda;cursor:pointer;text-align:center;
  -webkit-tap-highlight-color:transparent}
 .mes.dacc{background:#e8f0e4}
@@ -186,12 +243,15 @@ def rendre_tab(brut: str) -> str:
 def page(songs: list[dict]) -> str:
     B = ["<h1>Les tabs, alignés sur ce que l'audio dit</h1>",
          "<div class=lede>Le tab dit <b>quoi</b> et <b>dans quel ordre</b> ; "
-         "l'audio dit <b>quand</b>. La grille ci-dessous est la suite du tab "
-         "posée sur les mesures, à l'alignement qui rend l'audio le plus "
-         "vraisemblable.<br>Sous chaque mesure, en rouge, ce que musx entendait "
-         "tout seul — affiché <b>seulement quand il n'est pas d'accord</b>. Les "
-         "mesures vertes sont celles où les deux disent la même chose.<br>"
-         "Touche une mesure pour l'écouter. Tes verdicts remontent tout seuls.</div>",
+         "l'audio dit <b>quand</b>. <b>Tous</b> les accords du tab sont posés "
+         "sur le morceau, dans l'ordre, du premier temps au dernier — aucun "
+         "n'est jeté, et une mesure peut en porter deux comme sur un vrai "
+         "chart. La seule question résolue ici est <i>où chacun commence</i>, "
+         "à l'endroit qui rend l'audio le plus vraisemblable.<br>"
+         "En rouge, ce que musx entendait tout seul — affiché <b>seulement "
+         "quand il n'est pas d'accord</b>. Le vert est l'accord.<br>"
+         "Touche un accord pour l'écouter lui, une mesure pour l'écouter "
+         "entière. Tes verdicts remontent tout seuls.</div>",
          "<p class=note><span id=n>aucun morceau jugé</span></p>"]
     for s in songs:
         B.append(f"<div class=carte data-cle=\"{html.escape(s['cle'])}\">")
@@ -202,25 +262,42 @@ def page(songs: list[dict]) -> str:
             f"<span>tonalité du chart <b>{html.escape(s['tonalite'])}</b></span>"
             f"<span>transposition <b>+{s['decalage']} demi-tons</b> "
             f"(marge {s['marge']})</span>"
-            f"<span>cases du tab utilisées <b>{s['cases_utilisees']}/{s['n_cases']}</b></span>"
+            f"<span>accords du tab posés <b>{s['cases_utilisees']}/{s['n_cases']}</b>"
+            f" sur {s['n_temps']} temps</span>"
+            f"<span>mesures à deux accords ou plus <b>{s['n_partagees']}</b></span>"
             f"<span>d'accord avec musx <b>{s['accord_musx']:.0%}</b></span>"
             f"<span>log-vraisemblance moyenne <b>{s['lv_moyenne']}</b></span>"
             "</div>")
         B.append("<div class=grille>")
         section = object()
-        for i, m in enumerate(s["mesures"]):
+        for m in s["mesures"]:
             if m["section"] != section:
                 section = m["section"]
                 if section:
                     B.append(f"<div class=sec>{html.escape(str(section))}</div>")
-            dacc = " dacc" if m["tab"] == m["musx"] else ""
+            dedans = []
+            for g in m["accords"]:
+                # musx est d'accord si son top-1 dit la même chose sur la
+                # majorité des temps que cet accord couvre
+                pareil = sum(1 for nm, _ in g["musx"] if nm == g["tab"])
+                ok = pareil * 2 >= len(g["musx"])
+                autre = next((f"{nm} {p}" for nm, p in g["musx"]
+                              if nm != g["tab"]), "")
+                classes = "ac" + (" dacc" if ok else "") + (" tenu" if g["tenu"] else "")
+                # un accord tenu depuis la mesure d'avant ne redit pas son nom :
+                # il n'y COMMENCE pas. Seule sa durée compte, et un trait la dit.
+                dedans.append(
+                    f"<div class='{classes}' style=flex-grow:{g['part']}"
+                    f" onclick=\"event.stopPropagation();jouer('{s['audio']}',"
+                    f"{g['t0']},{g['t1']})\">"
+                    + ("<div class=lien></div>" if g["tenu"] else
+                       f"<div class=t>{html.escape(g['tab'])}</div>"
+                       + ("" if ok or not autre else
+                          f"<div class=m>{html.escape(autre)}</div>")) + "</div>")
             B.append(
-                f"<div class='mes{dacc}' onclick=\"jouer('{s['audio']}',"
-                f"{m['t0']},{m['t1']})\"><div class=no>{i+1}</div>"
-                f"<div class=t>{html.escape(m['tab'])}</div>"
-                + ("" if dacc else
-                   f"<div class=m>{html.escape(m['musx'])} {m['p_musx']}</div>")
-                + "</div>")
+                f"<div class=mes onclick=\"jouer('{s['audio']}',"
+                f"{m['t0']},{m['t1']})\"><div class=no>{m['n']}</div>"
+                f"<div class=dans>{''.join(dedans)}</div></div>")
         B.append("</div>")
         B.append("<details><summary>le tab d'origine, tel qu'il est écrit</summary>"
                  f"<pre>{rendre_tab(s['tab']['brut'])}</pre></details>")

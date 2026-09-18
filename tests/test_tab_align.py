@@ -188,3 +188,116 @@ def test_une_sequence_ou_un_audio_vide_ne_casse_pas():
     assert TA.aligner([], np.zeros((4, 60))) == []
     assert TA.aligner([{"root": 0, "q5": 0, "repetitions": 1}],
                       np.zeros((0, 60))) == []
+
+
+# ── tout le tab posé sur tout le morceau ────────────────────────────────────
+#
+# Louis, 2026-09-18, en corrigeant le modèle : « le tab n'a aucune mesure ?? on
+# est d'accord on matche bien toute la longueur des accords consécutifs à toute
+# la longueur du chart, et ensuite la seule question qui permet de maximiser la
+# log-proba totale c'est comment je pose mes accords du tab à l'intérieur, sans
+# jamais en changer l'ordre (un accord toujours après un autre) ».
+#
+# Mesuré sur la même grille de temps, contre le top-1 de musx :
+#     This Love  61,1 % (76/115 accords posés)  →  80,7 % (115/115)
+#     Grenade    81,7 % (73/105)                →  96,7 % (105/105)
+
+def _suite(*accords):
+    return [{"root": r, "q5": q, "repetitions": n}
+            for r, q, n in accords]
+
+
+def test_les_DEUX_bouts_sont_ancres():
+    """L'ancien alignement ancrait le début et laissait la fin flotter : rien
+    n'obligeait le dernier accord du tab à tomber à la fin du morceau."""
+    seq = _suite((0, 0, 1), (9, 1, 1), (5, 0, 1), (7, 0, 1))
+    ch = TA.poser_tout(seq, np.full((40, 60), 1.0 / 60))
+    assert ch[0] == 0, "le premier accord ouvre le morceau"
+    assert ch[-1] == len(seq) - 1, "le dernier accord le ferme"
+
+
+def test_AUCUN_accord_n_est_jete():
+    """Le défaut que Louis a vu dans la ligne « cases utilisées » : 39 accords
+    sur 115 disparaissaient, parce qu'une mesure ne peut en porter qu'un."""
+    seq = _suite(*[(r % 12, 0, 1) for r in range(0, 24, 2)])
+    ch = TA.poser_tout(seq, np.full((60, 60), 1.0 / 60))
+    assert sorted(set(ch)) == list(range(len(seq)))
+
+
+def test_l_ordre_n_est_JAMAIS_change():
+    """« un accord toujours après un autre »."""
+    seq = _suite((0, 0, 1), (5, 0, 3), (7, 0, 1), (2, 1, 2))
+    rng = np.random.default_rng(3)
+    P = rng.random((50, 60))
+    P /= P.sum(1, keepdims=True)
+    ch = TA.poser_tout(seq, P)
+    assert all(a <= b for a, b in zip(ch, ch[1:]))
+
+
+def test_un_tab_plus_long_que_le_morceau_le_DIT():
+    """Infaisable : plus d'accords que de temps. On rend None plutôt que de
+    rogner en silence — un repli silencieux est un bug qui se découvre trois
+    semaines plus tard."""
+    seq = _suite(*[(r % 12, 0, 1) for r in range(20)])
+    assert TA.poser_tout(seq, np.full((10, 60), 1.0 / 60)) is None
+
+
+def test_le_prior_de_duree_vient_de_CE_QUE_LE_TAB_ECRIT():
+    """Un accord écrit au-dessus de trois lignes de paroles attend trois fois
+    plus de temps qu'un accord écrit au-dessus d'une seule. Sans aucune aide
+    de l'audio, le partage doit suivre ces poids."""
+    seq = _suite((0, 0, 3), (7, 0, 1))
+    ch = TA.poser_tout(seq, np.full((40, 60), 1.0 / 60))
+    tenu = ch.count(0)
+    assert 26 <= tenu <= 34, f"attendu ~30 temps sur 40, obtenu {tenu}"
+
+
+def test_l_audio_l_emporte_sur_le_prior_de_duree():
+    """Le prior propose, l'audio dispose : ici le tab annonce un premier
+    accord trois fois plus long, mais l'audio dit le contraire."""
+    seq = _suite((0, 0, 3), (7, 0, 1))
+    P = _priors([(0, 0)] * 8 + [(7, 0)] * 32)
+    ch = TA.poser_tout(seq, P)
+    assert ch.count(0) == 8
+
+
+def test_deux_accords_peuvent_partager_une_mesure():
+    """C'est tout l'intérêt de travailler au TEMPS et non à la mesure : un
+    vrai chart porte deux accords dans une mesure, et le tab en écrit plus
+    que le morceau n'a de mesures."""
+    seq = _suite((0, 0, 1), (5, 0, 1), (7, 0, 1), (2, 0, 1))
+    P = _priors([(0, 0), (5, 0), (7, 0), (2, 0)])      # 4 temps = 1 mesure
+    assert TA.poser_tout(seq, P) == [0, 1, 2, 3]
+
+
+def test_l_origine_des_mesures_n_est_pas_toujours_le_temps_zero():
+    """This Love a une levée d'un temps : ses premiers temps de mesure sont
+    les indices 1, 5, 9… Compter la phase depuis zéro y donnait 5 % de
+    changements « sur le temps fort » contre 63 % sur Grenade, et la
+    conclusion — « ce morceau ne tombe pas sur la grille » — était fausse.
+    """
+    sans = TA._cout_depart(8, 4, 1.0, origine=0)
+    avec = TA._cout_depart(8, 4, 1.0, origine=1)
+    assert [i for i, c in enumerate(sans) if c == 0.0] == [0, 4, 8]
+    assert [i for i, c in enumerate(avec) if c == 0.0] == [1, 5]
+
+
+def test_le_milieu_de_mesure_coute_moins_qu_un_temps_faible():
+    """Une demi-mesure est une place normale pour un changement d'accord ;
+    le deuxième ou le quatrième temps, beaucoup moins."""
+    c = TA._cout_depart(8, 4, 1.0)
+    assert c[0] == 0.0 > c[2] > c[1] and c[1] == c[3]
+
+
+def test_sans_chiffrage_le_prior_de_temps_fort_ne_fait_rien():
+    """On ne devine pas une métrique qu'on n'a pas : `bpb=0` désactive."""
+    assert not TA._cout_depart(8, 0, 1.0).any()
+
+
+def test_le_prior_de_temps_fort_tire_un_changement_sur_la_barre():
+    """Un accord dont l'audio hésite entre commencer au temps 3 ou au temps 4
+    doit commencer au temps 4 — c'est le premier temps de la mesure."""
+    seq = _suite((0, 0, 1), (7, 0, 1))
+    P = _priors([(0, 0)] * 3 + [(0, 0)] + [(7, 0)] * 4)   # le 4e temps est ambigu
+    P[3] = 0.5 * P[3] + 0.5 * _priors([(7, 0)])[0]
+    assert TA.poser_tout(seq, P, bpb=4, temps_fort=2.0).index(1) == 4

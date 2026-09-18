@@ -28,12 +28,12 @@ from pathlib import Path
 
 import numpy as np
 
-from harmonia.integrations.tab_align import (NOMS, aligner, compresser,
-                                             detail_mesure,
+from harmonia.integrations.tab_align import (NOMS, compresser,
                                              meilleure_transposition, nom_q5,
-                                             part_des_temoins,
+                                             part_des_temoins, poser_tout,
                                              prior_de_grille, priors_musx,
-                                             sequence_du_tab, table)
+                                             sequence_du_tab, termes,
+                                             termes_du_segment)
 from harmonia.settings import SETTINGS
 
 #: Grenade : 95 % d'accord avec musx, et les cinq frontières « en retard » y
@@ -53,7 +53,8 @@ def rassembler(cle: str, requete: str) -> dict | None:
     stem = Path(chart.get("audio_url") or "").stem
     audio = SETTINGS.audio_dir / f"{stem}.m4a"
     grille = [float(t) for t in (chart.get("barGrid") or [])]
-    if not audio.exists() or len(grille) < 3:
+    temps = [float(t) for t in (chart.get("beatTimes") or [])]
+    if not audio.exists() or len(grille) < 3 or len(temps) < 8:
         print(f"   {cle} : pas d'audio ou grille trop courte")
         return None
 
@@ -66,34 +67,44 @@ def rassembler(cle: str, requete: str) -> dict | None:
     seq = compresser(sequence_du_tab(tab.raw_content))
     P = priors_musx(audio, grille)
     dec, scores = meilleure_transposition(seq, P)
-    chemin = aligner(seq, P, dec)
-    t = table(seq, P, dec)
 
-    mesures = []
-    for b, i in enumerate(chemin):
+    Pt = priors_musx(audio, temps)
+    bpb = int(chart.get("bpb") or 4)
+    origine = int(np.argmin([abs(t - grille[0]) for t in temps]))
+    chemin = poser_tout(seq, Pt, dec, bpb=bpb, origine=origine)
+    if chemin is None:
+        print(f"   {cle} : plus d'accords que de temps")
+        return None
+    T = termes(seq, Pt, dec, bpb=bpb, origine=origine)
+
+    # chaque accord devient un segment [premier temps, dernier temps]
+    segments = []
+    for t, i in enumerate(chemin):
+        if segments and segments[-1]["case"] == i:
+            segments[-1]["fin"] = t + 1
+            continue
         c = seq[i]
-        top = int(np.argmax(P[b]))
-        mesures.append({
-            "b": b, "case": i,
-            "accord": nom_q5((c["root"] + dec) % 12, c["q5"]),
-            "musx": nom_q5(top // 5, top % 5), "p_musx": float(P[b][top]),
-            "section": c.get("section") or "",
-            "t0": grille[b], "t1": grille[b + 1]})
+        segments.append({"case": i, "debut": t, "fin": t + 1,
+                         "accord": nom_q5((c["root"] + dec) % 12, c["q5"]),
+                         "section": c.get("section") or ""})
+    for g in segments:
+        g["t0"] = temps[g["debut"]]
+        g["t1"] = temps[min(g["fin"], len(temps) - 1)]
+        g["mesure"] = int(np.searchsorted(grille, g["t0"] + 1e-6)) or 1
 
-    # les frontières que le tab pose, et celles que notre chart pose
-    f_tab = [b for b in range(1, len(mesures))
-             if mesures[b]["section"] != mesures[b - 1]["section"]]
-    f_chart = sorted({a for s in (chart.get("sections") or [])
-                      for a, _ in (s.get("barRanges") or [])})
-    f_chart = [b for b in f_chart if 0 < b < len(mesures)]
+    f_tab = [k for k in range(1, len(segments))
+             if segments[k]["section"] != segments[k - 1]["section"]]
+    f_chart = sorted({a for sc in (chart.get("sections") or [])
+                      for a, _ in (sc.get("barRanges") or [])})
 
     return {"cle": cle, "titre": chart.get("title") or cle,
             "audio": chart.get("audio_url") or f"/audio/{stem}.m4a",
-            "tab": res[0], "seq": seq, "P": P, "dec": dec, "chemin": chemin,
-            "table": t, "grille": grille, "mesures": mesures,
+            "tab": res[0], "seq": seq, "P": Pt, "dec": dec, "chemin": chemin,
+            "T": T, "grille": grille, "temps": temps, "bpb": bpb,
+            "origine": origine, "segments": segments,
             "prior": prior_de_grille(seq),
             "f_tab": f_tab, "f_chart": f_chart,
-            "n_mesures": len(mesures)}
+            "n_temps": len(chemin), "n_mesures": len(grille) - 1}
 
 
 # ── rendu ───────────────────────────────────────────────────────────────────
@@ -104,9 +115,9 @@ def n(x: float, d: int = 3) -> str:
     return s.replace(".", ",")
 
 
-def bouton(d: dict, m: dict, texte: str) -> str:
+def bouton(d: dict, t0: float, t1: float, texte: str) -> str:
     return (f"<button class=ec onclick=\"jouer('{html.escape(d['audio'])}',"
-            f"{m['t0']:.2f},{m['t1']:.2f})\">{texte}</button>")
+            f"{t0:.2f},{t1:.2f})\">{texte}</button>")
 
 
 def etape(numero: int, titre: str, corps: str, quoi: str = "") -> str:
@@ -125,34 +136,53 @@ def bloc_cases(d: dict) -> str:
     L.append("</table>")
     tot = sum(max(1, c.get("repetitions", 1)) for c in d["seq"])
     return ("".join(L) +
-            f"<p class=note>{len(d['seq'])} cases en tout, pour {tot} lignes "
-            f"d'accord écrites dans le tab et {d['n_mesures']} mesures de "
-            f"musique. Un accord écrit au-dessus de trois lignes de paroles "
-            f"est un accord tenu, pas trois changements : on le replie en une "
-            f"case qui pèse 3.</p>")
+            f"<p class=note>{len(d['seq'])} accords en tout, pour {tot} lignes "
+            f"écrites dans le tab, {d['n_mesures']} mesures et "
+            f"{d['n_temps']} temps de musique. Un accord écrit au-dessus de "
+            f"trois lignes de paroles est un accord tenu, pas trois "
+            f"changements : on le replie en une case qui pèse 3.<br>"
+            f"<b>Les {len(d['seq'])} sont posés</b>, dans l'ordre, du premier "
+            f"temps au dernier. Aucun n'est jeté : il y a plus d'accords que "
+            f"de mesures, mais bien moins que de temps.</p>")
 
 
 def bloc_cadence(d: dict) -> str:
-    """Étape 2 — la grille dit à quelle vitesse ça bouge."""
-    t, r = d["table"], d["table"]["r"]
-    L = ["<table class=t><tr><th>la mesure consomme<th>prix a priori"]
-    for k, c in enumerate(t["cout"]):
-        mark = " class=on" if k == round(r) else ""
-        L.append(f"<tr{mark}><td>{k} case{'s' if k > 1 else ''}"
-                 f"<td class=num>{n(float(c))}")
+    """Étape 2 — ce que le tab annonce AVANT d'écouter quoi que ce soit."""
+    T = d["T"]
+    L = ["<table class=t><tr><th>accord<th>lignes du tab<th>durée annoncée"]
+    for i, c in enumerate(d["seq"][:6]):
+        L.append(f"<tr><td><b>{nom_q5((c['root'] + d['dec']) % 12, c['q5'])}</b>"
+                 f"<td class=g>{c.get('repetitions', 1)}"
+                 f"<td class=num>{n(float(T['attendue'][i]), 1)[1:]} temps")
     L.append("</table>")
-    return ("".join(L) +
-            f"<p class=note>Le tab a {len(d['seq'])} cases pour "
-            f"{d['n_mesures']} mesures : une mesure en consomme "
-            f"<b>{n(r, 2)}</b> en moyenne. C'est <b>r</b>. Le prix ci-dessus "
-            f"est <b>log Poisson(k ; r)</b> — la loi de « combien de cases "
-            f"cette mesure avale ». Elle pique en k ≈ r et punit autant le "
-            f"surplace que la course.</p>")
+    dep = T["depart"]
+    o, b = d["origine"], d["bpb"]
+    M = ["<table class=t><tr><th>un accord qui commence<th>coûte"]
+    noms = {0: "sur le 1er temps de la mesure", b // 2: "au milieu de la mesure"}
+    for k in range(b):
+        t = o + k
+        while t >= len(dep):
+            t -= b
+        M.append(f"<tr{' class=on' if k == 0 else ''}>"
+                 f"<td>{noms.get(k, f'sur le temps {k + 1}')}"
+                 f"<td class=num>{n(float(dep[t]), 2)}")
+    M.append("</table>")
+    return ("".join(L) + "".join(M) +
+            "<p class=note>Deux choses, et elles viennent du tab seul.<br>"
+            "<b>La durée</b> : un accord écrit au-dessus de trois lignes de "
+            "paroles attend trois fois plus de temps qu'un accord écrit "
+            "au-dessus d'une seule. On paie l'écart à cette durée.<br>"
+            "<b>La place</b> : un accord change de préférence sur un temps "
+            "fort. Mesuré sur ces deux morceaux sans aucun prior, 62 % et "
+            "63 % des changements tombaient déjà sur le premier temps de la "
+            "mesure, 93 % et 92 % sur un temps fort — le prior ne fait que "
+            "finir le travail (97 % et 98 %), pour 0,3 point d'accord avec "
+            "musx en moins.</p>")
 
 
 def bloc_musx(d: dict, b: int) -> str:
     """Étape 3 — ce que musx entend sur une mesure."""
-    P, m = d["P"], d["mesures"][b]
+    P = d["P"]
     ordre = np.argsort(-P[b])[:5]
     L = ["<table class=t><tr><th>accord<th>ce que musx lui donne"]
     for c in ordre:
@@ -162,9 +192,10 @@ def bloc_musx(d: dict, b: int) -> str:
                  f"<td class=barre><i style=\"width:{P[b][c]*100:.0f}%\"></i>")
     L.append("</table>")
     return ("".join(L) +
-            f"<p class=note>Mesure {b+1}. musx ne rend pas un accord, il rend "
-            f"une probabilité sur les 60 accords possibles (12 fondamentales × "
-            f"5 familles). {bouton(d, m, 'écouter cette mesure')}</p>")
+            f"<p class=note>Temps {b+1}, dans la mesure {1 + int(np.searchsorted(d['grille'], d['temps'][b] + 1e-6)) - 1}. "
+            f"musx ne rend pas un accord, il rend une probabilité sur les 60 "
+            f"accords possibles (12 fondamentales × 5 familles). "
+            f"{bouton(d, d['temps'][b], d['temps'][b+1], 'écouter ce temps')}</p>")
 
 
 def bloc_distance(d: dict, b: int, case: int) -> str:
@@ -181,7 +212,7 @@ def bloc_distance(d: dict, b: int, case: int) -> str:
     somme = sum(v for *_, v in parts)
     L.append(f"<tr class=on><td colspan=3>somme<td class=num>{n(somme, 3)[1:]}")
     L.append("</table>")
-    lv = d["table"]["E"][b, case]
+    lv = d["T"]["E"][b, case]
     return ("".join(L) +
             f"<p class=note>La case dit <b>{nom_q5(*cible)}</b>. On ne demande "
             f"pas à musx s'il a dit exactement ça — on lui demande combien il "
@@ -194,72 +225,78 @@ def bloc_distance(d: dict, b: int, case: int) -> str:
             f"<b>{n(float(lv))}</b>.</p>")
 
 
-def bloc_decision(d: dict, b: int, pourquoi: str) -> str:
-    """Étape 5 — les deux termes s'additionnent, le plus grand gagne."""
-    det = detail_mesure(d["seq"], d["P"], b, d["dec"])
-    m = d["mesures"][b]
-    L = ["<table class=t><tr><th>si on avance de<th>on tombe sur"
-         "<th>l'audio en dit<th>la grille en dit<th>total"]
-    for c in det["candidats"]:
-        mark = " class=on" if c["retenue"] else ""
-        L.append(f"<tr{mark}><td class=g>{c['saut']} case"
-                 f"{'s' if c['saut'] > 1 else ''}<td><b>{c['accord']}</b>"
-                 f"<td class=num>{n(c['lv'])}<td class=num>{n(c['prior'])}"
-                 f"<td class=num><b>{n(c['total'])}</b>")
+def bloc_decision(d: dict, k: int, pourquoi: str) -> str:
+    """Étape 5 — les trois termes s'additionnent, le plus grand gagne.
+
+    On montre LA vraie décision : où tombe la frontière entre l'accord `k` et
+    le suivant. Les deux accords couvrent ensemble les mêmes temps quelle que
+    soit la ligne, donc les totaux se comparent.
+
+    Une première version faisait varier la FIN de l'accord `k` sans rien
+    mettre derrière. Les temps laissés libres n'étaient payés par personne,
+    donc un accord plus court semblait toujours moins cher, et la ligne
+    retenue n'était jamais celle du plus gros total. Un tableau qui ne compare
+    pas la même chose sur chaque ligne ne compare rien.
+    """
+    g, h = d["segments"][k], d["segments"][k + 1]
+    T = d["T"]
+    debut, fin_h = g["debut"], h["fin"]
+    coupes = sorted({c for c in range(g["fin"] - 2, g["fin"] + 3)
+                     if debut < c < fin_h})
+    L = [f"<table class=t><tr><th>frontière<th>{html.escape(g['accord'])}"
+         f"<th>{html.escape(h['accord'])}<th>l'audio<th>durée<th>place<th>total"]
+    for c in coupes:
+        a = termes_du_segment(T, g["case"], debut, c)
+        b = termes_du_segment(T, h["case"], c, fin_h)
+        tot = a["total"] + b["total"]
+        mark = " class=on" if c == g["fin"] else ""
+        L.append(f"<tr{mark}><td class=g>temps {c + 1}"
+                 f"<td class=g>{a['temps']}<td class=g>{b['temps']}"
+                 f"<td class=num>{n(a['audio'] + b['audio'], 2)}"
+                 f"<td class=num>{n(a['duree'] + b['duree'], 2)}"
+                 f"<td class=num>{n(a['depart'] + b['depart'], 2)}"
+                 f"<td class=num><b>{n(tot, 2)}</b>")
     L.append("</table>")
-    # la ligne retenue n'est pas toujours celle qui a le plus gros total : la
-    # PD choisit le meilleur CHEMIN, pas le meilleur coup. Le dire, sinon ça
-    # se lit comme une erreur de calcul.
-    loc = max(det["candidats"], key=lambda c: c["total"])
-    ret = next((c for c in det["candidats"] if c["retenue"]), loc)
-    ecart = ""
-    if loc["case"] != ret["case"]:
-        ecart = (f"<br><b>Ici le plus gros total n'est pas celui qu'on garde</b> :"
-                 f" {loc['accord']} marque {n(loc['total'])}, {ret['accord']} "
-                 f"marque {n(ret['total'])}. On garde quand même "
-                 f"{ret['accord']}, parce que ce qui vient après s'enchaîne "
-                 f"mieux : la table cherche le meilleur <i>chemin</i> d'un bout "
-                 f"à l'autre, pas le meilleur coup mesure par mesure. Sur ce "
-                 f"morceau ça arrive sur un quart des mesures, et j'ai mesuré "
-                 f"l'alternative — écrire le premier accord avalé plutôt que le "
-                 f"dernier fait tomber l'accord avec musx de 95 % à 94 % ici, "
-                 f"et de 79 % à 74 % sur This Love.")
     return ("".join(L) +
-            f"<p class=note>Mesure {b+1}, en venant de la case "
-            f"{det['case_precedente']}. {pourquoi} "
-            f"{bouton(d, m, 'écouter')}{ecart}</p>")
+            f"<p class=note>Où s'arrête le <b>{html.escape(g['accord'])}</b> "
+            f"(le {k+1}<sup>e</sup> accord du tab, mesure {g['mesure']}) et où "
+            f"commence le <b>{html.escape(h['accord'])}</b> ? {pourquoi} "
+            f"{bouton(d, g['t0'], h['t1'], 'écouter les deux')}<br>"
+            f"Sur chaque ligne les deux accords couvrent les mêmes temps : "
+            f"seule la frontière bouge, donc les totaux se comparent.</p>")
 
 
 def bloc_frontieres(d: dict) -> str:
-    """Étape 6 — là où le tab et notre chart ne sont pas d'accord."""
-    L = []
-    paires = []
-    for b in d["f_tab"]:
-        if not d["f_chart"]:
+    """Étape 6 — là où le tab et notre chart ne posent pas la frontière."""
+    L, paires = [], []
+    for k in d["f_tab"]:
+        g = d["segments"][k]
+        b = g["mesure"] - 1                      # 0-indexé
+        cand = [x for x in d["f_chart"] if 0 < x < d["n_mesures"]]
+        if not cand:
             continue
-        proche = min(d["f_chart"], key=lambda x: abs(x - b))
+        proche = min(cand, key=lambda x: abs(x - b))
         if 0 < abs(b - proche) <= 3:
-            paires.append((b, proche))
+            paires.append((k, b, proche))
     if not paires:
-        return "<p class=note>Le tab et le chart posent les mêmes frontières.</p>"
-    for b, proche in paires[:6]:
-        nom = html.escape(d["mesures"][b]["section"])
-        L.append(f"<div class=front><div class=fh>« {nom} » — "
-                 f"le tab l'ouvre mesure <b>{b+1}</b>, notre chart mesure "
+        return ("<p class=note>Le tab et le chart posent les mêmes "
+                "frontières.</p>")
+    for k, b, proche in paires[:6]:
+        g = d["segments"][k]
+        L.append(f"<div class=front><div class=fh>« "
+                 f"{html.escape(g['section'])} » — le tab l'ouvre sur le "
+                 f"<b>{html.escape(g['accord'])}</b> de la mesure "
+                 f"<b>{b+1}</b>, notre chart ouvre mesure "
                  f"<b>{proche+1}</b></div><div class=fr>")
         for x in range(min(b, proche) - 1, max(b, proche) + 2):
             if not 0 <= x < d["n_mesures"]:
                 continue
-            m = d["mesures"][x]
-            cl = "mm"
-            if x == b:
-                cl += " tab"
-            if x == proche:
-                cl += " chart"
+            dedans = [y["accord"] for y in d["segments"] if y["mesure"] == x + 1]
+            cl = "mm" + (" tab" if x == b else "") + (" chart" if x == proche else "")
             L.append(f"<div class=\"{cl}\" onclick=\"jouer("
-                     f"'{html.escape(d['audio'])}',{m['t0']:.2f},"
-                     f"{m['t1']:.2f})\"><span class=g>{x+1}</span>"
-                     f"<b>{m['accord']}</b></div>")
+                     f"'{html.escape(d['audio'])}',{d['grille'][x]:.2f},"
+                     f"{d['grille'][x+1]:.2f})\"><span class=g>{x+1}</span>"
+                     f"<b>{html.escape(' '.join(dedans) or '—')}</b></div>")
         L.append("</div></div>")
     return "".join(L)
 
@@ -319,25 +356,29 @@ function jouer(src,t0,t1){
 """
 
 
-def page(d: dict, facile: int, dur: int, bord: int) -> str:
-    B = [f"<h1>Comment un accord de tab atterrit sur une mesure</h1>",
-         "<div class=lede>Le tab dit <b>quoi</b> et <b>dans quel ordre</b> ; "
-         "l'audio dit <b>quand</b>. Chaque mesure choisit une case du tab, et "
-         "ce choix est la somme de <b>deux logarithmes</b> : ce que l'audio "
-         "pense de cette case, et ce que la grille du tab pense de cette "
-         "vitesse. Deux logs dans la même unité, donc pas de poids à régler "
-         "entre eux — juste une probabilité jointe.</div>",
+def page(d: dict, facile: int, dur: int, seg: int) -> str:
+    B = [f"<h1>Où chaque accord du tab commence</h1>",
+         "<div class=lede><b>Tous</b> les accords du tab sont posés sur le "
+         "morceau, dans l'ordre, du premier temps au dernier. La seule "
+         "question est <i>où chacun commence</i>, et elle se tranche par une "
+         "somme de <b>trois logarithmes</b> : ce que l'audio pense de cet "
+         "accord, la durée que le tab lui annonce, et la place du temps où il "
+         "commence. Trois logs dans la même unité, donc pas de poids à régler "
+         "entre eux — une seule probabilité jointe qu'on lit en "
+         "logarithme.</div>",
          f"<p class=note>{html.escape(d['titre'])} · tab "
-         f"{d['tab'].rating:.2f}★ · transposé de +{d['dec']} demi-tons</p>"]
+         f"{d['tab'].rating:.2f}★ · transposé de +{d['dec']} demi-tons · "
+         f"{len(d['seq'])} accords sur {d['n_temps']} temps</p>"]
 
-    B.append(etape(1, "Le tab devient une suite de cases", bloc_cases(d),
+    B.append(etape(1, "Le tab devient une suite d'accords", bloc_cases(d),
                    "On lit les accords dans l'ordre du document. Une case = "
                    "un accord qui change."))
-    B.append(etape(2, "La grille dit à quelle vitesse ça bouge",
+    B.append(etape(2, "Le tab annonce une durée et une place",
                    bloc_cadence(d),
                    "C'est le « prior sur la grille » : avant d'écouter quoi "
-                   "que ce soit, on sait déjà à quel rythme les accords "
-                   "tournent dans ce tab."))
+                   "que ce soit, on sait déjà combien de temps chaque accord "
+                   "devrait durer, et qu'un accord change sur un temps "
+                   "fort."))
     B.append(etape(3, "musx écoute et rend une probabilité",
                    bloc_musx(d, dur),
                    "Pas un accord : une distribution. C'est ce qui permet de "
@@ -346,19 +387,21 @@ def page(d: dict, facile: int, dur: int, bord: int) -> str:
                    bloc_distance(d, dur, d["chemin"][dur]),
                    "L'étape que Louis demandait : comment on passe de « musx "
                    "pense ça » à « donc cette case vaut tant »."))
-    B.append(etape(5, "Les deux termes s'additionnent, le plus grand gagne",
-                   bloc_decision(d, facile,
-                                 "Ici l'audio est net et il tranche tout seul.")
+    B.append(etape(5, "Les trois termes s'additionnent, le plus grand gagne",
+                   bloc_decision(
+                       d, seg,
+                       "Une durée de plus ou de moins, et voilà ce que ça "
+                       "coûte.")
                    + bloc_decision(
-                       d, dur,
-                       "Ici l'audio hésite, et c'est la grille qui départage.")
-                   + bloc_decision(
-                       d, bord,
-                       "Et ici, une frontière de section."),
-                   "Une seule règle, répétée mesure après mesure : "
-                   "<b>audio + grille</b>, et on garde le plus grand. Le "
-                   "chemin complet est le meilleur enchaînement de ces "
-                   "choix, pas la suite des meilleurs choix isolés."))
+                       d, max(1, seg - 1),
+                       "L'accord juste avant, pour voir la même règle sur un "
+                       "autre cas."),
+                   "Une seule règle, répétée accord après accord : "
+                   "<b>audio + durée + place</b>, et on garde le plus grand. "
+                   "Le découpage complet est le meilleur enchaînement de ces "
+                   "choix, pas la suite des meilleurs choix isolés — et les "
+                   "deux bouts sont fixés : le premier accord ouvre le "
+                   "morceau, le dernier le ferme."))
     B.append(etape(6, "Là où le tab et notre chart ne sont pas d'accord",
                    bloc_frontieres(d) +
                    "<div class=lg><span><i style=background:#eef5ea;"
@@ -374,31 +417,37 @@ def page(d: dict, facile: int, dur: int, bord: int) -> str:
                    "défendent : le A est soit la dernière mesure de ce qui "
                    "finit, soit la première de ce qui commence. C'est une "
                    "question d'oreille, pas de calcul — et c'est toi "
-                   "l'oreille.</p>",
+                   "l'oreille.<br>Rappel : le tab n'a aucune mesure. Les "
+                   "numéros ci-dessus sont ceux que <i>ce placement</i> lui "
+                   "donne. Ce que le tab dit vraiment est ordinal : quel "
+                   "accord ouvre la section.</p>",
                    "C'est ce que tu as trouvé « quasi bon mais pas bon »."))
 
     return ("<!doctype html><html lang=fr><meta charset=utf-8>"
             "<meta name=viewport content='width=device-width,initial-scale=1'>"
-            "<title>Le chemin d'un accord de tab</title>"
+            "<title>Le chemin d&#39;un accord de tab</title>"
             f"<style>{CSS}</style>" + "".join(B) +
             "<audio id=au preload=none></audio>"
             f"<script>{JS}</script>")
 
 
 def choisir_mesures(d: dict) -> tuple:
-    """Une mesure facile, une mesure dure, une frontière — sur ce morceau-ci.
+    """Un temps net, un temps douteux, une frontière — sur ce morceau-ci.
 
     On ne code pas des numéros en dur : un tab qui change, et la page
-    illustrerait des mesures qui n'illustrent plus rien.
+    illustrerait des endroits qui n'illustrent plus rien.
     """
-    E, chemin = d["table"]["E"], d["chemin"]
-    lv = [float(E[b, chemin[b]]) for b in range(d["n_mesures"])]
+    E, chemin = d["T"]["E"], d["chemin"]
+    lv = [float(E[t, chemin[t]]) for t in range(len(chemin))]
     facile = int(np.argmax(lv))
-    bords = set(d["f_tab"]) | {x + 1 for x in d["f_tab"]}
-    cand = [b for b in range(1, d["n_mesures"]) if b not in bords]
-    dur = min(cand, key=lambda b: lv[b]) if cand else 1
-    bord = d["f_tab"][1] if len(d["f_tab"]) > 1 else (d["f_tab"] or [1])[0]
-    return facile, dur, bord
+    dur = int(np.argmin(lv))
+    # un segment bien au milieu, assez long pour que les durées voisines
+    # existent toutes
+    longs = [k for k, g in enumerate(d["segments"])
+             if g["fin"] - g["debut"] >= 4 and 0 < k < len(d["segments"]) - 2
+             and d["segments"][k + 1]["fin"] - d["segments"][k + 1]["debut"] >= 3]
+    seg = longs[len(longs) // 2] if longs else 1
+    return facile, dur, seg
 
 
 def main(argv=None) -> int:
@@ -413,11 +462,11 @@ def main(argv=None) -> int:
     d = rassembler(cle, req)
     if not d:
         return 1
-    facile, dur, bord = choisir_mesures(d)
-    print(f"   mesure nette {facile+1} · mesure douteuse {dur+1} · "
-          f"frontière {bord+1}")
+    facile, dur, seg = choisir_mesures(d)
+    print(f"   temps net {facile+1} · temps douteux {dur+1} · "
+          f"accord illustré n°{seg+1}")
     a.out.parent.mkdir(parents=True, exist_ok=True)
-    a.out.write_text(page(d, facile, dur, bord), encoding="utf-8")
+    a.out.write_text(page(d, facile, dur, seg), encoding="utf-8")
     print(f"→ {a.out}")
     return 0
 

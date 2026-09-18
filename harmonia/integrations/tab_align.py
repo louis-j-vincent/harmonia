@@ -501,3 +501,171 @@ def part_des_temoins(p_mesure: np.ndarray, case: tuple,
              for c in range(60) if p_mesure[c] * M[c] > 1e-4]
     parts.sort(key=lambda x: -x[3])
     return parts[:combien]
+
+
+# ── le tab entier, posé sur le morceau entier ───────────────────────────────
+
+def priors_musx_temps(audio, temps) -> np.ndarray:
+    """Comme `priors_musx`, mais une ligne par TEMPS et non par mesure."""
+    return priors_musx(audio, temps)
+
+
+def _log_duree(L: np.ndarray, d: float) -> np.ndarray:
+    """Le prix d'avoir tenu un accord `L` temps quand on en attendait `d`.
+
+    Poisson, comme la cadence : `log P(L ; d)`. C'est ici que le tab parle de
+    DURÉE — un accord écrit au-dessus de trois lignes de paroles attend trois
+    fois plus de temps qu'un accord écrit au-dessus d'une seule.
+    """
+    d = max(1e-6, float(d))
+    return L * math.log(d) - d - _lgamma(L)
+
+
+_LG = None
+
+
+def _lgamma(L: np.ndarray) -> np.ndarray:
+    global _LG
+    n = int(np.max(L)) + 2
+    if _LG is None or len(_LG) < n:
+        _LG = np.array([math.lgamma(k + 1) for k in range(max(n, 512))])
+    return _LG[L]
+
+
+#: ce que coûte un changement d'accord selon sa place dans la mesure, en
+#: nats. Zéro sur le premier temps, un peu sur le troisième (une demi-mesure
+#: est une place normale), beaucoup sur les temps faibles. Mesuré : voir
+#: `poser_tout`.
+TEMPS_FORT = 0.4
+
+
+def _cout_depart(n: int, bpb: int, poids: float, origine: int = 0) -> np.ndarray:
+    """Le prix de faire COMMENCER un accord sur chaque temps du morceau.
+
+    `origine` est l'indice du temps qui porte la PREMIÈRE barre de mesure. Il
+    n'est pas toujours 0 : This Love a une levée d'un temps, donc ses premiers
+    temps de mesure sont les indices 1, 5, 9… Compter la phase depuis le temps
+    zéro y donnait 5 % de changements « sur le temps fort » contre 63 % sur
+    Grenade, et la conclusion — « ce morceau ne tombe pas sur la grille » —
+    était fausse : c'était la mesure qui l'était. Avec la bonne origine les
+    deux morceaux se comportent pareil, 62 % et 63 % des changements sur le
+    premier temps, 31 % et 30 % au milieu de la mesure.
+    """
+    if bpb < 2 or poids <= 0:
+        return np.zeros(n + 1)
+    pos = (np.arange(n + 1) - int(origine)) % bpb
+    c = np.full(n + 1, -poids)                    # temps faible
+    c[pos == 0] = 0.0                             # premier temps
+    if bpb % 2 == 0:
+        c[pos == bpb // 2] = -poids * 0.25        # milieu de mesure
+    return c
+
+
+def termes(seq: list[dict], P: np.ndarray, decalage: int = 0,
+           raideur: float = RAIDEUR, bpb: int = 0,
+           temps_fort: float = TEMPS_FORT, origine: int = 0) -> dict | None:
+    """Les trois termes qui décident, sans la programmation dynamique.
+
+    `poser_tout` les additionne ; la page d'explication les lit un par un.
+    Une seule source, donc la page ne peut pas raconter autre chose que ce
+    que le code fait.
+
+      E[t, i]      ce que l'audio pense de l'accord i sur le temps t ;
+      cum[t, i]    leur somme cumulée, pour lire un segment d'un coup ;
+      attendue[i]  la durée que le tab annonce pour l'accord i, en temps ;
+      depart[t]    ce que coûte un changement d'accord sur le temps t.
+    """
+    n, m = P.shape[0], len(seq)
+    if n == 0 or m == 0 or m > n:
+        return None
+    poids = np.array([max(1, a.get("repetitions", 1)) for a in seq], dtype=float)
+    E = np.array([[vraisemblance(P[t], ((seq[i]["root"] + decalage) % 12,
+                                        seq[i]["q5"]))
+                   for i in range(m)] for t in range(n)])
+    return {"E": E, "cum": np.vstack([np.zeros(m), np.cumsum(E, axis=0)]),
+            "attendue": poids * (n / poids.sum()),
+            "depart": _cout_depart(n, bpb, temps_fort, origine),
+            "raideur": raideur}
+
+
+def termes_du_segment(t: dict, i: int, debut: int, fin: int) -> dict:
+    """Ce que coûte de faire jouer l'accord `i` du temps `debut` au temps `fin`.
+
+    Les trois termes sont des LOGS, dans la même unité, donc ils s'ajoutent.
+    C'est tout le modèle, en une ligne.
+    """
+    audio = float(t["cum"][fin, i] - t["cum"][debut, i])
+    duree = float(_log_duree(np.array([fin - debut]),
+                             t["attendue"][i])[0]) * t["raideur"]
+    dep = float(t["depart"][debut])
+    return {"audio": audio, "duree": duree, "depart": dep,
+            "total": audio + duree + dep, "temps": fin - debut}
+
+
+def poser_tout(seq: list[dict], P: np.ndarray, decalage: int = 0,
+               raideur: float = RAIDEUR, bpb: int = 0,
+               temps_fort: float = TEMPS_FORT,
+               origine: int = 0) -> list[int] | None:
+    """Pose TOUS les accords du tab sur TOUT le morceau, dans l'ordre.
+
+    Louis, 2026-09-18, en corrigeant le modèle : « on matche bien toute la
+    longueur des accords consécutifs à toute la longueur du chart, et ensuite
+    la seule question qui permet de maximiser la log-proba totale c'est
+    comment je pose mes accords du tab à l'intérieur, sans jamais en changer
+    l'ordre (un accord toujours après un autre) ».
+
+    C'est une contrainte plus forte que ce que faisait `aligner`, et elle est
+    meilleure sur trois points.
+
+    1. LES DEUX BOUTS SONT ANCRÉS. `aligner` ancrait le début (case 0 sur la
+       première mesure) et laissait la fin flotter : rien n'obligeait le
+       dernier accord du tab à tomber à la fin du morceau.
+    2. AUCUN ACCORD N'EST JETÉ. `aligner` sautait les cases qu'il n'arrivait
+       pas à caser — 39 sur 115 sur This Love, parce qu'une mesure ne peut
+       porter qu'un accord. Ici l'unité est le TEMPS : 322 temps pour 115
+       accords, il y a la place pour tous, et deux accords peuvent partager
+       une mesure comme sur un vrai chart.
+    3. LE PRIOR REDEVIENT UTILE. Les deux bouts étant fixés et chaque case
+       recevant au moins un temps, le nombre total d'avancées ne dépend plus
+       du chemin : un prior sur la CADENCE serait devenu une constante, donc
+       inerte. Le prior porte donc sur la DURÉE de chaque accord, tirée de ce
+       que le tab écrit — trois lignes de paroles sous un même accord valent
+       trois fois une.
+
+    Rend la case jouée sur chaque temps, ou `None` si le tab a plus d'accords
+    que le morceau n'a de temps (auquel cas la contrainte est infaisable et
+    on le DIT, on ne rogne pas en silence).
+    """
+    t = termes(seq, P, decalage, raideur, bpb, temps_fort, origine)
+    if t is None:
+        return None
+    n, m = P.shape[0], len(seq)
+    attendue, cum, depart = t["attendue"], t["cum"], t["depart"]
+
+    NEG = -1e18
+    # best[i, b] : cases 0..i posées, la case i FINIT juste avant le temps b
+    best = np.full((m, n + 1), NEG)
+    prov = np.zeros((m, n + 1), dtype=np.int32)
+    L = np.arange(n + 1)
+    # la première case part forcément du temps 0
+    b0 = np.arange(1, n + 1)
+    best[0, 1:] = cum[1:, 0] - cum[0, 0] + _log_duree(b0, attendue[0]) * raideur
+    for i in range(1, m):
+        # b doit laisser au moins un temps à chaque case restante
+        for b in range(i + 1, n - (m - 1 - i) + 1):
+            s = np.arange(i, b)                     # les fins possibles de i-1
+            v = (best[i - 1, s] + (cum[b, i] - cum[s, i])
+                 + _log_duree(b - s, attendue[i]) * raideur + depart[s])
+            j = int(np.argmax(v))
+            best[i, b], prov[i, b] = v[j], s[j]
+    if best[m - 1, n] <= NEG / 2:
+        return None
+    # retour en arrière depuis « la dernière case finit à la fin du morceau »
+    chemin = [0] * n
+    b = n
+    for i in range(m - 1, -1, -1):
+        s = int(prov[i, b]) if i else 0
+        for t in range(s, b):
+            chemin[t] = i
+        b = s
+    return chemin
