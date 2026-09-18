@@ -129,6 +129,22 @@ C'est la même loi que l'algo du retour (une section = une mini-boucle jouée
 
 ## Ouvert
 
+### Une partie muette n'est plus une section — ce qu'il reste à voir
+
+Louis, 2026-09-18 : « une partie avec que des NC ne peut jamais être une
+section, c'est toujours la queue d'une section ». La règle est appliquée à
+l'AFFICHAGE : la feuille de lecture ne l'écrit pas, la bande de forme la garde
+en trou à sa vraie largeur, Annotate et Analyse gardent ses mesures (c'est là
+qu'on corrige un N.C. faux).
+
+Ce qui reste ouvert est EN AMONT : le détecteur continue de lui donner une
+lettre, un `id` et une entrée dans `sections`. Si « c'est toujours la queue
+d'une section », la bonne place de ces mesures est la section précédente — pas
+une section à part qu'on masque ensuite. Tant que ce n'est pas fait, une
+lettre peut encore être « consommée » par une plage muette (`B′` sur Stand By
+Me), et le renommage A/B/C compte une section qui ne s'écrit jamais.
+
+
 ### RÉSOLU 2026-09-18 — la tête de lecture ne suivait qu'un passage sur N
 
 Louis : « la case highlighted ne suit plus à un moment ». Mesuré : sur

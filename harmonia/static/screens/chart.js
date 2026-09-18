@@ -289,6 +289,25 @@ export function loadModel(m, opts){
     // section qualifies (a ×N section plays real music later); named
     // sections (intro/outro/bridge/…) keep their names, only single letters
     // are re-assigned — same original letter, same new letter everywhere.
+    // UNE PARTIE QUI N'A QUE DES N.C. N'EST PAS UNE SECTION (Louis,
+    // 2026-09-18 : « une partie avec que des NC ne peut jamais être une
+    // section, c'est toujours la queue d'une section, et c'est pas la peine
+    // de la noter sur la sheet, note-la comme un trou dans le résumé en haut
+    // par sections »). Ça généralise la règle de 2026-08-08, qui ne visait
+    // que l'intro EN TÊTE : une plage muette au milieu ou en fin de morceau
+    // est la même chose — la traîne de ce qui précède, pas une lettre.
+    // Aucune condition sur `reps` : une plage muette jouée trois fois reste
+    // muette. La grille de Read ne l'écrit pas ; la bande de forme la garde
+    // en TROU, à sa vraie largeur — c'est là qu'on voit qu'il se passe du
+    // temps. Annotate et Analyse gardent ses mesures (c'est là qu'on corrige
+    // un N.C. faux), et la bande y garde donc sa pastille : les deux doivent
+    // toujours dire la même chose.
+    S._muettes=new Set();
+    if(m.sections && m.sections.length>1)
+      m.sections.forEach(sec=>{
+        if(!(sec.bars||[]).some(bar=>(bar||[]).some(c=>c && !c.nc)))
+          S._muettes.add(sec.id);
+      });
     S._hiddenIntroId=null;
     if(m.sections && m.sections.length>1){
       const first=m.sections[0];
@@ -1144,18 +1163,28 @@ export function buildFormRail(opts){
       const grow = timed ? Math.max(spanOf(g), .001) : g.n;
       const seg=el("div",`position:relative;flex:${grow} 1 0;min-width:14px;height:${H}px;`);
 
+      // LE TROU (Louis, 2026-09-18). Une plage muette n'a pas de pastille :
+      // pas de carte, pas de bordure, pas de lettre — juste un filet fin au
+      // milieu, à la LARGEUR RÉELLE du temps qu'elle occupe. C'est ce qui
+      // dit « il se passe quelque chose ici, mais rien à lire ». La teinte
+      // de lecture le traverse comme les autres, donc la tête de lecture ne
+      // disparaît pas pendant ces secondes-là — et c'est justement là que la
+      // grille, elle, n'a rien à allumer puisqu'elle ne l'écrit pas.
+      const trou = S.mode==="read" && S._muettes && S._muettes.has(g.secId);
+
       // The DRAWING, clipped to its rounded box: progress tint, repeat
       // hairlines, one label. It never receives a touch — the zones below do.
-      const vis=el("div",`position:absolute;inset:0;border-radius:5px;overflow:hidden;`+
-        `background:${T.card};border:1px solid ${T.line};pointer-events:none;`+
-        `transition:border-color .14s;`);
+      const vis=el("div",`position:absolute;${trou?`left:0;right:0;top:50%;height:2px;margin-top:-1px;`:"inset:0;"}`+
+        `border-radius:${trou?1:5}px;overflow:hidden;`+
+        `background:${trou?T.line:T.card};${trou?"":`border:1px solid ${T.line};`}`+
+        `pointer-events:none;transition:border-color .14s;`);
       // LA PASSE QUI FINIT AUTREMENT (Louis, 2026-09-18 : « noter pareil sur
       // le haut de la grille qui permet de suivre où on en est »). Depuis
       // qu'une fin peut s'écrire `B` / `B alt` au lieu de `1.` / `2.`, le
       // crochet ne dit plus QUAND — il dit seulement qu'une autre fin
       // existe. C'est ici que l'ordre se lit : la cellule de la passe
       // concernée porte le lavis et le trait d'accent du crochet.
-      const alt=new Set(((S.sections[g.si]||{}).altPasses)||[]);
+      const alt=new Set(trou ? [] : (((S.sections[g.si]||{}).altPasses)||[]));
       if(alt.size) (g.ks||[]).forEach((k,i)=>{
         if(!alt.has(k)) return;
         vis.appendChild(el("div",`position:absolute;top:0;bottom:0;left:${i*100/g.n}%;`+
@@ -1164,13 +1193,15 @@ export function buildFormRail(opts){
       });
       const head=el("div",`position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(138,43,43,.14);`);
       vis.appendChild(head);
-      for(let i=1;i<g.n;i++)
+      if(!trou) for(let i=1;i<g.n;i++)
         vis.appendChild(el("div",`position:absolute;top:3px;bottom:3px;width:1px;`+
           `left:${i*100/g.n}%;background:${T.line};`));
       const tag=formTag(g.label);
       const tw=el("span",tag.css,tag.text);
-      const lab=el("div","position:absolute;inset:0;display:flex;align-items:center;justify-content:center;");
-      lab.appendChild(tw); vis.appendChild(lab);
+      if(!trou){
+        const lab=el("div","position:absolute;inset:0;display:flex;align-items:center;justify-content:center;");
+        lab.appendChild(tw); vis.appendChild(lab);
+      }
       seg.appendChild(vis);
 
       const nAlt=(g.ks||[]).filter(k=>alt.has(k)).length;
@@ -1442,7 +1473,7 @@ export function buildIReal(){
       // Louis, 2026-08-08: the chord-less leading intro does not print AT ALL
       // in Read — the form rail above still carries it. Analyse/Annotate keep
       // its bars (N.C. cells stay inspectable and correctable).
-      if(S.mode==="read" && S._hiddenIntroId && b.secId===S._hiddenIntroId) return;
+      if(S.mode==="read" && S._muettes && S._muettes.has(b.secId)) return;
       // L'INTRO ÉCRIT SES ACCORDS, COMME TOUT LE MONDE (Louis, 2026-09-18 :
       // « fais en sorte qu'on affiche toujours les accords de l'intro »).
       // Elle se repliait en UNE rangée « intro … » en Read : sur Lost Without
