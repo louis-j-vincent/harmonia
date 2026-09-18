@@ -182,6 +182,56 @@ C'est la même loi que l'algo du retour (une section = une mini-boucle jouée
 
 ## Ouvert
 
+### `merge_letters` mesuré : il répare 5 morceaux sur 6 et aucun seuil ne sauve le 6e
+
+Six morceaux analysés à la main le 2026-09-18 (Fallin', Stand By Me, Sunny,
+Every Breath You Take, Yesterday, Let It Be), page
+`docs/plots/sections_6morceaux.html` — chaque lettre y est écoutable.
+
+Le levier existant (`SETTINGS.merge_letters` + `MERGE_LETTERS_COS = 0.93`,
+centroïde des vecteurs de mesure) fait ce qu'il faut sur Fallin', Stand By Me,
+Sunny et Every Breath, et **casse Let It Be** : couplet ↔ refrain sortent à
+0.970, donc ils fusionneraient. Et aucun seuil ne répare les six —
+
+    fusionner Fallin'          exige  ≤ 0.961   (sa paire la plus basse)
+    garder Let It Be intact    exige  > 0.967   (couplet ↔ refrain)
+
+DIAGNOSTIC, pas simple constat. Deux défauts du substrat, pas du seuil :
+un centroïde est un SAC de notes (le couplet `C G | A- F | C G | F C` et le
+refrain `A- G | F C | C G | F C` ont le même sac), et la chroma NNLS porte la
+PRODUCTION en plus de l'harmonie (voix, ad-libs, mix), donc deux passages aux
+mêmes accords mais à l'arrangement différent s'éloignent.
+
+RÉFUTÉ EN CHEMIN : rendre la mesure sensible à l'ordre en comparant les
+SÉQUENCES de chroma au lieu de leur moyenne. Mesuré, échoue aussi — Fallin'
+tombe à 0.839 quand Let It Be reste à 0.864, l'ordre est encore inversé. Ce
+n'est donc pas la moyenne le problème, c'est la chroma.
+
+LA PISTE QUI SÉPARE, mesurée sur les six : poser la même question aux ACCORDS
+DÉCODÉS (une mesure = ses fondamentales, concordance cyclique sur la plus
+courte des deux). Fallin' descend à 0.75 au pire, Let It Be couplet↔refrain
+tombe à 0.50 — **un écart de 0.25 au lieu de −0.009**. Yesterday reste à 0.25,
+Every Breath sépare son pont à 0.00 et fusionne A/A′ à 0.88. Aucun audio n'est
+nécessaire : tout est déjà dans le chart. C'est la « brique chaîne d'accords »
+de la mémoire du projet.
+
+CE QUE ÇA NE RÉGLERAIT PAS ENCORE : une lettre trouée de N.C. (Stand By Me
+A↔C tombe à 0.67, sous le seuil, parce que les mesures muettes raccourcissent
+la séquence) et deux lettres qui ne partagent qu'un PRÉFIXE (Sunny A/B à 0.38,
+Every Breath A↔A″ à 0.57) — ces deux-là sont des 1re/2e fins, pas des
+fusions, et relèvent de `_ireal_endings`, qui ne regarde jamais à travers deux
+lettres.
+
+LES AUTRES BOUTONS repérés en chemin, chacun avec le morceau qui en a besoin :
+le groupage `(lettre, longueur)` de `minimal_fold` (Fallin' en 2/4/6/8/9
+mesures, Every Breath en 8/10/7) ; `_merge_coupe` qui refuse un bloc PLUS LONG
+que l'hôte (le couplet de 10 mesures d'Every Breath ne peut jamais rejoindre
+celui de 8) ; la finesse de `_barsig`, pour qui `B-`, `B-7` et `E-/B` sont
+trois musiques ; l'absence de longueur minimale (Let It Be écrit trois
+« sections » de 2 mesures) ; l'absence de transposition (Sunny C/D = A/B un
+demi-ton plus haut).
+
+
 ### Une partie muette n'est plus une section — ce qu'il reste à voir
 
 Louis, 2026-09-18 : « une partie avec que des NC ne peut jamais être une
