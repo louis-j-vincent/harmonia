@@ -25,12 +25,12 @@ from harmonia.settings import SETTINGS
 
 log = logging.getLogger("harmonia.server.routes.sections")
 
-# La dépendance est déclarée ICI, pas au fond d'une fonction : depuis le
-# 2026-09-17 le découpage du modèle est la MÉTHODE PRINCIPALE de
-# `sections_inferer`, plus un détail d'implémentation.
-from harmonia.sections import detect_sections  # noqa: E402
+# La dépendance est déclarée ICI, pas au fond d'une fonction : les briques de
+# Louis et le remplissage des trous SONT la méthode, plus un détail
+# d'implémentation. Depuis le 2026-09-19 il n'y a plus de détecteur du tout —
+# `detect_sections` n'est plus importé ici (voir `sections_inferer`).
 from harmonia.sections.simulation import (occurrences_de_tous,  # noqa: E402
-                                          remplir_par_songformer)
+                                          remplir_par_algo)
 
 bp = Blueprint("sections", __name__)
 
@@ -401,19 +401,18 @@ def _plages(sections) -> list[dict]:
     for s in sections or []:
         for a, b in (s.get("barRanges") or []):
             out.append({"m0": a, "m1": b, "label": s.get("label") or "?",
-                        "source": "songformer", "mot": ""})
+                        "source": "auto", "mot": ""})
     return sorted(out, key=lambda x: x["m0"])
 
 
 @bp.post("/api/sections/inferer/<file>")
 def sections_inferer(file):
-    """Ses briques d'abord, leurs reprises ensuite, et SongFormer dans les trous.
+    """Ses briques d'abord, leurs reprises ensuite, et l'algo dans les trous.
 
     Corps : `{humain: [{label, mesure_debut, mesure_fin}]}` — ses coups de
     surligneur, en mesures 1-indexées, fin incluse.
 
-    LA LOI, actée par Louis le 2026-09-17 (« notre brique + SongFormer comme
-    méthode principale, c'est acté ») :
+    LA LOI, actée par Louis le 2026-09-17, amendée le 2026-09-19 :
 
       1. **ce qu'il trace est une brique** — elle sort aux mesures exactes où
          il l'a posée, sous son nom ;
@@ -421,8 +420,20 @@ def sections_inferer(file):
          de ressemblance chord-tone, pics sans recouvrement. « La première
          chose à faire c'est de trouver d'autres occurrences de cette
          section » ;
-      3. **les trous gardent ce que SongFormer avait trouvé**, au lieu d'être
-         redécoupés.
+      3. **les trous sont remplis par l'agglomération des quatre mots**
+         (`simulation.remplir_par_algo`, toutes les occurrences gelées).
+
+    POURQUOI PLUS SONGFORMER (2026-09-19, « on vire s'il prend autant de
+    temps »). L'étape 3 lisait le découpage du modèle. Mesuré ce jour-là sur
+    la machine de Louis : un morceau de 326 s ne finissait JAMAIS et poussait
+    9,5 Go de swap, quand beatthis et musx coûtent 5 s et moins de 2 Go sur le
+    même fichier. Cette route ne dépend donc plus d'aucun modèle : la matrice
+    chord-tone des reprises est du produit scalaire sur des postérieures musx
+    déjà en cache. Voir `SETTINGS.sections` pour les chiffres.
+
+    CE QUE ÇA COÛTE, et il faut le dire : l'algo des quatre mots ne sait
+    produire QUE des lettres. « intro » et « outro » ne peuvent plus sortir
+    des trous — seul Louis peut les écrire (`simulation.remplir_par_algo`).
 
     CE QUE ÇA REMPLACE, et pourquoi. L'ancienne version jetait son trait dans
     l'agglomération des quatre mots, qui redécoupait TOUT le morceau à partir
@@ -434,11 +445,11 @@ def sections_inferer(file):
     reprises, elle, retrouve exactement les trois occurrences du modèle.
 
     CE QUE ÇA NE RÉSOUT PAS : une brique dont la matière revient TRANSPOSÉE
-    n'est pas retrouvée (la matrice compare des vecteurs absolus). Et si
-    SongFormer n'a jamais tourné sur ce morceau, la route ÉCHOUE au lieu de
-    se rabattre en silence sur l'ancien algorithme — un découpage qu'il n'a
-    pas demandé vaut moins qu'un message clair (décision du 2026-09-14 sur
-    la mort de l'enfant songformer).
+    n'est pas retrouvée — la matrice compare des vecteurs de classes de
+    hauteur ABSOLUES, donc un dernier refrain monté d'un ton lui échappe. Et
+    un morceau SANS CONTRASTE harmonique s'abstient tout seul (seuil relatif,
+    voir `simulation.cherche_brique`) : la brique reste posée là où Louis l'a
+    mise, et l'algo tient le reste.
     """
     p = CHARTS_DIR / f"{Path(file).stem}.json"
     if not p.exists():
@@ -450,23 +461,6 @@ def sections_inferer(file):
     if len(grid) < 3 or not stem or not audio.exists():
         return jsonify({"error": "chart trop court ou audio manquant"}), 400
 
-    # Le découpage du modèle. Il ne dépend PAS de ses traits : on le garde par
-    # chart, sinon chaque validation le repaie. Le cache disque de songformer
-    # rend l'appel quasi gratuit après la première analyse du morceau.
-    cle = (p.name, p.stat().st_mtime_ns)
-    auto = _AUTO_CACHE.get(cle)
-    if auto is None:
-        try:
-            segs = detect_sections(grid, audio)
-        except Exception as exc:                             # noqa: BLE001
-            log.exception("sections %s : songformer indisponible", file)
-            return jsonify({"error": "SongFormer n'a pas pu découper ce "
-                                     f"morceau ({exc}). Rien n'a été écrit."}), 503
-        auto = [{"label": g["label"], "barRanges": [[g["b0"], g["b1"]]]}
-                for g in segs]
-        _AUTO_CACHE.clear()
-        _AUTO_CACHE[cle] = auto
-
     humain = (request.get_json(silent=True) or {}).get("humain") or []
     occ, perdus = occurrences_de_tous(chart, humain, AUDIO_DIR)
     if perdus:
@@ -474,7 +468,7 @@ def sections_inferer(file):
         # dire (voir `soudure.traits_propres`).
         log.warning("sections %s: %d trait(s) écarté(s) — %s", file, len(perdus),
                     "; ".join(f"{t.get('label')}: {t['raison']}" for t in perdus))
-    blocs = remplir_par_songformer(chart, occ, auto)
+    blocs = remplir_par_algo(chart, occ, AUDIO_DIR)
     tracees = {(o["m0"], o["m1"]) for o in occ if o["trace"]}
 
     out = []

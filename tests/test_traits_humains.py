@@ -141,9 +141,16 @@ def test_un_trait_dans_la_SECONDE_MOITIE_du_morceau_survit(tmp_path, monkeypatch
     Une erreur d'unité, le premier motif du CLAUDE.md : elle produit des
     chiffres plausibles et faux.
 
-    Le test vaut aussi pour la loi actée le même jour — brique + SongFormer :
-    ses deux traits doivent ressortir AUX MESURES TRACÉES et SOUS LEUR NOM, et
-    les trous porter ce que le modèle avait trouvé.
+    Le test vaut aussi pour la loi de la route, amendée le 2026-09-19 (SongFormer
+    retiré, voir `SETTINGS.sections`) : ses deux traits doivent ressortir AUX
+    MESURES TRACÉES et SOUS LEUR NOM, les trous être remplis par l'agglomération
+    des quatre mots, et le morceau être couvert de bout en bout.
+
+    CE QUI A CHANGÉ ET CE QUI N'A PAS CHANGÉ. Le remplissage des trous est passé
+    du modèle à l'algo, donc les trous portent désormais des LETTRES neuves au
+    lieu des rôles du modèle (« intro », « Z »). Le contrat qui a coûté la
+    régression — l'unité dans laquelle on compte les mesures — est intact et
+    reste ce que ce test protège.
     """
     import json
 
@@ -164,12 +171,9 @@ def test_un_trait_dans_la_SECONDE_MOITIE_du_morceau_survit(tmp_path, monkeypatch
     # neutralise en ne rendant que la brique elle-même.
     monkeypatch.setattr(sim_mod, "cherche_brique",
                         lambda chart, b0, b1, ad, **k: [(b0, b1, 1.0)])
-    # SongFormer ne tourne pas dans un test : on lui substitue un découpage
-    # fixe, et c'est LUI qu'on doit retrouver dans les trous.
-    monkeypatch.setattr(sec_mod, "detect_sections",
-                        lambda grid, audio, **k: [
-                            {"b0": 0, "b1": 19, "label": "intro"},
-                            {"b0": 20, "b1": 59, "label": "Z"}])
+    # Plus aucun modèle à substituer : les trous sont remplis par
+    # `remplir_par_algo`, qui travaille sur le chart et se rabat sur la basse
+    # quand l'audio n'est pas lisible (ici le .m4a est vide, exprès).
     client = app_mod.create_app().test_client()
 
     humain = [{"label": "A", "mesure_debut": 1, "mesure_fin": 8},
@@ -181,9 +185,12 @@ def test_un_trait_dans_la_SECONDE_MOITIE_du_morceau_survit(tmp_path, monkeypatch
     siens = [s for s in out["sections"] if s["source"] == "humain"]
     assert {(s["label"], s["mesure_debut"], s["mesure_fin"]) for s in siens} == {
         ("A", 1, 8), ("C", 41, 48)}, "ses deux traits, aux mesures tracées"
-    # les trous portent le découpage du modèle, pas des lettres inventées
-    trous = {s["label"] for s in out["sections"] if s["source"] == "algo"}
-    assert trous <= {"intro", "Z"}, f"les trous doivent venir du modèle : {trous}"
+    # les trous portent des lettres NEUVES : l'algo ne doit jamais rebaptiser un
+    # bloc qu'il a fabriqué avec le nom d'une brique de Louis.
+    trous = {s["label"].rstrip("\u2032") for s in out["sections"]
+             if s["source"] == "algo"}
+    assert trous and not (trous & {"A", "C"}), (
+        f"les trous ne doivent pas reprendre ses lettres : {trous}")
     # et le morceau est couvert de bout en bout, sans trou ni chevauchement
     plages = sorted((s["mesure_debut"], s["mesure_fin"])
                     for s in out["sections"])

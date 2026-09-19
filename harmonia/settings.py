@@ -69,7 +69,26 @@ class Settings:
     port: int = int(_env("HARMONIA_PORT", _env("HARMONIA_MIN_PORT", "7772")))
 
     # ── Choix d'algorithme : des constantes, pas des réglages ──────────────
-    sections: str = "songformer"      # seul détecteur (2026-08-18, à l'oreille)
+    #: AUCUNE DÉTECTION AUTOMATIQUE DE SECTIONS (Louis, 2026-09-19 : « on vire
+    #: s'il prend autant de temps »). SongFormer était le seul détecteur depuis
+    #: le 2026-08-18 ; il enchâsse deux modèles de fondation audio (MuQ +
+    #: MusicFM, 2,7 Go de poids) et reçoit le morceau ENTIER d'un coup — sa
+    #: fenêtre vaut 420 s dans sa config, donc sa mémoire grimpe avec le CARRÉ
+    #: de la durée. Mesuré le 2026-09-19 sur la machine de Louis (16 Go) :
+    #:
+    #:     141 s   60 s de calcul,  3,7 Go          passe
+    #:     326 s   JAMAIS FINI (tué à 3 min), swap 0 → 9,5 Go, 3 % de CPU
+    #:
+    #: À comparer, sur le MÊME morceau de 326 s : beatthis 5,1 s / 0,8 Go,
+    #: musx 5,5 s / 1,6 Go. Tout le coût de l'analyse était dans le seul étage
+    #: qui nomme les sections. Voir docs/known_issues.md, 2026-09-19.
+    #:
+    #: "aucune" → `pipeline.analyze_steps` rend UNE section « A » sur tout le
+    #: morceau (la forme du chart brut) et les sections viennent de l'outil
+    #: d'annotation : Louis pose une brique, `sections.simulation` en cherche
+    #: les reprises sur la matrice chord-tone, et `refold` refait l'empilement
+    #: des accords depuis SES sections. "songformer" rebranche le modèle.
+    sections: str = "aucune"          # "aucune" | "songformer"
     merge: str = "mean"               # postérieures moyennées (2026-08-19)
     quarter_bar: bool = True          # tout temps peut porter un accord (2026-08-07)
     fold_loop: str = "occurrence"     # l'occurrence entière se replie (2026-08-08)

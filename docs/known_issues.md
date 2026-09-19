@@ -5,6 +5,76 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## SongFormer retiré : plus aucune détection automatique de sections (2026-09-19)
+
+Louis : « quand on prep une nouvelle chanson, la détection de sections pédale
+dans la semoule complet, et limite elle fait crasher mon Mac ». Puis, la cause
+mesurée : « on vire s'il prend autant de temps ».
+
+CE N'ÉTAIT PAS UNE BOUCLE INFINIE — c'était la machine qui swappait. SongFormer
+reçoit le morceau ENTIER d'un coup (sa config met `win_size = hop_size = 420 s`,
+voir le `config.json` du dépôt HF), donc sa mémoire grimpe avec le CARRÉ de la
+durée. Mesuré sur la machine de Louis (16 Go, 10 cœurs), processus enfant seul :
+
+    141 s de musique    60 s de calcul   pic 3,7 Go            passe
+    326 s de musique    JAMAIS FINI (tué à 3 min)
+                        swap 0 → 9,5 Go, CPU tombé à 3 %, état « uninterruptible »
+
+Le swap est retombé de 9,5 à 3,9 Go DÈS que l'enfant a été tué — c'est bien lui.
+Le CPU à 3 % explique le symptôme : il ne calcule plus, il attend le disque. Et
+`DELAI = 1800` lui laissait une demi-heure pour le faire.
+
+LA DISPROPORTION, sur le MÊME fichier de 326 s, caches froids :
+
+    beatthis      5,1 s   pic 0,8 Go    poids   77 Mo   les battues
+    musx          5,5 s   pic 1,6 Go    poids   25 Mo   les accords
+    SongFormer    ∞       > 16 Go       poids  2,7 Go   SEULEMENT les sections
+
+Il enchâsse deux modèles de fondation audio (MuQ + MusicFM). Tout le coût de
+l'analyse tenait dans le seul étage qui nomme les sections.
+
+CE QUI A ÉTÉ FAIT. `SETTINGS.sections = "aucune"` (constante, pas variable
+d'environnement). `pipeline.analyze_steps` rend UNE section « A » sur tout le
+morceau — la forme du chart brut ; `routes/sections.sections_inferer` remplit
+les trous avec `simulation.remplir_par_algo` (l'agglomération des quatre mots,
+sans modèle) au lieu de `remplir_par_songformer`, et n'importe plus
+`detect_sections`. Vérifié : analyse complète du morceau de 326 s en **5,1 s /
+1,43 Go** (caches musx+beats chauds), et la route d'annotation répond en moins
+d'une seconde sur un vrai morceau de 71 mesures. 551 tests verts.
+
+CE QUE ÇA COÛTE, et il faut le dire :
+
+  * **plus d'« intro » ni d'« outro » automatiques.** L'algo des quatre mots ne
+    sait produire que des lettres — c'est écrit dans `remplir_par_algo`. Seul
+    Louis peut écrire ces deux noms-là. C'était la seule chose que SongFormer
+    savait faire et que personne d'autre ne sait faire ici.
+  * **l'empilement des accords ne se fait plus à l'analyse.** Une seule lettre,
+    donc `fold_letter_groups` n'a rien à empiler. Ce n'est PAS perdu :
+    `harmonia.refold` le refait depuis les sections de Louis dès qu'il les
+    écrit, et c'était déjà la loi (« la vérité terrain doit toujours être le
+    chart brut », 2026-08-17). Mais un chart jamais annoté n'a plus ce gain —
+    mesuré à 42 accords sur 797, soit 5,3 %, dans `refold`.
+  * **le banc `/api/sections/simuler/` est devenu creux.** Il compare encore
+    « algo » et « songformer », mais son `auto` vient de `analyze()`, qui ne
+    rend plus qu'une section. À retirer ou à recâbler.
+  * **les 46 caches de `state/cache/songformer/` sont gardés**, et le module
+    `harmonia/sections/songformer.py` n'est pas supprimé : `SETTINGS.sections =
+    "songformer"` le rebranche tel quel.
+
+MESURÉ AUSSI, pour qui voudrait le rebrancher un jour : plafonner la fenêtre du
+modèle à 150 s fait passer le morceau de 326 s en **112 s / 7,6 Go**, sans
+thrashing, et les FRONTIÈRES sont identiques au dixième de seconde près (testé
+sur Billie Jean contre son cache 420 s). Ce qui se dégrade, ce sont les NOMS du
+dernier tiers : les deux « outro » deviennent « refrain », le « pont » devient
+« instrumental » — c'est la vue globale qui permet de dire « là, c'est la fin ».
+La demi-précision (bfloat16) est une impasse : MuQ casse en interne,
+`Input type (c10::Half) and bias type (c10::BFloat16) should be the same`.
+
+BUG LATENT REPÉRÉ CHEZ EUX, pas la cause d'ici : `modeling_songformer.py`
+ligne 152 fait `continue` sans incrémenter `i`, donc boucle à l'infini pour un
+morceau dont la durée tombe dans (420,000 ; 420,043] s. Assez rare pour ne
+jamais s'être produit, assez réel pour être écrit.
+
 ## Tabs branchés : source de chart alternative + marque de doute (2026-09-18)
 
 Louis : « branche-nous ça comme façon alternative de choper des charts, et tu

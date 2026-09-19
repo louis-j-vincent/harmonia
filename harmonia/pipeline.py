@@ -741,14 +741,30 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
     # phase "sections" fires strictly AFTER the raw yield above — the loading
     # screen's second segment.
     report(5, phase="sections")
-    from harmonia.sections import detect_sections
     from harmonia.nnls_features import extract_bothchroma as _ebc
     # `_arr`/`_times` no longer feed detection itself (songformer only
     # needs the audio file) — they still feed `fold_letter_groups` below,
     # which stacks occurrences on the raw NNLS substrate.
     _arr, _times = _ebc(audio_path)
     sections = []
-    if bar1_bar:
+    if SETTINGS.sections == "aucune":
+        # PAS DE DÉCOUPAGE AUTOMATIQUE (Louis, 2026-09-19). Le chart sort avec
+        # une seule section « A », exactement la forme du brut ; les sections
+        # viennent de l'outil d'annotation. Voir `SETTINGS.sections` pour la
+        # mesure qui a fait tomber SongFormer.
+        #
+        # CE QUE ÇA NE COÛTE PAS, et c'est ce qui rend la coupe sûre : une
+        # seule lettre, donc `fold_letter_groups` n'a rien à empiler et le
+        # re-décodage sur postérieures moyennées ne se fait pas ici. Il n'est
+        # pas perdu — `harmonia.refold` le refait depuis les sections de Louis
+        # dès qu'il les écrit (route `/api/sections/…`), et c'était DÉJÀ la
+        # loi : « la vérité terrain doit toujours être le chart brut, les
+        # sections sont des modalités d'affichage par dessus » (2026-08-17).
+        sections, segs = _one_section(bars, grid, n_bars), []
+        logger.info("pipeline: sections=aucune — une seule section « A », "
+                    "le découpage viendra de l'outil d'annotation")
+    elif bar1_bar:
+        from harmonia.sections import detect_sections
         # Louis, 2026-08-08 (Sam Smith report): the mark is the SOURCE OF
         # TRUTH for the start of A — so don't trim boundaries computed on
         # the old origin, RE-RUN the detection on the post-mark region
@@ -768,8 +784,9 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
                     "from the mark (%d sections incl. intro)",
                     bar1_bar, len(segs))
     else:
+        from harmonia.sections import detect_sections
         segs = list(detect_sections(grid, audio_path))
-    for si, sg in enumerate(segs):
+    for si, sg in enumerate(segs):          # vide quand sections=aucune
         b0, b1 = sg["b0"], sg["b1"]
         sections.append({
             "id": f"S{si}", "label": sg["label"], "tag": "", "reps": 1,
