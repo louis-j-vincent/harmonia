@@ -85,14 +85,14 @@ class Settings:
     #: contre les structures iReal, seules structures écrites par un humain
     #: qu'on ait : `docs/plots/sections_6morceaux.html`.
     #:
-    #: ENCORE ÉTEINT, et voici pourquoi (2026-09-18). La règle a été validée
-    #: sur les lettres que portent les charts EN CACHE. Une ré-analyse fraîche
-    #: donne un découpage amont très différent — le détecteur a bougé le même
-    #: jour — et dans CE régime-là elle fusionne sur Let It Be quelque chose
-    #: qu'elle ne doit pas (`A` absorbe `C` à 1.00). Valider dans un régime et
-    #: livrer dans l'autre, c'est exactement le piège n°6 de CLAUDE.md. Ce
-    #: qu'il reste à faire est écrit dans known_issues.
-    merge_letters: bool = False
+    #: ALLUMÉ le 2026-09-19 à la demande de Louis (« mets moi merge on et
+    #: montres moi ce que donnes les sections avec »), après une journée où je
+    #: l'avais laissé éteint faute d'avoir arbitré dans le bon régime. Ce qui
+    #: reste vrai et non résolu : sur une ré-analyse fraîche, Let It Be
+    #: fusionne `A` et `C` à 1.00 alors qu'ils doivent rester séparés — le
+    #: dossier est dans known_issues, et la page avant/après le montre morceau
+    #: par morceau.
+    merge_letters: bool = True
 
 
 SETTINGS = Settings()
