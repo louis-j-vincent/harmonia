@@ -53,11 +53,27 @@ PLAFOND_REPRISE = 0.999
 JAMAIS_REJOUEES = {"intro", "outro", "silence"}
 #: l'alphabet des lettres neuves, d'où l'on retire celles de Louis
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+#: CE QU'UNE REPRISE TRANSPOSÉE DOIT PAYER EN PLUS. Repris tel quel de
+#: `section_tool.ROT_BONUS` (2026-09-19) : une brique tournée ressemble à plus
+#: de choses qu'une brique droite, donc elle doit se détacher davantage pour
+#: qu'on la croie.
+BONUS_TRANSPOSE = 0.06
+#: EN DESSOUS DE QUATRE MESURES, ON NE CHERCHE PAS DE TRANSPOSITION. Mesuré
+#: dans `section_tool` sur Bein Green : un motif de 2 mesures tourné colle
+#: PARTOUT — dix « reprises transposées », toutes fausses. Un motif court n'a
+#: pas assez de matière pour que sa transposition veuille dire quelque chose.
+MIN_MESURES_TRANSPOSE = 4
 
 
 def cherche_brique(chart: dict, b0: int, b1: int, audio_dir,
-                   label: str = "") -> list[tuple]:
-    """Les reprises de la brique [b0, b1] — mesures 0-indexées, fin incluse.
+                   label: str = "") -> tuple[list[tuple], dict]:
+    """(reprises, diagnostic) pour la brique [b0, b1] — mesures 0-indexées,
+    fin incluse.
+
+    Chaque reprise est `(m0, m1, score, rot)`, `rot` étant le nombre de
+    demi-tons dont la brique a été TRANSPOSÉE pour être reconnue (0 = telle
+    quelle). Le diagnostic dit pourquoi on n'a rien trouvé quand c'est le cas —
+    voir `RAISONS` en fin de docstring.
 
     On fait glisser la brique le long de la matrice de ressemblance chord-tone
     (`sections.similarity`, la même que l'app utilise déjà pour répondre « où
@@ -82,28 +98,57 @@ def cherche_brique(chart: dict, b0: int, b1: int, audio_dir,
     D'où : `médiane + 1,5 écart-type`, borné par `PLANCHER_REPRISE` et
     `PLAFOND_REPRISE`. Un morceau SANS CONTRASTE s'abstient tout seul, ce qui
     est la bonne réponse — la brique de Louis reste posée là où il l'a mise et
-    SongFormer garde le reste. C'est la même loi que le projet applique déjà
-    ailleurs (`soudure._otsu`, un seuil par morceau ; mémoire « per-song
-    threshold, and a channel with no contrast abstains »).
+    le remplissage des trous garde le reste. C'est la même loi que le projet
+    applique déjà ailleurs (`soudure._otsu`, un seuil par morceau ; mémoire
+    « per-song threshold, and a channel with no contrast abstains »).
+
+    LES REPRISES TRANSPOSÉES (2026-09-19). Le dernier refrain monté d'un ton
+    était le trou écrit de cette fonction : la matrice compare des vecteurs de
+    classes de hauteur ABSOLUES, donc une reprise modulée n'y ressemble à
+    rien. On refait donc glisser la brique sur les onze matrices tournées
+    (`V @ roll(V, k).T`, comme `section_tool._rotated_S`), et une reprise
+    trouvée là porte son `rot`. Deux garde-fous, tous deux repris de
+    `section_tool` où ils ont été payés :
+
+      * `BONUS_TRANSPOSE` — une brique tournée ressemble à plus de choses
+        qu'une brique droite, donc elle doit se détacher DAVANTAGE ;
+      * `MIN_MESURES_TRANSPOSE` — sous quatre mesures on ne cherche pas du
+        tout. Sur Bein Green, un motif de 2 mesures tourné donnait dix
+        « reprises transposées », toutes fausses.
+
+    Les reprises DROITES se servent les premières, à tous les coups : une
+    reprise à l'identique vaut toujours mieux qu'une reprise modulée au même
+    endroit.
 
     UNE INTRO NE SE REJOUE PAS (Louis, 2026-09-16). Un rôle de
     `JAMAIS_REJOUEES` ne cherche aucune reprise — sur Cry Me A River, « intro »
     était recopié SEPT fois. Cette règle existait dans l'ancienne route et
     avait été perdue en la réécrivant.
 
-    CE QUE ÇA NE RÉSOUT PAS : une brique dont la matière revient TRANSPOSÉE
-    n'est pas retrouvée (la matrice compare des vecteurs absolus). Et sur un
-    morceau sans contraste on ne trouve RIEN, même quand la section se rejoue
-    vraiment : on préfère rater une reprise — SongFormer tient alors le trou —
-    que d'écrire son nom sur la moitié du morceau.
+    CE QUE ÇA NE RÉSOUT PAS : sur un morceau sans contraste on ne trouve
+    RIEN, même quand la section se rejoue vraiment — on préfère rater une
+    reprise (le remplissage tient alors le trou) que d'écrire son nom sur la
+    moitié du morceau. Le diagnostic le DIT au lieu de rendre une liste vide
+    silencieuse, mais il ne le répare pas. Et une reprise qui change de mode
+    (le refrain passé en mineur) n'est toujours pas retrouvée : une rotation
+    déplace les douze classes ensemble, elle ne change pas les tierces.
+
+    RAISONS possibles dans le diagnostic : `"role"` (une intro ne se rejoue
+    pas), `"pas_d_audio"`, `"trop_court"`, `"sans_contraste"` (rien ne dépasse
+    le seuil du morceau), ou `None` quand des reprises ont été trouvées.
     """
     import numpy as np
 
     from harmonia import musx as _musx
-    from harmonia.sections.similarity import _slide, ssm
-    seule = [(b0, b1, 1.0)]
+    from harmonia.sections import similarity as VS
+    seule = [(b0, b1, 1.0, 0)]
+    info = {"label": label, "m0": b0, "m1": b1, "n_reprises": 0,
+            "seuil": None, "mediane": None, "sigma": None, "raison": None}
+
     if (label or "").strip().lower() in JAMAIS_REJOUEES:
-        return seule
+        info["raison"] = "role"
+        return seule, info
+
     grid = chart.get("barGrid") or []
     n = len(grid) - 1
     L = b1 - b0 + 1
@@ -115,53 +160,90 @@ def cherche_brique(chart: dict, b0: int, b1: int, audio_dir,
         # geste : ça se contente de ne rien ajouter.
         logger.info("cherche_brique : pas d'audio pour %s, la brique reste "
                     "seule", stem or "?")
-        return seule
-    S = ssm(_musx.frame_posteriors(audio)[0], grid)
-    dom = np.asarray(_slide(S, b0, L, n))[:max(1, n - L + 1)]
+        info["raison"] = "pas_d_audio"
+        return seule, info
+
+    triad = _musx.frame_posteriors(audio)[0]
+    V = VS.harmonic_vectors(triad, grid)
+    S = VS.ssm(triad, grid)
+    dom = np.asarray(VS._slide(S, b0, L, n))[:max(1, n - L + 1)]
     if len(dom) < 3:
-        return seule
+        info["raison"] = "trop_court"
+        return seule, info
+
     seuil = min(PLAFOND_REPRISE,
                 max(PLANCHER_REPRISE,
                     float(np.median(dom) + Z_REPRISE * dom.std())))
+    info.update(seuil=round(seuil, 3), mediane=round(float(np.median(dom)), 3),
+                sigma=round(float(dom.std()), 3))
+
     pris, out = [(b0, b1)], list(seule)
-    for b in sorted(range(len(dom)), key=lambda x: -dom[x]):
-        if dom[b] < seuil:
-            break
-        if any(not (b + L <= c or d < b) for c, d in pris):
-            continue
-        pris.append((b, b + L - 1))
-        out.append((b, b + L - 1, float(dom[b])))
+
+    def _moissonne(scores, seuil_k, rot):
+        """Les pics de `scores` qui ne recouvrent rien de déjà pris."""
+        for b in sorted(range(len(scores)), key=lambda x: -scores[x]):
+            if scores[b] < seuil_k:
+                break
+            if any(not (b + L <= c or d < b) for c, d in pris):
+                continue
+            pris.append((b, b + L - 1))
+            out.append((b, b + L - 1, float(scores[b]), rot))
+
+    # LES DROITES D'ABORD, toutes, avant de regarder une seule transposition.
+    _moissonne(dom, seuil, 0)
+    if L >= MIN_MESURES_TRANSPOSE:
+        seuil_rot = min(PLAFOND_REPRISE, seuil + BONUS_TRANSPOSE)
+        for k in range(1, 12):
+            Sk = V @ np.roll(V, k, axis=1).T
+            _moissonne(np.asarray(VS._slide(Sk, b0, L, n))[:len(dom)],
+                       seuil_rot, k)
+
+    info["n_reprises"] = len(out) - 1
+    if info["n_reprises"] == 0:
+        info["raison"] = "sans_contraste"
+    tournees = sum(1 for o in out if o[3])
     logger.info("cherche_brique %s [%d-%d] « %s » : seuil %.3f (médiane %.3f, "
-                "σ %.3f) → %d occurrence(s)", stem, b0 + 1, b1 + 1, label,
-                seuil, float(np.median(dom)), float(dom.std()), len(out))
-    return sorted(set(out))
+                "σ %.3f) → %d occurrence(s), dont %d transposée(s)", stem,
+                b0 + 1, b1 + 1, label, seuil, info["mediane"], info["sigma"],
+                len(out), tournees)
+    return sorted(set(out)), info
 
 
 def occurrences_de_tous(chart: dict, traits: list[dict],
-                        audio_dir) -> tuple[list[dict], list[dict]]:
-    """(occurrences, traits écartés) — chaque trait de Louis, plus ses
-    reprises, sans que deux briques se marchent dessus.
+                        audio_dir) -> tuple[list[dict], list[dict], list[dict]]:
+    """(occurrences, traits écartés, diagnostics) — chaque trait de Louis, plus
+    ses reprises, sans que deux briques se marchent dessus.
 
     Les traits sont traités dans l'ordre où il les a posés : les reprises
     d'une brique ne peuvent pas recouvrir un trait déjà placé, ni les reprises
     d'une brique précédente. Le premier arrivé garde sa place, ce qui est la
     seule règle qui ne trahisse pas son intention.
+
+    Chaque occurrence porte `rot` : les demi-tons dont la brique a été
+    transposée pour être reconnue là (0 = telle quelle).
+
+    Le troisième retour est la liste des diagnostics de `cherche_brique`, un
+    par trait gardé — DE QUOI DIRE À L'ÉCRAN pourquoi une brique n'a pas
+    trouvé de reprise, au lieu de laisser croire à une panne. Louis,
+    2026-09-19 : un morceau sans contraste doit se DIRE, pas se taire.
     """
     from harmonia.soudure import traits_propres
     n = len((chart.get("barGrid") or [])) - 1
     gardes, ecartes = traits_propres(traits, n)
     pris: list[tuple] = []
     out: list[dict] = []
+    diagnostics: list[dict] = []
     for b0, b1, label in gardes:
-        for x, y, sc in cherche_brique(chart, b0, b1, audio_dir,
-                                       label=label):
+        reprises, info = cherche_brique(chart, b0, b1, audio_dir, label=label)
+        diagnostics.append(info)
+        for x, y, sc, rot in reprises:
             if any(not (y < c or d < x) for c, d in pris):
                 continue
             pris.append((x, y))
             out.append({"m0": x, "m1": y, "label": label,
-                        "score": round(sc, 3),
+                        "score": round(sc, 3), "rot": int(rot),
                         "trace": (x == b0 and y == b1)})
-    return sorted(out, key=lambda o: o["m0"]), ecartes
+    return sorted(out, key=lambda o: o["m0"]), ecartes, diagnostics
 
 
 def remplir_par_algo(chart: dict, occ: list[dict], audio_dir) -> list[dict]:

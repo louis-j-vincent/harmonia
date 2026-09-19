@@ -382,7 +382,7 @@ def sections_simuler(file):
         return jsonify({"briques": [], "algo": [], "songformer": [],
                         "auto": _plages(auto)})
     try:
-        occ, _ecartes = occurrences_de_tous(chart, humain, AUDIO_DIR)
+        occ, _ecartes, _diag = occurrences_de_tous(chart, humain, AUDIO_DIR)
         return jsonify({
             "briques": occ,
             "algo": remplir_par_algo(chart, occ, AUDIO_DIR),
@@ -462,7 +462,7 @@ def sections_inferer(file):
         return jsonify({"error": "chart trop court ou audio manquant"}), 400
 
     humain = (request.get_json(silent=True) or {}).get("humain") or []
-    occ, perdus = occurrences_de_tous(chart, humain, AUDIO_DIR)
+    occ, perdus, diagnostics = occurrences_de_tous(chart, humain, AUDIO_DIR)
     if perdus:
         # Jamais muet : l'ancien code faisait disparaître un trait sans rien
         # dire (voir `soudure.traits_propres`).
@@ -470,6 +470,9 @@ def sections_inferer(file):
                     "; ".join(f"{t.get('label')}: {t['raison']}" for t in perdus))
     blocs = remplir_par_algo(chart, occ, AUDIO_DIR)
     tracees = {(o["m0"], o["m1"]) for o in occ if o["trace"]}
+
+    # `rot` par plage, pour que le rendu puisse dire « A, monté d'un ton »
+    rotations = {(o["m0"], o["m1"]): o.get("rot", 0) for o in occ}
 
     out = []
     for b in blocs:
@@ -479,12 +482,16 @@ def sections_inferer(file):
             source = "algo"
         out.append({"label": b["label"],
                     "mesure_debut": b["m0"] + 1, "mesure_fin": b["m1"] + 1,
-                    "source": source, "reste": False, "type": ""})
-    log.info("sections %s : %d brique(s) de Louis, %d bloc(s) rendus",
-             file, len(occ), len(out))
+                    "source": source, "reste": False, "type": "",
+                    "rot": rotations.get((b["m0"], b["m1"]), 0)})
+    log.info("sections %s : %d brique(s) de Louis, %d bloc(s) rendus, "
+             "%d transposée(s)", file, len(occ), len(out),
+             sum(1 for o in occ if o.get("rot")))
     return jsonify({"sections": out,
                     "ecartes": [{"label": t.get("label"), "raison": t["raison"]}
-                                for t in perdus]})
+                                for t in perdus],
+                    "abstentions": [d for d in diagnostics
+                                    if d.get("raison") == "sans_contraste"]})
 
 
 # La page /sections/<file> a vécu une heure le 2026-08-15 : Louis voulait

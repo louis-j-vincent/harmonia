@@ -170,7 +170,10 @@ def test_un_trait_dans_la_SECONDE_MOITIE_du_morceau_survit(tmp_path, monkeypatch
     # traits survivent, aux bonnes mesures et sous leur nom — donc on la
     # neutralise en ne rendant que la brique elle-même.
     monkeypatch.setattr(sim_mod, "cherche_brique",
-                        lambda chart, b0, b1, ad, **k: [(b0, b1, 1.0)])
+                        lambda chart, b0, b1, ad, **k: (
+                            [(b0, b1, 1.0, 0)],
+                            {"label": k.get("label"), "m0": b0, "m1": b1,
+                             "n_reprises": 0, "raison": None}))
     # Plus aucun modèle à substituer : les trous sont remplis par
     # `remplir_par_algo`, qui travaille sur le chart et se rabat sur la basse
     # quand l'audio n'est pas lisible (ici le .m4a est vide, exprès).
