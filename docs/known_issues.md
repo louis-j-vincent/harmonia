@@ -5,7 +5,7 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
-## Déplacer le début de la section 1 n'atteint pas le chart (2026-09-20, OUVERT)
+## Déplacer le début de la section 1 n'atteint pas le chart (2026-09-20, RÉSOLU — trois voisins restent ouverts)
 
 Louis : « quand dans l'annotation on redéfinit le début de la section 1, c'est
 mal fait : ça n'est pas reflété dans le chart, dans la tête de lecture ».
@@ -72,10 +72,50 @@ CE QUE ÇA N'EXPLIQUE PAS ENCORE, et qui est du même nid :
     casse-cache : le re-fetch de `writeSectionsToChart` (`:613`) peut être
     servi par le cache heuristique du navigateur. Secondaire, mais réel.
 
-À ARBITRER AVANT DE CORRIGER : un trou en TÊTE devient-il « intro » (ce que
-fait déjà « Caler la mesure 1 », et ce que la règle d'intro du chart attend) ?
-Un trou au MILIEU ou en FIN se rattache-t-il à la section précédente, ou prend-il
-le nom « queue » (qui existe déjà dans les données) ?
+CE QUE LOUIS A TRANCHÉ (2026-09-20) : « trou au milieu — queue, trou en tête —
+intro », et « déplacer le début de la section 1 ne recale PAS la mesure 1 du
+morceau ». Les deux notions de « début » restent donc séparées, et c'est voulu :
+« Caler la mesure 1 » est le seul geste qui déplace la grille.
+
+CE QUI A ÉTÉ FAIT. `comblerTrous()` dans `static/screens/sections_editor.js` :
+les mesures que personne ne réclame reçoivent un nom avant l'envoi — « intro »
+si le trou commence mesure 1, « queue » sinon. `confirmSectionTruth` ne jette
+plus les runs « ? », et `writeSectionsToChart` est la seule porte, donc les deux
+boutons en profitent.
+
+LE SUFFIXE, ET POURQUOI IL EXISTE. `soudure.sections_pour_chart` groupe sur
+`(label, longueur)` : deux trous de même longueur tous deux nommés « queue »
+deviendraient UNE section écrite une fois et jouée N fois. Mesuré sur Easy On Me
+avec trois trous de 2 mesures — accords réels A♭ A♭ / F D-7 / A♭ F — le chart
+écrivait « F D-7 ×3 », deux passages sur trois faux. C'est « under-fold, never
+over-fold » : un repli que Louis n'a pas demandé est une affirmation que la
+machine n'a pas le droit de faire. Les trous comblés qui entreraient en collision
+prennent donc « queue 2 », « queue 3 ». Un seul trou lit « queue », sans suffixe.
+Quand Louis écrit « queue » deux fois de sa main (This Love, Don't Know Why),
+c'est SON affirmation et elle est respectée telle quelle.
+
+Le message d'échec est aussi devenu lisible : `raisonLisible()` sort la phrase du
+serveur au lieu d'afficher `Error: {"error":"4 mesures ne sont dans aucune secti…`.
+
+VÉRIFIÉ DANS LE NAVIGATEUR (Playwright, 390 px), même scénario que le repro :
+
+    avant   enregistré comme vérité : 8 section(s) · ⚠ chart inchangé : Error:…
+            chart : A [[0,11]] …                       (le geste perdu)
+    après   enregistré comme vérité : 8 section(s) · chart réécrit (9 sections)
+            chart : intro [[0,3]] · A [[4,11]] · queue [[12,13]] · B …
+            tête de lecture à 20 s → mesure 6, dans A   (avant : dans l'ancienne A)
+
+L'état réel d'Easy On Me a été restauré après le test (chart, vérité, brouillon,
+registre des corrections).
+
+CE QUI RESTE OUVERT, et qui est du même nid — les trois points ci-dessus (une
+ré-analyse efface le découpage validé ; les indices de mesure sont stockés sans
+leur origine ; `GET /api/chart-model` sans `Cache-Control`) ne sont PAS corrigés.
+
+ET UNE QUESTION LAISSÉE À LOUIS : par « Valider les sections », le trou de tête
+n'est pas un trou — `remplir_par_algo` le remplit d'une LETTRE (mesuré : « B »
+sur les 4 premières mesures d'Easy On Me, une lettre qui ne se rejoue nulle
+part). Sa règle « trou en tête = intro » ne s'y applique donc pas encore.
 
 ## Sections sans modèle : la grille de 4 mesures, et un échange à arbitrer (2026-09-20)
 

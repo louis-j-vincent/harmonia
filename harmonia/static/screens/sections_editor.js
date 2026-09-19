@@ -600,12 +600,70 @@ export async function validateSectionSelection(){
      On recharge ensuite le modèle depuis le serveur : le modèle replié gardé
      pour la sortie décrit l'ancien découpage, le rendre à la fermeture
      ramènerait exactement ce dont il se plaint. */
+/* La phrase du serveur, pas son enveloppe. `api.post` lève un `Error` dont le
+   message EST le corps de la réponse — du JSON — et on l'affichait tronqué.
+   Ici on en ressort `error` quand il y en a un, et on laisse le texte brut
+   sinon (un 500 sans corps JSON, une coupure réseau). */
+function raisonLisible(e){
+    const s=String((e && e.message) || e || "");
+    try{ const j=JSON.parse(s); if(j && j.error) return String(j.error); }catch(_){}
+    return s.slice(0,110);
+  }
+/* LES MESURES QUE PERSONNE NE RÉCLAME ONT UN NOM (Louis, 2026-09-20 : « trou
+   au milieu — queue, trou en tête — intro »).
+
+   Le bug qu'elle répare : déplacer le début de la première section laisse les
+   mesures d'avant sans propriétaire. `sectionRuns()` les nomme « ? », les deux
+   chemins d'écriture les JETAIENT, et `/api/soudure/valider` refuse — à juste
+   titre — un découpage qui ne couvre pas le morceau. Résultat mesuré dans le
+   navigateur sur Easy On Me : la vérité était écrite, le chart non, et le seul
+   signe était un bout de JSON tronqué au bout d'une note qui commençait par
+   « enregistré ». Voir docs/known_issues.md, 2026-09-20.
+
+   POURQUOI LE SUFFIXE. L'identité d'une section est son LABEL : `soudure.
+   sections_pour_chart` groupe sur `(label, longueur)`, donc deux trous de même
+   longueur nommés tous les deux « queue » deviennent UNE section écrite une
+   fois et jouée N fois. Mesuré sur Easy On Me avec trois trous de 2 mesures :
+   leurs accords sont A♭ A♭ / F D-7 / A♭ F, et le chart écrivait « F D-7 ×3 » —
+   deux passages sur trois faux. C'est exactement « under-fold, never
+   over-fold » : un repli que Louis n'a pas demandé est une affirmation que la
+   machine n'a pas le droit de faire. Quand Louis écrit « queue » deux fois de
+   sa main, c'est SON affirmation et elle est respectée ; ici on comble, donc
+   on n'affirme rien et les trous restent distincts. Le cas courant — un seul
+   trou — lit « queue » tout court, sans suffixe. */
+export function comblerTrous(sections, nBars){
+    const n=Math.max(0, nBars|0);
+    const vrais=sections.filter(x=>x && x.label && x.label!=="?")
+                        .map(x=>({label:String(x.label),
+                                  mesure_debut:Math.max(1,x.mesure_debut|0),
+                                  mesure_fin:Math.min(n,x.mesure_fin|0)}))
+                        .filter(x=>x.mesure_fin>=x.mesure_debut)
+                        .sort((a,b)=>a.mesure_debut-b.mesure_debut);
+    if(!n) return vrais;
+    // les groupes déjà pris, pour ne pas replier un trou sur une vraie section
+    const pris=new Set(vrais.map(x=>x.label+"|"+(x.mesure_fin-x.mesure_debut+1)));
+    const nom=(d,f)=>{
+      const base=(d===1)?"intro":"queue", lg=f-d+1;
+      let lab=base, k=1;
+      while(pris.has(lab+"|"+lg)){ k++; lab=base+" "+k; }
+      pris.add(lab+"|"+lg);
+      return lab;
+    };
+    const out=[]; let cur=1;
+    for(const s of vrais){
+      if(s.mesure_debut>cur)
+        out.push({label:nom(cur,s.mesure_debut-1),
+                  mesure_debut:cur, mesure_fin:s.mesure_debut-1});
+      out.push(s);
+      cur=Math.max(cur, s.mesure_fin+1);
+    }
+    if(cur<=n) out.push({label:nom(cur,n), mesure_debut:cur, mesure_fin:n});
+    return out;
+  }
 export async function writeSectionsToChart(sections){
     const st=S.sectTool, m=S.model; if(!st||!m) return false;
-    const pour=sections.map(x=>({label:x.label,
-                                 mesure_debut:x.mesure_debut,
-                                 mesure_fin:x.mesure_fin}))
-                       .filter(x=>x.label && x.label!=="?");
+    const nBars=Math.max(0, ((m.barGrid||[]).length)-1);
+    const pour=comblerTrous(sections, nBars);
     if(!pour.length) return false;
     try{
       const w=await api.post("/api/soudure/valider/"+m.file, {sections:pour});
@@ -620,8 +678,12 @@ export async function writeSectionsToChart(sections){
       return true;
     }catch(e){
       // JAMAIS en silence : croire le chart réécrit alors qu'il ne l'est pas
-      // est exactement le bug qu'on corrige ici.
-      st.note+=" · ⚠ chart inchangé : "+String(e).slice(0,70);
+      // est exactement le bug qu'on corrige ici. Et LISIBLE : `api.post` lève
+      // avec le corps de la réponse collé tel quel, donc la note affichait
+      // `Error: {"error":"4 mesures ne sont dans aucune secti…` — du JSON
+      // tronqué à 70 caractères derrière un début de phrase qui disait
+      // « enregistré ». On en sort la phrase du serveur.
+      st.note+=" · ⚠ chart inchangé : "+raisonLisible(e);
       go("chart");
       return false;
     }
@@ -674,11 +736,12 @@ export async function confirmSectionTruth(){
       // Et DANS LE CHART, comme « Valider les sections » (même raison, même
       // route) : enregistrer sa vérité sans réécrire le chart laissait les
       // deux en désaccord, le fichier disant une chose et l'écran une autre.
-      // Un trou (« ? ») fait échouer la route côté serveur ; le message le dit
-      // au lieu de laisser croire que c'est passé.
+      // Les trous (« ? ») ne sont PLUS jetés : `comblerTrous` leur donne un
+      // nom (intro en tête, queue ailleurs) avant l'envoi, sans quoi la route
+      // refuse le découpage entier et le chart reste celui d'avant — ce qui
+      // arrivait dès qu'on déplaçait le début de la première section.
       if(r && r.ok){
         await writeSectionsToChart(sectionRuns()
-          .filter(x=>x.label && x.label!=="?")
           .map(x=>({label:x.label, mesure_debut:x.b0+1, mesure_fin:x.b1+1})));
       }
     }catch(e){ st.note=String(e); }
