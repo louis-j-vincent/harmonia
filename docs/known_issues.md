@@ -5,6 +5,132 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Déplacer le début de la section 1 n'atteint pas le chart (2026-09-20, OUVERT)
+
+Louis : « quand dans l'annotation on redéfinit le début de la section 1, c'est
+mal fait : ça n'est pas reflété dans le chart, dans la tête de lecture ».
+
+REPRODUIT dans le navigateur (Playwright, 390 px, `?open=min_X-yIEMduRXk`,
+Easy On Me) en appelant les mêmes fonctions que le doigt : on pose « A » sur
+les mesures 5–12 alors qu'elle commençait mesure 1, puis « Enregistrer comme
+vérité ». Note rendue à l'écran, telle quelle :
+
+    enregistré comme vérité : 8 section(s) · ⚠ chart inchangé :
+    Error: {"error":"4 mesures ne sont dans aucune secti…
+
+Le fichier de vérité EST écrit, le chart NE L'EST PAS, et l'avertissement est
+tronqué à 70 caractères, en JSON brut, derrière un début de phrase qui dit
+« enregistré ». C'est pour ça que ça se lit comme un silence.
+
+LA MÉCANIQUE. Déplacer le début de la première section laisse les mesures
+avant elle sans propriétaire. `sectionRuns()` les nomme « ? » ; les deux
+chemins d'écriture les JETTENT (`confirmSectionTruth`
+`sections_editor.js:680-683`, `writeSectionsToChart` `:606`) ; et
+`/api/soudure/valider` refuse — à juste titre — un découpage qui ne couvre
+pas le morceau (`routes/sections.py:203-212`). Vérifié en direct :
+
+    POST /api/soudure/valider/min_X-yIEMduRXk  {"sections":[A 5–12]}
+    → 400  "55 mesures ne sont dans aucune section (la première est la 1)"
+
+« Valider les sections » ne tombe PAS dedans : `/api/sections/inferer` rend un
+découpage complet, le trou est rebouché, le chart est réécrit (vérifié :
+A passe à `[[4,11],[22,29],[43,50]]`). Mais `remplir_par_algo` ne sait produire
+que des LETTRES — la tête du morceau revient donc en « B », jamais en « intro ».
+Le geste survit, mais le chart montre toujours une section qui commence
+mesure 1 : ça se lit comme « mon édition a été ignorée ».
+
+LA TÊTE DE LECTURE NE POUVAIT PAS BOUGER, par construction. Deux notions de
+« début » cohabitent et ne se parlent pas :
+
+    state/human/marks/<stem>.json   {"bar1": 11.27}   SECONDES  → phase de la
+        grille, relue par jobs.bar1_for → bars.layout_bars. SEUL « Caler la
+        mesure 1 » y touche, et il relance une analyse complète.
+    state/human/sections/<stem>.json  b0/b1            MESURES   → lettres et
+        frontières. Lu par le seul outil qui les a écrites, la page /ssm et
+        l'export — JAMAIS par le pipeline.
+
+Le seul pont est le navigateur appelant `/api/soudure/valider`, qui réécrit
+`chart["sections"]` et jamais `barGrid`. Déplacer une frontière de section ne
+peut donc pas déplacer la tête de lecture ni la numérotation des mesures.
+
+CE QUE ÇA N'EXPLIQUE PAS ENCORE, et qui est du même nid :
+
+  * **une ré-analyse efface le découpage validé.** `/api/bar1` et `/api/tempo`
+    réécrivent le chart depuis zéro et, avec `SETTINGS.sections = "aucune"`,
+    rendent UNE section « A » (`pipeline.py:749-765`). Rien dans `jobs.py` ne
+    relit `SETTINGS.sections_dir`. Le docstring de `pipeline.py:758-760` dit
+    que « `harmonia.refold` le refait depuis les sections de Louis dès qu'il
+    les écrit » : ce n'est PAS câblé — `refold` n'est appelé que depuis
+    `routes/sections.py:221`, dans la validation pilotée par le navigateur.
+  * **les indices de mesure sont stockés sans leur origine.**
+    `routes/sections.py:718-721` écrit `b0/b1` et `n`, jamais le `bar1` en
+    secondes contre lequel ils ont été tracés. Un « Caler la mesure 1 »
+    postérieur re-phase la grille, et `_sections_known` (`:568-613`) ressert
+    les anciens indices sur la nouvelle grille sans décalage ni avertissement.
+  * **`GET /api/chart-model` ne pose aucun `Cache-Control`** (contrairement à
+    `sections.py:94` et `:134`) et `static/api.js:8` n'ajoute pas de
+    casse-cache : le re-fetch de `writeSectionsToChart` (`:613`) peut être
+    servi par le cache heuristique du navigateur. Secondaire, mais réel.
+
+À ARBITRER AVANT DE CORRIGER : un trou en TÊTE devient-il « intro » (ce que
+fait déjà « Caler la mesure 1 », et ce que la règle d'intro du chart attend) ?
+Un trou au MILIEU ou en FIN se rattache-t-il à la section précédente, ou prend-il
+le nom « queue » (qui existe déjà dans les données) ?
+
+## Sections sans modèle : la grille de 4 mesures, et un échange à arbitrer (2026-09-20)
+
+Après le retrait de SongFormer, les sections viennent de la brique de Louis
+plus un remplissage des trous. Trois briques neuves ont été mesurées :
+transposition des reprises, nouveauté de Foote repêchée de git (`8d5137b`), et
+calage des propositions sur une grille de 4 mesures.
+
+LE FAIT LE PLUS SOLIDE, et il est corpus-level : **180 des 238 frontières de
+section que Louis a écrites à la main tombent sur une grille de 4 mesures
+(76 %), sur 22 morceaux annotés.** Neuf morceaux sont à 10/10. La PÉRIODE n'est
+donc jamais en doute ; c'est la PHASE qui varie, et la fin de son intro la
+donne juste sur 13 morceaux sur 16.
+
+LA NOUVEAUTÉ SEULE NE SUFFIT PAS. Sur trois morceaux : 10 frontières justes
+sur 27 (±1 mesure), 5 inventées. Ce n'est PAS un problème de seuil — vérifié,
+les fausses ne sont pas les plus faibles, elles sont mélangées aux bonnes
+(rangs 3, 5 et 7 sur This Love). Sur Stand By Me la nouveauté aux frontières de
+Louis vaut 0,9× la médiane du morceau, c'est-à-dire SOUS la moyenne : impasse
+prouvée pour le canal harmonique, ce morceau est une boucle de quatre accords
+du début à la fin et ses sections diffèrent par le chant et l'arrangement. Même
+mur qu'en 2026-08-08 (détecteur voix 0,769 contre harmonique 0,599).
+
+L'ÉCHANGE, mesuré dans le vrai régime d'usage (Louis pose UNE brique, la
+machine déduit le reste), 18 morceaux, 186 frontières :
+
+    AUJOURD'HUI   128 justes (69 %)   51 inventées
+    AVEC          120 justes (65 %)   24 inventées
+
+**Moitié moins de frontières inventées, contre 8 trouvées en moins.** Ce n'est
+pas un gain net, c'est un échange — il attend l'arbitrage de Louis sur
+`docs/plots/sections_nouveautes_2026-09-20.html`. Rejouable :
+`.venv/bin/python -m tools.sections_nouveautes SORTIE.json`.
+
+HYPOTHÈSE TESTÉE ET RÉFUTÉE, écrite pour qu'elle ne soit pas retentée : les
+morceaux qui perdent ne sont PAS ceux qui collent mal à la grille. C'est
+l'inverse — ajustement médian à la grille de 93 % chez les 7 qui perdent contre
+69 % chez les 11 qui ne perdent rien. Aucun des indicateurs mesurés (ajustement
+à la grille, nombre de reprises trouvées, longueur du morceau) n'explique le
+signe du delta, qui reste petit partout (−3 à +2). Ne pas inventer de
+mécanisme : il n'y en a pas de mesuré.
+
+CE QUI N'EST BRANCHÉ NULLE PART : `harmonia/sections/nouveaute.py` est mergé et
+testé (26 tests) mais aucun appelant de production ne l'importe, par décision —
+il attend la grille, qui attend une origine de phase fiable. La transposition,
+elle, EST en production (`simulation.cherche_brique`) : elle n'a tiré que sur
+2 morceaux sur 18 (Sunny, 3 reprises transposées ; T64BgKEL-Sw, 1).
+
+DEUX PIÈGES HÉRITÉS DU CODE REPÊCHÉ, trouvés en le relisant : `KERNEL_HB = 16`
+était en DEMI-mesures (l'ancienne SSM était au demi-mesure), donc le reprendre
+tel quel sur une SSM par mesure doublait silencieusement la fenêtre — motif
+d'erreur nº 1 du CLAUDE.md, évité. Et la couche de pavage (`tuilages`) NE
+TRANSFÈRE PAS : 0 à 1 run selon le morceau, `tuilage=True` et `False` rendent
+la même chose ; son gain mesuré de +11,7pp l'avait été sur le substrat NNLS.
+
 ## SongFormer retiré : plus aucune détection automatique de sections (2026-09-19)
 
 Louis : « quand on prep une nouvelle chanson, la détection de sections pédale
