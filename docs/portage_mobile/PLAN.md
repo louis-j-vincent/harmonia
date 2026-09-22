@@ -78,3 +78,20 @@ recopie le « Résultat en 3 lignes ». L'orchestrateur ne lit que ça.
 
 Le code va sous `mobile/` (app Android) et `mobile/tools/` (scripts d'export,
 de validation). Rien dans `harmonia/` ne change en phase 0.
+
+## Statut au 2026-09-23 (l'orchestrateur tient cette section à jour ; la table des phases ci-dessus est le plan d'origine)
+
+| Brique | État | Rapport |
+|---|---|---|
+| NNLS-chroma numpy | **FAIT** — parité 1e-4, argmax basse 100 %, 3 s / 4 min | `p0_t2_nnls_numpy.md`, `p0_t2b_nnls_vitesse.md` |
+| CQT musx numpy | **FAIT** — 2,6e-5, accords 99,99 %, 1,2-2,9 s / 4 min | `p2b_cqt_musx.md` |
+| Inventaire natif + contrat décodage | **FAIT** | `p0_t3_deps_natives.md` |
+| beat_this `.pte` | small0 OK (47/47 battues) ; **`final0` = le vrai checkpoint du pipeline, en cours (T1c)** avec front-end mel numpy + découpage | `p0_t1_executorch.md` |
+| musx réseau | export OK, lowering XNNPACK bloque (BiLSTM) — **en cours (T1b)** : portable / partiel / numpy | `p0_t1_executorch.md` |
+| Squelette Android | **FAIT** — APK 44 Mo, bibliothèque affichée sur l'émulateur (`mobile/android/smoke/screen_library.png`) | `p1_squelette_android.md` |
+| Décodeur MediaCodec | en cours (P2a) | — |
+| YouTube | sans cookies : 15/15 bloqués ; **en cours (P3b)** : cookies en fichier + QuickJS arm64 | `p3_youtube.md` |
+| Intégration pipeline sur device (P2c) | attend T1b + T1c + P2a | — |
+| Vitesse téléphone réel (T5, porte dure) | attend le téléphone (semaine du 28) | — |
+
+Environnement : JDK 17 (`/opt/homebrew/opt/openjdk@17`), SDK `~/Library/Android/sdk` (platform 35, build-tools 35, emulator, image arm64), AVD `harmonia_35` (userdata 4 G), venv export `~/harmonia/.venv-mobile`. Disque ≈ 10 Go libres après nettoyage.
