@@ -9,6 +9,19 @@ jamais par une variable d'environnement. Dix-huit drapeaux `HARMONIA_*` lus
 
 Ce que ce module ne fait PAS : créer des dossiers ou vérifier que les
 fichiers existent — chaque étage le fait pour ce qu'il lit, et échoue fort.
+
+Portage mobile (2026-09-23, tâche P1) : sur Android, `REPO` (à côté du code
+Chaquopy embarqué, dans l'APK) est en LECTURE SEULE — on ne peut ni écrire de
+chart ni copier l'audio de départ à côté du paquet. `HARMONIA_STATE_DIR` et
+`HARMONIA_AUDIO_DIR` (mêmes règles que `HARMONIA_MUSX_DIR` ci-dessous :
+optionnelles, défaut = chemin Mac inchangé) existent pour ça : le point
+d'entrée Python de l'app Android (`mobile/android/app/src/main/python/
+mobile_entry.py`) les pose sur `context.getFilesDir()` (stockage privé de
+l'app, inscriptible) AVANT d'importer `harmonia`, une fois que le premier
+lancement y a copié les 2-3 chart JSON + `.m4a` + `chart_meta.json` de seed
+depuis les assets. Ce module reste le SEUL qui lit `os.environ` — ces deux
+noms s'ajoutent aux trois déjà là, rien ne change pour le Mac (les deux
+valeurs par défaut sont les chemins `REPO` déjà utilisés).
 """
 from __future__ import annotations
 
@@ -23,6 +36,16 @@ def _env(name: str, default: str) -> str:
     return (os.environ.get(name) or "").strip() or default
 
 
+#: Racine de l'état inscriptible : `REPO / "state"` sur le Mac (inchangé),
+#: `context.getFilesDir()/harmonia_state` sur Android (posé par
+#: `mobile_entry.py`). Voir la note de portage mobile ci-dessus.
+_STATE_ROOT = Path(_env("HARMONIA_STATE_DIR", str(REPO / "state")))
+#: Racine de l'audio SERVI (pas forcément inscriptible) : `REPO/docs/audio`
+#: sur le Mac, le dossier où `mobile_entry.py` copie les `.m4a` de seed sur
+#: Android.
+_AUDIO_ROOT = Path(_env("HARMONIA_AUDIO_DIR", str(REPO / "docs" / "audio")))
+
+
 @dataclass(frozen=True)
 class Settings:
     repo: Path = REPO
@@ -32,27 +55,27 @@ class Settings:
     #: (régénérable — charts, battues, sections songformer, rapports). Un
     #: chart perdu par un fichier gitignored (2026-08-12) est l'incident qui
     #: a motivé la séparation ; voir `.gitignore`.
-    state_dir: Path = REPO / "state"
-    human_dir: Path = REPO / "state" / "human"
-    cache_dir: Path = REPO / "state" / "cache"
-    charts_dir: Path = REPO / "state" / "cache" / "charts"
-    beats_dir: Path = REPO / "state" / "cache" / "beats"
-    songformer_dir: Path = REPO / "state" / "cache" / "songformer"
-    reports_dir: Path = REPO / "state" / "cache" / "reports"
-    sections_dir: Path = REPO / "state" / "human" / "sections"
+    state_dir: Path = _STATE_ROOT
+    human_dir: Path = _STATE_ROOT / "human"
+    cache_dir: Path = _STATE_ROOT / "cache"
+    charts_dir: Path = _STATE_ROOT / "cache" / "charts"
+    beats_dir: Path = _STATE_ROOT / "cache" / "beats"
+    songformer_dir: Path = _STATE_ROOT / "cache" / "songformer"
+    reports_dir: Path = _STATE_ROOT / "cache" / "reports"
+    sections_dir: Path = _STATE_ROOT / "human" / "sections"
     #: Les gestes en cours de l'outil sections (brouillons) — séparés de
     #: `sections_dir`, la vérité terrain validée à la main.
-    sections_draft_dir: Path = REPO / "state" / "human" / "sections_draft"
-    annotations_dir: Path = REPO / "state" / "human" / "annotations"
+    sections_draft_dir: Path = _STATE_ROOT / "human" / "sections_draft"
+    annotations_dir: Path = _STATE_ROOT / "human" / "annotations"
     #: La marque « Set bar 1 » de Louis, une par audio (`<stem>.json`,
     #: `{"bar1": <secondes>}`) — la SEULE source à l'exécution (voir
     #: `server.jobs.bar1_for`). Avant le sprint 15 elle ne vivait que dans le
     #: champ `bar1` du chart régénérable, ce qui l'a perdue le 2026-08-13.
-    marks_dir: Path = REPO / "state" / "human" / "marks"
-    chart_meta_path: Path = REPO / "state" / "human" / "chart_meta.json"
-    folders_path: Path = REPO / "state" / "human" / "folders.json"
+    marks_dir: Path = _STATE_ROOT / "human" / "marks"
+    chart_meta_path: Path = _STATE_ROOT / "human" / "chart_meta.json"
+    folders_path: Path = _STATE_ROOT / "human" / "folders.json"
     data_cache: Path = REPO / "data" / "cache"
-    audio_dir: Path = REPO / "docs" / "audio"
+    audio_dir: Path = _AUDIO_ROOT
     assets: Path = Path(__file__).resolve().parent / "assets"
     #: Le clone music-x-lab (ISMIR 2019) est EXÉCUTÉ, pas seulement lu : le
     #: décodeur et les extracteurs s'importent depuis son dossier.

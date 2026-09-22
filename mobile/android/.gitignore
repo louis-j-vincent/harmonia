@@ -1,0 +1,10 @@
+# Machine-spécifique — généré par `sdkmanager`/`gradlew`, jamais committé.
+local.properties
+.gradle/
+*/build/
+build/
+.cxx/
+*.iml
+.idea/
+# Audio de seed : 10 Mo de .m4a copiés depuis docs/audio (non suivi) — à régénérer, jamais committé.
+app/src/main/assets/harmonia_seed/audio/

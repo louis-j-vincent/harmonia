@@ -43,6 +43,7 @@ docs/portage_mobile/p0_t2_nnls_numpy.md for the measured parity.
 from __future__ import annotations
 
 import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
 
 SR = 44100
 STEP_SIZE = 2048
@@ -264,6 +265,44 @@ def nnls_lh(A: np.ndarray, b: np.ndarray, max_iter: int | None = None,
     return x
 
 
+# ── batched FISTA NNLS (P0-T2b speedup): same fixed dictionary A for every
+#    frame, solved for ALL frames at once as one (n, T) matrix -- replaces
+#    the per-frame Python loop over `nnls_lh` (was 27s of the 32s total).
+#    Per-frame restriction to "signifIndex" columns (candidate notes with
+#    nonzero local energy) becomes a per-frame boolean MASK on the shared
+#    dictionary instead of a reduced matrix: forcing x_j=0 for masked-off j
+#    at every iteration is mathematically identical to solving the reduced
+#    problem over the surviving columns (fixing a variable at 0 == dropping
+#    it), so this is not an approximation of the per-frame restriction, only
+#    of the NNLS solve itself (early-stopped projected gradient vs. an exact
+#    active-set solve to 1e-10). ─────────────────────────────────────────
+
+def nnls_batch_fista(A: np.ndarray, AtA: np.ndarray, B: np.ndarray, mask: np.ndarray,
+                      max_iter: int, step: float) -> np.ndarray:
+    """min_X >=0  sum_t ||A x_t - b_t||^2, all T columns of B solved at once
+    (accelerated projected gradient / FISTA, Beck & Teboulle 2009). A is
+    (m, n) fixed for every frame; B is (T, m); mask is (T, n) bool (True =
+    column allowed nonzero for that frame, i.e. that frame's "signifIndex").
+    Returns X (T, n). `step` = 1/L, L = largest eigenvalue of AtA (global,
+    conservative Lipschitz bound -- valid for every per-frame masked
+    submatrix too, since a PSD principal submatrix's top eigenvalue can only
+    be <= the full matrix's).
+    """
+    AtB = B @ A                      # (T, n) -- one matmul, replaces per-frame A.T@b
+    maskf = mask.astype(np.float64)
+    X = np.zeros_like(AtB)
+    Y = X
+    t_k = 1.0
+    for _ in range(max_iter):
+        grad = Y @ AtA - AtB         # (T, n) -- one matmul per iteration, ALL frames at once
+        X_new = np.maximum(Y - step * grad, 0.0) * maskf
+        t_next = 0.5 * (1.0 + np.sqrt(1.0 + 4.0 * t_k * t_k))
+        Y = X_new + ((t_k - 1.0) / t_next) * (X_new - X)
+        X = X_new
+        t_k = t_next
+    return X
+
+
 # ── the public entry point ───────────────────────────────────────────────
 
 class NNLSChromaNumpy:
@@ -277,19 +316,37 @@ class NNLSChromaNumpy:
         self.hw = _hamming_half_octave()
         self.sin_bps = np.sin(2 * np.pi * np.arange(N_BPS) / N_BPS)
         self.cos_bps = np.cos(2 * np.pi * np.arange(N_BPS) / N_BPS)
+        # batched-FISTA precomputation (P0-T2b): AtA is fixed (same dict for
+        # every frame), so its top eigenvalue (-> Lipschitz step) is computed
+        # once here, not per song.
+        self.AtA = self.D.T @ self.D                       # (84, 84)
+        L = float(np.linalg.eigvalsh(self.AtA)[-1])
+        self.fista_step = 1.0 / L if L > 0 else 1.0
+        self.bass_win_oc = BASSWINDOW.reshape(N_OCTAVE, 12)     # octave-major, matches D's column order
+        self.treble_win_oc = TREBLEWINDOW.reshape(N_OCTAVE, 12)
 
-    def extract_bothchroma(self, y: np.ndarray, sr: int = SR):
+    def extract_bothchroma(self, y: np.ndarray, sr: int = SR, method: str = "fista",
+                            max_iter: int = 250):
         """y: float32/float64 mono audio at `sr` (must be SR=44100, same
         assumption `nnls_features.extract_bothchroma` makes via librosa.load
         (sr=SR)). Returns (arr (T,24) float32, times (T,) float64), index 0
         = A, bass half first then treble -- same convention as the plugin.
+
+        `method="fista"` (default, P0-T2b): batched accelerated projected
+        gradient over ALL frames at once, ~15-20x faster than the per-frame
+        active-set solve (default `max_iter=250` -- parity plateaus there,
+        see docs/portage_mobile/p0_t2b_nnls_vitesse.md). `method="lawson"`:
+        the original per-frame Lawson-Hanson active-set NNLS (P0-T2, kept
+        for reference/parity auditing) -- exact to 1e-10 per frame but a
+        Python loop, slow.
         """
         if sr != SR:
             raise ValueError(f"nnls_chroma numpy port expects sr={SR}, got {sr}")
+        if method not in ("fista", "lawson"):
+            raise ValueError(f"method must be 'fista' or 'lawson', got {method!r}")
         y = np.asarray(y, dtype=np.float64)
 
         n = len(y)
-        n_frames = 1 + max(0, (n - 1) // STEP_SIZE) if n > 0 else 0
         # match vamp/frames.py: frames start at 0, step STEP_SIZE, continue
         # while start < n (last frame zero-padded on the right).
         starts = np.arange(0, max(n, 1), STEP_SIZE)
@@ -299,22 +356,23 @@ class NNLSChromaNumpy:
             return np.zeros((0, 24), np.float32), np.zeros((0,), np.float64)
 
         win = _hann_periodic(BLOCK_SIZE)
-        nm_all = np.empty((T, N_NOTE), dtype=np.float64)
 
         pad_needed = starts[-1] + BLOCK_SIZE - n
         y_padded = np.concatenate([y, np.zeros(max(0, pad_needed), dtype=np.float64)]) if pad_needed > 0 else y
 
         silence_thresh = BLOCK_SIZE * 2.0 / 16384.0  # == 2.0 for BLOCK_SIZE=16384
 
-        for t, s0 in enumerate(starts):
-            frame = y_padded[s0:s0 + BLOCK_SIZE]
-            if frame.shape[0] < BLOCK_SIZE:
-                frame = np.concatenate([frame, np.zeros(BLOCK_SIZE - frame.shape[0])])
-            windowed = frame * win
-            spec = np.fft.rfft(windowed)[:N_FFT]   # drop Nyquist bin, keep 0..N_FFT-1
-            mag = np.abs(spec)
-            mag = np.minimum(mag, BLOCK_SIZE)      # saturation clip (rarely hit)
-            if ROLLON > 0:
+        if ROLLON > 0:
+            # rollon>0 is coded-but-never-exercised by nnls_features.py (see
+            # module docstring); keep the exact per-frame reference path for
+            # that rare case rather than vectorising an untested branch.
+            nm_all = np.empty((T, N_NOTE), dtype=np.float64)
+            for t, s0 in enumerate(starts):
+                frame = y_padded[s0:s0 + BLOCK_SIZE]
+                windowed = frame * win
+                spec = np.fft.rfft(windowed)[:N_FFT]
+                mag = np.abs(spec)
+                mag = np.minimum(mag, BLOCK_SIZE)
                 energysum = (mag ** 2).sum()
                 cum = 0.0
                 for ib in range(2, N_FFT):
@@ -323,9 +381,23 @@ class NNLSChromaNumpy:
                         mag[ib - 2] = 0.0
                     else:
                         break
-            if mag.max(initial=0.0) < silence_thresh:
-                mag[:] = 0.0
-            nm_all[t] = self.K @ mag
+                if mag.max(initial=0.0) < silence_thresh:
+                    mag[:] = 0.0
+                nm_all[t] = self.K @ mag
+        else:
+            # vectorised over all T frames at once (P0-T2b): sliding_window_view
+            # gives every BLOCK_SIZE-length frame without copies, then window
+            # + FFT + log-freq projection are each ONE batched call instead of
+            # a Python loop of T calls. Identical arithmetic to the per-frame
+            # loop above, just batched -- not an approximation.
+            frames = sliding_window_view(y_padded, BLOCK_SIZE)[::STEP_SIZE][:T]  # (T, BLOCK_SIZE)
+            windowed = frames * win[None, :]
+            spec = np.fft.rfft(windowed, axis=1)[:, :N_FFT]
+            mag = np.abs(spec)
+            mag = np.minimum(mag, BLOCK_SIZE)
+            silent = mag.max(axis=1) < silence_thresh
+            mag[silent] = 0.0
+            nm_all = mag @ self.K.T   # (T, N_FFT) @ (N_FFT, N_NOTE) -> (T, N_NOTE)
 
         # ── global tuning estimate (tuningmode=0 path only) ───────────────
         tone_starts = np.arange(0, round(N_NOTE * 0.62 / N_BPS) * N_BPS + 1, N_BPS)
@@ -354,27 +426,38 @@ class NNLSChromaNumpy:
         whitened = np.where(diff > 0, diff / np.power(np.maximum(running_std, 1e-30), WHITENING), 0.0)
         f2w = np.where(running_std > 0, whitened, f2)  # runningstd==0 -> unchanged (matches C++ no-op branch)
 
-        # ── per-frame NNLS + fold into bass/treble chroma ─────────────────
-        bass = np.zeros((T, 12), dtype=np.float64)
-        treble = np.zeros((T, 12), dtype=np.float64)
-        d_row_sums = (np.abs(self.D) > 0)  # (N_NOTE, 84) nonzero support per note column
+        # ── NNLS + fold into bass/treble chroma ────────────────────────────
         centers = N_BPS // 2 + 2 + N_BPS * np.arange(N_SEMITONE_NOTES)  # iNote centers, 84 of them
         centers = centers[centers < N_NOTE - N_BPS // 2]
 
-        for t in range(T):
-            b = f2w[t]
-            if not (b > 0).any():
-                continue
-            currval = b[centers - 1] + b[centers] + b[centers + 1]
-            sig = np.where(currval > 0)[0]
-            if sig.size == 0:
-                continue
-            Ad = self.D[:, sig]
-            x = nnls_lh(Ad, b)
-            semitone = np.zeros(N_SEMITONE_NOTES, dtype=np.float64)
-            semitone[sig] = x
-            treble[t] = np.array([semitone[i::12].dot(TREBLEWINDOW[i::12]) for i in range(12)])
-            bass[t] = np.array([semitone[i::12].dot(BASSWINDOW[i::12]) for i in range(12)])
+        if method == "lawson":
+            bass = np.zeros((T, 12), dtype=np.float64)
+            treble = np.zeros((T, 12), dtype=np.float64)
+            for t in range(T):
+                b = f2w[t]
+                if not (b > 0).any():
+                    continue
+                currval = b[centers - 1] + b[centers] + b[centers + 1]
+                sig = np.where(currval > 0)[0]
+                if sig.size == 0:
+                    continue
+                Ad = self.D[:, sig]
+                x = nnls_lh(Ad, b)
+                semitone = np.zeros(N_SEMITONE_NOTES, dtype=np.float64)
+                semitone[sig] = x
+                treble[t] = np.array([semitone[i::12].dot(TREBLEWINDOW[i::12]) for i in range(12)])
+                bass[t] = np.array([semitone[i::12].dot(BASSWINDOW[i::12]) for i in range(12)])
+        else:
+            # batched FISTA (P0-T2b): same "signifIndex" restriction as the
+            # lawson path, but as a per-frame column MASK on the shared
+            # dictionary (see nnls_batch_fista docstring) so the whole T-frame
+            # batch is solved with a handful of (T,84)/(84,84) matmuls.
+            currval_all = f2w[:, centers - 1] + f2w[:, centers] + f2w[:, centers + 1]  # (T, 84)
+            mask = currval_all > 0
+            X = nnls_batch_fista(self.D, self.AtA, f2w, mask, max_iter, self.fista_step)  # (T, 84)
+            Xr = X.reshape(T, N_OCTAVE, 12)  # octave-major columns, see __init__ comment
+            bass = np.einsum('toc,oc->tc', Xr, self.bass_win_oc)
+            treble = np.einsum('toc,oc->tc', Xr, self.treble_win_oc)
 
         arr = np.concatenate([bass, treble], axis=1).astype(np.float32)  # (T,24) bass|treble, index0=A
         times = starts.astype(np.float64) / SR
