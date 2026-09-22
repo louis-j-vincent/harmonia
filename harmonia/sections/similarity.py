@@ -50,8 +50,8 @@ consommateurs de les lire.
 from __future__ import annotations
 
 import numpy as np
-from scipy.signal import find_peaks
 
+from harmonia.backends import BACKENDS
 from harmonia.musx import FRAME_DT
 
 # ── le substrat chord-tone (ex harmonic_sections.py) ────────────────────────
@@ -173,6 +173,21 @@ def block_score(cur_m, cur_h, b0, n, mute=None, block=BLOCK):
     return mix / max(1e-6, float(mix[b0]))
 
 
+def _find_peaks_scipy(x, *, height, distance):
+    """Les pics du Mac : `scipy.signal.find_peaks`, rendu en indices seuls.
+
+    Import PARESSEUX (portage mobile, P2c) et pas en tête de fichier : `scipy`
+    n'a pas de roue Android au-delà de cp3.10
+    (`docs/portage_mobile/p0_t3_deps_natives.md`), et ce module est importé
+    par `folding.py` pour `halfbar_features`, qui n'appelle JAMAIS `_peaks`.
+    Importer scipy en tête faisait donc échouer tout le chemin critique sur
+    téléphone pour une fonction hors chemin critique.
+    """
+    from scipy.signal import find_peaks
+    idx, _ = find_peaks(x, height=height, distance=distance)
+    return idx
+
+
 def _peaks(sc, b0, n, thr, block, claimed, par=0):
     """Les vrais pics : maximum local, au-dessus du seuil, sur la grille — et
     LE PLUS FORT SE SERT LE PREMIER (sinon le premier tue le meilleur).
@@ -180,7 +195,8 @@ def _peaks(sc, b0, n, thr, block, claimed, par=0):
     `par` est la parité exigée de la distance à l'ancre : 0 (le défaut) est la
     grille de 2, 1 est le repli de parité impaire des appelants qui le gèrent.
     """
-    idx, _ = find_peaks(sc, height=thr, distance=UNIT)
+    idx = BACKENDS.call("find_peaks", _find_peaks_scipy, sc,
+                        height=thr, distance=UNIT)
     cand = [int(p) for p in idx
             if (p - b0) % UNIT == par and abs(p - b0) >= block
             and p + block <= n and not claimed[p:p + block].any()]

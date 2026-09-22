@@ -60,6 +60,7 @@ from pathlib import Path
 import numpy as np
 
 from harmonia import beats as _beats
+from harmonia.backends import BACKENDS
 from harmonia import musx as _musx
 from harmonia.bars import layout_bars
 
@@ -357,6 +358,14 @@ def duration_seconds(audio_path: Path) -> float:
     donc calculée deux fois jusqu'au sprint 12, qui câble ce paramètre depuis
     le job (voir `analyze_steps`).
     """
+    return BACKENDS.call("duration_seconds", _duration_ffprobe, audio_path)
+
+
+def _duration_ffprobe(audio_path: Path) -> float:
+    """La durée du Mac : `ffprobe`. Extraite telle quelle de
+    `duration_seconds` au portage mobile (P2c) pour devenir la valeur par
+    défaut de la fente `duration_seconds` de `harmonia.backends` ; sur Android
+    c'est `MediaExtractor.getTrackFormat(...).getLong(KEY_DURATION)`."""
     try:
         out = subprocess.run(
             ["ffprobe", "-v", "error", "-show_entries", "format=duration",
@@ -373,6 +382,16 @@ def duration_seconds(audio_path: Path) -> float:
     except ValueError as exc:
         raise RuntimeError(f"ffprobe a rendu une durée non numérique pour "
                            f"{audio_path}: {out.stdout!r}") from exc
+
+
+def _slice_to_wav_ffmpeg(audio_path: Path, seconds: float, out_wav: Path,
+                         sr: int) -> None:
+    """La troncature du Mac : `ffmpeg -t`. Extraite telle quelle de
+    `_head_chart` au portage mobile (P2c) — valeur par défaut de la fente
+    `slice_to_wav`. Ne sert QUE à l'aperçu des 45 premières secondes."""
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-t", str(seconds),
+                    "-i", str(audio_path), "-ac", "1", "-ar", str(sr),
+                    str(out_wav)], check=True, timeout=120)
 
 
 def _head_chart(audio_path: Path, *, title, file_key, audio_url, bar1_time,
@@ -403,10 +422,8 @@ def _head_chart(audio_path: Path, *, title, file_key, audio_url, bar1_time,
         _HEAD_DIR.mkdir(parents=True, exist_ok=True)
         wav = _HEAD_DIR / f"{audio_path.stem}__head{int(HEAD_SECONDS)}.wav"
         if not wav.exists():
-            subprocess.run(["ffmpeg", "-v", "error", "-y", "-t",
-                            str(HEAD_SECONDS), "-i", str(audio_path),
-                            "-ac", "1", "-ar", "22050", str(wav)],
-                           check=True, timeout=120)
+            BACKENDS.call("slice_to_wav", _slice_to_wav_ffmpeg,
+                          audio_path, HEAD_SECONDS, wav, 22050)
         gen = analyze_steps(wav, title=title, file_key=file_key,
                             audio_url=audio_url, head_s=0.0,
                             bar1_time=(bar1_time if bar1_time is not None

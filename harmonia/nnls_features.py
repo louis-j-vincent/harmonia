@@ -33,6 +33,7 @@ from pathlib import Path
 import numpy as np
 
 from harmonia import cache
+from harmonia.backends import BACKENDS
 from harmonia.settings import SETTINGS
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,39 @@ def _l2(v: np.ndarray) -> np.ndarray:
 
 
 # ── raw VAMP extraction (cached per audio file) ──────────────────────────────
+
+def _bothchroma_vamp(audio_path: Path):
+    """Le chroma NNLS du Mac : le VRAI plugin VAMP natif de Mauch & Dixon.
+
+    Extrait tel quel du corps de `extract_bothchroma` au portage mobile (P2c)
+    pour devenir la valeur par défaut de la fente `nnls_bothchroma` de
+    `harmonia.backends`. Rend (arr (T,24) index 0 = A, times (T,)).
+    """
+    try:
+        import librosa
+        import vamp
+    except ImportError as e:  # pragma: no cover
+        raise RuntimeError(
+            "NNLS-24 front-end needs the `vamp` python module (pip install vamp) "
+            "and the native NNLS-Chroma VAMP plugin on VAMP_PATH."
+        ) from e
+
+    plugins = vamp.list_plugins()
+    if "nnls-chroma:nnls-chroma" not in plugins:
+        raise RuntimeError(
+            "NNLS-Chroma VAMP plugin not found (have: "
+            f"{[p for p in plugins if 'nnls' in p.lower()]}). Install libnnls-chroma "
+            "and point VAMP_PATH at it."
+        )
+
+    y, _ = librosa.load(str(audio_path), sr=SR, mono=True)
+    out = vamp.collect(y.astype(np.float32), SR, "nnls-chroma:nnls-chroma",
+                       output="bothchroma")
+    step, arr = out["matrix"]                 # arr (T,24), index 0 = A
+    arr = np.asarray(arr, np.float32)
+    times = np.arange(arr.shape[0]) * float(step)
+    return arr, times
+
 
 def extract_bothchroma(audio_path: Path, *, use_cache: bool = True):
     """Run the NNLS-Chroma VAMP plugin -> (arr (T,24) index0=A, times (T,)).
@@ -82,29 +116,11 @@ def extract_bothchroma(audio_path: Path, *, use_cache: bool = True):
         if d is not None:
             return d["arr"], d["times"]
 
-    try:
-        import librosa
-        import vamp
-    except ImportError as e:  # pragma: no cover
-        raise RuntimeError(
-            "NNLS-24 front-end needs the `vamp` python module (pip install vamp) "
-            "and the native NNLS-Chroma VAMP plugin on VAMP_PATH."
-        ) from e
-
-    plugins = vamp.list_plugins()
-    if "nnls-chroma:nnls-chroma" not in plugins:
-        raise RuntimeError(
-            "NNLS-Chroma VAMP plugin not found (have: "
-            f"{[p for p in plugins if 'nnls' in p.lower()]}). Install libnnls-chroma "
-            "and point VAMP_PATH at it."
-        )
-
-    y, _ = librosa.load(str(audio_path), sr=SR, mono=True)
-    out = vamp.collect(y.astype(np.float32), SR, "nnls-chroma:nnls-chroma",
-                       output="bothchroma")
-    step, arr = out["matrix"]                 # arr (T,24), index 0 = A
-    arr = np.asarray(arr, np.float32)
-    times = np.arange(arr.shape[0]) * float(step)
+    # Portage mobile (P2c) : la SEULE ligne qui change ici. `_bothchroma_vamp`
+    # ci-dessous EST le code d'avant, déplacé tel quel ; sur Android la fente
+    # porte le port numpy (`mobile/harmonia_mobile/nnls_chroma.py`, parité
+    # 1e-4, argmax basse 100 % — `docs/portage_mobile/p0_t2b_nnls_vitesse.md`).
+    arr, times = BACKENDS.call("nnls_bothchroma", _bothchroma_vamp, audio_path)
     if use_cache:
         cache.save_npz("nnls", audio_path, arr=arr, times=times)
     return arr, times

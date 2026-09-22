@@ -35,6 +35,7 @@ from pathlib import Path
 import numpy as np
 
 from harmonia import cache
+from harmonia.backends import BACKENDS
 from harmonia.settings import SETTINGS
 
 logger = logging.getLogger(__name__)
@@ -291,6 +292,26 @@ class _InMusxDir:
         return False
 
 
+def _cqt_clone(audio_path: Path) -> np.ndarray:
+    """Le CQT du Mac : le clone vendu, donc `librosa.core.hybrid_cqt`.
+
+    Extrait tel quel des deux endroits qui le faisaient en double
+    (`frame_posteriors` et `song_cqt`) au portage mobile (P2c), pour devenir
+    la valeur par défaut de la fente `musx_features` de `harmonia.backends`.
+    Rend (n_frames, 288) — le CQT COMPLET, pas la fenêtre 18:270 que
+    `ChordNet.inference` découpe elle-même.
+    """
+    with _InMusxDir():
+        from mir import io, DataEntry
+        from extractors.cqt import CQTV2
+        entry = DataEntry()
+        entry.prop.set('sr', MUSX_SR)
+        entry.prop.set('hop_length', MUSX_HOP)
+        entry.append_file(str(audio_path), io.MusicIO, 'music')
+        entry.append_extractor(CQTV2, 'cqt')
+        return np.asarray(entry.cqt)
+
+
 def frame_posteriors(audio_path: Path | str, *, use_cache: bool = True,
                      cache_dir: Path | None = None) -> list[np.ndarray]:
     """The 5-fold-averaged frame posteriors ``chord_recognition.py`` throws away.
@@ -318,16 +339,8 @@ def frame_posteriors(audio_path: Path | str, *, use_cache: bool = True,
             if d is not None:
                 return [d[n] for n in names]
 
-    with _InMusxDir():
-        from mir import io, DataEntry
-        from extractors.cqt import CQTV2
-        entry = DataEntry()
-        entry.prop.set('sr', MUSX_SR)
-        entry.prop.set('hop_length', MUSX_HOP)
-        entry.append_file(str(audio_path), io.MusicIO, 'music')
-        entry.append_extractor(CQTV2, 'cqt')
-        cqt = np.asarray(entry.cqt)
-    probs = _run_nets(cqt)
+    cqt = BACKENDS.call("musx_features", _cqt_clone, audio_path)
+    probs = BACKENDS.call("musx_posteriors", _run_nets, cqt)
     if use_cache:
         if explicit_dir is not None:
             explicit_dir.mkdir(parents=True, exist_ok=True)
@@ -362,15 +375,7 @@ def song_cqt(audio_path: Path | str, *, use_cache: bool = True) -> np.ndarray:
         d = cache.load_npz("musx_cqt", audio_path)
         if d is not None:
             return d["cqt"]
-    with _InMusxDir():
-        from mir import io, DataEntry
-        from extractors.cqt import CQTV2
-        entry = DataEntry()
-        entry.prop.set('sr', MUSX_SR)
-        entry.prop.set('hop_length', MUSX_HOP)
-        entry.append_file(str(audio_path), io.MusicIO, 'music')
-        entry.append_extractor(CQTV2, 'cqt')
-        cqt = np.asarray(entry.cqt)
+    cqt = BACKENDS.call("musx_features", _cqt_clone, audio_path)
     if use_cache:
         cache.save_npz("musx_cqt", audio_path, cqt=cqt.astype(np.float32))
     return cqt
@@ -378,8 +383,12 @@ def song_cqt(audio_path: Path | str, *, use_cache: bool = True) -> np.ndarray:
 
 def posteriors_from_cqt(cqt: np.ndarray) -> list[np.ndarray]:
     """Les 6 flux de postérieures pour un CQT quelconque — y compris un CQT
-    MOYENNÉ sur plusieurs répétitions, ce qui est tout l'intérêt."""
-    return _run_nets(np.asarray(cqt))
+    MOYENNÉ sur plusieurs répétitions, ce qui est tout l'intérêt.
+
+    Portage mobile (P2c) : passe par la fente `musx_posteriors` de
+    `harmonia.backends`. Sans remplaçant, c'est `_run_nets` (les 5 réseaux
+    torch) — le comportement d'avant, mot pour mot."""
+    return BACKENDS.call("musx_posteriors", _run_nets, np.asarray(cqt))
 
 
 # ── label confidence ────────────────────────────────────────────────────────

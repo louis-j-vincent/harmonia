@@ -62,6 +62,8 @@ from pathlib import Path
 
 import numpy as np
 
+from harmonia.backends import BACKENDS
+
 log = logging.getLogger("harmonia.debut")
 
 #: résolution de l'enveloppe d'énergie, en secondes
@@ -89,18 +91,40 @@ SEUIL_COHERENCE = 0.85
 MARGE_COHERENCE = 10.0
 
 
+def _pcm_ffmpeg(audio: Path, sr: int, duration: float | None = None):
+    """Le décodage du Mac pour `enveloppe` : `ffmpeg -f f32le`, mono, `sr` Hz.
+
+    Valeur par défaut de la fente `load_audio` de `harmonia.backends` POUR CE
+    MODULE. Attention, et c'est justement ce que la fente rend visible : ce
+    n'est PAS le même décodeur que celui de musx/NNLS (`librosa.load`, donc
+    CoreAudio sur ce Mac, mesuré en P2a) — ici c'est bien ffmpeg, et le garder
+    tel quel est ce qui laisse le chart du Mac inchangé (P2c).
+    """
+    cmd = ["ffmpeg", "-v", "error", "-i", str(audio)]
+    if duration is not None:
+        cmd += ["-t", str(duration)]
+    cmd += ["-ac", "1", "-ar", str(sr), "-f", "f32le", "-"]
+    raw = subprocess.run(cmd, capture_output=True).stdout
+    if not raw:
+        return None
+    return np.frombuffer(raw, dtype=np.float32)
+
+
 def enveloppe(audio: Path, fenetre: float = 90.0) -> list[float] | None:
     """L'énergie du début du fichier, par tranches de `PAS_ENERGIE`.
 
     Mono 8 kHz : on ne cherche pas une hauteur, seulement s'il y a du son.
     """
-    raw = subprocess.run(
-        ["ffmpeg", "-v", "error", "-i", str(audio), "-t", str(fenetre),
-         "-ac", "1", "-ar", "8000", "-f", "f32le", "-"],
-        capture_output=True).stdout
-    if not raw:
+    # Portage mobile (P2c) : le décodage passe par la fente `load_audio` de
+    # `harmonia.backends`. Par défaut c'est `_pcm_ffmpeg` ci-dessous, mot pour
+    # mot l'appel d'avant ; sur Android c'est MediaCodec. C'est le SEUL
+    # consommateur d'audio décodé du chemin critique en dehors des battues, de
+    # musx et du chroma NNLS — et il lit à un QUATRIÈME taux, 8 kHz.
+    x = BACKENDS.call("load_audio", _pcm_ffmpeg, Path(audio), 8000,
+                      duration=fenetre)
+    if x is None or not len(x):
         return None
-    x = np.frombuffer(raw, dtype=np.float32)
+    x = np.asarray(x, dtype=np.float32)
     n = int(PAS_ENERGIE * 8000)
     if len(x) < n * 4:
         return None

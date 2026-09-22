@@ -29,6 +29,7 @@ import tempfile
 from pathlib import Path
 
 from harmonia import cache
+from harmonia.backends import BACKENDS
 
 logger = logging.getLogger(__name__)
 
@@ -909,6 +910,33 @@ def apply_tempo_octave(d: dict, factor: float | None) -> dict:
     return {**d, "beats": beats, "downbeats": downbeats, "bpm": bpm}
 
 
+def _beatthis_track(audio_path: Path):
+    """Le moteur de battues du Mac : Beat This! (torch), repli ffmpeg sur m4a.
+
+    Extrait tel quel du corps de `track()` au portage mobile (P2c) pour
+    devenir la valeur par défaut de la fente `beats` de `harmonia.backends` —
+    aucun changement de comportement, seulement une frontière nommée.
+    """
+    f2b = _get_beatthis()
+    try:
+        return f2b(str(audio_path))
+    except Exception:
+        # Almost always "cannot decode m4a" — transcode and retry (lesson 2).
+        with tempfile.TemporaryDirectory() as td:
+            wav = f"{td}/a.wav"
+            try:
+                subprocess.run(
+                    ["ffmpeg", "-v", "error", "-y", "-i", str(audio_path),
+                     "-ac", "1", "-ar", "22050", wav],
+                    check=True, timeout=300)
+                return f2b(wav)
+            except Exception as exc:
+                raise BeatTrackingError(
+                    f"Beat This! failed on {audio_path.name} even after ffmpeg "
+                    f"transcode ({exc}). No librosa fallback — fix the input."
+                ) from exc
+
+
 def track(audio_path: str | Path, *, use_cache: bool = True,
           tempo_factor: float | None = None) -> dict:
     """Beats + downbeats for one audio file.
@@ -934,24 +962,11 @@ def track(audio_path: str | Path, *, use_cache: bool = True,
         if d is not None and len(d.get("beats", [])) >= 4:
             return apply_tempo_octave(_clean(d), tempo_factor)
 
-    f2b = _get_beatthis()
-    try:
-        bts, dbs = f2b(str(audio_path))
-    except Exception:
-        # Almost always "cannot decode m4a" — transcode and retry (lesson 2).
-        with tempfile.TemporaryDirectory() as td:
-            wav = f"{td}/a.wav"
-            try:
-                subprocess.run(
-                    ["ffmpeg", "-v", "error", "-y", "-i", str(audio_path),
-                     "-ac", "1", "-ar", "22050", wav],
-                    check=True, timeout=300)
-                bts, dbs = f2b(wav)
-            except Exception as exc:
-                raise BeatTrackingError(
-                    f"Beat This! failed on {audio_path.name} even after ffmpeg "
-                    f"transcode ({exc}). No librosa fallback — fix the input."
-                ) from exc
+    # Portage mobile (P2c) : la SEULE ligne qui change ici. `_beatthis_track`
+    # ci-dessus EST le code d'avant, déplacé tel quel ; sans remplaçant
+    # installé, `call` l'appelle et rien ne bouge. Sur Android la fente porte
+    # mel numpy + `.pte` ExecuTorch (`mobile/harmonia_mobile/beats_infer.py`).
+    bts, dbs = BACKENDS.call("beats", _beatthis_track, audio_path)
 
     beats = [round(float(t), 4) for t in bts]
     downbeats = [round(float(t), 4) for t in dbs]
