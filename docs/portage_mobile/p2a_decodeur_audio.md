@@ -133,11 +133,33 @@ décodage/rééchantillonnage pour les 6, donc généralisation raisonnable mais
   deux cas correctement, mais je n'ai pas vérifié lequel s'exécute réellement
   ici — sans conséquence sur les chiffres ci-dessus, qui sont mesurés en bout
   de chaîne, mais utile à savoir pour la précision sur un vrai téléphone).
-- **Résampleur non retesté en isolation sur device** au-delà du test de bout
-  en bout ci-dessus (qui inclut décodage+coupe+resample ensemble) — le
-  prototype numpy (diff nulle) donne une forte présomption qu'il n'ajoute pas
-  d'erreur propre, cohérent avec les diff max nulles mesurées, mais pas
-  décomposé.
+- **CORRECTION (résultat arrivé après la 1ère version de ce document)** : le
+  prototype numpy tournant en fond sur TOUT le fichier (pas juste les 2000
+  premiers échantillons) a fini par sortir — il isole le résampleur seul
+  (entrée = décodage natif Mac lui-même, donc AUCUNE différence de décodeur
+  AAC possible) contre `librosa.resample(res_type="soxr_hq")` :
+  `[22050] whole-file maxdiff=0.083906 meandiff=0.00220173 pearson=0.99991007 lag=0`.
+  Diff nulle sur les 2000 premiers échantillons (confirmé, comme sur
+  device), mais diff max 0,084 / moyenne 0,0022 sur le fichier entier,
+  concentrée sur un passage fort (`t≈184s`, indices 4053021-4053025). **Mon
+  hypothèse plus haut (« différences d'implémentation du décodeur AAC »)
+  pour expliquer le pearson 0,9997 mesuré sur device était donc au moins
+  partiellement fausse** — le résampleur Kaiser-sinc à 64 taps/phase, à lui
+  seul, N'EST PAS de qualité équivalente à `soxr_hq` sur cette paire de taux
+  (48000→22050, cutoff=1/640, transition très étroite) : 64 taps/phase est
+  probablement insuffisant pour cette bande de transition. Piste non
+  essayée faute de temps : monter `tapsPerPhase` (64→128 ou plus) dans
+  `AudioDecoder.designKaiserSincFilter`, au prix d'un temps de calcul plus
+  long (déjà non négligeable, ~34s pour rééchantillonner un fichier de 205s
+  en Python pur — le Kotlin vectorisé devrait être plus rapide mais pas
+  mesuré). Le décalage reste nul (`lag=0`) — ce n'est PAS un bug de
+  phase/indexation, seulement un déficit de qualité du filtre.
+  **SUITE (P2a-bis, 2026-09-23)** : piste criblée et fermée — monter
+  `tapsPerPhase` jusqu'à 512 n'aide PAS (aggrave parfois : ringing/Gibbs sur
+  transitoires, pas une bande passante trop étroite) ; seul β=12,26 (cible
+  120 dB) aide un peu (-4 à -8%) à coût identique, porté en Kotlin ; cible
+  <1e-3 non atteignable dans cette famille de filtre → détail et chiffres
+  dans `docs/portage_mobile/p2a_bis_resampler.md`.
 
 ## Fichiers produits
 

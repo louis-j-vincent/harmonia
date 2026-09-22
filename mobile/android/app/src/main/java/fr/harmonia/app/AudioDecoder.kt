@@ -286,7 +286,16 @@ object AudioDecoder {
     private fun designKaiserSincFilter(up: Int, tapsPerPhase: Int, cutoff: Double): DoubleArray {
         val halfLen = tapsPerPhase * up
         val len = 2 * halfLen + 1
-        val beta = 8.6
+        // beta=12.26 = cible d'atténuation 120 dB (formule Kaiser standard,
+        // beta=0.1102*(A-8.7)), au lieu de 8.6 — mesuré en numpy (P2a-bis,
+        // docs/portage_mobile/p2a_bis_resampler.md) : -4 à -8% d'écart max vs
+        // soxr_hq sur les 5 cas testés, à coût de calcul IDENTIQUE (beta ne
+        // change pas le nombre de coefficients). tapsPerPhase (64→512) et un
+        // cutoff resserré (<100%) ont été essayés et n'ont PAS aidé — voir le
+        // rapport : l'écart résiduel (jusqu'à 0.08-0.14) est concentré sur
+        // des transitoires forts (Gibbs/réponse transitoire, pas une bande
+        // passante trop étroite), donc insensible à la longueur du filtre.
+        val beta = 12.26
         val i0Beta = besselI0(beta)
         val h = DoubleArray(len)
         for (n in 0 until len) {
