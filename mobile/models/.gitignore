@@ -1,0 +1,2 @@
+# Modèles exportés (ExecuTorch .pte, ~10 Mo chacun) : régénérés par mobile/tools/export_*.py, jamais committés.
+*.pte
