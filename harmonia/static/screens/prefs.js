@@ -106,6 +106,17 @@ export function openPrefsSheet(){
       shareRow.style.width="100%";
       body.appendChild(shareRow);
     }
+    // Import YouTube P3c (2026-09-23) : session de connexion CÔTÉ DEVICE
+    // (mobile/android/…/YouTubeLoginActivity), pas de fichier de cookies à
+    // pousser depuis le Mac. La route n'existe QUE sur mobile
+    // (mobile_entry.py) — sur Mac elle 404 et le bouton échoue en silence,
+    // voir docs/portage_mobile/p3c_youtube_session.md.
+    const ytRow=kitButton("Connect YouTube",async()=>{
+      try{ await api.post("/api/mobile/youtube_login",{}); toast("Opening YouTube sign-in…"); }
+      catch(e){ toast("Not available on this device"); }
+    });
+    ytRow.style.width="100%";
+    body.appendChild(ytRow);
     sheet.appendChild(body);
     const closeBtn=el("button",`flex:0 0 auto;width:100%;margin-top:12px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:12px;min-height:${SZ.control}px;cursor:pointer;`,"Close");
     closeBtn.onclick=()=>closeOverlay(back);

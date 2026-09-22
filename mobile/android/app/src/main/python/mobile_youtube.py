@@ -27,7 +27,19 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from flask import Blueprint, jsonify
+
 log = logging.getLogger("mobile_youtube")
+
+#: P3c (2026-09-23) : bouton "Connect YouTube" de prefs.js -> cette route
+#: (montée par mobile_entry.py, n'existe pas sur Mac) -> `open_login_activity()`
+#: ci-dessous. Voir docs/portage_mobile/p3c_youtube_session.md.
+bp = Blueprint("mobile_youtube", __name__)
+
+
+@bp.post("/api/mobile/youtube_login")
+def _youtube_login_route():
+    return jsonify({"ok": open_login_activity()})
 
 #: Même format que le Mac (`harmonia/server/youtube.py`) — audio seul, m4a de
 #: préférence. PAS de `--extract-audio`/`--audio-format` (postprocesseur
@@ -66,6 +78,31 @@ def _qjs_path() -> str | None:
     except Exception:
         return None
     return str(p) if p.exists() else None
+
+
+def open_login_activity() -> bool:
+    """Lance `YouTubeLoginActivity` (WebView + bouton "Terminé", écrit
+    `<filesDir>/youtube_cookies.txt` au format Netscape à la fermeture —
+    voir YouTubeLoginActivity.kt) depuis un contexte Application : il faut
+    `FLAG_ACTIVITY_NEW_TASK` (pas de tâche/Activity appelante ici, on part
+    d'un thread Flask, pas d'un `onClick` Android)."""
+    try:
+        from java import jclass
+    except ImportError:  # pas sur Android (tests desktop, etc.)
+        return False
+    ctx = _app_context()
+    if ctx is None:
+        return False
+    try:
+        intent_cls = jclass("android.content.Intent")
+        intent = intent_cls()
+        intent.setClassName(ctx.getPackageName(), "fr.harmonia.app.YouTubeLoginActivity")
+        intent.setFlags(intent_cls.FLAG_ACTIVITY_NEW_TASK)
+        ctx.startActivity(intent)
+        return True
+    except Exception:
+        log.exception("mobile_youtube.open_login_activity failed")
+        return False
 
 
 def _ydl_opts() -> dict:

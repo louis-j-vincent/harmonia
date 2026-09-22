@@ -21,5 +21,21 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Sonde P3c (2026-09-23), scaffold de diagnostic seulement (a servi
+             à vérifier que Google affiche le vrai formulaire dans une
+             WebView, voir le rapport) — pas exportée, pas de chemin de prod
+             qui la lance. Voir docs/portage_mobile/p3c_youtube_session.md. -->
+        <activity
+            android:name=".YouTubeLoginProbeActivity"
+            android:exported="false" />
+
+        <!-- Connexion YouTube réelle (P3c) : lancée depuis Python
+             (mobile_youtube.open_login_activity(), FLAG_ACTIVITY_NEW_TASK)
+             via `POST /api/mobile/youtube_login` -> bouton "Connect YouTube"
+             dans prefs.js. Pas exportée au-delà de l'app elle-même. -->
+        <activity
+            android:name=".YouTubeLoginActivity"
+            android:exported="false" />
     </application>
 </manifest>
