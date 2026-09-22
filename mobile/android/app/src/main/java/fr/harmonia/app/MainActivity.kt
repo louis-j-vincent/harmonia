@@ -5,6 +5,8 @@ import android.app.Activity
 import android.content.res.AssetManager
 import android.os.Bundle
 import android.util.Log
+import android.webkit.ConsoleMessage
+import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
@@ -48,6 +50,16 @@ class MainActivity : Activity() {
         webView.settings.mediaPlaybackRequiresUserGesture = false
         webView.settings.allowFileAccess = false
         webView.webViewClient = WebViewClient()
+        // Sans ça, une erreur JS (module ES cassé, exception non attrapée…)
+        // est invisible depuis `adb logcat` — chromium ne relaie PAS la
+        // console par défaut. Demandé après le smoke test P1 (écran blanc,
+        // cause trouvée seulement via `logcat -d | grep chromium`).
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(msg: ConsoleMessage): Boolean {
+                Log.i("harmonia.js", "${msg.messageLevel()} ${msg.sourceId()}:${msg.lineNumber()} ${msg.message()}")
+                return true
+            }
+        }
 
         if (!Python.isStarted()) {
             Python.start(AndroidPlatform(this))

@@ -2,16 +2,18 @@
 
 ## Résultat en 3 lignes
 
-`./gradlew assembleDebug` est vert : APK debug de 44 Mo (`fr.harmonia.app`,
-Chaquopy 17 + Python 3.12 + numpy/flask, arm64-v8a seul, minSdk 26). Preuve
-la plus forte obtenue : la copie EXACTE de `harmonia/` embarquée dans l'APK
-(filtrée, 3 fichiers exclus) s'importe et sert `/api/library` + `/` avec
-SEULEMENT numpy+flask installés — torch/scipy/vamp/yt-dlp/pyRealParser sont
-tous importés à l'intérieur de fonctions dans ce paquet, jamais au niveau
-module, donc rien ne bloque l'import du serveur en phase 1. Pas de capture
-d'écran émulateur : l'AVD `harmonia_35` refuse de démarrer sur cette machine
-(besoin de 12 Go pour la partition userdata, 3,7-5,2 Go dispo pendant la
-session) — constaté après coup, ce n'est pas un problème du projet Android.
+**Marche de bout en bout sur l'émulateur** : `./gradlew assembleDebug` vert
+(APK 44 Mo), `adb install` + lancement → Flask démarre dans l'app, la
+WebView affiche la bibliothèque avec les 3 morceaux de seed (captures :
+`mobile/android/smoke/screen_ok.png`, `screen_library.png`) et
+`adb forward tcp:7790 tcp:7772` + `curl /api/library` répond 200 depuis le
+Mac. Premier smoke test blanc (écran crème vide) diagnostiqué et corrigé :
+CE N'ÉTAIT PAS un bug Android/Chaquopy, mais `chart.js` important
+`pedalGlyph` d'un `kit.js` qui ne l'exportait pas — la fonction existait
+mais sur une AUTRE branche jamais mergée (`feat/import-ireal`,
+2026-09-18) ; portée ici verbatim (13 lignes, aucune autre modification de
+kit.js). Ajouté au passage : un relais `WebChromeClient.onConsoleMessage`
+(tag `harmonia.js`) — sans lui, l'erreur JS était invisible dans logcat.
 
 ## Ce qui a été vérifié (commandes, chiffres, chemins)
 
@@ -36,13 +38,65 @@ export ANDROID_HOME=~/Library/Android/sdk
 (46 122 399 octets). `local.properties` (non committé, `.gitignore` ajouté)
 pointe `sdk.dir` vers le SDK ci-dessus.
 
-**Installation (téléphone/émulateur, non exécutée faute d'appareil — voir
-"ce qui reste ouvert")** :
+**Installation + run sur l'émulateur** (AVD `harmonia_35` — a fini par
+démarrer après coup, voir "ce qui reste ouvert" pour le premier échec
+disque) :
 ```
 adb install -r mobile/android/app/build/outputs/apk/debug/app-debug.apk
 adb shell am start -n fr.harmonia.app/.MainActivity
-adb logcat -s HarmoniaMain
+adb logcat -s HarmoniaMain:V python.stdout:V python.stderr:V harmonia.js:V
 ```
+
+**Premier passage — écran blanc.** Logcat (00:37:49) montrait Flask levé
+(`Serving Flask app 'harmonia.server.app'`, `HarmoniaMain: Flask ready=true`,
+`GET /api/library 200`) et tous les `.js` récupérés (304/200), donc le
+pipeline Chaquopy → Flask → WebView marchait — mais rien à l'écran
+(`screenshot_p1.png`, `smoke/screen_40s.png`, `smoke/screen_70s.png`, fond
+crème uni). La ligne qui manquait : `chromium: [INFO:CONSOLE(15)] "Uncaught
+SyntaxError: The requested module '../ui/kit.js' does not provide an export
+named 'pedalGlyph'", source: .../screens/chart.js`. `router.js` importe
+`chart.js` de façon STATIQUE (`router.js:9`) : une erreur de résolution
+d'un module ES à l'import bloque tout le graphe avant le premier rendu,
+bibliothèque comprise — quel que soit l'écran demandé.
+
+**Root cause, pas un résidu du portage.** `git show HEAD:harmonia/static/ui/
+kit.js` (commit de base `71f66fd`) ne contient `pedalGlyph` nulle part ;
+`git log -p -S pedalGlyph --all` la retrouve implémentée dans
+`e8a486665233` (2026-09-18) sur la branche `feat/import-ireal` — **jamais
+mergée** dans la lignée de cette branche (confirmé : `git merge-base
+--is-ancestor e8a4866… HEAD` → non-ancestor). Pendant ce temps, `chart.js`
+sur CETTE lignée (commit `b0b7053d`, même jour) a commencé à IMPORTER
+`pedalGlyph` sans que l'implémentation suive — deux sessions parallèles le
+18/09, jamais réconciliées. **Un navigateur Mac sur ce commit afficherait le
+même écran blanc** — pas spécifique à Android.
+
+**Corrigé** (hors du périmètre strict "ne touche qu'à MainActivity/WebView/
+mobile_entry.py/manifest", mais nécessaire pour la porte de sortie
+demandée, et vérifié sans risque de collision — `git status` montrait
+`kit.js`/`chart.js` propres, aucune édition en cours d'une session
+concurrente) : `pedalGlyph` copiée verbatim depuis `feat/import-ireal`
+(13 lignes, une fonction, aucun autre changement) dans
+`harmonia/static/ui/kit.js`, juste avant `export function glyph`. Validé
+`node --check` sur les deux fichiers avant et après. Rebuild + reinstall +
+relaunch : plus aucune ligne `harmonia.js`/`chromium CONSOLE` d'erreur,
+`GET /static/ui/kit.js` repasse en 200 (plus de cache 304), l'app affiche
+l'accueil puis « Mes charts » avec les 3 morceaux exacts et leurs bonnes
+métadonnées (`Ben E. King / Stand By Me — A major · 87 bars`, `Maroon 5 /
+She Will Be Loved — B♭ major · 107 bars`, `Maroon 5 / This Love — C minor ·
+80 bars`) — `smoke/screen_ok.png` et `smoke/screen_library.png`.
+
+**Vérification `/api/library` depuis le Mac** (comme demandé, jamais par
+127.0.0.1:7772 côté Mac directement) :
+```
+adb forward tcp:7790 tcp:7772
+curl http://127.0.0.1:7790/api/library   # → 200, les 3 charts, JSON complet
+adb forward --remove tcp:7790
+```
+
+**Ajout diagnostique permanent** : `MainActivity.kt` installe désormais un
+`WebChromeClient` avec `onConsoleMessage` → `Log.i("harmonia.js", …)` —
+sans lui, cette erreur JS était invisible dans `adb logcat` (Chromium ne
+relaie pas la console par défaut). Indispensable pour la suite du portage.
 
 **Deux problèmes de tooling résolus en cours de route** (à consigner pour
 la suite du portage, personne d'autre ne les a rencontrés) :
@@ -168,24 +222,31 @@ jamais le Mac (PLAN.md).
 
 ## Ce qui reste ouvert
 
-- **Pas de vérification sur device réel.** `./gradlew assembleDebug` est la
-  porte de sortie explicitement acceptée par le brief quand "pas
-  d'émulateur pour l'instant (disque)" — situation confirmée : l'AVD
-  `harmonia_35` (installé par un autre agent pendant cette tâche) refuse de
-  démarrer ici, `FATAL: Not enough space to create userdata partition.
-  Available: 5364.80 MB ... need 12288.00 MB` (log emulator). Le disque a
-  ensuite continué de descendre (3,7-3,9 Go en fin de session) avec le
-  build — je n'ai RIEN supprimé pour en libérer (hors périmètre, pas
-  d'autorisation). Donc : ni capture d'écran, ni `adb logcat` réel, ni
-  confirmation que la WebView affiche effectivement la bibliothèque — tout
-  ce qui précède est vérifié par un test Python équivalent (self-sufficiency
-  test ci-dessus), pas par l'app qui tourne.
-- `adb install` et le lancement sur le téléphone de Louis restent à faire
-  quand l'appareil sera branché (semaine du 2026-09-28 selon PLAN.md) — ou
-  sur un émulateur une fois > 12 Go libres.
+- **L'AVD a d'abord refusé de démarrer, disque.** Premier essai :
+  `FATAL: Not enough space to create userdata partition. Available:
+  5364.80 MB ... need 12288.00 MB` (l'installation de l'AVD par un autre
+  agent avait fait tomber le disque à 3,7-5,2 Go). Un second essai, plus
+  tard dans la session, a démarré (la partition userdata s'est avérée
+  passée à 4 Go — le disque avait entre-temps remonté à ~10 Go, purge de
+  purgeable APFS probablement). Depuis, le smoke test complet est passé.
+- `adb install` et le lancement sur le téléphone RÉEL de Louis restent à
+  faire quand l'appareil sera branché (semaine du 2026-09-28 selon
+  PLAN.md) — tout ce qui précède est vérifié sur l'émulateur `harmonia_35`
+  (Pixel 6, android-35 google_apis, arm64-v8a), pas sur un device physique.
+- **Le fix `pedalGlyph` corrige l'écran blanc, pas le fond du problème** :
+  `feat/import-ireal` (2026-09-18, "construit + EN PROD sur :7772")
+  contient probablement d'AUTRES changements à `kit.js`/`chart.js`/ailleurs
+  jamais mergés dans cette lignée — je n'ai porté QUE la fonction manquante
+  qui bloquait le chargement, pas fait un diff complet des deux branches.
+  Un futur écran (pas juste la bibliothèque) pourrait révéler d'autres
+  trous du même genre. À signaler à Louis : sa branche `feat/import-ireal`
+  attend toujours un merge.
 - Rien n'a été testé sur ce qui casse visuellement en WebView Android par
-  rapport à Safari iOS (100dvh, safe-area, audio) faute de pouvoir afficher
-  quoi que ce soit — reporté à quand un device sera disponible.
+  rapport à Safari iOS au-delà de la page d'accueil et de la bibliothèque
+  (pas encore ouvert un chart individuel, pas testé l'audio, le clavier,
+  les gestes tactiles, `100dvh`/safe-area sur un vrai clavier ou une
+  rotation) — le screenshot montre une UI qui rend correctement en 1080×2400
+  portrait, rien de plus vérifié.
 - Les routes accessoires embarquées mais non fonctionnelles en l'état
   (`/api/irealb-*` sans pyRealParser installé, `/ssm` dont le module est
   présent mais jamais testé ici) n'ont pas été vérifiées individuellement —
@@ -211,7 +272,16 @@ jamais le Mac (PLAN.md).
   `app/src/main/assets/harmonia_seed/{charts,audio,chart_meta.json,folders.json}`
   (10 Mo, 3 morceaux).
 - `harmonia/settings.py` — modifié (2 nouvelles racines d'environnement,
-  voir ci-dessus), seul fichier de `harmonia/` touché.
+  voir ci-dessus), seul fichier de `harmonia/` touché dans le plan initial.
+- `harmonia/static/ui/kit.js` — modifié HORS plan initial, pour débloquer
+  le smoke test : `pedalGlyph` (13 lignes) portée verbatim depuis
+  `feat/import-ireal` (commit `e8a486665233`), rien d'autre changé.
+- `mobile/android/app/src/main/java/fr/harmonia/app/MainActivity.kt` —
+  ajout du relais `WebChromeClient.onConsoleMessage` (tag `harmonia.js`).
+- `mobile/android/smoke/screen_ok.png`, `screen_library.png` — captures du
+  smoke test réussi (accueil, puis « Mes charts » avec les 3 morceaux).
+  `screen_40s.png`/`screen_70s.png`/`logcat.txt`/`emulator.log` dans le même
+  dossier sont les artefacts du premier passage (écran blanc, avant fix).
 - `app/build/outputs/apk/debug/app-debug.apk` — 44 Mo, généré (pas
   committé, dans `.gitignore`).
 - Ce fichier + une ligne dans `docs/portage_mobile/JOURNAL.md`.

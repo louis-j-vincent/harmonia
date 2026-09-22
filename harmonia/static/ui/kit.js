@@ -197,6 +197,29 @@ export function glyphTight(root,q,size,depth,color,bass,inlineBass){
   // `inlineBass` ne concerne que l'écriture compacte: en notation normale la
   // basse est DÉJÀ en ligne (voir plus bas), c'est le serrage qui la fait
   // pendre. L'appelant passe simplement « cette cellule n'a qu'un accord ».
+  // LA BASSE QUI MARCHE SOUS UN ACCORD TENU (2026-09-18, import iReal,
+  // portée depuis `feat/import-ireal` — cette branche mobile importait déjà
+  // `pedalGlyph` dans chart.js sans que kit.js l'exporte, `Uncaught
+  // SyntaxError` au chargement de tout le graphe de modules, écran blanc y
+  // compris sur un navigateur Mac. Voir docs/portage_mobile/
+  // p1_squelette_android.md).
+  // iReal écrit `E♭m7 · /G♭ · A♭m11 · /B♭` : la 2e et la 4e case ne répètent
+  // PAS le nom de l'accord, elles ne portent que la basse. C'est ce que
+  // `W/G♭` encode, et c'est aussi la seule façon de faire tenir quatre cases
+  // pareilles dans une mesure. L'accord complet reste dans le modèle
+  // (`root`+`q`+`bass`) — seul l'AFFICHAGE se tait, comme sur la partition.
+export function pedalGlyph(bass,size,color){
+    // Écrit à la taille d'une BASSE SLASH, pas d'un accord : `glyph` dessine
+    // déjà ses basses à 0,5×, et une pédale n'est rien d'autre qu'une basse
+    // slash dont l'accord est sous-entendu. À taille pleine, les quatre
+    // cases du refrain de *Virtual Insanity* (`E♭m7 · /G♭ · A♭m11 · /B♭`)
+    // ne tiennent dans aucune mesure.
+    const s=Math.round(size*0.7);
+    const w=el("span",`font-family:${SERIF};font-style:italic;line-height:1;white-space:nowrap;color:${color};display:inline-flex;align-items:baseline;font-weight:600;opacity:.82;`);
+    w.appendChild(el("span",`font-size:${Math.round(s*0.86)}px;`,"/"));
+    w.appendChild(noteEl(bass,s));
+    return w;
+  }
 export function glyph(root,q,size,depth,color,bass,inlineBass){
     if(PREF.notation==="compact") return glyphTight(root,q,size,depth,color,bass,inlineBass);
     const w=el("span",`font-family:${SERIF};font-style:italic;line-height:1;white-space:nowrap;color:${color};display:inline-flex;align-items:baseline;`);
