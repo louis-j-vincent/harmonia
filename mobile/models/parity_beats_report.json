@@ -1,0 +1,84 @@
+{
+  "results": {
+    "maroon_5_this_love": {
+      "duration_s": 205.26934240362812,
+      "torch_total_s": 23.724322250003752,
+      "beats": {
+        "n_ref": 322,
+        "n_mine": 322,
+        "n_common": 322,
+        "count_match": true,
+        "max_dt_ms": 20.000000000010232,
+        "mean_dt_ms": 0.0621118012422678
+      },
+      "downbeats": {
+        "n_ref": 81,
+        "n_mine": 81,
+        "n_common": 81,
+        "count_match": true,
+        "max_dt_ms": 0.0,
+        "mean_dt_ms": 0.0
+      }
+    },
+    "ben_e_king_stand_by_me_audio": {
+      "duration_s": 177.49333333333334,
+      "torch_total_s": 18.808567457999743,
+      "beats": {
+        "n_ref": 345,
+        "n_mine": 345,
+        "n_common": 345,
+        "count_match": true,
+        "max_dt_ms": 0.0,
+        "mean_dt_ms": 0.0
+      },
+      "downbeats": {
+        "n_ref": 94,
+        "n_mine": 94,
+        "n_common": 94,
+        "count_match": true,
+        "max_dt_ms": 0.0,
+        "mean_dt_ms": 0.0
+      }
+    },
+    "autumn_leaves": {
+      "duration_s": 422.3360090702948,
+      "torch_total_s": 48.981333124997036,
+      "beats": {
+        "n_ref": 1136,
+        "n_mine": 1136,
+        "n_common": 1136,
+        "count_match": true,
+        "max_dt_ms": 0.0,
+        "mean_dt_ms": 0.0
+      },
+      "downbeats": {
+        "n_ref": 373,
+        "n_mine": 373,
+        "n_common": 373,
+        "count_match": true,
+        "max_dt_ms": 0.0,
+        "mean_dt_ms": 0.0
+      }
+    }
+  },
+  "timing": {
+    "maroon_5_this_love": {
+      "frontend_s": 0.32312212500255555,
+      "network_s": 34.75751970800047,
+      "postproc_s": 0.0030894999945303425,
+      "total_s": 35.08373133299756
+    },
+    "ben_e_king_stand_by_me_audio": {
+      "frontend_s": 0.24775400000362424,
+      "network_s": 23.451997666998068,
+      "postproc_s": 0.0033198329983861186,
+      "total_s": 23.70307150000008
+    },
+    "autumn_leaves": {
+      "frontend_s": 0.5156565830038744,
+      "network_s": 54.325703750000685,
+      "postproc_s": 0.004385082997032441,
+      "total_s": 54.84574541600159
+    }
+  }
+}

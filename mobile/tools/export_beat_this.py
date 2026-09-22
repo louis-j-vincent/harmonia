@@ -1,7 +1,17 @@
-"""Export Beat This! (small0) to ExecuTorch .pte, and compare to torch reference.
+"""Export Beat This! (final0, the REAL checkpoint) to ExecuTorch .pte, and
+compare to torch reference.
 
 Run with the MOBILE venv (~/harmonia/.venv-mobile), never .venv:
     ~/harmonia/.venv-mobile/bin/python mobile/tools/export_beat_this.py
+
+2026-09-23 (T1c) CORRECTION: T1 exported "small0" (9 MB). But the live
+pipeline (`harmonia/beats.py:46`, `File2Beats(device="cpu", dbn=False)`)
+never names a checkpoint, so `beat_this.inference.load_model` defaults to
+"final0" (transformer_dim=512 vs small0's 128; 20.25M params vs 2.10M;
+~81 MB .ckpt) -- verified by reading `load_model`'s signature
+(`checkpoint_path: str | None = "final0"`). The phone must render the SAME
+beats as the Mac, so THIS is the checkpoint that ships; small0 stays a
+possible "fast mode" for later, Louis's call (CLAUDE.md rule 6).
 
 Two things are exported separately, because torch.stft/mel-filterbank are NOT
 guaranteed to lower to XNNPACK (see report):
@@ -25,6 +35,7 @@ AUDIO = Path("/Users/vincente/harmonia/data/cache/tune_lock_propagation/wav/maro
 OUT_DIR = Path(__file__).resolve().parents[1] / "models"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
+CHECKPOINT = "final0"  # the ONLY checkpoint harmonia/beats.py actually loads (load_model's default)
 CHUNK = 1500  # beat_this's fixed training/inference chunk length in frames (see inference.py split_predict_aggregate)
 
 
@@ -76,7 +87,7 @@ def main():
         ref_spect = spect_mod(sig_t)  # (T, 128)
     print("ref_spect", ref_spect.shape, ref_spect.dtype)
 
-    model = load_model("small0", device="cpu")
+    model = load_model(CHECKPOINT, device="cpu")
     model.eval()
 
     # ---- 1) try exporting the LogMelSpect front-end alone ----
@@ -111,7 +122,7 @@ def main():
         ref_beat, ref_downbeat = wrapped(example_chunk)
     print("ref_beat", ref_beat.shape, "ref_downbeat", ref_downbeat.shape)
 
-    pte2, info2 = export_network(wrapped, example_chunk, "beat_this_small0_fixed1500", dynamic_time=False,
+    pte2, info2 = export_network(wrapped, example_chunk, "beat_this_final0_fixed1500", dynamic_time=False,
                                   arg_name="spect", time_dim=1)
     if pte2 is None:
         print("NETWORK (fixed-shape) EXPORT FAILED:", info2)
@@ -121,7 +132,7 @@ def main():
     # ---- 3) if fixed-shape worked, try dynamic time dimension (real audio isn't always 1500 frames) ----
     if pte2 is not None:
         print("\n== attempt: export BeatThis network with DYNAMIC time dim ==")
-        pte3, info3 = export_network(wrapped, example_chunk, "beat_this_small0_dynamic", dynamic_time=True,
+        pte3, info3 = export_network(wrapped, example_chunk, "beat_this_final0_dynamic", dynamic_time=True,
                                       arg_name="spect", time_dim=1)
         if pte3 is None:
             print("NETWORK (dynamic-shape) EXPORT FAILED:", info3)
