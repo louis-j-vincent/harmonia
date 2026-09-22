@@ -55,6 +55,10 @@ def start_server(state_dir: str, audio_dir: str, port: int) -> None:
     # youtube.py n'est pas modifié.
     import mobile_youtube
     mobile_youtube.install()
+    # P3c (2026-09-23) : POST /api/mobile/youtube_login -> lance
+    # YouTubeLoginActivity (session device, remplace le fichier de cookies
+    # statique du Mac). N'existe que sur mobile, comme mobile_debug.
+    app.register_blueprint(mobile_youtube.bp)
 
     def _run() -> None:
         # use_reloader=False : un reloader forkerait un second process, que
