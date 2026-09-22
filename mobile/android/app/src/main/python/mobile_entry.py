@@ -40,6 +40,22 @@ def start_server(state_dir: str, audio_dir: str, port: int) -> None:
 
     app = create_app()
 
+    # Route de debug P2a (mobile_debug.py, PAS dans harmonia/) : compare le
+    # décodeur MediaCodec/Kotlin au Mac via /api/debug/decode. Montée ici,
+    # jamais dans harmonia.server.app — hors périmètre du serveur de prod.
+    import mobile_debug
+    app.register_blueprint(mobile_debug.bp)
+
+    # Import YouTube P3b (mobile_youtube.py, PAS dans harmonia/) : remplace
+    # harmonia.server.youtube._ytdlp_bin/_video_meta/_download_audio (qui
+    # shellent vers un binaire yt-dlp + Firefox + PO-Token server, aucun des
+    # trois présent sur Android) par yt_dlp.YoutubeDL en process, cookies
+    # statiques + QuickJS embarqué. Monkeypatch explicite, documenté dans
+    # docs/portage_mobile/p3b_youtube_cookies_qjs.md — harmonia/server/
+    # youtube.py n'est pas modifié.
+    import mobile_youtube
+    mobile_youtube.install()
+
     def _run() -> None:
         # use_reloader=False : un reloader forkerait un second process, que
         # Chaquopy ne sait pas faire sur Android. threaded=True : la WebView
