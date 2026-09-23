@@ -102,3 +102,7 @@ docs/research_sessions/*_ledger.json
 # harmonia_min/state : reliquat de l'ancienne app (supprimée sprint 22). Les charts JSON sont suivis ; rapports HTML et audio intro_vocal (128 Mo) sont régénérables.
 harmonia_min/state/reports/
 harmonia_min/state/intro_vocal/
+
+# APK Android de la beta (160 Mo) servi par la route /plots pour le téléphone via Tailscale — jamais committé.
+docs/plots/*.apk
+docs/plots/*.apk.sha256
