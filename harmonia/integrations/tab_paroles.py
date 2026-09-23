@@ -1,0 +1,179 @@
+"""Le texte d'un tab, avec NOS accords posés dessus.
+
+Louis, 2026-09-23 : « je veux que tu puisses me créer des tabs, donc m'extraire
+les paroles des chansons, puis y coller les accords qu'on a, comme sur guitar
+tabs ».
+
+VÉRIFICATION DE PRÉMISSE, et c'est tout ce que ce module est pour l'instant.
+Avant d'installer un modèle de transcription pour lire les paroles dans
+l'audio, on regarde si la DISPOSITION se lit — des accords au-dessus des mots,
+à la bonne syllabe. Le texte vient donc du tab qu'on récupère déjà
+(`tab_fetcher`), pas de l'audio : c'est la moitié gratuite du problème, et
+elle suffit à trancher si la vue vaut la peine.
+
+CE QU'ON RÉUTILISE, ET QUI EXISTAIT DÉJÀ :
+
+  * `tab_fetcher.fetch_tab_chords` rend `raw_content`, le document complet avec
+    son balisage `[ch]…[/ch]` — les lignes de texte y sont, on les jetait ;
+  * `tab_align.sequence_du_tab` rend la suite des accords AVEC leur `pos`, le
+    décalage en caractères dans ce document — c'est ce `pos` qui fait le pont
+    entre la grille du tab et notre ligne du temps ;
+  * `tab_chart.poser` aligne cette suite sur NOTRE audio et rend, pour chaque
+    accord du tab, la fenêtre de temps qu'il occupe chez nous.
+
+Il ne manquait donc que la traduction « position dans le texte → notre accord
+à cet instant », et c'est ce fichier.
+
+L'HYPOTHÈSE PORTEUSE, testée dans `tests/test_tab_paroles.py` plutôt que
+supposée : `tab_chart.poser` travaille sur la suite COMPRESSÉE
+(`tab_align.compresser` fond les répétitions immédiates), donc l'indice `i` de
+ses segments n'est PAS l'indice du jeton dans le document. On reconstruit la
+correspondance en rejouant la même règle de fusion, et le test vérifie qu'elle
+retombe exactement sur ce que `compresser` produit. C'est le motif d'erreur
+nº 1 du CLAUDE.md : une erreur d'indice ici donnerait des accords plausibles et
+faux, sans rien casser visiblement.
+
+CE QUE ÇA NE RÉSOUT PAS :
+  * le texte reste celui du tab — donc seulement les morceaux qui en ont un, et
+    ses fautes de frappe et ses lignes manquantes avec ;
+  * la COLONNE d'un accord reste celle que le tabbeur a tapée. On sait à quelle
+    syllabe il l'a mis, pas à quelle syllabe il FAUDRAIT le mettre : notre
+    alignement corrige le NOM de l'accord et son instant, pas sa place dans la
+    ligne. Un tab dont les colonnes sont fausses restera faux ici ;
+  * rien n'est extrait de l'audio. La lecture des paroles dans le son est
+    l'étape d'après, et c'est elle qui portera le vrai risque (la
+    reconnaissance vocale sur du chant est bien moins bonne que sur de la
+    parole).
+"""
+from __future__ import annotations
+
+import logging
+import re
+
+logger = logging.getLogger(__name__)
+
+_CH = re.compile(r"\[ch\](.*?)\[/ch\]", re.S)
+#: le balisage qu'on retire pour retrouver la ligne telle qu'elle s'affiche
+_BALISE = re.compile(r"\[/?(?:ch|tab)\]")
+
+
+def jetons_du_tab(brut: str) -> list[dict]:
+    """Chaque accord ÉCRIT dans le document, avec l'endroit où il est écrit.
+
+    `[{ligne, colonne, texte, ordre}]` — `colonne` est la colonne dans la
+    ligne DÉBALISÉE (celle que l'œil voit), pas dans le document brut, sinon
+    l'accord se décalerait de la longueur de `[ch]` à chaque fois.
+
+    `ordre` est le rang du jeton dans la suite non compressée : c'est la clé
+    qui rejoint `tab_align.sequence_du_tab`.
+    """
+    out, ordre = [], 0
+    for i, ligne in enumerate((brut or "").splitlines()):
+        propre, col, j = [], 0, 0
+        for m in _CH.finditer(ligne):
+            avant = _BALISE.sub("", ligne[j:m.start()])
+            propre.append(avant)
+            col += len(avant)
+            txt = m.group(1).strip()
+            out.append({"ligne": i, "colonne": col, "texte": txt,
+                        "ordre": ordre})
+            ordre += 1
+            propre.append(txt)
+            col += len(txt)
+            j = m.end()
+        # le reste de la ligne ne porte aucun accord, rien à enregistrer
+    return out
+
+
+def indices_compresses(seq: list[dict]) -> list[int]:
+    """Pour chaque entrée de `seq` (non compressée), l'indice qu'elle prend
+    dans `tab_align.compresser(seq)`.
+
+    On rejoue la règle de fusion de `compresser` — répétition IMMÉDIATE du même
+    (root, q5, basse) — au lieu de la deviner. Le test vérifie que le compte
+    retombe sur `len(compresser(seq))`.
+    """
+    out, dernier, k = [], None, -1
+    for a in seq:
+        cle = (a.get("root"), a.get("q5"), a.get("bass"))
+        if dernier is None or cle != dernier:
+            k += 1
+            dernier = cle
+        out.append(k)
+    return out
+
+
+def feuille(chart: dict, pose: dict, brut: str) -> list[dict]:
+    """Le tab réécrit : ses lignes de texte, NOS accords au-dessus.
+
+    `[{texte, accords: [{colonne, notre, leur, leur_ecrit, t}]}]`, une entrée
+    par ligne de parole qui porte au moins un accord. `leur` est l'accord du
+    tab RAMENÉ DANS NOTRE TONALITÉ (voir le décalage plus bas), `leur_ecrit`
+    est ce que le tab écrit vraiment. Les deux sont gardés à côté du nôtre pour
+    que le désaccord se VOIE au lieu d'être écrasé — c'est la même loi que la
+    marque de doute (`tab_chart.doutes`) : on ne dit pas qui a raison, on
+    montre les deux.
+    """
+    from harmonia.integrations.tab_align import nom_q5, sequence_du_tab
+    from harmonia.integrations.tab_chart import texte_du_chart
+
+    seq = sequence_du_tab(brut)
+    vers_compresse = indices_compresses(seq)
+    jetons = jetons_du_tab(brut)
+    if len(jetons) != len(seq):
+        # Jamais muet : les deux lectures du même document doivent compter le
+        # même nombre d'accords. Si elles divergent, `lire_accord` en a rejeté
+        # (un « N.C. », un mot pris pour un accord) et les colonnes ne
+        # correspondent plus — on préfère ne rien rendre qu'un décalage.
+        logger.warning("tab_paroles : %d jeton(s) écrit(s) pour %d accord(s) "
+                       "lu(s) — on ne pose rien", len(jetons), len(seq))
+        return []
+
+    # notre accord à un instant donné, depuis le chart brut
+    notres = [c for c in ((chart.get("prompter") or {}).get("chords") or [])]
+
+    def notre_a(t: float) -> str:
+        for c in notres:
+            if float(c.get("t0", 0)) <= t < float(c.get("t1", 0)):
+                return texte_du_chart(c)
+        return "—"
+
+    # pour chaque indice compressé, l'instant où il commence chez nous
+    debut = {}
+    for s in pose.get("segments") or []:
+        debut.setdefault(int(s["i"]), float(s["t0"]))
+
+    lignes = (brut or "").splitlines()
+    par_ligne: dict[int, list] = {}
+    # LE TAB N'EST PAS FORCÉMENT DANS NOTRE TONALITÉ. `poser` rend le décalage
+    # qu'il a fallu pour le poser sur notre audio ; comparer son accord ÉCRIT au
+    # nôtre sans l'appliquer, c'est comparer deux tonalités — mesuré le
+    # 2026-09-23, ça donnait 2 % d'accord sur This Love (décalage +3) là où la
+    # vraie valeur est bien plus haute. Motif d'erreur nº 1 du CLAUDE.md : des
+    # chiffres plausibles et faux. On rend donc SON accord dans NOTRE tonalité,
+    # et on garde le texte d'origine à côté pour pouvoir relire le tab.
+    dec = int(pose.get("decalage") or 0)
+    for jet in jetons:
+        k = vers_compresse[jet["ordre"]]
+        t = debut.get(k)
+        a = seq[jet["ordre"]]
+        b = a.get("bass")
+        leur = nom_q5((a["root"] + dec) % 12, a["q5"],
+                      None if b is None else (b + dec) % 12)
+        par_ligne.setdefault(jet["ligne"], []).append({
+            "colonne": jet["colonne"], "leur": leur, "leur_ecrit": jet["texte"],
+            "notre": notre_a(t) if t is not None else "—",
+            "t": None if t is None else round(t, 2)})
+
+    out = []
+    for i, accords in sorted(par_ligne.items()):
+        # la ligne de PAROLES est celle qui suit la ligne d'accords
+        texte = ""
+        for j in (i + 1, i + 2):
+            if j < len(lignes):
+                cand = _BALISE.sub("", lignes[j])
+                if cand.strip() and "[ch]" not in lignes[j]:
+                    texte = cand.rstrip()
+                    break
+        out.append({"texte": texte, "accords": accords})
+    return out
