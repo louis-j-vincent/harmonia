@@ -82,13 +82,24 @@ counter-rule *before* starting work, not after something looks off.
 
 ## Collaboration conventions
 
-- **Commit when appropriate — use your judgment, don't ask every time**
-  (2026-07-28, Louis). Commit at sensible checkpoints: a well-defined change
-  once verified, a self-contained fix, a completed sub-task. You don't need
-  explicit sign-off per commit. Two guardrails still hold: (1) don't commit
-  mid-conceptual-iteration ("what does X mean?" / design pushback) — let that
-  round settle first; (2) **never `git add -A` / `git add .` / `git commit -a`
-  / `--no-verify` — stage explicit paths only.** Writing files is always fine.
+- **Commits are automatic, not optional** (2026-09-24, Louis: « ça évitera
+  d'avoir un cimetière de choses non commitées » — a sweep that day found
+  seven checkouts with uncommitted work, some of it two months old). The
+  rule: **every task that changed files ends with a commit of those files,
+  on the branch the checkout is already on, before the task is reported
+  done.** This applies to the main session AND to every subagent: an agent
+  that writes files commits them at the end of its task (explicit paths, on
+  its worktree's branch, never a `checkout`), and says the hash in its
+  report. Do not wait for "commit", "push" or "mets en prod". A session must
+  never end with `git status` showing work it produced. Two guardrails
+  still hold: (1) don't commit mid-conceptual-iteration ("what does X
+  mean?" / design pushback) — let that round settle, then commit; (2)
+  **never `git add -A` / `git add .` / `git commit -a` / `--no-verify` —
+  stage explicit paths, and `git add <paths> && git commit …` in ONE
+  command** (a two-step add-then-commit has had its hunks swept into a
+  concurrent session's commit). Branch discipline is in
+  `.claude/skills/branch-safety/` — read it before the first commit of a
+  work thread.
 - **Time-boxed narrow sprints work well** (best result of the project came
   from a 1-hour oracle-boundary sprint). Prefer a sharp question + small
   script over expanding scope.
