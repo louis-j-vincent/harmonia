@@ -166,11 +166,12 @@ class MainActivity : Activity() {
      * plus. Le chemin obtenu ici est passé à Python, qui le pose dans
      * `HARMONIA_MUSX_DIR`.
      *
-     * Le marqueur porte le nombre de fichiers copiés : si l'on réduit un jour
-     * ce qu'on embarque (les 27 Mo de fichiers `.sdict` de `cache_data`,
-     * qui sont des poids
-     * torch que le téléphone n'ouvre jamais), la recopie se refera d'elle-même
-     * au lieu de laisser un dossier à moitié à jour.
+     * Le marqueur porte le nombre de fichiers copiés : si le contenu
+     * embarqué change un jour (P4, 2026-09-23 : les 27 Mo de `cache_data/
+     * *.sdict`, des poids torch que le téléphone n'ouvre jamais, sont déjà
+     * exclus — voir `build.gradle.kts::copyMusxClone` et
+     * `harmonia/musx.py::_musx_dir`), la recopie se refera d'elle-même au
+     * lieu de laisser un dossier à moitié à jour.
      */
     private fun seedMusxOnce(): File {
         val dest = File(filesDir, "harmonia_musx")
