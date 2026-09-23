@@ -1,0 +1,117 @@
+{
+ "stem": "norah_jones_don_t_know_why",
+ "n": 66,
+ "tirages": 2,
+ "cout": 0.2458,
+ "frontieres": [
+  {
+   "mesure": 5,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "mesure 5 change (4/7 signaux), chant complet, boucle Bb-Eb-Gm-Bb avec variation C"
+  },
+  {
+   "mesure": 13,
+   "voix": 1,
+   "sur": 2,
+   "pourquoi": "progression vers changement à mes. 24 (6/7 signaux), volume et énergie crescendo"
+  },
+  {
+   "mesure": 23,
+   "voix": 1,
+   "sur": 2,
+   "pourquoi": "Accord F nouveau, très énergique (+8.7 à +11.5 dB), votes 6/7 à 24 et 29"
+  },
+  {
+   "mesure": 25,
+   "voix": 1,
+   "sur": 2,
+   "pourquoi": "mes. 29 change (6/7 signaux), introduction de F majeur, batterie forte (####)"
+  },
+  {
+   "mesure": 31,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "mes. 31 change (5/7 signaux), retour exact à Bb-Eb-Gm-Bb, ≈ mes. 5-8"
+  },
+  {
+   "mesure": 39,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "mes. 39 change (6/7 signaux), mes. 43 change (5/7 signaux), transition et section F"
+  },
+  {
+   "mesure": 47,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "mes. 47 change (6/7 signaux), instrumental (chant disparu), progression d'intro reprise (≈ mes. 1-4)"
+  },
+  {
+   "mesure": 55,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "mes. 55 change (5/7 signaux), chant revient, retour Bb-Eb-Gm-Bb, ≈ mes. 5-8, puis coda Gm-Bb"
+  }
+ ],
+ "retenues": [
+  5,
+  31,
+  39,
+  47,
+  55
+ ],
+ "meilleure_lecture": [
+  [
+   1,
+   4,
+   "intro",
+   "pas de chant, progression harmonic Bb-Eb-Gm-Fsus4, batterie croissante"
+  ],
+  [
+   5,
+   12,
+   "A",
+   "mesure 5 change (4/7 signaux), chant complet, boucle Bb-Eb-Gm-Bb avec variation C"
+  ],
+  [
+   13,
+   24,
+   "pont",
+   "progression vers changement à mes. 24 (6/7 signaux), volume et énergie crescendo"
+  ],
+  [
+   25,
+   30,
+   "B",
+   "mes. 29 change (6/7 signaux), introduction de F majeur, batterie forte (####)"
+  ],
+  [
+   31,
+   38,
+   "A",
+   "mes. 31 change (5/7 signaux), retour exact à Bb-Eb-Gm-Bb, ≈ mes. 5-8"
+  ],
+  [
+   39,
+   46,
+   "pont",
+   "mes. 39 change (6/7 signaux), mes. 43 change (5/7 signaux), transition et section F"
+  ],
+  [
+   47,
+   54,
+   "outro",
+   "mes. 47 change (6/7 signaux), instrumental (chant disparu), progression d'intro reprise (≈ mes. 1-4)"
+  ],
+  [
+   55,
+   66,
+   "A",
+   "mes. 55 change (5/7 signaux), chant revient, retour Bb-Eb-Gm-Bb, ≈ mes. 5-8, puis coda Gm-Bb"
+  ]
+ ],
+ "doutes": [
+  "les ponts (13-24, 39-46) pourraient être scindés en micro-sections; la coda (63-66) n'est qu'une boucle 2-mesures qui pourrait prolonger ou clore A",
+  "A (5-22) et A final (55-66) sont respectivement 18 et 12 mesures, longueur impaire qui pourrait justifier une scission supplémentaire, mais aucun indice audio clair pour le justifier"
+ ]
+}

@@ -1,0 +1,67 @@
+{
+ "stem": "bobby_hebb_sunny_official_audio",
+ "n": 88,
+ "validated": true,
+ "sections": [
+  {
+   "label": "intro",
+   "b0": 0,
+   "b1": 0
+  },
+  {
+   "label": "A",
+   "b0": 1,
+   "b1": 8
+  },
+  {
+   "label": "B",
+   "b0": 9,
+   "b1": 16
+  },
+  {
+   "label": "A",
+   "b0": 17,
+   "b1": 24
+  },
+  {
+   "label": "B",
+   "b0": 25,
+   "b1": 32
+  },
+  {
+   "label": "C",
+   "b0": 33,
+   "b1": 40
+  },
+  {
+   "label": "D",
+   "b0": 41,
+   "b1": 48
+  },
+  {
+   "label": "C",
+   "b0": 49,
+   "b1": 56
+  },
+  {
+   "label": "D",
+   "b0": 57,
+   "b1": 64
+  },
+  {
+   "label": "C",
+   "b0": 65,
+   "b1": 72
+  },
+  {
+   "label": "D",
+   "b0": 73,
+   "b1": 80
+  },
+  {
+   "label": "outro",
+   "b0": 81,
+   "b1": 87
+  }
+ ]
+}

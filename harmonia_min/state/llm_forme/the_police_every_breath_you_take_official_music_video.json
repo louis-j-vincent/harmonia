@@ -1,0 +1,145 @@
+{
+ "stem": "the_police_every_breath_you_take_official_music_video",
+ "n": 111,
+ "tirages": 3,
+ "cout": 0.2924,
+ "frontieres": [
+  {
+   "mesure": 9,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "couplet principal, chant dense (#### régulier); progression Ab-Fm-C#-Eb sur 16 mesures (2× le pattern 8-bar)"
+  },
+  {
+   "mesure": 25,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "pré-refrain; accords novo C#-Ab-Bb-Eb (distinct de A); signal 25 (5/7 changement)"
+  },
+  {
+   "mesure": 33,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "transition courte (8 mesures), retour vers Ab-Fm; prépare la rupture d'accord en 41"
+  },
+  {
+   "mesure": 41,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "refrain énergique; accords E-F# radicalement nouveau; volume +1.6 à +2.6 dB (pics absolus); signal 41 (6/7)"
+  },
+  {
+   "mesure": 51,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "couplet 2 étendu (20 mesures); retour Ab-Fm-C#-Eb + extension Bb-Eb; ≈1-2 en rejoue; signal 51 (7/7)"
+  },
+  {
+   "mesure": 59,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "Continua pattern Ab/Fm légèrement variant (C# à mes. 63 au lieu de Eb); rejouage ≈21–26"
+  },
+  {
+   "mesure": 67,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Répétition exacte chords 25-32 (C#-C#-Ab-Ab-Bb-Bb-Eb-Eb); rejoue confirme"
+  },
+  {
+   "mesure": 71,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "pré-refrain 2 (18 mesures); progression Bb-Eb-Ab-Fm-C# (variante de 25-32 mélangée avec A)"
+  },
+  {
+   "mesure": 75,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Verse prolongée (14 bars non régulière); Ab-Fm-C#-Eb; rejoue ≈1–14"
+  },
+  {
+   "mesure": 89,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "couplet 3 fragmenté (20 mesures); pattern Ab-Fm-C# répétitif dégradé; niveau dégringolade progressive; signal 89 (5/7)"
+  },
+  {
+   "mesure": 109,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "final (3 mesures); chant absent (....); volume s'écroule -26.9 dB"
+  }
+ ],
+ "retenues": [
+  9,
+  25,
+  33,
+  41,
+  51,
+  67,
+  75,
+  89
+ ],
+ "meilleure_lecture": [
+  [
+   1,
+   8,
+   "intro",
+   "chant absent (....); introduction instrumentale progression Ab-Fm-C#-Eb"
+  ],
+  [
+   9,
+   24,
+   "A",
+   "couplet principal, chant dense (#### régulier); progression Ab-Fm-C#-Eb sur 16 mesures (2× le pattern 8-bar)"
+  ],
+  [
+   25,
+   32,
+   "B",
+   "pré-refrain; accords novo C#-Ab-Bb-Eb (distinct de A); signal 25 (5/7 changement)"
+  ],
+  [
+   33,
+   40,
+   "pont",
+   "transition courte (8 mesures), retour vers Ab-Fm; prépare la rupture d'accord en 41"
+  ],
+  [
+   41,
+   50,
+   "C",
+   "refrain énergique; accords E-F# radicalement nouveau; volume +1.6 à +2.6 dB (pics absolus); signal 41 (6/7)"
+  ],
+  [
+   51,
+   70,
+   "A",
+   "couplet 2 étendu (20 mesures); retour Ab-Fm-C#-Eb + extension Bb-Eb; ≈1-2 en rejoue; signal 51 (7/7)"
+  ],
+  [
+   71,
+   88,
+   "B",
+   "pré-refrain 2 (18 mesures); progression Bb-Eb-Ab-Fm-C# (variante de 25-32 mélangée avec A)"
+  ],
+  [
+   89,
+   108,
+   "A",
+   "couplet 3 fragmenté (20 mesures); pattern Ab-Fm-C# répétitif dégradé; niveau dégringolade progressive; signal 89 (5/7)"
+  ],
+  [
+   109,
+   111,
+   "outro",
+   "final (3 mesures); chant absent (....); volume s'écroule -26.9 dB"
+  ]
+ ],
+ "doutes": [
+  "Limite 71-88 flue—c'est un hybrid Bb-Eb+Ab-Fm qui pourrait étirer le C refrain plutôt que d'être vraiment B. Mesures 89-108 récitent le motif principal mais si fragmenté qu'il pourrait classer séparé de 51-70.",
+  "Multiples occurrences de A (33–40, 51–58, 59–66, 75–88) à longueurs inégales : pas clair si 59–66 est variante de A ou transition autonome (rejoue ≈21–26 au lieu du ≈1–14 habituel). Le pont 41–50 est le seul shift majeur (E/F# vs Ab mineur).",
+  "51-66 contient une variante (59-66 passe à Ab au lieu d'Eb), 75-88 s'allonge d'une queue Fm"
+ ]
+}

@@ -1,0 +1,107 @@
+{
+ "stem": "bobby_hebb_sunny_official_audio",
+ "n": 88,
+ "tirages": 3,
+ "cout": 0.3508,
+ "frontieres": [
+  {
+   "mesure": 5,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "signal 16 (7/7) = frontière forte; motif stable Em-G-C-B, niveau croissant de -14 à -3 dB"
+  },
+  {
+   "mesure": 17,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "rejouage 17≈5 (++), mêmes accords 17-24 que 5-12; variation 25-32 (F→F#m), durée différente (16 vs 12 mesures)"
+  },
+  {
+   "mesure": 33,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "signal 33 (6/7) = frontière forte; modulation majeure C/Fm/Ab/C#, puis F#/Gm; niveau stable autour de +1 dB"
+  },
+  {
+   "mesure": 49,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "modulation F#m/A/D (tonalité neuve); rejouage partiel 49≈57 (++); signal 51 (5/7) = changement interne du timbre"
+  },
+  {
+   "mesure": 65,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "signal 65 (4/7) = changement; modulation Gm/Eb/D; rejouage 65≈73 (++); Am à mes. 78 = transition vers outro"
+  },
+  {
+   "mesure": 81,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "alternance Cm/Gm (motif réduit), chant silence à partir de 81, level en chute libre (-8 à -50 dB), N aux mes. 87-88"
+  },
+  {
+   "mesure": 85,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "accord N, chant absent (.....), niveau s'effondre -17 à -50 dB, mesure 85 marque (4/7)"
+  }
+ ],
+ "retenues": [
+  5,
+  17,
+  33,
+  49,
+  65,
+  81
+ ],
+ "meilleure_lecture": [
+  [
+   1,
+   4,
+   "intro",
+   "silence et niveau très bas (-22 dB), progression d'accueil N→Em→N→C"
+  ],
+  [
+   5,
+   16,
+   "A",
+   "signal 16 (7/7) = frontière forte; motif stable Em-G-C-B, niveau croissant de -14 à -3 dB"
+  ],
+  [
+   17,
+   32,
+   "A",
+   "rejouage 17≈5 (++), mêmes accords 17-24 que 5-12; variation 25-32 (F→F#m), durée différente (16 vs 12 mesures)"
+  ],
+  [
+   33,
+   48,
+   "B",
+   "signal 33 (6/7) = frontière forte; modulation majeure C/Fm/Ab/C#, puis F#/Gm; niveau stable autour de +1 dB"
+  ],
+  [
+   49,
+   64,
+   "C",
+   "modulation F#m/A/D (tonalité neuve); rejouage partiel 49≈57 (++); signal 51 (5/7) = changement interne du timbre"
+  ],
+  [
+   65,
+   80,
+   "D",
+   "signal 65 (4/7) = changement; modulation Gm/Eb/D; rejouage 65≈73 (++); Am à mes. 78 = transition vers outro"
+  ],
+  [
+   81,
+   88,
+   "outro",
+   "alternance Cm/Gm (motif réduit), chant silence à partir de 81, level en chute libre (-8 à -50 dB), N aux mes. 87-88"
+  ]
+ ],
+ "doutes": [
+  "la séparation A/A (deux sections consécutives même lettre) n'est pas habituelle, mais justifiée par signal 16 (7/7) + rejouage 17≈5 très ressemblant",
+  "A et A' ne durent pas pareil (12 vs 16 mesures) mais se lient par le motif et rejoue ++. Mesures 81-84 changent d'harmonie (Cm) et pourraient former une coda séparée.",
+  "Les mesures 5–32 pourraient être fusionnées en une seule longue section A (28 mesures) plutôt que séparées en A et A', car les progressions d'accord et de mélodie sont identiques; seul l'arrangement (batterie, énergie) change drastiquement à mes 16."
+ ]
+}

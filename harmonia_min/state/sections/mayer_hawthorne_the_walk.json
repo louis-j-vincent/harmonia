@@ -1,0 +1,62 @@
+{
+ "stem": "mayer_hawthorne_the_walk",
+ "n": 100,
+ "validated": true,
+ "sections": [
+  {
+   "b0": 0,
+   "b1": 7,
+   "label": "intro"
+  },
+  {
+   "b0": 8,
+   "b1": 15,
+   "label": "A"
+  },
+  {
+   "b0": 16,
+   "b1": 23,
+   "label": "A"
+  },
+  {
+   "label": "B",
+   "b0": 24,
+   "b1": 35
+  },
+  {
+   "b0": 36,
+   "b1": 43,
+   "label": "A"
+  },
+  {
+   "b0": 44,
+   "b1": 51,
+   "label": "A"
+  },
+  {
+   "b0": 52,
+   "b1": 63,
+   "label": "B"
+  },
+  {
+   "label": "bridge",
+   "b0": 64,
+   "b1": 71
+  },
+  {
+   "b0": 72,
+   "b1": 79,
+   "label": "A"
+  },
+  {
+   "label": "B",
+   "b0": 80,
+   "b1": 91
+  },
+  {
+   "label": "outro",
+   "b0": 92,
+   "b1": 99
+  }
+ ]
+}

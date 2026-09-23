@@ -1,0 +1,146 @@
+{
+ "stem": "bein_green",
+ "n": 52,
+ "tirages": 3,
+ "cout": 0.3008,
+ "frontieres": [
+  {
+   "mesure": 5,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Couplet : progression d'accords Bb→Cm, chant continu (####), batterie forte, rejoue ++ soutenue."
+  },
+  {
+   "mesure": 13,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Couplet répété (rejoue ≈5–8, ≈17–19 matching 5–11), même progression, volume monte légèrement."
+  },
+  {
+   "mesure": 20,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Signal multisignal à mes 20 (3/7) : chant s'arrête (....),  introduction de C# chromatique, volume monte."
+  },
+  {
+   "mesure": 25,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Climax : Gm-C-F, chant #### fortissime, volume +6.7 dB, batterie absente."
+  },
+  {
+   "mesure": 28,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Couplet 3 : F→Bb→...→Bb, rejoue progresse ≈4→≈20, chant revient, batterie réappalaît."
+  },
+  {
+   "mesure": 36,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Signal multisignal à mes 36 (5/7) : structure identique à pont précédent (Ab-C#-Bb), transition vers refrain."
+  },
+  {
+   "mesure": 41,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Refrain 2 : même Gm-C-F, chant #### peak +7.7 dB (plus fort que B1), batterie partielle."
+  },
+  {
+   "mesure": 44,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Couplet 4 final : F→Eb, Dm au lieu d'Ab (mes 47, variation), chant et volume s'éteignent progressivement."
+  },
+  {
+   "mesure": 49,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "retour à tonalité finale Cm-F-Eb-Bb, signal vote 49 (5/7), ressemble à 33-35, chant descend"
+  },
+  {
+   "mesure": 52,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Bb seul, chant absent, volume -2.3 dB, fin de morceau."
+  }
+ ],
+ "retenues": [
+  5,
+  13,
+  20,
+  25,
+  28,
+  36,
+  41,
+  44,
+  52
+ ],
+ "meilleure_lecture": [
+  [
+   1,
+   4,
+   "intro",
+   "Volume très bas, batterie quasi inexistante, chant léger en anacrouse (mes 4)."
+  ],
+  [
+   5,
+   12,
+   "A",
+   "Couplet : progression d'accords Bb→Cm, chant continu (####), batterie forte, rejoue ++ soutenue."
+  ],
+  [
+   13,
+   19,
+   "A",
+   "Couplet répété (rejoue ≈5–8, ≈17–19 matching 5–11), même progression, volume monte légèrement."
+  ],
+  [
+   20,
+   24,
+   "pont",
+   "Signal multisignal à mes 20 (3/7) : chant s'arrête (....),  introduction de C# chromatique, volume monte."
+  ],
+  [
+   25,
+   27,
+   "B",
+   "Climax : Gm-C-F, chant #### fortissime, volume +6.7 dB, batterie absente."
+  ],
+  [
+   28,
+   35,
+   "A",
+   "Couplet 3 : F→Bb→...→Bb, rejoue progresse ≈4→≈20, chant revient, batterie réappalaît."
+  ],
+  [
+   36,
+   40,
+   "pont",
+   "Signal multisignal à mes 36 (5/7) : structure identique à pont précédent (Ab-C#-Bb), transition vers refrain."
+  ],
+  [
+   41,
+   43,
+   "B",
+   "Refrain 2 : même Gm-C-F, chant #### peak +7.7 dB (plus fort que B1), batterie partielle."
+  ],
+  [
+   44,
+   51,
+   "A",
+   "Couplet 4 final : F→Eb, Dm au lieu d'Ab (mes 47, variation), chant et volume s'éteignent progressivement."
+  ],
+  [
+   52,
+   52,
+   "outro",
+   "Bb seul, chant absent, volume -2.3 dB, fin de morceau."
+  ]
+ ],
+ "doutes": [
+  "Les 4 couplets A ne sont jamais identiques (A2 perd l'Eb; A3 commence par F; A4 a Dm au lieu d'Ab). Le pattern global et la colonne `rejoue` les lient; ils forment une même section avec variations mineures d'arrangement.",
+  "mesure 49 a signal 5/7 (Cm) mais reste cohérente avec structure verset ; les trois ponts (1, 5, 5 mesures) manquent d'harmonie mais correspondent aux colonnes",
+  "Mesure 44-48 finit sur G au lieu de Bb (break du pattern A standard); mesure 12 très courte pour être une vraie section ; la longueur de A varie (7, 7, 8, 5 mesures)"
+ ]
+}

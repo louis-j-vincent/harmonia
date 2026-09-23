@@ -1,0 +1,126 @@
+{
+ "stem": "bruno_mars_grenade_official_music_video",
+ "n": 99,
+ "tirages": 2,
+ "cout": 0.2296,
+ "frontieres": [
+  {
+   "mesure": 9,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "Chant rentre dense (####), niveau monte à -0.6 dB, signal audio 4/7, même progression Dm/Am mais avec voix"
+  },
+  {
+   "mesure": 17,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "Changement radical : Bb-C-F (vs Dm-Am), signal audio 4/7, niveau saute à +0.8 dB, refrain ; m.30 a N et chant .### (transition)"
+  },
+  {
+   "mesure": 31,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "Retour Dm/Am identique à intro/couplet 1, signal 5/7 à m.32, chant remonte après faiblesse initiale, durée 20 mesures (vs 8 m.9-16)"
+  },
+  {
+   "mesure": 51,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "Progression Bb-C-Dm-F reprend celle de m.17-29, signal 4/7, refrain 2, rejeu confirmé (≈17-29)"
+  },
+  {
+   "mesure": 63,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "Gm-A apparaissent (hors Dm/Am et Bb-C-F précédents), pont clair, nouvelle section"
+  },
+  {
+   "mesure": 73,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "Signal 7/7 à m.73 (plus unanime du morceau), chant quasi absent (....), niveau -9 dB, rupture dramatique, break"
+  },
+  {
+   "mesure": 77,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "Bb-C-Dm-F reprennent, signal 4/7 à m.77, refrain 3, durée 14 mesures ; m.90 a A atypique et chant .### (transition vers outro)"
+  },
+  {
+   "mesure": 90,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "Dm/Am retour minimal, ≈1-4-3 pattern base, fin sur N (99)"
+  }
+ ],
+ "retenues": [
+  9,
+  17,
+  31,
+  51,
+  63,
+  73,
+  77,
+  90
+ ],
+ "meilleure_lecture": [
+  [
+   1,
+   8,
+   "intro",
+   "Dm/Am en boucle, chant absent ou minimal, niveau -10 dB, batterie quartile très bas"
+  ],
+  [
+   9,
+   16,
+   "A",
+   "Chant rentre dense (####), niveau monte à -0.6 dB, signal audio 4/7, même progression Dm/Am mais avec voix"
+  ],
+  [
+   17,
+   30,
+   "B",
+   "Changement radical : Bb-C-F (vs Dm-Am), signal audio 4/7, niveau saute à +0.8 dB, refrain ; m.30 a N et chant .### (transition)"
+  ],
+  [
+   31,
+   50,
+   "A",
+   "Retour Dm/Am identique à intro/couplet 1, signal 5/7 à m.32, chant remonte après faiblesse initiale, durée 20 mesures (vs 8 m.9-16)"
+  ],
+  [
+   51,
+   62,
+   "B",
+   "Progression Bb-C-Dm-F reprend celle de m.17-29, signal 4/7, refrain 2, rejeu confirmé (≈17-29)"
+  ],
+  [
+   63,
+   72,
+   "C",
+   "Gm-A apparaissent (hors Dm/Am et Bb-C-F précédents), pont clair, nouvelle section"
+  ],
+  [
+   73,
+   76,
+   "D",
+   "Signal 7/7 à m.73 (plus unanime du morceau), chant quasi absent (....), niveau -9 dB, rupture dramatique, break"
+  ],
+  [
+   77,
+   90,
+   "B",
+   "Bb-C-Dm-F reprennent, signal 4/7 à m.77, refrain 3, durée 14 mesures ; m.90 a A atypique et chant .### (transition vers outro)"
+  ],
+  [
+   91,
+   99,
+   "outro",
+   "Dm/Am reviennent, chant fragmenté, niveau baisse progressivement (-2 à -12.6 dB), dernière mesure N, diminuendo final"
+  ]
+ ],
+ "doutes": [
+  "Mesures 30 (N) et 90 (A atypique) sont des transitions intégrées dans les sections qui les précédent, bien qu'elles marquent clairement un changement ; la durée du couplet A varie énormément (8 → 20 → 9 mesures) mais la progression harmonique et le rôle structurel restent similaires.",
+  "verse 2 (31-50) dure 2.5× verse 1; aurait pu se découper en 31-42 (A sparse) + 43-50 (transition), mais longueurs variables existent en pop"
+ ]
+}

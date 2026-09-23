@@ -1,0 +1,107 @@
+{
+ "stem": "the_jackson_5_abc",
+ "n": 74,
+ "tirages": 3,
+ "cout": 0.322,
+ "frontieres": [
+  {
+   "mesure": 9,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Ab dominant, chant ####, groove principal stable; m16-22 se répètent partiellement à m56-62 selon rejoue"
+  },
+  {
+   "mesure": 13,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "section principale Ab-stable (sauf C# aux mes 14, 18, 37), chant régulier fort, batterie ####"
+  },
+  {
+   "mesure": 42,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Rupture totale (signal 6/7 m42), accord N, silence complet (m42-43), préparation"
+  },
+  {
+   "mesure": 48,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Accords transitoires (Fm m49-53, C#), niveau stable ~0 dB, interlude avant retour de groove"
+  },
+  {
+   "mesure": 55,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Répétition de la structure A: Ab pur (15 mesures), rejoue recoupe 16-40 (≈17, ≈18, ≈19 etc.), rupture majeure à m.70 (6/7 signaux), batterie énergie ++++ signale transition vers fin"
+  },
+  {
+   "mesure": 62,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "reprise d'Ab, mesures se rejouent avec section A (62≈13, 63≈14, 64≈19, etc)"
+  },
+  {
+   "mesure": 71,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Fin progressive: chant s'éteint (##.., .#.., .##.), niveau plonge (-1.4, -7.4, -7.3), accord N revient, diminuendo sur 4 mesures"
+  },
+  {
+   "mesure": 73,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "niveau critique (-7.3 à -7.4), chant s'efface, fade out final"
+  }
+ ],
+ "retenues": [
+  9,
+  42,
+  48,
+  55,
+  71,
+  73
+ ],
+ "meilleure_lecture": [
+  [
+   1,
+   8,
+   "intro",
+   "Accord instable (N → C# → Ab), chant s'établit graduellement, niveau très bas (-10.5 dB)"
+  ],
+  [
+   9,
+   41,
+   "A",
+   "Ab dominant, chant ####, groove principal stable; m16-22 se répètent partiellement à m56-62 selon rejoue"
+  ],
+  [
+   42,
+   47,
+   "pont",
+   "Rupture totale (signal 6/7 m42), accord N, silence complet (m42-43), préparation"
+  ],
+  [
+   48,
+   55,
+   "B",
+   "Accords transitoires (Fm m49-53, C#), niveau stable ~0 dB, interlude avant retour de groove"
+  ],
+  [
+   56,
+   71,
+   "A",
+   "Ab revient, chant ####, même groove que première A; m56-62 ≈ m16-22 (rejoue), version plus courte (16 vs 33 mesures)"
+  ],
+  [
+   72,
+   74,
+   "outro",
+   "Chant réduit (.#.., .##., .###), accord N, niveau plonge (-1.4 à -7.3 dB)"
+  ]
+ ],
+ "doutes": [
+  "A réapparaît fragmenté (m9-41 puis m56-71); les deux sont séparées par un interlude (Fm/C#) et une rupture, mais partageaient le même groove Ab et la même ressemblance m16-22 ≈ m56-62.",
+  "Longueurs inégales (33, 6, 7, 16 mesures) au lieu de multiples réguliers. La section B (48-54, 7 mesures) pourrait rester attachée à A comme variation interne plutôt que section autonome; elle dure moins d'une barre complète. Mesures 48-70 pourraient aussi se lire comme une seule répétition varié de A rather than B+A'.",
+  "signal léger à mes 70 (6/7); mesures 71–72 forment une queue de A (chant réduit ##..) mais restent cohérentes avec elle"
+ ]
+}

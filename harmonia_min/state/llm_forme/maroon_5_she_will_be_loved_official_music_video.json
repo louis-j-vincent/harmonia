@@ -1,0 +1,145 @@
+{
+ "stem": "maroon_5_she_will_be_loved_official_music_video",
+ "n": 107,
+ "tirages": 3,
+ "cout": 0.3707,
+ "frontieres": [
+  {
+   "mesure": 5,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Chant entre progressivement, alternance Cm/Bb régulière (rejoue ≈1-2)."
+  },
+  {
+   "mesure": 9,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "chant stable, Cm-Bb alternant régulier, niveau monte graduellement"
+  },
+  {
+   "mesure": 21,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Eb introduit, progression Eb-Bb-Cm-Ab régulière, montée d'intensité progressive"
+  },
+  {
+   "mesure": 33,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "refrain haute intensité, batterie ####, signal 7/7 à mes 34, Cm-Bb alternant"
+  },
+  {
+   "mesure": 49,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Refrain répété, Eb/Bb/Cm/Ab (rejoue ≈20-21), niveau monte à +1.7."
+  },
+  {
+   "mesure": 63,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "transition, retour Cm-Bb calme, pas d'accord majeur nouveau, peu de signaux clairs"
+  },
+  {
+   "mesure": 66,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "Cm/Bb (rejoue ≈1-2), chant #### fort, verse court."
+  },
+  {
+   "mesure": 74,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "couplet 2, très calme, Cm-Bb, niveau très bas, signal 7/7 marque le changement"
+  },
+  {
+   "mesure": 80,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "refrain final, progression Eb-Bb-Cm-Ab répétée 5 fois, intensité haute, queue Cm"
+  },
+  {
+   "mesure": 97,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "Retour au Cm/Bb alternant, chant régulier, réplique courte du couplet"
+  },
+  {
+   "mesure": 103,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Ab tenu 5 fois, niveau chute drastiquement (-0.7 à -6.8), signal 7/7, clôture"
+  }
+ ],
+ "retenues": [
+  5,
+  21,
+  33,
+  49,
+  63,
+  74,
+  80,
+  103
+ ],
+ "meilleure_lecture": [
+  [
+   1,
+   8,
+   "intro",
+   "pas de chant sérieux, instruments s'amassent progressivement, batterie et niveau très bas"
+  ],
+  [
+   9,
+   20,
+   "A",
+   "chant stable, Cm-Bb alternant régulier, niveau monte graduellement"
+  ],
+  [
+   21,
+   32,
+   "B",
+   "Eb introduit, progression Eb-Bb-Cm-Ab régulière, montée d'intensité progressive"
+  ],
+  [
+   33,
+   49,
+   "C",
+   "refrain haute intensité, batterie ####, signal 7/7 à mes 34, Cm-Bb alternant"
+  ],
+  [
+   50,
+   62,
+   "B",
+   "pré-refrain 2, progression Eb-Bb-Cm-Ab identique à 21-32, plus une mesure Eb (13 vs 12)"
+  ],
+  [
+   63,
+   73,
+   "pont",
+   "transition, retour Cm-Bb calme, pas d'accord majeur nouveau, peu de signaux clairs"
+  ],
+  [
+   74,
+   79,
+   "A",
+   "couplet 2, très calme, Cm-Bb, niveau très bas, signal 7/7 marque le changement"
+  ],
+  [
+   80,
+   102,
+   "C",
+   "refrain final, progression Eb-Bb-Cm-Ab répétée 5 fois, intensité haute, queue Cm"
+  ],
+  [
+   103,
+   107,
+   "outro",
+   "Ab tenu 5 fois, niveau chute drastiquement (-0.7 à -6.8), signal 7/7, clôture"
+  ]
+ ],
+ "doutes": [
+  "Refrain final (80-102) fusionne progression pré-refrain avec rôle de refrain, pont (63-73) manque de marqueurs acoustiques forts",
+  "Les deux ponts interludes (74-79, 6 mesures; 63-65, 3 mesures) sont inhabituellement courts et le pont 74-79 a un décrescendo extrême (-20.7 dB), confirmés par signal 7/7 mais peu conventionnels.",
+  "La section D est définie par absence d'Eb plutôt que par présence marquée ; la limite D/pont (m.74-75) repose sur le volume plutôt que sur un changement harmonique net."
+ ]
+}

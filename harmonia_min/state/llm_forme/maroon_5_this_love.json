@@ -1,0 +1,144 @@
+{
+ "stem": "maroon_5_this_love",
+ "n": 80,
+ "tirages": 3,
+ "cout": 1.2159,
+ "frontieres": [
+  {
+   "mesure": 9,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Le chant démarre (#### dès mes.9) sur les mêmes G-Cm-Fm-Ddim x2 que l'intro ; rejoue ≈1-4 confirme que c'est la même grille, maintenant chantée."
+  },
+  {
+   "mesure": 17,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Frontière forte (5/7 signaux à mes.17) : les accords quittent G-Cm-Fm-Ddim pour Fm-Eb puis Fm-Bb-Cm-Ab, niveau grimpe de -0.8 à +2.1."
+  },
+  {
+   "mesure": 25,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Frontière forte (5/7 signaux à mes.25), retour de G-Cm-Fm-Ddim (rejoue ≈1,6-8) — même couplet que A mais étiré à 12 mesures : accord N (silence tenu) à mes.29 (niveau -5.5, batterie réduite à #), substitution Bdim mes.33 (rejoue≈5), puis clôture comme 13-16 (rejoue≈14-16)."
+  },
+  {
+   "mesure": 37,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Cm-Eb-Cm-Bb-Fm-Eb-Cm-Ab ; rejoue calque mesure par mesure 17-24 (37→17, 38→18 … 44→24) — même section que B, juste variée."
+  },
+  {
+   "mesure": 45,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Frontière la plus forte du morceau (7/7 signaux à mes.45) : retour de G-Cm-Fm-Ddim (rejoue 45→1, 46→14, 47→15) mais coupé à 4 mesures seulement avant de bifurquer."
+  },
+  {
+   "mesure": 49,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Frontière à mes.49 (5/7 signaux) : Fm-Eb-Bdim-Cm-Fm-Eb-G-G sans équivalent fort ailleurs (rejoue faible, ≈ sans + ni ++), batterie quasi silencieuse, niveau grimpe en continu (+0.3 à +1.8) ; les deux mesures de G tenues (55-56) servent de tremplin vers le refrain."
+  },
+  {
+   "mesure": 57,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "G-Cm-Eb-Fm-Bb-Fm-Bb-Cm-Ab : rejoue toujours la famille 17/18/21 mais niveau au sommet (+0.1 à +2.5) et chant #### continu — c'est un refrain nouveau, pas un simple pré-refrain de plus."
+  },
+  {
+   "mesure": 65,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Même grille que 57-64 (rejoue ≈17/18/21, et 70-72 rejoue directement 62-64) — refrain répété, niveau encore plus haut (+1.6 à +2.7), pic dynamique du morceau."
+  },
+  {
+   "mesure": 73,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Mêmes accords de refrain (rejoue ≈17/18, ≈70-72) mais le niveau s'effondre de +1.8 (mes.73) à -31.7 (mes.80) et le chant s'éteint (#... puis .... à mes.80) — fondu de sortie sur la boucle du refrain."
+  },
+  {
+   "mesure": 77,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Chute nette et continue de la dynamique dès mes.77 (-0.9→-4.4→-8.2→-15.5→-31.7) et chant qui s'éteint (mes.80='....') : fondu de sortie sur la cellule Fm-Bb-Cm-Ab."
+  }
+ ],
+ "retenues": [
+  9,
+  17,
+  25,
+  37,
+  45,
+  49,
+  57
+ ],
+ "meilleure_lecture": [
+  [
+   1,
+   8,
+   "intro",
+   "Pas de chant (....) sur G-Cm-Fm-Ddim x2 ; même boucle à froid (-10.7 à -9.3 dB, batterie #/##) puis en plein volume dès mes.5 (-4.8 à -4.1, batterie ####) — même matériau, juste la montée d'énergie avant l'entrée du chant."
+  ],
+  [
+   9,
+   16,
+   "A",
+   "Le chant démarre (#### dès mes.9) sur les mêmes G-Cm-Fm-Ddim x2 que l'intro ; rejoue ≈1-4 confirme que c'est la même grille, maintenant chantée."
+  ],
+  [
+   17,
+   24,
+   "B",
+   "Frontière forte (5/7 signaux à mes.17) : les accords quittent G-Cm-Fm-Ddim pour Fm-Eb puis Fm-Bb-Cm-Ab, niveau grimpe de -0.8 à +2.1."
+  ],
+  [
+   25,
+   36,
+   "A",
+   "Frontière forte (5/7 signaux à mes.25), retour de G-Cm-Fm-Ddim (rejoue ≈1,6-8) — même couplet que A mais étiré à 12 mesures : accord N (silence tenu) à mes.29 (niveau -5.5, batterie réduite à #), substitution Bdim mes.33 (rejoue≈5), puis clôture comme 13-16 (rejoue≈14-16)."
+  ],
+  [
+   37,
+   44,
+   "B",
+   "Cm-Eb-Cm-Bb-Fm-Eb-Cm-Ab ; rejoue calque mesure par mesure 17-24 (37→17, 38→18 … 44→24) — même section que B, juste variée."
+  ],
+  [
+   45,
+   48,
+   "A",
+   "Frontière la plus forte du morceau (7/7 signaux à mes.45) : retour de G-Cm-Fm-Ddim (rejoue 45→1, 46→14, 47→15) mais coupé à 4 mesures seulement avant de bifurquer."
+  ],
+  [
+   49,
+   56,
+   "pont",
+   "Frontière à mes.49 (5/7 signaux) : Fm-Eb-Bdim-Cm-Fm-Eb-G-G sans équivalent fort ailleurs (rejoue faible, ≈ sans + ni ++), batterie quasi silencieuse, niveau grimpe en continu (+0.3 à +1.8) ; les deux mesures de G tenues (55-56) servent de tremplin vers le refrain."
+  ],
+  [
+   57,
+   64,
+   "C",
+   "G-Cm-Eb-Fm-Bb-Fm-Bb-Cm-Ab : rejoue toujours la famille 17/18/21 mais niveau au sommet (+0.1 à +2.5) et chant #### continu — c'est un refrain nouveau, pas un simple pré-refrain de plus."
+  ],
+  [
+   65,
+   72,
+   "C",
+   "Même grille que 57-64 (rejoue ≈17/18/21, et 70-72 rejoue directement 62-64) — refrain répété, niveau encore plus haut (+1.6 à +2.7), pic dynamique du morceau."
+  ],
+  [
+   73,
+   80,
+   "outro",
+   "Mêmes accords de refrain (rejoue ≈17/18, ≈70-72) mais le niveau s'effondre de +1.8 (mes.73) à -31.7 (mes.80) et le chant s'éteint (#... puis .... à mes.80) — fondu de sortie sur la boucle du refrain."
+  ]
+ ],
+ "doutes": [
+  "La coupure 56/57 est un choix (les deux G tenus en 55-56 pourraient déjà appartenir au refrain) ; et j'ai étiqueté 73-80 'outro' plutôt qu'un 3e C parce que le niveau s'effondre, alors qu'harmoniquement c'est identique au refrain.",
+  "Le bloc B de mes.57 à 76 (20 mesures) pourrait être 2-3 refrains distincts plutôt qu'un seul long bloc, et la frontière pont/B pourrait être mes.58 (retour plein de la batterie) plutôt que mes.57 (retour des accords).",
+  "le découpage de 57-80 en trois refrains distincts (plutôt qu'un seul bloc continu) et le statut de 45-48 comme couplet à part entière plutôt que début du pont sont des lectures, pas des certitudes."
+ ]
+}

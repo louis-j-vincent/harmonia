@@ -1,0 +1,158 @@
+{
+ "stem": "jorja_smith_blue_lights_a_colors_show",
+ "n": 84,
+ "tirages": 3,
+ "cout": 0.3936,
+ "frontieres": [
+  {
+   "mesure": 5,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Vamp G-Bm, chant entrant progressivement (##.# → ####), niveau monte (-1.8 dB), mesures ≈1-2 alternant"
+  },
+  {
+   "mesure": 13,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Accord F# (7/7 signaux en m.13), chant s'arrête, niveau baisse (-2.9 à -2.2), interlude (mesures ≈13-16)"
+  },
+  {
+   "mesure": 17,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Refrain intensif (7/7 signaux en m.17), chant #### partout, niveau haut (+0.2 à +1.9), vamp G-Bm énergisé, batterie #### à ###"
+  },
+  {
+   "mesure": 29,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Accord F# (6/7 signaux en m.29), chant minimal (....)), niveau baisse (-1.7 à -0.2), récurrence (mesures ≈13-16)"
+  },
+  {
+   "mesure": 33,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Refrain répété (6/7 signaux en m.33), chant #### continu, mesures ≈1-2, m.44 = G-G (léger changement)"
+  },
+  {
+   "mesure": 45,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Accord F# (6/7 signaux en m.45), chant réduit (#....), niveau baisse (-1.2 à -1.8), récurrence avant climax (mesures ≈13-16)"
+  },
+  {
+   "mesure": 49,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Refrain climax (6/7 signaux en m.49), chant #### intense, niveau maximum (+2.1 en m.55), prolongé 16 mesures, sommet énergétique"
+  },
+  {
+   "mesure": 61,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "Sortie progressive: transition F# (61-64), outro G-Bm déclinant (65-80), fade conclusif (81-84), niveau → -23.3"
+  },
+  {
+   "mesure": 65,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Descente progressive, vamp G-Bm avec variations, chant reste ####, niveau descend lentement, batterie baisse"
+  },
+  {
+   "mesure": 77,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "Accord F# (mesures ≈13-16), chant décroît (#### → ...#), dernier rappel du motif avant finale"
+  },
+  {
+   "mesure": 81,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Finale rapide, chant revient lièrement (.###) puis disparaît (....)), niveau s'effondre (-23.3 dB), batterie minimale"
+  }
+ ],
+ "retenues": [
+  5,
+  13,
+  17,
+  29,
+  33,
+  45,
+  49,
+  65,
+  81
+ ],
+ "meilleure_lecture": [
+  [
+   1,
+   4,
+   "intro",
+   "Instrumental pur, chant absent (.....), batterie minimale (≈7-18), accord G-Bm simple"
+  ],
+  [
+   5,
+   12,
+   "A",
+   "Vamp G-Bm, chant entrant progressivement (##.# → ####), niveau monte (-1.8 dB), mesures ≈1-2 alternant"
+  ],
+  [
+   13,
+   16,
+   "pont",
+   "Accord F# (7/7 signaux en m.13), chant s'arrête, niveau baisse (-2.9 à -2.2), interlude (mesures ≈13-16)"
+  ],
+  [
+   17,
+   28,
+   "B",
+   "Refrain intensif (7/7 signaux en m.17), chant #### partout, niveau haut (+0.2 à +1.9), vamp G-Bm énergisé, batterie #### à ###"
+  ],
+  [
+   29,
+   32,
+   "pont",
+   "Accord F# (6/7 signaux en m.29), chant minimal (....)), niveau baisse (-1.7 à -0.2), récurrence (mesures ≈13-16)"
+  ],
+  [
+   33,
+   44,
+   "B",
+   "Refrain répété (6/7 signaux en m.33), chant #### continu, mesures ≈1-2, m.44 = G-G (léger changement)"
+  ],
+  [
+   45,
+   48,
+   "pont",
+   "Accord F# (6/7 signaux en m.45), chant réduit (#....), niveau baisse (-1.2 à -1.8), récurrence avant climax (mesures ≈13-16)"
+  ],
+  [
+   49,
+   64,
+   "B",
+   "Refrain climax (6/7 signaux en m.49), chant #### intense, niveau maximum (+2.1 en m.55), prolongé 16 mesures, sommet énergétique"
+  ],
+  [
+   65,
+   76,
+   "outro",
+   "Descente progressive, vamp G-Bm avec variations, chant reste ####, niveau descend lentement, batterie baisse"
+  ],
+  [
+   77,
+   80,
+   "pont",
+   "Accord F# (mesures ≈13-16), chant décroît (#### → ...#), dernier rappel du motif avant finale"
+  ],
+  [
+   81,
+   84,
+   "outro",
+   "Finale rapide, chant revient lièrement (.###) puis disparaît (....)), niveau s'effondre (-23.3 dB), batterie minimale"
+  ]
+ ],
+ "doutes": [
+  "Intégrer 77-80 comme pont récurrent (données ≈13-16) ou l'absorber dans l'outro? Les colonnes le justifient, mais musicalement c'est un pont dilué en fin de descente. De plus, les refrains B de 17-28 et 33-44 font 12 mesures (non-standard) — pourrait justifier une scission 8+4, mais aucune rupture dans les colonnes ne le soutient.",
+  "Section A longue (48 mesures) groupant pré-chorus+chorus alternés; les signaux multiples (7/7 m.17, 6/7 m.33, m.45, m.49) pourraient justifier une subdivision",
+  "Les trois sections B varient légèrement dans les accords (F#sus4 à mes 47); elles remplissent la même fonction structurelle malgré ces variations"
+ ]
+}

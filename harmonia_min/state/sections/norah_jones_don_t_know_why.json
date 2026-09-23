@@ -1,0 +1,62 @@
+{
+ "stem": "norah_jones_don_t_know_why",
+ "n": 66,
+ "validated": true,
+ "sections": [
+  {
+   "b0": 0,
+   "b1": 3,
+   "label": "intro"
+  },
+  {
+   "b0": 4,
+   "b1": 11,
+   "label": "A"
+  },
+  {
+   "b0": 12,
+   "b1": 13,
+   "label": "queue"
+  },
+  {
+   "b0": 14,
+   "b1": 21,
+   "label": "A"
+  },
+  {
+   "b0": 22,
+   "b1": 29,
+   "label": "B"
+  },
+  {
+   "b0": 30,
+   "b1": 37,
+   "label": "A"
+  },
+  {
+   "b0": 38,
+   "b1": 45,
+   "label": "B"
+  },
+  {
+   "b0": 46,
+   "b1": 53,
+   "label": "A"
+  },
+  {
+   "b0": 54,
+   "b1": 61,
+   "label": "A"
+  },
+  {
+   "label": "queue",
+   "b0": 62,
+   "b1": 63
+  },
+  {
+   "b0": 64,
+   "b1": 65,
+   "label": "outro"
+  }
+ ]
+}

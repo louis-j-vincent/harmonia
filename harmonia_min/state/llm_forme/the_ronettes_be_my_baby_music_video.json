@@ -1,0 +1,167 @@
+{
+ "stem": "the_ronettes_be_my_baby_music_video",
+ "n": 85,
+ "tirages": 4,
+ "cout": 1.6647,
+ "frontieres": [
+  {
+   "mesure": 5,
+   "voix": 4,
+   "sur": 4,
+   "pourquoi": "le chant démarre mes.5 (.###) sur E-E-F#m-B répété deux fois; rejoue ++ le lie à mes.29-36"
+  },
+  {
+   "mesure": 13,
+   "voix": 4,
+   "sur": 4,
+   "pourquoi": "accord change pour Ab à mes.13 (chaîne Ab-C#-F#-B), chant continu ####, niveau remonte de -1.8 à +0.9dB sur les 8 mesures"
+  },
+  {
+   "mesure": 21,
+   "voix": 4,
+   "sur": 4,
+   "pourquoi": "l'accord revient à E (tonique) mes.21, suite E-C#m-A-B qui culmine à +1.3dB mes.28 — rejoue ++ la lie à 45-52, 61-68 et 71-78"
+  },
+  {
+   "mesure": 29,
+   "voix": 4,
+   "sur": 4,
+   "pourquoi": "reprise identique de mes.5-12 (E-E-F#m-B x2), rejoue confirme un décalage constant de -24 mesures"
+  },
+  {
+   "mesure": 37,
+   "voix": 4,
+   "sur": 4,
+   "pourquoi": "reprise identique de mes.13-20 (Ab-C#-F#-B), même montée de niveau -1.8→+0.9dB"
+  },
+  {
+   "mesure": 45,
+   "voix": 4,
+   "sur": 4,
+   "pourquoi": "reprise identique de mes.21-28, culmine encore à +1.3dB mes.52"
+  },
+  {
+   "mesure": 53,
+   "voix": 4,
+   "sur": 4,
+   "pourquoi": "l'accord retombe sur les changements de A (E-E-F#m-B x2, rejoue ++ vers mes.5-8/20) mais le chant s'arrête complètement de 54 à 59 (....) — interlude instrumental sur la grille de A, pas une vraie nouvelle section"
+  },
+  {
+   "mesure": 61,
+   "voix": 4,
+   "sur": 4,
+   "pourquoi": "le chant revient plein #### dès mes.61 sur E-C#m-A-B, même accord que 21-28/45-52"
+  },
+  {
+   "mesure": 69,
+   "voix": 4,
+   "sur": 4,
+   "pourquoi": "silence total: accord N, chant ...., batterie quasi nulle, niveau chute à -7.7/-9.5dB — coupure franche avant la dernière reprise du chœur"
+  },
+  {
+   "mesure": 71,
+   "voix": 4,
+   "sur": 4,
+   "pourquoi": "chant revient en anacrouse mes.71 (..##) puis plein dès 72, sur le même E-C#m-A-B"
+  },
+  {
+   "mesure": 79,
+   "voix": 4,
+   "sur": 4,
+   "pourquoi": "le niveau s'effondre dès mes.79 (+1.2→-0.5, puis -7.9, -11.4, -18.7, -24.3, -31.6dB), les accords rejouent le début de C (E-C#m-A) sans boucler jusqu'au B final, silence N à mes.85"
+  }
+ ],
+ "retenues": [
+  5,
+  13,
+  21,
+  29,
+  37,
+  45,
+  53,
+  61,
+  69,
+  71,
+  79
+ ],
+ "meilleure_lecture": [
+  [
+   1,
+   4,
+   "intro",
+   "aucun chant; accord N (batterie seule, -12/-11dB) puis E dès mes.3 (le groupe entre, -1.1dB) mais toujours sans chant avant mes.5"
+  ],
+  [
+   5,
+   12,
+   "A",
+   "le chant démarre mes.5 (.###) sur E-E-F#m-B répété deux fois; rejoue ++ le lie à mes.29-36"
+  ],
+  [
+   13,
+   20,
+   "B",
+   "accord change pour Ab à mes.13 (chaîne Ab-C#-F#-B), chant continu ####, niveau remonte de -1.8 à +0.9dB sur les 8 mesures"
+  ],
+  [
+   21,
+   28,
+   "C",
+   "l'accord revient à E (tonique) mes.21, suite E-C#m-A-B qui culmine à +1.3dB mes.28 — rejoue ++ la lie à 45-52, 61-68 et 71-78"
+  ],
+  [
+   29,
+   36,
+   "A",
+   "reprise identique de mes.5-12 (E-E-F#m-B x2), rejoue confirme un décalage constant de -24 mesures"
+  ],
+  [
+   37,
+   44,
+   "B",
+   "reprise identique de mes.13-20 (Ab-C#-F#-B), même montée de niveau -1.8→+0.9dB"
+  ],
+  [
+   45,
+   52,
+   "C",
+   "reprise identique de mes.21-28, culmine encore à +1.3dB mes.52"
+  ],
+  [
+   53,
+   60,
+   "pont",
+   "l'accord retombe sur les changements de A (E-E-F#m-B x2, rejoue ++ vers mes.5-8/20) mais le chant s'arrête complètement de 54 à 59 (....) — interlude instrumental sur la grille de A, pas une vraie nouvelle section"
+  ],
+  [
+   61,
+   68,
+   "C",
+   "le chant revient plein #### dès mes.61 sur E-C#m-A-B, même accord que 21-28/45-52"
+  ],
+  [
+   69,
+   70,
+   "pont",
+   "silence total: accord N, chant ...., batterie quasi nulle, niveau chute à -7.7/-9.5dB — coupure franche avant la dernière reprise du chœur"
+  ],
+  [
+   71,
+   78,
+   "C",
+   "chant revient en anacrouse mes.71 (..##) puis plein dès 72, sur le même E-C#m-A-B"
+  ],
+  [
+   79,
+   85,
+   "outro",
+   "le niveau s'effondre dès mes.79 (+1.2→-0.5, puis -7.9, -11.4, -18.7, -24.3, -31.6dB), les accords rejouent le début de C (E-C#m-A) sans boucler jusqu'au B final, silence N à mes.85"
+  ]
+ ],
+ "doutes": [
+  "53-60 et 69-70 rejouent harmoniquement A et le silence respectivement plutôt que d'être du matériau neuf — je les ai coupés en pont sur la logique de Louis (couper même sur du répété quand ça fait sens formellement), mais A/pont pour 53-60 est défendable dans les deux sens; la séparation B/C (mes.13 vs 21) repose sur la dynamique et la théorie harmonique (chaîne de dominantes vs I-vi-IV-V), pas sur une rupture de chant.",
+  "la lettre de la reprise instrumentale mes.53-60 (mêmes accords que A mais chant quasi muet) et le point exact où l'outro commence (79 ou plutôt 81, la batterie reste forte en 79-80) restent des choix de jugement ; le rejoue de 69-70 pointe étrangement vers les mes.43-44 (accord B chanté) malgré un silence total, ce signal a été ignoré au profit du niveau/chant/batterie.",
+  "mes.53-60 rejoue exactement les accords de A mais sans chant (interlude) — j'ai gardé la lettre A par cohérence harmonique plutôt que d'inventer une nouvelle lettre ; de même mes.79-85 est harmoniquement un C tronqué mais je l'ai appelé outro pour son fondu, un autre lecteur pourrait préférer le compter comme un dernier C.",
+  "le pont de mes.53-60 rejoue exactement les accords du couplet A (rejoue ≈5-11 ++) — c'est le chant absent qui justifie une lettre à part plutôt que de le fondre dans A ; de même le pont de mes.69-70 pourrait être vu comme la fin étirée du refrain précédent plutôt qu'une section propre."
+ ]
+}

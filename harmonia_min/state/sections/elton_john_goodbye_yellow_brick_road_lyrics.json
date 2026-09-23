@@ -1,0 +1,22 @@
+{
+ "stem": "elton_john_goodbye_yellow_brick_road_lyrics",
+ "n": 88,
+ "validated": true,
+ "sections": [
+  {
+   "label": "A",
+   "b0": 2,
+   "b1": 12
+  },
+  {
+   "label": "B",
+   "b0": 13,
+   "b1": 18
+  },
+  {
+   "label": "C",
+   "b0": 19,
+   "b1": 34
+  }
+ ]
+}

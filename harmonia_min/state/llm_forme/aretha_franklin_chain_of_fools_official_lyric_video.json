@@ -1,0 +1,75 @@
+{
+ "stem": "aretha_franklin_chain_of_fools_official_lyric_video",
+ "n": 78,
+ "tirages": 3,
+ "cout": 0.3767,
+ "frontieres": [
+  {
+   "mesure": 8,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "C majeur continu, groove stable marqué ≈1 partout (32 mesures); section principale avant pont"
+  },
+  {
+   "mesure": 40,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Pas d'accord (N remplace C), batterie minima; rupture 7/7 signaux à mesure 47 avec retour au C majeur"
+  },
+  {
+   "mesure": 47,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Retour au C majeur (7/7 signaux), groove identique ≈1 que mesures 8-39; répétition du thème principal avant outro"
+  },
+  {
+   "mesure": 76,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Finale : Cm retour, niveau dégringole −2.7→−18.0→−39.6, silence (N)"
+  }
+ ],
+ "retenues": [
+  8,
+  40,
+  47,
+  76
+ ],
+ "meilleure_lecture": [
+  [
+   1,
+   7,
+   "intro",
+   "Batterie en crescendo (# → ####), Cm aux mesures 6-7 annoncent le contraste futur; rupture de 6/7 signaux à mesure 8"
+  ],
+  [
+   8,
+   39,
+   "A",
+   "C majeur continu, groove stable marqué ≈1 partout (32 mesures); section principale avant pont"
+  ],
+  [
+   40,
+   46,
+   "pont",
+   "Pas d'accord (N remplace C), batterie minima; rupture 7/7 signaux à mesure 47 avec retour au C majeur"
+  ],
+  [
+   47,
+   74,
+   "A",
+   "Retour au C majeur (7/7 signaux), groove identique ≈1 que mesures 8-39; répétition du thème principal avant outro"
+  ],
+  [
+   75,
+   78,
+   "outro",
+   "Cm brève à mesure 76, voix s'efface (76: #... → 77-78: ....), accord chute à N, niveau plonge à -39.6 dB (fade terminal)"
+  ]
+ ],
+ "doutes": [
+  "Chain of Fools est un vamp C majeur minimaliste sans changements harmoniques nets entre A1 et A2 — les frontières reposent surtout sur le pont N 40-46 et le signal 7/7 à mesure 47, pas sur la structure d'accords",
+  "Mesures 6-7 Cm ambigües (transition ou début section?); longueur couplet 1 (32 mes)≠couplet 2 (29 mes), écart anormal",
+  "Mesure 75 rejoue ≈4 au lieu de ≈1 et signal 4/7; la limite verse-outro pourrait être ±1, mais le changement d'accord Cm à mesure 76 la justifie"
+ ]
+}

@@ -1,0 +1,80 @@
+{
+ "stem": "bruno_mars_the_lazy_song_official_music_video",
+ "n": 69,
+ "tirages": 1,
+ "cout": 0.0981,
+ "frontieres": [
+  {
+   "mesure": 10,
+   "voix": 1,
+   "sur": 1,
+   "pourquoi": "E-B établi, chant plein, batterie énergisée (≈2); C#m à m.17"
+  },
+  {
+   "mesure": 18,
+   "voix": 1,
+   "sur": 1,
+   "pourquoi": "F# lead (6/7 signaux à m.18), E-B continue, variation vocale ##..; frontière à m.32 (6/7 signaux)"
+  },
+  {
+   "mesure": 32,
+   "voix": 1,
+   "sur": 1,
+   "pourquoi": "Motif B-E répété 18 mesures, volume -3.2 dB puis remonte, C#m à m.40"
+  },
+  {
+   "mesure": 50,
+   "voix": 1,
+   "sur": 1,
+   "pourquoi": "Modulation C#m-Abm (nouveau), m.57 = 7/7 signaux (plus forte frontière), énergie soutenue"
+  },
+  {
+   "mesure": 58,
+   "voix": 1,
+   "sur": 1,
+   "pourquoi": "Retour E-B-E-F#, echoes rejoue redémarrent, volume baisse (-3 à -6.5 dB), descente finale"
+  }
+ ],
+ "retenues": [],
+ "meilleure_lecture": [
+  [
+   1,
+   9,
+   "intro",
+   "Chant sparse, énergie monte de -45.9 dB; frontière à m.10 (5/7 signaux)"
+  ],
+  [
+   10,
+   17,
+   "A",
+   "E-B établi, chant plein, batterie énergisée (≈2); C#m à m.17"
+  ],
+  [
+   18,
+   31,
+   "B",
+   "F# lead (6/7 signaux à m.18), E-B continue, variation vocale ##..; frontière à m.32 (6/7 signaux)"
+  ],
+  [
+   32,
+   49,
+   "C",
+   "Motif B-E répété 18 mesures, volume -3.2 dB puis remonte, C#m à m.40"
+  ],
+  [
+   50,
+   57,
+   "pont",
+   "Modulation C#m-Abm (nouveau), m.57 = 7/7 signaux (plus forte frontière), énergie soutenue"
+  ],
+  [
+   58,
+   69,
+   "outro",
+   "Retour E-B-E-F#, echoes rejoue redémarrent, volume baisse (-3 à -6.5 dB), descente finale"
+  ]
+ ],
+ "doutes": [
+  "Accord bascule de Abm à E entre m.58 et m.59; transition précise entre B et C"
+ ]
+}

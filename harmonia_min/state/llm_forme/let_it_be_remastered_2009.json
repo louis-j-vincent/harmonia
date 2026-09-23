@@ -1,0 +1,147 @@
+{
+ "stem": "let_it_be_remastered_2009",
+ "n": 70,
+ "tirages": 2,
+ "cout": 0.3165,
+ "frontieres": [
+  {
+   "mesure": 5,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "Chant entre à 5, montée progressive d'intensité jusqu'à 24 (niveau et batterie augmentent), patterns d'accords mixtes (A classique + F transitions)"
+  },
+  {
+   "mesure": 13,
+   "voix": 1,
+   "sur": 2,
+   "pourquoi": "accords changent Am F C C, batterie chute brutalement (≈25→≈2)"
+  },
+  {
+   "mesure": 17,
+   "voix": 1,
+   "sur": 2,
+   "pourquoi": "niveau monte significativement (-7.0 à +0.3 dB), batterie forte"
+  },
+  {
+   "mesure": 25,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "Signal majeur 25 (6/7 signaux), batterie à ####, niveau +0.3 dB, puis signal 29 (5/7) marque une légère variation interne"
+  },
+  {
+   "mesure": 29,
+   "voix": 1,
+   "sur": 2,
+   "pourquoi": "accords C, batterie décroissante (####→###), rejoue ≈58-68"
+  },
+  {
+   "mesure": 33,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "Signal majeur 33 (5/7), pas de chant, batterie chute à ##, pause structurelle nette"
+  },
+  {
+   "mesure": 35,
+   "voix": 1,
+   "sur": 2,
+   "pourquoi": "Presque pas de chant (tous les . ou rares #), niveau très élevé (+3-4 dB), accords F-C pattern instrumental, pont clairement délimité"
+  },
+  {
+   "mesure": 41,
+   "voix": 1,
+   "sur": 2,
+   "pourquoi": "chant réapparaît partiellement (..##, ##..), accords C F C C, transition"
+  },
+  {
+   "mesure": 45,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "Chant revient (signal 45), accords Am-F-C-C, retour à la texture verse après le pont instrumental"
+  },
+  {
+   "mesure": 49,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "Signal majeur 49 (5/7), batterie forte (####), puis signal 57 (5/7) marque une variation interne (accord Am, batterie descend), section chorus finale longue"
+  },
+  {
+   "mesure": 57,
+   "voix": 1,
+   "sur": 2,
+   "pourquoi": "progression Am F C C, chant plein, batterie très faible, signal 5/7"
+  },
+  {
+   "mesure": 61,
+   "voix": 1,
+   "sur": 2,
+   "pourquoi": "accords changent Am F G F puis F C, chant disparaît à la fin (.....), signal 3/7"
+  },
+  {
+   "mesure": 69,
+   "voix": 1,
+   "sur": 2,
+   "pourquoi": "Pas de chant (....),signal 69 (3/7), niveau et batterie baissent fortement, conclusion nette"
+  }
+ ],
+ "retenues": [
+  5,
+  25,
+  33,
+  45,
+  49
+ ],
+ "meilleure_lecture": [
+  [
+   1,
+   4,
+   "intro",
+   "Pas de chant, batterie très faible (≈9-16), accords C-Am-G-C répétés"
+  ],
+  [
+   5,
+   24,
+   "A",
+   "Chant entre à 5, montée progressive d'intensité jusqu'à 24 (niveau et batterie augmentent), patterns d'accords mixtes (A classique + F transitions)"
+  ],
+  [
+   25,
+   32,
+   "B",
+   "Signal majeur 25 (6/7 signaux), batterie à ####, niveau +0.3 dB, puis signal 29 (5/7) marque une légère variation interne"
+  ],
+  [
+   33,
+   34,
+   "Break",
+   "Signal majeur 33 (5/7), pas de chant, batterie chute à ##, pause structurelle nette"
+  ],
+  [
+   35,
+   44,
+   "pont",
+   "Presque pas de chant (tous les . ou rares #), niveau très élevé (+3-4 dB), accords F-C pattern instrumental, pont clairement délimité"
+  ],
+  [
+   45,
+   48,
+   "A",
+   "Chant revient (signal 45), accords Am-F-C-C, retour à la texture verse après le pont instrumental"
+  ],
+  [
+   49,
+   68,
+   "B",
+   "Signal majeur 49 (5/7), batterie forte (####), puis signal 57 (5/7) marque une variation interne (accord Am, batterie descend), section chorus finale longue"
+  ],
+  [
+   69,
+   70,
+   "outro",
+   "Pas de chant (....),signal 69 (3/7), niveau et batterie baissent fortement, conclusion nette"
+  ]
+ ],
+ "doutes": [
+  "La section A (5-24) est inhabituellement longue et mélange des patterns d'accords différents (C-Am-G vs Am-F-C); on pourrait la diviser à mesure 17 ou 25, mais aucun signal majeur ne le justifie. La ressemblance entre mesures 45-48 et le pattern B antérieur (13-16, 25-28) crée une ambiguïté sur son classement.",
+  "mesures 25-28 et 13-16 ont les mêmes progression (Am F C C) mais énergie très différente (batterie #### vs ≈2 dB) — variante énergisée ou section structurellement distincte?"
+ ]
+}

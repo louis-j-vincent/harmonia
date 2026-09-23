@@ -1,0 +1,112 @@
+{
+ "stem": "ben_e_king_stand_by_me_audio",
+ "n": 86,
+ "tirages": 3,
+ "cout": 0.3194,
+ "frontieres": [
+  {
+   "mesure": 6,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "Chant commence (mes.6, signal 4/7), accords E et D introduits, niveau monte"
+  },
+  {
+   "mesure": 9,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Chant émerge progressivement (m.9), cycle E/D/E s'affirme"
+  },
+  {
+   "mesure": 21,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Refrain établi, signal fort m.21, cycle régulier A-F#m-D-E se répète 4 fois"
+  },
+  {
+   "mesure": 37,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "Même progression A-A-A-A-F#m-F#m-D-E; accord A à mesure 37 marque la répétition"
+  },
+  {
+   "mesure": 53,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Chant s'arrête (signal m.54), même cycle d'accord en vamp instrumental"
+  },
+  {
+   "mesure": 67,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "Refrain revient (signal m.67, ≈27 relance le cycle), chant et cycle A-F#m-D-E reprenants"
+  },
+  {
+   "mesure": 69,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Mesure 69 (4/7 signaux): le chant revient progressivement; progression A-A-A-A-F#m-F#m-D-E; mesure 77 (5/7 signaux) intensifie"
+  },
+  {
+   "mesure": 77,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "Signal fort m.77 (5/7), décrescendo progressif niveau/batterie, accord N vide m.86"
+  },
+  {
+   "mesure": 85,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Accord N, pas de chant, niveau très bas (-28.3 dB); fermeture instrumentale"
+  }
+ ],
+ "retenues": [
+  9,
+  21,
+  53,
+  69,
+  85
+ ],
+ "meilleure_lecture": [
+  [
+   1,
+   8,
+   "intro",
+   "Batterie intense, pas de chant, pas d'harmonie nommée"
+  ],
+  [
+   9,
+   20,
+   "A",
+   "Chant émerge progressivement (m.9), cycle E/D/E s'affirme"
+  ],
+  [
+   21,
+   52,
+   "B",
+   "Refrain établi, signal fort m.21, cycle régulier A-F#m-D-E se répète 4 fois"
+  ],
+  [
+   53,
+   66,
+   "C",
+   "Chant s'arrête (signal m.54), même cycle d'accord en vamp instrumental"
+  ],
+  [
+   67,
+   76,
+   "B",
+   "Refrain revient (signal m.67, ≈27 relance le cycle), chant et cycle A-F#m-D-E reprenants"
+  ],
+  [
+   77,
+   86,
+   "outro",
+   "Signal fort m.77 (5/7), décrescendo progressif niveau/batterie, accord N vide m.86"
+  ]
+ ],
+ "doutes": [
+  "C (interlude m.53-66) pourrait être perçu comme une variation de B plutôt qu'une section autonome, mais le changement d'énergie vocale le justifie structurellement",
+  "La mesure 77 (5/7 signaux) pourrait indiquer une sous-section à 77-84, mais l'harmonie reste constante; la structure de trois occurrences du chorus B est établie par convention pop.",
+  "Mesure 6 vs 12 pour le début de A (chant sporadique avant 12); mesure 53 vs 54 pour le début du pont"
+ ]
+}

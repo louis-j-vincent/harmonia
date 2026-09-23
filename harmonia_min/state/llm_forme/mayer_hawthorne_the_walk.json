@@ -1,0 +1,124 @@
+{
+ "stem": "mayer_hawthorne_the_walk",
+ "n": 100,
+ "tirages": 2,
+ "cout": 0.2121,
+ "frontieres": [
+  {
+   "mesure": 5,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "Chant rentre (3/7 signaux mesure 5), A-Bm alternance établie, niveau stable."
+  },
+  {
+   "mesure": 21,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "Mesure 25 : C#m entre (6/7 signaux), niveau explose (+2.3), pattern ≈50-55 nouveau."
+  },
+  {
+   "mesure": 28,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "Mesure 28 : retour A-Bm (4/7 signaux), pattern ≈1-2 restauré, niveau +0.3 à +1.2."
+  },
+  {
+   "mesure": 49,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "mes 50 vote 7/7 ressemblance ≈22 (début de la transition répétée), C#m en mes 53-55, transition 8 mesures"
+  },
+  {
+   "mesure": 57,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "Mesure 57 : A revient, 'rejoue ≈1', A-Bm alternance, mesure 72 : E (transition)."
+  },
+  {
+   "mesure": 63,
+   "voix": 1,
+   "sur": 2,
+   "pourquoi": "C#m domine les mesures 65-70 (pas alternance A-Bm), E arrive mes 72 (vote +), niveau très élevé (+0.9 à +2.6), refrain/pont distinct 10 mesures"
+  },
+  {
+   "mesure": 73,
+   "voix": 2,
+   "sur": 2,
+   "pourquoi": "Mesure 73 : 5/7 signaux votent, A-Bm revient, mesure 81 : C#m insertion (7/7 signaux)."
+  },
+  {
+   "mesure": 89,
+   "voix": 1,
+   "sur": 2,
+   "pourquoi": "Mesure 96 : niveau -5.9, batterie réduit, chant s'éteint dès 98, fade progressif."
+  },
+  {
+   "mesure": 99,
+   "voix": 1,
+   "sur": 2,
+   "pourquoi": "accord disperse (N), chant évanescent (.... + ###.), niveaux critiquement bas (-27 et -25), fade"
+  }
+ ],
+ "retenues": [
+  5,
+  21,
+  28,
+  49,
+  57,
+  73
+ ],
+ "meilleure_lecture": [
+  [
+   1,
+   4,
+   "intro",
+   "Pas de chant, batterie légère, établit l'harmonie A-Bm."
+  ],
+  [
+   5,
+   20,
+   "A",
+   "Chant rentre (3/7 signaux mesure 5), A-Bm alternance établie, niveau stable."
+  ],
+  [
+   21,
+   27,
+   "pont",
+   "Mesure 25 : C#m entre (6/7 signaux), niveau explose (+2.3), pattern ≈50-55 nouveau."
+  ],
+  [
+   28,
+   49,
+   "A",
+   "Mesure 28 : retour A-Bm (4/7 signaux), pattern ≈1-2 restauré, niveau +0.3 à +1.2."
+  ],
+  [
+   50,
+   56,
+   "pont",
+   "Mesure 50 : 'rejoue' change vers ≈22, mesure 53 : C#m (7/7 signaux votent)."
+  ],
+  [
+   57,
+   72,
+   "A",
+   "Mesure 57 : A revient, 'rejoue ≈1', A-Bm alternance, mesure 72 : E (transition)."
+  ],
+  [
+   73,
+   88,
+   "A",
+   "Mesure 73 : 5/7 signaux votent, A-Bm revient, mesure 81 : C#m insertion (7/7 signaux)."
+  ],
+  [
+   89,
+   100,
+   "outro",
+   "Mesure 96 : niveau -5.9, batterie réduit, chant s'éteint dès 98, fade progressif."
+  ]
+ ],
+ "doutes": [
+  "Deux A consécutives (57-72 et 73-88) sans pont intermédiaire : mesure 73 justifie la coupure (5/7 signaux), mais les deux sections partagent la même structure A-Bm de 16 mesures.",
+  "Les transitions B auraient pu commencer à la mesure 25 (vote 6/7) et 53 (vote 7/7) plutôt que 22 et 49, mais les mesures 22-24 et 49-52 relancent le groove, elles n'en démarrent pas un nouveau. La section A finale contient une variation C#m non partitionnée (81-84) qui vote 7/7 mais reste une continuation du couplet."
+ ]
+}

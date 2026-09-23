@@ -1,0 +1,126 @@
+{
+ "stem": "yesterday_remastered_2009",
+ "n": 48,
+ "tirages": 3,
+ "cout": 0.3994,
+ "frontieres": [
+  {
+   "mesure": 5,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Progression Dm-Dm-Bb-F-Dm-F-F-A-Dm; chant entre progressivement; signal votes nets à 5 (6/7) et 11 (5/7) encadrent la section"
+  },
+  {
+   "mesure": 9,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "progression s'élargit (accord A mesure 11, 5 signaux), forme stable F-G-F-A-Bb-C de 14 à 19"
+  },
+  {
+   "mesure": 12,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Entrée de C (mesure 13); progression montante F-G-F-A-Bb-C (mesures 14-19), le chorus; «rejoue» ≈29-34 (répétition complète); chant #### maintenu"
+  },
+  {
+   "mesure": 20,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "variation des accords de A, mesure 24 = 4 signaux"
+  },
+  {
+   "mesure": 24,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Retour au style verse F-F-A-Dm-C-F-G-F; signal vote clair à 24 (4/7); variation du vers A avec accords plus serrés"
+  },
+  {
+   "mesure": 29,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "répétition exacte 14-19, progression F-G-F-A-Bb-C très ressemblante (++)"
+  },
+  {
+   "mesure": 32,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "Signal vote à 32 (4/7); contient la progression F-G-F-A-Bb-C mesures 29-34 (identique au chorus 14-19), puis version raccourcie F-A-Bb-C mesures 35-38"
+  },
+  {
+   "mesure": 35,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Chorus court, F-A-Bb-C, très haut niveau (+3.7), variation condensée"
+  },
+  {
+   "mesure": 39,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Accords différents F-F-Em-Dm-C-F-G-F; pont/outro-verso; signaux votes à 39 (5/7) et 41 (3/7)"
+  },
+  {
+   "mesure": 44,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "F retour vamp simple, chant qui sort (45-46), 5 mesures disparition progressive"
+  }
+ ],
+ "retenues": [
+  5,
+  12,
+  20,
+  24,
+  35,
+  39,
+  44
+ ],
+ "meilleure_lecture": [
+  [
+   1,
+   4,
+   "intro",
+   "F en boucle, silence complet (chant ....); niveau très bas (-9 dB); signal vote à la mesure 5 marque l'arrivée du vers"
+  ],
+  [
+   5,
+   11,
+   "A",
+   "Progression Dm-Dm-Bb-F-Dm-F-F-A-Dm; chant entre progressivement; signal votes nets à 5 (6/7) et 11 (5/7) encadrent la section"
+  ],
+  [
+   12,
+   23,
+   "B",
+   "Entrée de C (mesure 13); progression montante F-G-F-A-Bb-C (mesures 14-19), le chorus; «rejoue» ≈29-34 (répétition complète); chant #### maintenu"
+  ],
+  [
+   24,
+   31,
+   "A'",
+   "Retour au style verse F-F-A-Dm-C-F-G-F; signal vote clair à 24 (4/7); variation du vers A avec accords plus serrés"
+  ],
+  [
+   32,
+   38,
+   "B'",
+   "Signal vote à 32 (4/7); contient la progression F-G-F-A-Bb-C mesures 29-34 (identique au chorus 14-19), puis version raccourcie F-A-Bb-C mesures 35-38"
+  ],
+  [
+   39,
+   44,
+   "C",
+   "Accords différents F-F-Em-Dm-C-F-G-F; pont/outro-verso; signaux votes à 39 (5/7) et 41 (3/7)"
+  ],
+  [
+   45,
+   48,
+   "outro",
+   "Retour à F; signal vote à 45 (4/7); «rejoue» ≈7, ≈1 (faible ressemblance, «+» pas «++»); queue finale"
+  ]
+ ],
+ "doutes": [
+  "La mesure 32 vote au cœur de la répétition exacte 29-34 du chorus, suggérant peut-être un changement dynamique intra-section plutôt qu'une frontière; les transitions 12-13 et 20-23 s'absorbent dans B sans clarté",
+  "Signal 11 (5/7) suggère coupure 10|11 ignorée car progression F-A-Dm paraît continue. Les trois B (13-20, 25-34, 35-38) durent 8/10/4 mesures sans pattern régulier.",
+  "mesure 5 a 6 signaux (90% confiance) mais la progression F-Dm continue sans rupture musicalel; mesures 24, 32, 45 (4 signaux) sont faiblement prédictives (33%)"
+ ]
+}

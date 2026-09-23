@@ -1,0 +1,181 @@
+{
+ "stem": "pharrell_williams_happy_official_video",
+ "n": 155,
+ "tirages": 3,
+ "cout": 0.3817,
+ "frontieres": [
+  {
+   "mesure": 5,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Vamp I-IV (F-Bb), mesure 5 = 6/7 signaux, chant fort et régulier"
+  },
+  {
+   "mesure": 9,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "F-Bb groove établi, voix forte (####), batterie stable forte, ≈41-50"
+  },
+  {
+   "mesure": 13,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "Vamp IV-I (Bb-F), mesure 13 = 6/7 signaux, accords distincts de A"
+  },
+  {
+   "mesure": 19,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Cycle C#-Cm-Cm-F (mesure 19 = 7/7 signaux), refrain principal, virage vers vi-mineur"
+  },
+  {
+   "mesure": 31,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "Mélange I-IV-V (mesure 34 = 6/7 signaux), développement varié du C#-Cm initial"
+  },
+  {
+   "mesure": 33,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "Retour F-Bb, rejouent ≈2-17 exactement, même structure qu'avant"
+  },
+  {
+   "mesure": 35,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "retour F/Bb (≈mesures 2-18), même niveau de chant, duplique le verse 1"
+  },
+  {
+   "mesure": 49,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "transition 2-mesure, Bb→C, volume bas (-3.6 dB), 5/7 signaux changent"
+  },
+  {
+   "mesure": 51,
+   "voix": 2,
+   "sur": 3,
+   "pourquoi": "Cycle C#-Cm-Cm-F repris (mesure 51 = 6/7, rejouée ≈19-22)"
+  },
+  {
+   "mesure": 66,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Fm dominant (mesure 66 = 7/7 signaux), batterie maximale (####), rupture instrumentale"
+  },
+  {
+   "mesure": 83,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Cycle C#-Cm-Cm-F très développé (mesure 83 = 7/7, rejouée ≈19-22 répétée 8 fois)"
+  },
+  {
+   "mesure": 115,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Fm chorus 2 (≈66-82), batterie max, même pattern intensifié"
+  },
+  {
+   "mesure": 123,
+   "voix": 3,
+   "sur": 3,
+   "pourquoi": "Cycle C#-Cm-Cm-F intensifié (mesure 123 = 7/7, rejouée ≈19-22 répétée 8 fois)"
+  },
+  {
+   "mesure": 152,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "Volume décroît (-1.5 → -38 dB, mesure 152 = 6/7), accords Cm→N, fin progressive"
+  },
+  {
+   "mesure": 154,
+   "voix": 1,
+   "sur": 3,
+   "pourquoi": "F silence retour (≈mesure 1), puis N (fin), 5/7 signaux changent"
+  }
+ ],
+ "retenues": [
+  5,
+  19,
+  49,
+  51,
+  66,
+  83,
+  115,
+  123
+ ],
+ "meilleure_lecture": [
+  [
+   1,
+   4,
+   "intro",
+   "F majeur stable, volume monte de -18.5 à -2.5 dB, chant arrive progressivement"
+  ],
+  [
+   5,
+   12,
+   "A",
+   "Vamp I-IV (F-Bb), mesure 5 = 6/7 signaux, chant fort et régulier"
+  ],
+  [
+   13,
+   18,
+   "B",
+   "Vamp IV-I (Bb-F), mesure 13 = 6/7 signaux, accords distincts de A"
+  ],
+  [
+   19,
+   30,
+   "C",
+   "Cycle C#-Cm-Cm-F (mesure 19 = 7/7 signaux), refrain principal, virage vers vi-mineur"
+  ],
+  [
+   31,
+   50,
+   "D",
+   "Mélange I-IV-V (mesure 34 = 6/7 signaux), développement varié du C#-Cm initial"
+  ],
+  [
+   51,
+   65,
+   "C",
+   "Cycle C#-Cm-Cm-F repris (mesure 51 = 6/7, rejouée ≈19-22)"
+  ],
+  [
+   66,
+   82,
+   "pont",
+   "Fm dominant (mesure 66 = 7/7 signaux), batterie maximale (####), rupture instrumentale"
+  ],
+  [
+   83,
+   113,
+   "C",
+   "Cycle C#-Cm-Cm-F très développé (mesure 83 = 7/7, rejouée ≈19-22 répétée 8 fois)"
+  ],
+  [
+   114,
+   122,
+   "pont",
+   "Fm court (mesure 114 = 7/7 signaux), batterie forte, lien vers refrain final"
+  ],
+  [
+   123,
+   151,
+   "C",
+   "Cycle C#-Cm-Cm-F intensifié (mesure 123 = 7/7, rejouée ≈19-22 répétée 8 fois)"
+  ],
+  [
+   152,
+   155,
+   "outro",
+   "Volume décroît (-1.5 → -38 dB, mesure 152 = 6/7), accords Cm→N, fin progressive"
+  ]
+ ],
+ "doutes": [
+  "Section D mélange le motif C#-Cm-Cm-F avec un vamp I-IV-V; pourrait être couplet distinct ou extension de C. Les deux ponts portent la même lettre malgré durées très différentes (17 vs 9 mesures).",
+  "Les mesures 90 et 110 détectent Fm au lieu du F attendu (peut-être erreur ou crescendo harmonique); les limites des variantes A (vers 35-48 vs 5-18) ne sont pas identiques mais clairement fonction du même matériau transposé",
+  "Les deux ponts (66-82 et 115-122) encadrent un tiers de B (83-114), ce qui ne suit pas la structure verse-chorus habituelle, mais c'est clair dans les signaux et les accords."
+ ]
+}
