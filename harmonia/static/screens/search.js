@@ -7,6 +7,8 @@
 import { api } from "../api.js";
 import { go, screenWrap } from "../router.js";
 import { startAnalysis } from "../screens/analyse.js";
+import { openChart } from "../screens/chart.js";
+import { loadLibrary } from "../screens/library.js";
 import { S } from "../state.js";
 import { SERIF, SZ, T, UI, clear, el, fmt, kitIcon, kitLegend, kitSegmented, note, resetSpelling, toast } from "../ui/kit.js";
 
@@ -98,8 +100,7 @@ export async function runSearch(q){
     const src=S.searchMode||"youtube";
     try{
       if(src==="ireal"){
-        const r=await api.post("/api/irealb-search",{title:q});
-        S.results=(r.results||[]).map(x=>({...x,_src:"ireal"}));
+        await irealSearchStream(q);
       } else if(src==="tabs"){
         const r=await api.post("/api/tab-search",{q});
         S.results=(r.results||[]).map(x=>({...x,_src:"tabs"}));
@@ -110,6 +111,77 @@ export async function runSearch(q){
       }
     }catch(e){ S.results=[]; }
     S.searching=false; paintResults();
+  }
+  // ── la recherche iReal arrive AU FUR ET À MESURE ─────────────────────────
+  // Louis, 2026-09-18. Les deux sources n'ont pas du tout le même rythme :
+  // les ~2200 standards sont prêts en 0,4 s (une page), le forum met 4 à 6 s
+  // (jusqu'à six fils, espacés par politesse). En un seul bloc, l'écran
+  // restait vide six secondes pour un premier résultat déjà là depuis la
+  // première demi-seconde. Le serveur rend donc une ligne JSON par lot
+  // (NDJSON) et on repeint à chaque ligne.
+  // Repli: un navigateur sans `res.body` (flux de fetch) retombe sur la route
+  // d'un seul bloc — le résultat est le même, seulement moins vivant.
+export async function irealSearchStream(q){
+    const ajoute=lot=>{
+      if(!lot || !lot.length) return;
+      const vus=new Set((S.results||[]).map(r=>(r.title||"").toLowerCase()));
+      lot.forEach(x=>{ const k=(x.title||"").toLowerCase();
+        if(!vus.has(k)){ vus.add(k); S.results.push({...x,_src:"ireal"}); } });
+      paintResults();
+    };
+    S.results=[];
+    const res=await fetch("/api/irealb-search-stream",
+      {method:"POST",headers:{"Content-Type":"application/json"},
+       body:JSON.stringify({title:q})});
+    if(!res.ok) throw new Error(await res.text());
+    if(!res.body || !res.body.getReader){
+      const r=await api.post("/api/irealb-search",{title:q});
+      ajoute(r.results||[]); return;
+    }
+    const lecteur=res.body.getReader(), dec=new TextDecoder();
+    let reste="";
+    for(;;){
+      const {done,value}=await lecteur.read();
+      if(done) break;
+      reste+=dec.decode(value,{stream:true});
+      // La dernière tranche peut couper une ligne en deux: on ne garde que
+      // les lignes ENTIÈRES et on remet le reste de côté.
+      const lignes=reste.split("\n"); reste=lignes.pop();
+      for(const l of lignes){
+        if(!l.trim()) continue;
+        let d; try{ d=JSON.parse(l); }catch(e){ continue; }
+        // La recherche en cours a changé sous nos pieds (il a retapé): on
+        // laisse tomber ce flux-là plutôt que d'y mélanger ses résultats.
+        if(S.searchQuery!==q) return;
+        if(d.results) ajoute(d.results);
+      }
+    }
+  }
+
+  // ── importer une grille iReal ────────────────────────────────────────────
+  // Le pendant de `startAnalysis` pour la source iReal : rien à écouter,
+  // rien à déduire, une seule requête et le chart est là. `search.js`
+  // l'appelait déjà depuis `runSearch` (collage d'une URL `irealb://`)
+  // alors que la fonction n'a JAMAIS existé — la source iReal ne pouvait
+  // ouvrir aucun morceau depuis sa mise en place.
+export async function importIrealChart(r){
+    const url=(r&&r.irealb_url)||""; if(!url) return;
+    S.searchQuery=S.searchQuery||(r&&r.title)||"";
+    S.searching=true; paintResults();
+    try{
+      const res=await api.post("/api/irealb-import",
+        {irealb_url:url, composer:(r&&r.composer)||""});
+      S.searching=false;
+      // La bibliothèque est rechargée AVANT d'ouvrir: sans ça le retour
+      // depuis le chart affiche une liste où le morceau qu'on vient
+      // d'importer n'est pas.
+      await loadLibrary();
+      toast((res.title||"Grille")+" · "+res.nBars+" mesures");
+      openChart(res.file);
+    }catch(e){
+      S.searching=false; paintResults();
+      toast("Cette grille iReal n'a pas pu être importée");
+    }
   }
 export function searchCard(r){
     /* LA CARTE ENTIÈRE est la cible (≈362×67). La pastille colorée est une
@@ -134,7 +206,9 @@ export function searchCard(r){
       `display:flex;align-items:center;font:600 13px ${UI};`+
       (here ? `border:1.5px solid ${T.green};color:${T.green};`
             : `background:${T.accent};color:#fff;`),
-      here ? "Déjà là" : (r._src==="youtube" ? "Analyser" : "Voir"));
+      here ? "Déjà là"
+           : (r._src==="youtube" ? "Analyser"
+           : (r._src==="ireal" ? "Importer" : "Voir")));
     pill.setAttribute("aria-hidden","true");
     card.appendChild(pill);
 
@@ -142,6 +216,10 @@ export function searchCard(r){
       // Une tablature ne s'importe plus (route retirée, décision du
       // 2026-09-14) : on l'ouvre, c'est tout ce qu'elle vaut ici.
       if(r._src==="tabs"){ if(r.url) window.open(r.url,"_blank","noopener"); return; }
+      // Une grille iReal s'IMPORTE — elle est déjà écrite, il n'y a rien à
+      // analyser. Jusqu'au 2026-09-18 elle tombait ici dans la branche
+      // YouTube et partait analyser `watch?v=undefined`.
+      if(r._src==="ireal"){ importIrealChart(r); return; }
       startAnalysis(r.local ? ("local:"+String(r.id).replace(/^local:/,""))
                             : ("https://www.youtube.com/watch?v="+r.id), r.title);
     };
@@ -151,15 +229,18 @@ export function paintResults(){
     const body=S._searchBody; if(!body) return;
     clear(body);
 
-    if(S.searching){
+    // LE SABLIER NE CACHE PLUS CE QUI EST DÉJÀ ARRIVÉ (2026-09-18). La
+    // recherche iReal rend ses résultats en plusieurs vagues; tant que
+    // `S.searching` masquait tout, le flux ne servait à rien côté écran.
+    const attente=()=>{
       const wrap=el("div","display:flex;align-items:center;justify-content:center;gap:10px;padding:40px 0;");
       wrap.appendChild(el("div",
         `width:18px;height:18px;border-radius:50%;border:2px solid ${T.line};`+
         `border-top-color:${T.accent};animation:ap-spin .8s linear infinite;`));
       wrap.appendChild(el("div",`font:500 14px ${UI};color:${T.faint};`,"…"));
-      body.appendChild(wrap);
-      return;
-    }
+      return wrap;
+    };
+    if(S.searching && !(S.results||[]).length){ body.appendChild(attente()); return; }
     if(!(S.results||[]).length){
       if(S.searchQuery) body.appendChild(el("div",
         `font:italic 13.5px/1.7 ${SERIF};color:${T.faint};padding:28px 6px;text-align:center;`,
@@ -173,6 +254,12 @@ export function paintResults(){
     const list=el("div","display:flex;flex-direction:column;gap:8px;");
     S.results.forEach(r=>list.appendChild(searchCard(r)));
     body.appendChild(list);
+    // encore en train de chercher, mais il y a déjà de quoi lire
+    if(S.searching){
+      const w=attente(); w.style.padding="18px 0";
+      w.lastChild.textContent="on cherche encore…";
+      body.appendChild(w);
+    }
     // scroll infini YouTube (Louis 2026-08-04) — gardé de l'ancien écran,
     // même sentinelle, mêmes gardes
     if(S.searchMore && (S.searchMode||"youtube")==="youtube"){

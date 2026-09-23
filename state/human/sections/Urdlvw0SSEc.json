@@ -1,0 +1,22 @@
+{
+ "stem": "Urdlvw0SSEc",
+ "n": 108,
+ "validated": true,
+ "sections": [
+  {
+   "label": "intro",
+   "b0": 0,
+   "b1": 10
+  },
+  {
+   "label": "A",
+   "b0": 11,
+   "b1": 106
+  },
+  {
+   "label": "outro",
+   "b0": 107,
+   "b1": 107
+  }
+ ]
+}

@@ -1,0 +1,36 @@
+{
+  "annotator": "",
+  "chords": [
+    {
+      "bar": 6,
+      "beat": 0,
+      "root": 5,
+      "bass": -1,
+      "q": "sus4",
+      "t0": 8.28,
+      "t1": 10.98
+    },
+    {
+      "bar": 6,
+      "beat": 0,
+      "root": 5,
+      "bass": -1,
+      "q": "sus4",
+      "t0": 8.28,
+      "t1": 10.98
+    },
+    {
+      "bar": 46,
+      "beat": 1,
+      "root": 0,
+      "bass": -1,
+      "q": "7",
+      "t0": 62.66,
+      "t1": 65.4
+    }
+  ],
+  "merges": [],
+  "schema": 1,
+  "chart": "inferred_norah_jones_don_t_know_why.html",
+  "modified": "2026-07-30T18:05:55Z"
+}

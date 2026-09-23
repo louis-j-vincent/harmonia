@@ -110,8 +110,8 @@ def _forum_opener() -> urllib.request.OpenerDirector:
     return op
 
 
-def _search_forum(query: str, max_results: int, *,
-                  max_threads: int = 6, pace_s: float = 0.35) -> list[dict]:
+def _search_forum_stream(query: str, max_results: int, *,
+                         max_threads: int = 6, pace_s: float = 0.35):
     """Search the iReal Pro XenForo community forum (forums.irealpro.com).
 
     This is where the REAL breadth lives. ``/main-playlists/`` is only the
@@ -168,10 +168,10 @@ def _search_forum(query: str, max_results: int, *,
 
     q_words = [w for w in re.split(r"\s+", query.strip().lower()) if w]
     sig_words = [w for w in q_words if len(w) >= 4]  # drop "in"/"the" noise
-    out: list[dict] = []
+    n_out = 0
     seen_titles: set[str] = set()
     for i, (slug, tid) in enumerate(threads[:max_threads]):
-        if len(out) >= max_results:
+        if n_out >= max_results:
             break
         if i:
             time.sleep(pace_s)
@@ -183,8 +183,9 @@ def _search_forum(query: str, max_results: int, *,
         tunes = [pair for b in re.findall(r"irealb://[^\s\"'<>]+", th)
                  for pair in _iter_tunes_in_blob(b)]
         big = len(tunes) > 8  # a shared multi-song playlist, not a single song
+        lot: list[dict] = []
         for seg, tune in tunes:
-            if len(out) >= max_results:
+            if n_out + len(lot) >= max_results:
                 break
             title = (tune.title or "").strip()
             if not title or title.lower() in seen_titles:
@@ -194,7 +195,22 @@ def _search_forum(query: str, max_results: int, *,
                 if not any(w in hay for w in sig_words):
                     continue
             seen_titles.add(title.lower())
-            out.append(_result_dict(seg, tune, "forum"))
+            lot.append(_result_dict(seg, tune, "forum"))
+        # UN LOT PAR FIL, rendu dès qu'il est lu. C'est ce qui permet à
+        # l'écran de recherche d'afficher au fur et à mesure : un fil coûte
+        # une requête HTTP plus 0,35 s de politesse, donc la recherche forum
+        # entière prend 4 à 6 s là où les standards en prennent 0,4.
+        if lot:
+            n_out += len(lot)
+            yield lot
+
+
+def _search_forum(query: str, max_results: int, **kw) -> list[dict]:
+    """La version d'un seul bloc — `search_community` l'emploie encore, et
+    c'est la seule forme que les appelants hors-serveur connaissent."""
+    out: list[dict] = []
+    for lot in _search_forum_stream(query, max_results, **kw):
+        out += lot
     return out
 
 
@@ -241,3 +257,52 @@ def search_community(query: str, max_results: int = 8) -> list[dict]:
             pass
 
     return results
+
+
+def search_community_stream(query: str, max_results: int = 8):
+    """`search_community`, mais qui REND AU FUR ET À MESURE.
+
+    Même recherche, mêmes deux sources, même dédoublonnage — seul le rythme
+    change : les ~2200 standards arrivent en 0,4 s (une page), le forum en 4 à
+    6 s (jusqu'à six fils, espacés de 0,35 s par politesse). Tout attendre
+    faisait patienter six secondes devant un écran vide pour des résultats
+    dont le premier était prêt dès la première demi-seconde.
+
+    Rend des tuples `(source, [résultats])`. L'appelant décide quoi en faire ;
+    `search_community` ci-dessus n'est plus que ce générateur aplati, pour que
+    les deux chemins ne puissent pas diverger.
+    """
+    vus: set[str] = set()
+    n = 0
+
+    def neufs(lot):
+        nonlocal n
+        sortie = []
+        for r in lot:
+            cle = (r["title"] or "").lower()
+            if cle in vus or n >= max_results:
+                continue
+            vus.add(cle)
+            n += 1
+            sortie.append(r)
+        return sortie
+
+    try:
+        lot = neufs(_search_main_playlists(query, max_results))
+    except Exception:
+        lot = []            # le forum, plus bas, peut encore sauver la recherche
+    yield "standards", lot
+
+    if n >= max_results:
+        return
+    try:
+        for brut in _search_forum_stream(query, max_results - n):
+            lot = neufs(brut)
+            if lot:
+                yield "forum", lot
+            if n >= max_results:
+                return
+    except Exception:
+        # Le forum est un SUPPLÉMENT : son échec ne doit jamais effacer les
+        # standards déjà rendus (même règle que `search_community`).
+        return

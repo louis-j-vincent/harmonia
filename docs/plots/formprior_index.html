@@ -1,0 +1,146 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>form prior — demo index</title>
+<style>
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 12px 12px 32px; font-family: -apple-system, BlinkMacSystemFont,
+  "Segoe UI", Roboto, sans-serif; background: #0e0e10; color: #eee;
+  max-width: 720px; margin-left: auto; margin-right: auto;
+}
+@media (prefers-color-scheme: light) { body { background: #f7f6f3; color: #1a1a1a; } }
+h1 { font-size: 1.25rem; margin: 4px 0 2px; }
+h2 { font-size: 0.95rem; margin: 20px 0 6px; opacity: 0.85; }
+.sub { font-size: 0.85rem; opacity: 0.65; margin-bottom: 14px; }
+.verdict {
+  font-size: 0.9rem; padding: 10px 12px; border-radius: 10px; margin: 10px 0 18px;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+}
+@media (prefers-color-scheme: light) { .verdict { background: #fff; border-color: #e2e0da; } }
+table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin: 8px 0 4px; }
+th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,0.1); vertical-align: top; }
+@media (prefers-color-scheme: light) { th, td { border-color: #e2e0da; } }
+th { opacity: 0.6; font-weight: 600; }
+.form { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.78rem; }
+.lp { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.better { color: #4caf6a; }
+.worse { color: #e0824a; }
+.frame-wrap {
+  border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.14);
+  margin: 6px 0 4px; background: #fff;
+}
+iframe { width: 100%; height: 62vh; border: 0; display: block; }
+a.back { color: inherit; opacity: 0.6; font-size: 0.85rem; text-decoration: none; }
+.tag {
+  display: inline-block; font-size: 0.72rem; padding: 2px 8px; border-radius: 999px;
+  background: rgba(255,255,255,0.1); margin-left: 8px; opacity: 0.8;
+}
+ul.list { list-style: none; padding: 0; margin: 0; }
+ul.list li { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 0.88rem; }
+@media (prefers-color-scheme: light) { ul.list li { border-color: #e9e7e0; } }
+ul.list a { color: inherit; font-weight: 600; text-decoration: none; }
+.stattable td, .stattable th { text-align: center; }
+.stattable td:first-child, .stattable th:first-child { text-align: left; }
+.skiplist { font-size: 0.78rem; opacity: 0.6; margin-top: 6px; }
+</style>
+</head><body>
+<h1>Section-form prior — before / after</h1>
+
+<div style="border: 2px solid #b03a2e; border-radius: 10px; padding: 14px 14px 10px; margin: 14px 0 18px;">
+<div style="font-weight: 700; margin-bottom: 6px;">En une phrase</div>
+<div class="sub" style="margin-bottom: 12px;">Le prior de forme change 47 charts sur 53, mais ne fait
+clairement mieux que 2 fois et casse 7 fois&nbsp;: <b>pas prêt à shipper</b> —
+le bug est identifié dans le re-ranker, pas dans le prior lui-même.</div>
+<div style="font-weight: 700; margin-bottom: 6px;">Les 3 pages qui suffisent (avant/après, scroll vertical)</div>
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<a href="formprior_maroon_5_girls_like_you_ft_cardi_b_official_music_video.html" style="display:block; padding: 10px 12px; border-radius: 8px; background: rgba(46,125,50,.12); font-weight: 600;">✅ La réussite — Girls Like You&nbsp;: intro absurde de 132 mesures → 8 mesures</a>
+<a href="formprior_norah_jones_don_t_know_why.html" style="display:block; padding: 10px 12px; border-radius: 8px; background: rgba(176,58,46,.12); font-weight: 600;">❌ La casse — Don't Know Why&nbsp;: forme propre coupée en deux sans raison</a>
+<a href="formprior_ben_e_king_stand_by_me_audio.html" style="display:block; padding: 10px 12px; border-radius: 8px; background: rgba(120,120,120,.12); font-weight: 600;">➖ Sans effet — Stand By Me&nbsp;: le prior est d'accord avec la baseline</a>
+</div>
+<div class="sub" style="margin-top: 10px;">Le reste de la page (53 chansons) est du détail — rien à décider dedans.</div>
+</div>
+<div class="sub">iReal Pop 400 corpus prior re-ranking the live nnls24 section
+decision (HARMONIA_FORM_PRIOR=1). Every song rendered with the app's own
+interactive chart — full form top to bottom, not an excerpt. Verdicts are
+computed from measured signals (Δ prior log-prob, square-section share,
+is_degenerate_sections) — never brick0 GT; where the signals don't clearly
+agree, the verdict says "à écouter" rather than guessing.</div>
+
+<table class="stattable">
+<tr><th>songs run</th><td>53</td></tr>
+<tr><th>changed</th><td>47</td></tr>
+<tr><th>unchanged</th><td>6</td></tr>
+<tr><th>median |Δ prior log-prob| (changed only)</th><td>1.28</td></tr>
+</table>
+<table class="stattable">
+<tr><th>bucket</th><th>count</th></tr>
+<tr><td>ambiguous</td><td>38</td></tr><tr><td>regression</td><td>7</td></tr><tr><td>unchanged</td><td>6</td></tr><tr><td>prior-score win</td><td>2</td></tr>
+</table>
+<div class="sub">0 skipped (no usable audio/cache) &middot;
+0 errored (hard failure) — see lists below.</div>
+
+<ul class="list">
+<li><a href="formprior_abba_chiquitita_official_lyric_video.html">Abba Chiquitita</a> <span class="tag">questionable (known_issues: historically over-segmented/degenerate)</span><div class="sub">changed, prior-score win (Δlp=+0.78) and square-section share 0%→33% — à écouter to confirm</div></li>
+<li><a href="formprior_alessi_brothers_oh_lori_toppop.html">Alessi Brothers Oh Lori</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-1.00, square-section share 88%→89%) — à écouter</div></li>
+<li><a href="formprior_angel_remastered_2019.html">Angel</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-3.65, square-section share 50%→57%) — à écouter</div></li>
+<li><a href="formprior_aretha_franklin_chain_of_fools_official_lyric_video.html">Aretha Franklin Chain of Fools</a> <span class="tag">questionable (known_issues: under-merged -2 vs tabs)</span><div class="sub">changed, ambiguous (Δlp=-0.85, square-section share 25%→40%) — à écouter</div></li>
+<li><a href="formprior_autumn_leaves.html">Autumn Leaves</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-2.70, square-section share 58%→59%) — à écouter</div></li>
+<li><a href="formprior_autumn_leaves_easy_jazz_piano_piano_cover_sheets.html">Autumn Leaves Easy Jazz Piano Piano Cover Sheets</a> <span class="tag">library</span><div class="sub">unchanged — form prior agreed with the baseline</div></li>
+<li><a href="formprior_bein_green.html">Bein Green</a> <span class="tag">questionable (known_issues: section spans wrong)</span><div class="sub">changed, ambiguous (Δlp=-2.70, square-section share 20%→33%) — à écouter</div></li>
+<li><a href="formprior_ben_e_king_stand_by_me_audio.html">Ben E King Stand By Me</a> <span class="tag">previously fine (single-loop Intro A×8 B)</span><div class="sub">unchanged — form prior agreed with the baseline</div></li>
+<li><a href="formprior_blue_bossa.html">Blue Bossa</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-1.04, square-section share 88%→89%) — à écouter</div></li>
+<li><a href="formprior_blue_bossa_150bpm_backing_track.html">Blue Bossa 150bpm Backing Track</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-1.63, square-section share 67%→75%) — à écouter</div></li>
+<li><a href="formprior_bobby_hebb_sunny_official_audio.html">Bobby Hebb Sunny</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-1.49, square-section share 75%→80%) — à écouter</div></li>
+<li><a href="formprior_bruno_mars_grenade_official_music_video.html">Bruno Mars Grenade</a> <span class="tag">questionable (known_issues: under-merged -3 vs tabs)</span><div class="sub">changed, ambiguous (Δlp=-1.42, square-section share 83%→86%) — à écouter</div></li>
+<li><a href="formprior_bruno_mars_just_the_way_you_are_official_music_video.html">Bruno Mars Just the Way You Are</a> <span class="tag">library</span><div class="sub">changed, prior score down (Δlp=-0.56) and no squareness gain — likely a data-fit-driven regression, à écouter</div></li>
+<li><a href="formprior_bruno_mars_the_lazy_song_official_music_video.html">Bruno Mars the Lazy Song</a> <span class="tag">questionable (known_issues: under-merged -2 vs tabs)</span><div class="sub">changed, ambiguous (Δlp=-2.15, square-section share 40%→50%) — à écouter</div></li>
+<li><a href="formprior_carpenters_close_to_you.html">Carpenters Close to You</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-1.57, square-section share 67%→75%) — à écouter</div></li>
+<li><a href="formprior_daryl_hall_john_oates_i_can_t_go_for_that_no_can_do_official.html">Daryl Hall John Oates I Can T Go for That no Can Do Official</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-1.08, square-section share 25%→33%) — à écouter</div></li>
+<li><a href="formprior_elton_john_goodbye_yellow_brick_road_lyrics.html">Elton John Goodbye Yellow Brick Road Lyrics</a> <span class="tag">questionable (known_issues: over-segmented +3 vs tabs, other recording)</span><div class="sub">changed, ambiguous (Δlp=+0.37, square-section share 50%→67%) — à écouter</div></li>
+<li><a href="formprior_goodbye_yellow_brick_road_remastered_2014.html">Goodbye Yellow Brick Road</a> <span class="tag">questionable (known_issues: over-segmented +3 vs tabs)</span><div class="sub">changed, ambiguous (Δlp=-0.11, square-section share 75%→80%) — à écouter</div></li>
+<li><a href="formprior_jorja_smith_blue_lights_a_colors_show.html">Jorja Smith Blue Lights a Colors Show</a> <span class="tag">library</span><div class="sub">unchanged — form prior agreed with the baseline</div></li>
+<li><a href="formprior_jorja_smith_on_my_mind_acoustic_audio.html">Jorja Smith on My Mind Acoustic</a> <span class="tag">library</span><div class="sub">unchanged — form prior agreed with the baseline</div></li>
+<li><a href="formprior_katy_perry_hot_n_cold_official_music_video.html">Katy Perry Hot N Cold</a> <span class="tag">previously fine (known_issues: exact match vs tabs)</span><div class="sub">changed, ambiguous (Δlp=-1.38, square-section share 86%→88%) — à écouter</div></li>
+<li><a href="formprior_land_of_1000_dances.html">Land of 1000 Dances</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-0.66, square-section share 25%→40%) — à écouter</div></li>
+<li><a href="formprior_leo_sayer_you_make_me_feel_like_dancing_official_hd_music_vi.html">Leo Sayer You Make Me Feel Like Dancing Official Hd Music Vi</a> <span class="tag">library</span><div class="sub">changed, prior score down (Δlp=-1.66) and no squareness gain — likely a data-fit-driven regression, à écouter</div></li>
+<li><a href="formprior_let_it_be_remastered_2009.html">Let It Be</a> <span class="tag">previously fine (ABA)</span><div class="sub">changed, ambiguous (Δlp=-0.08, square-section share 100%→100%) — à écouter</div></li>
+<li><a href="formprior_let_it_be_music_travel_love_friends_al_wathba_fossil_dunes_i.html">Let It Be Music Travel Love Friends Al Wathba Fossil Dunes I</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-1.17, square-section share 67%→71%) — à écouter</div></li>
+<li><a href="formprior_maroon_5_girls_like_you_ft_cardi_b_official_music_video.html">Maroon 5 Girls Like You Ft Cardi B</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-1.50, square-section share 50%→67%) — à écouter</div></li>
+<li><a href="formprior_maroon_5_memories_official_video.html">Maroon 5 Memories</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-0.96, square-section share 75%→80%) — à écouter</div></li>
+<li><a href="formprior_maroon_5_misery_official_music_video.html">Maroon 5 Misery</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-1.04, square-section share 60%→64%) — à écouter</div></li>
+<li><a href="formprior_maroon_5_payphone_ft_wiz_khalifa_explicit_official_music_vid.html">Maroon 5 Payphone Ft Wiz Khalifa Explicit Official Music Vid</a> <span class="tag">library</span><div class="sub">changed, prior score down (Δlp=-2.11) and no squareness gain — likely a data-fit-driven regression, à écouter</div></li>
+<li><a href="formprior_maroon_5_she_will_be_loved_official_music_video.html">Maroon 5 She Will Be Loved</a> <span class="tag">questionable (known_issues: under-merged -2 vs tabs)</span><div class="sub">changed, ambiguous (Δlp=-1.00, square-section share 86%→88%) — à écouter</div></li>
+<li><a href="formprior_maroon_5_this_love.html">Maroon 5 This Love</a> <span class="tag">questionable (oversized-intro, per handoff docs)</span><div class="sub">changed, prior-score win (Δlp=+1.56) and square-section share 50%→67% — à écouter to confirm</div></li>
+<li><a href="formprior_mayer_hawthorne_henny_gingerale.html">Mayer Hawthorne Henny Gingerale</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-1.77, square-section share 67%→75%) — à écouter</div></li>
+<li><a href="formprior_mayer_hawthorne_just_ain_t_gonna_work_out_official_video.html">Mayer Hawthorne Just Ain T Gonna Work Out</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=+4.26, square-section share 50%→40%) — à écouter</div></li>
+<li><a href="formprior_mayer_hawthorne_maybe_so_maybe_no_official_video_hd.html">Mayer Hawthorne Maybe So Maybe no Official Video Hd</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-1.49, square-section share 80%→83%) — à écouter</div></li>
+<li><a href="formprior_mayer_hawthorne_the_walk.html">Mayer Hawthorne the Walk</a> <span class="tag">questionable (known_issues: under-merged -2 vs tabs)</span><div class="sub">changed, ambiguous (Δlp=-1.22, square-section share 62%→67%) — à écouter</div></li>
+<li><a href="formprior_michael_jackson_beat_it_official_4k_video.html">Michael Jackson Beat It Official 4k Video</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-0.41, square-section share 100%→100%) — à écouter</div></li>
+<li><a href="formprior_michael_jackson_billie_jean_official_video.html">Michael Jackson Billie Jean</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-1.45, square-section share 20%→33%) — à écouter</div></li>
+<li><a href="formprior_muppets_kermit_its_not_easy_being_green_original.html">Muppets Kermit Its Not Easy Being Green Original</a> <span class="tag">library</span><div class="sub">unchanged — form prior agreed with the baseline</div></li>
+<li><a href="formprior_nina_simone_feeling_good_lyric_video.html">Nina Simone Feeling Good</a> <span class="tag">library</span><div class="sub">unchanged — form prior agreed with the baseline</div></li>
+<li><a href="formprior_norah_jones_come_away_with_me.html">Norah Jones Come Away With Me</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-1.02, square-section share 25%→40%) — à écouter</div></li>
+<li><a href="formprior_norah_jones_don_t_know_why.html">Norah Jones Don T Know Why</a> <span class="tag">previously fine (known_issues: exact match vs tabs)</span><div class="sub">changed, prior score down (Δlp=-1.83) and no squareness gain — likely a data-fit-driven regression, à écouter</div></li>
+<li><a href="formprior_pharrell_williams_happy_official_video.html">Pharrell Williams Happy</a> <span class="tag">previously fine (single-loop A×20)</span><div class="sub">changed, prior score down (Δlp=-1.04) and no squareness gain — likely a data-fit-driven regression, à écouter</div></li>
+<li><a href="formprior_ray_charles_georgia_on_my_mind_official_video.html">Ray Charles Georgia on My Mind</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-1.31, square-section share 29%→38%) — à écouter</div></li>
+<li><a href="formprior_sade_like_a_tattoo_audio.html">Sade Like a Tattoo</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-1.28, square-section share 25%→40%) — à écouter</div></li>
+<li><a href="formprior_sam_smith_i_m_not_the_only_one_official_music_video.html">Sam Smith I M Not the Only One</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-2.18, square-section share 33%→50%) — à écouter</div></li>
+<li><a href="formprior_the_beatles_the_beatles_let_it_be_official_music_video_remas.html">The Beatles the Beatles Let It Be Official Music Video Remas</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=+5.95, square-section share 14%→0%) — à écouter</div></li>
+<li><a href="formprior_the_commodores_easy_1977.html">The Commodores Easy 1977</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-0.65, square-section share 33%→50%) — à écouter</div></li>
+<li><a href="formprior_the_doobie_brothers_what_a_fool_believes_official_audio.html">The Doobie Brothers What a Fool Believes</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-0.48, square-section share 75%→80%) — à écouter</div></li>
+<li><a href="formprior_the_jackson_5_abc.html">The Jackson 5 Abc</a> <span class="tag">previously fine (A1×8 B A2×3 C)</span><div class="sub">changed, ambiguous (Δlp=-1.00, square-section share 83%→86%) — à écouter</div></li>
+<li><a href="formprior_the_police_every_breath_you_take_official_music_video.html">The Police Every Breath You Take</a> <span class="tag">questionable (known_issues: over-segmented +1 vs tabs)</span><div class="sub">changed, prior score down (Δlp=-1.00) and no squareness gain — likely a data-fit-driven regression, à écouter</div></li>
+<li><a href="formprior_the_ronettes_be_my_baby_music_video.html">The Ronettes Be My Baby</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-0.11, square-section share 75%→80%) — à écouter</div></li>
+<li><a href="formprior_yam_b_cane_a_colors_show.html">Yam B Cane a Colors Show</a> <span class="tag">library</span><div class="sub">changed, prior score down (Δlp=-1.37) and no squareness gain — likely a data-fit-driven regression, à écouter</div></li>
+<li><a href="formprior_yesterday_remastered_2009.html">Yesterday</a> <span class="tag">library</span><div class="sub">changed, ambiguous (Δlp=-1.71, square-section share 67%→75%) — à écouter</div></li>
+</ul>
+
+<h2>skipped (0)</h2>
+<ul class="skiplist"></ul>
+
+<h2>errored (0)</h2>
+<ul class="skiplist"></ul>
+
+</body></html>

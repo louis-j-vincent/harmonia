@@ -49,6 +49,45 @@ export function applyPlayRate(){
   // be a frame late); the prompter shows an earlier/later adjuster while a
   // loop runs, persisted as harmLoopEpsMs. Default 12 ms early.
 export const LOOP_PRE_S=0.15;
+
+// ── LE MORCEAU COMMENCE AU PREMIER ACCORD ────────────────────────────────────
+// Louis, 2026-09-19 : « fais toujours commencer le morceau par défaut sur le
+// premier accord, et quand on appuie sur play joue à partir de là, pas avant —
+// évite les parfois 10 s de début de vidéo avant que la chanson démarre ».
+//
+// Une vidéo YouTube commence rarement sur la musique : parole, logo, fondu. Le
+// traqueur de battues entend un pouls et le suit, donc la grille couvre AUSSI
+// ce silence — mesuré sur min_08DjMT-qR9g, `barGrid[0] = −0,26 s` et le premier
+// accord tombe à 5,74 s : deux mesures de N.C. avant la musique.
+//
+// CE QUE ÇA NE FAIT PAS : ça ne retire pas ces mesures du chart, ça ne fait que
+// poser l'aiguille au bon endroit. Retirer les mesures déplacerait TOUS les
+// charts de la bibliothèque — ça passe par le rapport d'or et par l'arbitrage
+// de Louis, pas par un raccourci ici.
+const DEBUT_EPS_S = 0.05;
+
+export function debutDuMorceau(){
+  // Le t0 du premier accord qui sonne. Un N.C. n'est pas un accord : c'est
+  // exactement le silence qu'on veut sauter.
+  const cs = S.chords;
+  if(!cs || !cs.length) return 0;
+  for(const c of cs){
+    if(c && !c.nc && c.t0!=null && isFinite(c.t0)) return Math.max(0, c.t0);
+  }
+  return 0;
+}
+
+// Poser l'aiguille au premier accord — mais SEULEMENT quand elle est encore au
+// tout début. Si Louis a déjà cherché un endroit dans le morceau, ou s'il
+// boucle une section, on ne lui déplace rien sous les doigts.
+export function caleAuDebut(){
+  if(!S.audio || S._loopEngine) return;
+  const d = debutDuMorceau();
+  if(d <= DEBUT_EPS_S) return;
+  const pos = S.audio.currentTime || 0;
+  if(pos > DEBUT_EPS_S) return;
+  try{ S.audio.currentTime = d; }catch(e){}
+}
 export let loopEpsS=(()=>{ const v=parseFloat(localStorage.getItem("harmLoopEpsMs")); return isFinite(v)?v/1000:0.012; })();
 export function loopEpsSet(ms){
     loopEpsS=Math.max(-0.04, Math.min(0.08, ms/1000));
@@ -191,7 +230,21 @@ export function syncTransport(screen){
     // The coach panel is rebuilt with the dock, so repaint it on every
     // navigation — same reason as before, new home.
     if(S.coach && S._lastCoachIdx!=null) paintCoachChord(S._lastCoachIdx);
-    if(!show) return;
+    if(!show){
+      // UN CHART SANS AUDIO DOIT FAIRE TAIRE LE PRÉCÉDENT (2026-09-18).
+      // `S.audio` n'était jamais remis à zéro : il ne l'est QUE dans le bloc
+      // ci-dessous, que ce `return` saute. Ouvrir une grille iReal (pas
+      // d'`audio_url`) après avoir écouté un morceau laissait donc
+      // l'élément sur la chanson d'avant — et le bouton Play du dock, qui
+      // ne teste que `if(!S.audio)`, la jouait par-dessus la nouvelle
+      // grille, en pilotant le curseur sur des mesures qui ne sont pas les
+      // siennes.
+      if(screen==="chart" && S.audio && !S.audioUrl){
+        try{ S.audio.pause(); }catch(e){}
+        S.audio=null; S._audioSrc=null; S.playing=false;
+      }
+      return;
+    }
     // A rebuilt dock starts from placeholder labels; restore the real
     // position/duration if the audio is already loaded.
     if(S.audio && S._audioSrc===S.audioUrl && isFinite(S.audio.duration) && S.audio.duration>0){
@@ -242,7 +295,12 @@ export function syncTransport(screen){
       // Maintenant le téléchargement part à l'OUVERTURE du chart, pendant
       // qu'il lit la grille, et il est là quand il appuie.
       swapToBlob();
-      S.audio.addEventListener("loadedmetadata",()=>{ paintDockTime(S.audio.currentTime||0, S.audio.duration); });
+      S.audio.addEventListener("loadedmetadata",()=>{
+        // L'aiguille se pose sur le premier accord dès l'ouverture, pour que le
+        // compteur du dock ne parte pas d'un silence (voir `caleAuDebut`).
+        caleAuDebut();
+        paintDockTime(S.audio.currentTime||0, S.audio.duration);
+      });
       S.audio.addEventListener("ended",()=>{ S.playing=false; setPlayBtn(); stopTick(); setPlayhead(-1); });
       // Diagnostic event log (2026-07-20, iPhone no-sound bug): confirmed the
       // audio genuinely does advance — but only once the tab is backgrounded
@@ -396,6 +454,8 @@ export function swapToBlob(resumeAt){
 export function togglePlay(){
     if(!S.audio) return;
     if(S.playing){ stopPlayback(); return; }
+    // Play part de la musique, pas du logo de la chaîne (voir `caleAuDebut`).
+    caleAuDebut();
     // ── iOS 18.3.2 no-sound-on-tap fixes (user report 2026-07-20) ────────────
     // Symptom: play() accepted (paused:false) but the element stays at
     // HAVE_METADATA with networkState IDLE + empty buffer after a `suspend`, and

@@ -1,0 +1,73 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>form prior — Norah Jones Come Away With Me</title>
+<style>
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 12px 12px 32px; font-family: -apple-system, BlinkMacSystemFont,
+  "Segoe UI", Roboto, sans-serif; background: #0e0e10; color: #eee;
+  max-width: 720px; margin-left: auto; margin-right: auto;
+}
+@media (prefers-color-scheme: light) { body { background: #f7f6f3; color: #1a1a1a; } }
+h1 { font-size: 1.25rem; margin: 4px 0 2px; }
+h2 { font-size: 0.95rem; margin: 20px 0 6px; opacity: 0.85; }
+.sub { font-size: 0.85rem; opacity: 0.65; margin-bottom: 14px; }
+.verdict {
+  font-size: 0.9rem; padding: 10px 12px; border-radius: 10px; margin: 10px 0 18px;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+}
+@media (prefers-color-scheme: light) { .verdict { background: #fff; border-color: #e2e0da; } }
+table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin: 8px 0 4px; }
+th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,0.1); vertical-align: top; }
+@media (prefers-color-scheme: light) { th, td { border-color: #e2e0da; } }
+th { opacity: 0.6; font-weight: 600; }
+.form { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.78rem; }
+.lp { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.better { color: #4caf6a; }
+.worse { color: #e0824a; }
+.frame-wrap {
+  border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.14);
+  margin: 6px 0 4px; background: #fff;
+}
+iframe { width: 100%; height: 62vh; border: 0; display: block; }
+a.back { color: inherit; opacity: 0.6; font-size: 0.85rem; text-decoration: none; }
+.tag {
+  display: inline-block; font-size: 0.72rem; padding: 2px 8px; border-radius: 999px;
+  background: rgba(255,255,255,0.1); margin-left: 8px; opacity: 0.8;
+}
+ul.list { list-style: none; padding: 0; margin: 0; }
+ul.list li { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 0.88rem; }
+@media (prefers-color-scheme: light) { ul.list li { border-color: #e9e7e0; } }
+ul.list a { color: inherit; font-weight: 600; text-decoration: none; }
+.stattable td, .stattable th { text-align: center; }
+.stattable td:first-child, .stattable th:first-child { text-align: left; }
+.skiplist { font-size: 0.78rem; opacity: 0.6; margin-top: 6px; }
+</style>
+</head><body>
+<a class="back" href="formprior_index.html">&larr; all songs</a>
+<h1>Norah Jones Come Away With Me <span class="tag">library</span></h1>
+<div class="sub">HARMONIA_FORM_PRIOR off vs on &middot; same audio, same beat grid &middot;
+80 BPM &middot; C major</div>
+
+<div class="verdict"><strong>Changed.</strong> changed, ambiguous (Δlp=-1.02, square-section share 25%→40%) — à écouter</div>
+
+<table>
+<tr><th></th><th>form</th><th>prior log-prob</th></tr>
+<tr><td>baseline</td><td class="form">A(21) B(15) A(12) B(17)</td>
+    <td class="lp">-20.81</td></tr>
+<tr><td>with prior</td><td class="form">A(21) B(15) A(12) B(8) C(9)</td>
+    <td class="lp">-21.83 <span class="worse">(-1.02)</span></td></tr>
+</table>
+<div class="sub">form string reads <code>letter(bars)</code> in play order &middot;
+prior log-prob is higher (less negative) = more plausible as a real chart
+form, per the iReal Pop 400 corpus</div>
+
+<h2>baseline (HARMONIA_FORM_PRIOR off)</h2>
+<div class="frame-wrap"><iframe src="formprior_norah_jones_come_away_with_me_baseline.html" loading="lazy"></iframe></div>
+
+<h2>with form prior (HARMONIA_FORM_PRIOR=1, w=1.0)</h2>
+<div class="frame-wrap"><iframe src="formprior_norah_jones_come_away_with_me_prior.html" loading="lazy"></iframe></div>
+
+</body></html>

@@ -75,7 +75,22 @@ export const TOK={"":"","6":"6","^7":"maj7","^":"maj7","7":"7","-":"m","-7":"m7"
              "11":"11","-11":"m11","^11":"maj11","-13":"m13","^13":"maj13",
              "-^9":"mMaj9","-^11":"mMaj11","-^13":"mMaj13",
              "7sus2":"7sus2","9sus2":"9sus2","9sus4":"9sus4",
-             "11sus4":"11sus4","13sus4":"13sus4","+9":"+9"};
+             "11sus4":"11sus4","13sus4":"13sus4","+9":"+9",
+             // LES QUEUES QU'UN CHART iREAL IMPORTÉ APPORTE (2026-09-18).
+             // 3,9 % des accords des 2207 standards d'iReal portent une de
+             // ces queues ; sans clé ici elles s'affichaient telles quelles,
+             // avec un `b` et un `#` d'ASCII au milieu d'une grille qui
+             // écrit ♭ et ♯ partout ailleurs. Aucune ne change un accord
+             // existant : ce sont des ajouts purs (cf. la note ci-dessus).
+             "5":"5","2":"2","7alt":"7alt","o^7":"dim(maj7)","h9":"ø9",
+             "-b6":"m♭6","-#5":"m♯5","^7#5":"maj7♯5","^7#11":"maj7♯11",
+             "^9#11":"maj9♯11","7#5":"7♯5","7b13":"7♭13","9#5":"9♯5",
+             "9b5":"9♭5","9#11":"9♯11","13b9":"13♭9","13#9":"13♯9",
+             "13#11":"13♯11","7b9b5":"7♭9♭5","7b9#5":"7♭9♯5",
+             "7b9#9":"7♭9♯9","7b9#11":"7♭9♯11","7b9b13":"7♭9♭13",
+             "7#9b5":"7♯9♭5","7#9#5":"7♯9♯5","7#9#11":"7♯9♯11",
+             "9sus":"9sus","13sus":"13sus","7b9sus":"7♭9sus",
+             "7b13sus":"7♭13sus","7susadd3":"7susadd3"};
 export const isHalfDim=q=>q.indexOf("-7b5")===0||q.indexOf("h")===0;
 export const isDim=q=>q.indexOf("o")===0||q.indexOf("dim")===0;
 export function seventhOf(q){ if(q==="6"||q.indexOf("^")===0)return "^7"; if(isHalfDim(q))return "h7"; if(isDim(q))return (q==="o7"?"o7":"o"); if(q.indexOf("-")===0)return "-7"; if(q==="")return ""; return "7"; }
@@ -197,6 +212,24 @@ export function glyphTight(root,q,size,depth,color,bass,inlineBass){
   // `inlineBass` ne concerne que l'écriture compacte: en notation normale la
   // basse est DÉJÀ en ligne (voir plus bas), c'est le serrage qui la fait
   // pendre. L'appelant passe simplement « cette cellule n'a qu'un accord ».
+  // LA BASSE QUI MARCHE SOUS UN ACCORD TENU (2026-09-18, import iReal).
+  // iReal écrit `E♭m7 · /G♭ · A♭m11 · /B♭` : la 2e et la 4e case ne répètent
+  // PAS le nom de l'accord, elles ne portent que la basse. C'est ce que
+  // `W/G♭` encode, et c'est aussi la seule façon de faire tenir quatre cases
+  // pareilles dans une mesure. L'accord complet reste dans le modèle
+  // (`root`+`q`+`bass`) — seul l'AFFICHAGE se tait, comme sur la partition.
+export function pedalGlyph(bass,size,color){
+    // Écrit à la taille d'une BASSE SLASH, pas d'un accord : `glyph` dessine
+    // déjà ses basses à 0,5×, et une pédale n'est rien d'autre qu'une basse
+    // slash dont l'accord est sous-entendu. À taille pleine, les quatre
+    // cases du refrain de *Virtual Insanity* (`E♭m7 · /G♭ · A♭m11 · /B♭`)
+    // ne tiennent dans aucune mesure.
+    const s=Math.round(size*0.7);
+    const w=el("span",`font-family:${SERIF};font-style:italic;line-height:1;white-space:nowrap;color:${color};display:inline-flex;align-items:baseline;font-weight:600;opacity:.82;`);
+    w.appendChild(el("span",`font-size:${Math.round(s*0.86)}px;`,"/"));
+    w.appendChild(noteEl(bass,s));
+    return w;
+  }
 export function glyph(root,q,size,depth,color,bass,inlineBass){
     if(PREF.notation==="compact") return glyphTight(root,q,size,depth,color,bass,inlineBass);
     const w=el("span",`font-family:${SERIF};font-style:italic;line-height:1;white-space:nowrap;color:${color};display:inline-flex;align-items:baseline;`);

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bein' Green — iReal Pro Chart</title>
+<style>
+  :root{--paper:#f7f3e9;--ink:#1c1c1c;--rule:#b9b09a;--accent:#8a2b2b;--faint:#8a8371;
+         --teal:#00c9a7;}
+  *{box-sizing:border-box;}
+  body{background:var(--paper);color:var(--ink);margin:0;
+       font-family:Georgia,'Times New Roman',serif;}
+  .sheet{max-width:900px;margin:0 auto;padding:28px 28px 80px;}
+  h1{text-align:center;font-size:24px;margin:0 0 4px;}
+  .meta{text-align:center;color:var(--faint);font-style:italic;font-size:13px;margin-bottom:20px;}
+  .ir-grid{display:flex;flex-direction:column;gap:3px;
+            border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);
+            padding:8px 0;}
+  .ir-row{display:grid;grid-template-columns:28px repeat(4,1fr);gap:3px;align-items:stretch;}
+  .ir-sec{display:flex;align-items:flex-start;justify-content:center;padding-top:6px;}
+  .ir-sec span{font-family:system-ui,sans-serif;font-size:10px;font-weight:700;
+    color:var(--accent);border:1.5px solid var(--accent);border-radius:3px;
+    padding:1px 4px;line-height:1;}
+  .ir-bar{display:flex;gap:0;border:1px solid var(--rule);border-radius:3px;
+           min-height:48px;background:#fff;overflow:hidden;}
+  .ir-empty{border:1px dashed #e0d8c0;background:transparent;}
+  .ir-cell{flex:1;display:flex;align-items:center;justify-content:center;
+            font-family:'Menlo','Courier New',monospace;font-size:13px;color:var(--ink);
+            padding:4px 3px;text-align:center;line-height:1.25;}
+  .ir-cell+.ir-cell{border-left:1px solid var(--rule);}
+  .chord-now-playing{
+    background:rgba(0,201,167,0.25)!important;
+    outline:2px solid var(--teal);outline-offset:1px;border-radius:2px;
+  }
+  .ir-source{font-family:system-ui,sans-serif;font-size:11px;color:var(--faint);
+    margin-top:12px;text-align:right;}
+</style>
+</head><body>
+<div class="sheet">
+  <h1>Bein' Green</h1>
+  <p class="meta">Raposo Joe&ensp;·&ensp;Key: Bb &ensp;·&ensp; Even 8ths &ensp;·&ensp; 75 BPM &ensp;·&ensp; 4/4 &ensp;·&ensp; 32 bars</p>
+  <div class="ir-grid">
+<div class="ir-row"><div class="ir-sec"><span>A</span></div><div class="ir-bar"><div class="ir-cell" id="chord-0">Bb^7</div></div><div class="ir-bar"><div class="ir-cell" id="chord-1">A7#5</div></div><div class="ir-bar"><div class="ir-cell" id="chord-2">Dh7/Ab</div></div><div class="ir-bar"><div class="ir-cell" id="chord-3">G7sus</div><div class="ir-cell" id="chord-4">G7b9</div></div></div><div class="ir-row"><div class="ir-sec"></div><div class="ir-bar"><div class="ir-cell" id="chord-5">C-7</div></div><div class="ir-bar"><div class="ir-cell" id="chord-6">F7sus</div><div class="ir-cell" id="chord-7">F7</div></div><div class="ir-bar"><div class="ir-cell" id="chord-8">Bb^7</div></div><div class="ir-bar"><div class="ir-cell" id="chord-9">Bb^</div><div class="ir-cell" id="chord-10">Ab/Eb</div><div class="ir-cell" id="chord-11">Gb/Db</div><div class="ir-cell" id="chord-12">F7/C</div></div></div><div class="ir-row"><div class="ir-sec"></div><div class="ir-bar"><div class="ir-cell" id="chord-13">Bb^7</div></div><div class="ir-bar"><div class="ir-cell" id="chord-14">A7#5</div></div><div class="ir-bar"><div class="ir-cell" id="chord-15">Dh7/Ab</div></div><div class="ir-bar"><div class="ir-cell" id="chord-16">G7sus</div><div class="ir-cell" id="chord-17">G7b9</div></div></div><div class="ir-row"><div class="ir-sec"></div><div class="ir-bar"><div class="ir-cell" id="chord-18">C-7</div></div><div class="ir-bar"><div class="ir-cell" id="chord-19">F7sus</div><div class="ir-cell" id="chord-20">F7</div></div><div class="ir-bar"><div class="ir-cell" id="chord-21">Bb^7</div></div><div class="ir-bar"><div class="ir-cell" id="chord-22">Bb6</div></div></div><div class="ir-row"><div class="ir-sec"><span>B</span></div><div class="ir-bar"><div class="ir-cell" id="chord-23">Ab^7</div></div><div class="ir-bar"><div class="ir-cell" id="chord-24">Db^7</div></div><div class="ir-bar"><div class="ir-cell" id="chord-25">Bb^7</div></div><div class="ir-bar"><div class="ir-cell" id="chord-26">Bb^7</div></div></div><div class="ir-row"><div class="ir-sec"></div><div class="ir-bar"><div class="ir-cell" id="chord-27">G-</div><div class="ir-cell" id="chord-28">G-^7</div></div><div class="ir-bar"><div class="ir-cell" id="chord-29">G-7</div><div class="ir-cell" id="chord-30">C7</div></div><div class="ir-bar"><div class="ir-cell" id="chord-31">C-7</div></div><div class="ir-bar"><div class="ir-cell" id="chord-32">F7</div></div></div><div class="ir-row"><div class="ir-sec"><span>A</span></div><div class="ir-bar"><div class="ir-cell" id="chord-33">Bb^7</div></div><div class="ir-bar"><div class="ir-cell" id="chord-34">A7#5</div></div><div class="ir-bar"><div class="ir-cell" id="chord-35">Dh7/Ab</div></div><div class="ir-bar"><div class="ir-cell" id="chord-36">G7sus</div><div class="ir-cell" id="chord-37">G7b9</div></div></div><div class="ir-row"><div class="ir-sec"></div><div class="ir-bar"><div class="ir-cell" id="chord-38">C-7</div></div><div class="ir-bar"><div class="ir-cell" id="chord-39">F7sus</div><div class="ir-cell" id="chord-40">F7</div></div><div class="ir-bar"><div class="ir-cell" id="chord-41">Bb6</div></div><div class="ir-bar"><div class="ir-cell" id="chord-42">C-7</div><div class="ir-cell" id="chord-43">F7</div></div></div>  </div>
+  <p class="ir-source">iReal Pro chart · chart starts at 0.0s into video</p>
+</div>
+<script>window.P = {"chords": [{"label": "Bb^7", "t0": 0.0, "t1": 3.2, "bar": 0, "section": "A"}, {"label": "A7#5", "t0": 3.2, "t1": 6.4, "bar": 1, "section": "A"}, {"label": "Dh7/Ab", "t0": 6.4, "t1": 9.6, "bar": 2, "section": "A"}, {"label": "G7sus", "t0": 9.6, "t1": 11.2, "bar": 3, "section": "A"}, {"label": "G7b9", "t0": 11.2, "t1": 12.8, "bar": 3, "section": "A"}, {"label": "C-7", "t0": 12.8, "t1": 16.0, "bar": 4, "section": "A"}, {"label": "F7sus", "t0": 16.0, "t1": 17.6, "bar": 5, "section": "A"}, {"label": "F7", "t0": 17.6, "t1": 19.2, "bar": 5, "section": "A"}, {"label": "Bb^7", "t0": 19.2, "t1": 22.4, "bar": 6, "section": "A"}, {"label": "Bb^", "t0": 22.4, "t1": 23.2, "bar": 7, "section": "A"}, {"label": "Ab/Eb", "t0": 23.2, "t1": 24.0, "bar": 7, "section": "A"}, {"label": "Gb/Db", "t0": 24.0, "t1": 24.8, "bar": 7, "section": "A"}, {"label": "F7/C", "t0": 24.8, "t1": 25.6, "bar": 7, "section": "A"}, {"label": "Bb^7", "t0": 25.6, "t1": 28.8, "bar": 8, "section": "A"}, {"label": "A7#5", "t0": 28.8, "t1": 32.0, "bar": 9, "section": "A"}, {"label": "Dh7/Ab", "t0": 32.0, "t1": 35.2, "bar": 10, "section": "A"}, {"label": "G7sus", "t0": 35.2, "t1": 36.8, "bar": 11, "section": "A"}, {"label": "G7b9", "t0": 36.8, "t1": 38.4, "bar": 11, "section": "A"}, {"label": "C-7", "t0": 38.4, "t1": 41.6, "bar": 12, "section": "A"}, {"label": "F7sus", "t0": 41.6, "t1": 43.2, "bar": 13, "section": "A"}, {"label": "F7", "t0": 43.2, "t1": 44.8, "bar": 13, "section": "A"}, {"label": "Bb^7", "t0": 44.8, "t1": 48.0, "bar": 14, "section": "A"}, {"label": "Bb6", "t0": 48.0, "t1": 51.2, "bar": 15, "section": "A"}, {"label": "Ab^7", "t0": 51.2, "t1": 54.4, "bar": 16, "section": "B"}, {"label": "Db^7", "t0": 54.4, "t1": 57.6, "bar": 17, "section": "B"}, {"label": "Bb^7", "t0": 57.6, "t1": 60.8, "bar": 18, "section": "B"}, {"label": "Bb^7", "t0": 60.8, "t1": 64.0, "bar": 19, "section": "B"}, {"label": "G-", "t0": 64.0, "t1": 65.6, "bar": 20, "section": "B"}, {"label": "G-^7", "t0": 65.6, "t1": 67.2, "bar": 20, "section": "B"}, {"label": "G-7", "t0": 67.2, "t1": 68.8, "bar": 21, "section": "B"}, {"label": "C7", "t0": 68.8, "t1": 70.4, "bar": 21, "section": "B"}, {"label": "C-7", "t0": 70.4, "t1": 73.6, "bar": 22, "section": "B"}, {"label": "F7", "t0": 73.6, "t1": 76.8, "bar": 23, "section": "B"}, {"label": "Bb^7", "t0": 76.8, "t1": 80.0, "bar": 24, "section": "A"}, {"label": "A7#5", "t0": 80.0, "t1": 83.2, "bar": 25, "section": "A"}, {"label": "Dh7/Ab", "t0": 83.2, "t1": 86.4, "bar": 26, "section": "A"}, {"label": "G7sus", "t0": 86.4, "t1": 88.0, "bar": 27, "section": "A"}, {"label": "G7b9", "t0": 88.0, "t1": 89.6, "bar": 27, "section": "A"}, {"label": "C-7", "t0": 89.6, "t1": 92.8, "bar": 28, "section": "A"}, {"label": "F7sus", "t0": 92.8, "t1": 94.4, "bar": 29, "section": "A"}, {"label": "F7", "t0": 94.4, "t1": 96.0, "bar": 29, "section": "A"}, {"label": "Bb6", "t0": 96.0, "t1": 99.2, "bar": 30, "section": "A"}, {"label": "C-7", "t0": 99.2, "t1": 100.8, "bar": 31, "section": "A"}, {"label": "F7", "t0": 100.8, "t1": 102.4, "bar": 31, "section": "A"}], "tempo": 75};</script>
+</body></html>

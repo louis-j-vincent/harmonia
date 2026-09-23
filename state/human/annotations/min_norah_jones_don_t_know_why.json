@@ -1,0 +1,18 @@
+{
+  "annotator": "",
+  "chords": [
+    {
+      "bar": 4,
+      "beat": 2,
+      "root": 10,
+      "bass": -1,
+      "q": "7",
+      "t0": 12.3415,
+      "t1": 13.7
+    }
+  ],
+  "merges": [],
+  "schema": 1,
+  "chart": "min_norah_jones_don_t_know_why",
+  "modified": "2026-09-18T16:45:24Z"
+}

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Le détecteur, prior réappris dans notre écriture</title>
+<style>
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin:0; padding:14px 12px 40px; max-width:640px; margin-inline:auto;
+  font-family:-apple-system,"Segoe UI",sans-serif; background:#1e1c1a; color:#ece8e2; }
+@media (prefers-color-scheme: light) { body { background:#f7f6f3; color:#1a1a1a; } }
+h1 { font-size:1.24rem; margin:4px 0 8px; }
+h2 { font-size:1.1rem; margin:0 0 8px; }
+section { border-top:1px solid rgba(128,128,128,.3); padding-top:20px; margin-top:26px; }
+.sub { opacity:.72; font-size:.8rem; line-height:1.45; margin:6px 0 0; }
+.lab { font-size:.7rem; letter-spacing:.07em; text-transform:uppercase;
+  opacity:.55; margin:16px 0 6px; font-weight:700; }
+.strip { display:flex; flex-wrap:wrap; gap:4px; }
+.c { display:inline-flex; align-items:baseline; gap:1px; padding:5px 7px;
+  border-radius:6px; font-size:.82rem; font-weight:700;
+  border:1px solid rgba(128,128,128,.35); }
+.c sub { font-size:.68rem; font-weight:400; opacity:.7; }
+.c b { font-size:.7rem; font-weight:600; opacity:.85; margin-left:3px; }
+.c1 { background:rgba(120,120,120,.10); }
+.c2 { background:rgba(196,138,32,.20); border-color:rgba(196,138,32,.5); }
+.c3 { background:rgba(176,58,46,.28); border-color:rgba(176,58,46,.75); }
+.verdict { margin:14px 0 0; padding:11px 13px; border-radius:0 8px 8px 0;
+  font-size:.86rem; line-height:1.5; }
+.verdict ul { margin:7px 0 9px; padding-left:18px; }
+.bad { border-left:3px solid #b03a2e; background:rgba(176,58,46,.08); }
+.ok { border-left:3px solid #4a7c59; background:rgba(74,124,89,.10); }
+iframe { width:100%; height:560px; border:1px solid rgba(128,128,128,.3);
+  border-radius:10px; background:#f5f2ea; }
+.full { display:inline-block; margin-top:8px; font-size:.85rem; font-weight:600; }
+.intro { font-size:.87rem; line-height:1.55; }
+.box { margin-top:14px; padding:11px 13px; border-radius:8px; font-size:.83rem;
+  line-height:1.5; background:rgba(196,138,32,.12);
+  border:1px solid rgba(196,138,32,.35); }
+</style></head><body>
+
+<h1>Le détecteur, prior réappris dans notre écriture</h1>
+<div class="intro">
+Tu voulais qu'on écrive <b>A A A A</b> plutôt qu'un grand A qui avale tout,
+parce que c'est plus juste : un A de 8 mesures, suivi d'un autre A de 8
+mesures. J'avais construit le prior à l'envers — je fusionnais les sections
+consécutives de même lettre, ce qui rendait « A puis A » impossible et le
+facturait 6.57 nats.
+</div>
+<div class="box"><b>Ce que j'ai trouvé en creusant.</b> Ton écriture est aussi
+celle d'iReal. Le chart iReal de Stand By Me contient littéralement deux
+marqueurs <code>*A</code> à la suite. C'est mon encodage qui les fusionnait,
+pas le corpus qui les ignorait. En découpant les occurrences aux marqueurs
+écrits, <b>26 % des enchaînements du corpus sont de même lettre</b> — un
+phénomène massif que j'avais annulé par construction. A→A coûte maintenant
+<b>1.25</b> nat au lieu de 6.57.</div>
+<div class="box" style="background:rgba(74,124,89,.12);border-color:rgba(74,124,89,.4)">
+<b>Le seuil ne sort plus de nulle part.</b> « Signalé » = plus improbable que
+<b>95 % des sections de vrais charts iReal</b> (soit 4.6 nats) ;
+« tiède » = au-dessus de la médiane haute (3.16). Calibré sur le corpus,
+pas choisi à la main.</div>
+
+<section>
+<h2>Stand By Me</h2>
+<div class="strip"><span class='c c2'>i<sub>6</sub><b>3.5</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c1'>A<sub>8</sub><b>1.4</b></span></div>
+<div class="sub">La forme telle que l'app l'écrit, chaque section avec le coût
+de sa longueur. 1 section en tiède,
+0 enchaînements au-dessus du seuil
+(2.02).</div>
+<div class="verdict ok"><b>Aucune alerte.</b> Section la plus chère : i(6 mes.) à 3.5, sous le seuil de 4.6.<br><b>Ton critère de validation.</b> Tu as dit : ce sont les mêmes accords partout, même au refrain, donc dix sections A d'affilée sont justes. Le prior est maintenant d'accord — chaque A(8) coûte 0.8, et l'enchaînement A→A ne coûte plus que 1.25 au lieu de 6.57. C'est exactement ce que le changement d'encodage devait produire, et c'est vérifiable ici : aucune alerte.</div>
+<div class="lab">le chart, jouable</div>
+<iframe src="http://100.89.209.63:7772/?open=min_ben_e_king_stand_by_me_audio" loading="lazy"></iframe>
+<a class="full" href="http://100.89.209.63:7772/?open=min_ben_e_king_stand_by_me_audio">ouvrir en plein écran ↗</a>
+</section>
+<section>
+<h2>Maroon 5 This Love</h2>
+<div class="strip"><span class='c c1'>i<sub>8</sub><b>2.1</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c1'>B<sub>8</sub><b>1.1</b></span><span class='c c1'>C<sub>4</sub><b>1.4</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c1'>B<sub>8</sub><b>1.1</b></span><span class='c c1'>C<sub>4</sub><b>1.4</b></span><span class='c c1'>D<sub>8</sub><b>1.6</b></span><span class='c c1'>B<sub>8</sub><b>1.1</b></span><span class='c c1'>B<sub>8</sub><b>1.1</b></span><span class='c c1'>B<sub>8</sub><b>1.7</b></span></div>
+<div class="sub">La forme telle que l'app l'écrit, chaque section avec le coût
+de sa longueur. 0 sections en tiède,
+1 enchaînement au-dessus du seuil
+(2.02).</div>
+<div class="verdict ok"><b>Aucune alerte.</b> Section la plus chère : i(8 mes.) à 2.1, sous le seuil de 4.6.<br>Témoin propre. La section la plus chère est l'intro de 8 mesures (2.1), loin sous le seuil. Les trois refrains B finaux restent trois sections distinctes de 8 mesures, chacune à 1.1 — c'est bien l'écriture que tu veux, et elle ne coûte rien.</div>
+<div class="lab">le chart, jouable</div>
+<iframe src="http://100.89.209.63:7772/?open=min_maroon_5_this_love" loading="lazy"></iframe>
+<a class="full" href="http://100.89.209.63:7772/?open=min_maroon_5_this_love">ouvrir en plein écran ↗</a>
+</section>
+<section>
+<h2>Let It Be Remastered 2009</h2>
+<div class="strip"><span class='c c1'>i<sub>4</sub><b>0.6</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c1'>B<sub>4</sub><b>1.7</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c1'>C<sub>4</sub><b>1.4</b></span><span class='c c1'>A<sub>4</sub><b>2.4</b></span><span class='c c1'>A<sub>4</sub><b>2.4</b></span><span class='c c1'>B<sub>4</sub><b>1.7</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c1'>B<sub>4</sub><b>1.7</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c2'>C<sub>2</sub><b>4.2</b></span></div>
+<div class="sub">La forme telle que l'app l'écrit, chaque section avec le coût
+de sa longueur. 1 section en tiède,
+2 enchaînements au-dessus du seuil
+(2.02).</div>
+<div class="verdict ok"><b>Aucune alerte.</b> Section la plus chère : C(2 mes.) à 4.2, sous le seuil de 4.6.<br>Rien n'est signalé, mais la <b>toute dernière section (2 mesures, 4.2)</b> frôle le seuil — c'est la section la plus chère du chart. Le corpus dit qu'une section finale est plutôt allongée que tronquée, donc une finale de 2 mesures reste inhabituelle sans être aberrante. À écouter si tu passes par là.</div>
+<div class="lab">le chart, jouable</div>
+<iframe src="http://100.89.209.63:7772/?open=min_let_it_be_remastered_2009" loading="lazy"></iframe>
+<a class="full" href="http://100.89.209.63:7772/?open=min_let_it_be_remastered_2009">ouvrir en plein écran ↗</a>
+</section>
+<section>
+<h2>Chain Of Fools</h2>
+<div class="strip"><span class='c c2'>i<sub>1</sub><b>3.5</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c2'>A<sub>2</sub><b>4.3</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c2'>A<sub>2</sub><b>4.3</b></span><span class='c c1'>A<sub>4</sub><b>2.4</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c1'>A<sub>4</sub><b>2.4</b></span><span class='c c2'>A<sub>6</sub><b>3.5</b></span><span class='c c1'>A<sub>4</sub><b>2.4</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c3'>A<sub>15</sub><b>5.0</b> ⚠</span><span class='c c1'>A<sub>8</sub><b>1.4</b></span></div>
+<div class="sub">La forme telle que l'app l'écrit, chaque section avec le coût
+de sa longueur. 4 sections en tiède,
+0 enchaînements au-dessus du seuil
+(2.02).</div>
+<div class="verdict bad"><b>1 section signalée</b><ul><li><b>A(15 mes.)</b> vers <b>1:56</b> — 5.0</li></ul>Notre chart met tout le morceau dans une seule lettre, avec des longueurs qui partent dans tous les sens (8, 2, 8, 2, 4, 6, 15…). Le prior signale la section de <b>15 mesures</b> et met en tiède les deux fragments de 2. À comparer avec le chart iReal du même morceau, qui l'écrit en sections de 4 mesures bien régulières : c'est le découpage qui dérive, pas les accords.</div>
+<div class="lab">le chart, jouable</div>
+<iframe src="http://100.89.209.63:7772/?open=min_aretha_franklin_chain_of_fools_official_lyric_video" loading="lazy"></iframe>
+<a class="full" href="http://100.89.209.63:7772/?open=min_aretha_franklin_chain_of_fools_official_lyric_video">ouvrir en plein écran ↗</a>
+</section>
+<section>
+<h2>She Will Be Loved</h2>
+<div class="strip"><span class='c c1'>i<sub>4</sub><b>0.6</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c1'>B<sub>8</sub><b>1.1</b></span><span class='c c2'>C<sub>5</sub><b>3.4</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c1'>A<sub>8</sub><b>0.8</b></span><span class='c c1'>B<sub>8</sub><b>1.1</b></span><span class='c c3'>C<sub>1</sub><b>5.6</b> ⚠</span><span class='c c1'>D<sub>8</sub><b>1.6</b></span><span class='c c1'>D<sub>4</sub><b>1.3</b></span><span class='c c1'>C<sub>4</sub><b>1.4</b></span><span class='c c1'>D<sub>4</sub><b>1.3</b></span><span class='c c3'>C<sub>1</sub><b>5.6</b> ⚠</span><span class='c c1'>B<sub>8</sub><b>1.1</b></span><span class='c c3'>C<sub>1</sub><b>5.6</b> ⚠</span><span class='c c1'>D<sub>8</sub><b>1.6</b></span><span class='c c2'>C<sub>11</sub><b>3.5</b></span></div>
+<div class="sub">La forme telle que l'app l'écrit, chaque section avec le coût
+de sa longueur. 2 sections en tiède,
+3 enchaînements au-dessus du seuil
+(2.02).</div>
+<div class="verdict bad"><b>3 sections signalées</b><ul><li><b>C(1 mes.)</b> vers <b>2:26</b> — 5.6</li><li><b>C(1 mes.)</b> vers <b>3:15</b> — 5.6</li><li><b>C(1 mes.)</b> vers <b>3:36</b> — 5.6</li></ul>Le cas le plus net : <b>trois sections d'une seule mesure</b>, à 5.6 chacune — au-dessus du 99e percentile du corpus. Ce ne sont pas des variantes d'écriture, ce sont des fragments. Le reste du chart est sain (A(8), B(8), D(8) tous sous 1.7). Trois endroits précis à écouter, pas le morceau entier.</div>
+<div class="lab">le chart, jouable</div>
+<iframe src="http://100.89.209.63:7772/?open=min_maroon_5_she_will_be_loved_official_music_video" loading="lazy"></iframe>
+<a class="full" href="http://100.89.209.63:7772/?open=min_maroon_5_she_will_be_loved_official_music_video">ouvrir en plein écran ↗</a>
+</section>
+
+<div class="box" style="margin-top:28px"><b>Validation.</b> Sur les 345 charts
+du corpus, la vraie forme bat sa version aux étiquettes mélangées dans 95.1 %
+des cas, ses vraies longueurs battent des longueurs perturbées dans 94.8 %,
+et elle bat une version sur-découpée dans 98.8 %. Les trois chiffres sont en
+hausse par rapport à l'ancien encodage.</div>
+</body></html>

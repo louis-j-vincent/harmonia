@@ -1,0 +1,62 @@
+{
+ "stem": "sam_smith_i_m_not_the_only_one_official_music_video",
+ "n": 80,
+ "validated": false,
+ "sections": [
+  {
+   "label": "C",
+   "b0": 0,
+   "b1": 7
+  },
+  {
+   "label": "A",
+   "b0": 8,
+   "b1": 17
+  },
+  {
+   "label": "D",
+   "b0": 18,
+   "b1": 23
+  },
+  {
+   "label": "B",
+   "b0": 24,
+   "b1": 29
+  },
+  {
+   "label": "E",
+   "b0": 30,
+   "b1": 31
+  },
+  {
+   "label": "C",
+   "b0": 32,
+   "b1": 39
+  },
+  {
+   "label": "C",
+   "b0": 40,
+   "b1": 47
+  },
+  {
+   "label": "F",
+   "b0": 48,
+   "b1": 55
+  },
+  {
+   "label": "C",
+   "b0": 56,
+   "b1": 63
+  },
+  {
+   "label": "C",
+   "b0": 64,
+   "b1": 71
+  },
+  {
+   "label": "C",
+   "b0": 72,
+   "b1": 79
+  }
+ ]
+}

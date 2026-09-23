@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Le prior terme par terme — 3 chansons</title>
+<style>
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 14px 12px 40px; font-family: -apple-system, "Segoe UI", sans-serif;
+       background: #1e1c1a; color: #ece8e2; max-width: 640px; margin-inline: auto; }
+@media (prefers-color-scheme: light) { body { background: #f7f6f3; color: #1a1a1a; } }
+h1 { font-size: 1.25rem; margin: 4px 0 8px; }
+h2 { font-size: 1.05rem; margin: 26px 0 2px; }
+.sub { opacity: .72; font-size: .85rem; line-height: 1.45; }
+a { color: inherit; }
+.listen { display: inline-block; margin: 6px 0 10px; padding: 7px 12px; border-radius: 8px;
+          background: rgba(176,58,46,.16); font-weight: 600; font-size: .9rem; text-decoration: none;
+          border: 1px solid rgba(176,58,46,.45); }
+.strip { display: flex; gap: 2px; margin: 10px 0 6px; height: 44px; }
+.blk { display: flex; flex-direction: column; align-items: center; justify-content: center;
+       border-radius: 4px; font-size: .78rem; font-weight: 700; min-width: 34px;
+       border: 1px solid rgba(128,128,128,.25); }
+.blk small { font-weight: 400; opacity: .75; font-size: .68rem; }
+table { width: 100%; border-collapse: collapse; font-size: .8rem; margin: 8px 0 4px; }
+th { text-align: left; opacity: .6; font-weight: 600; padding: 4px 6px; }
+td { padding: 5px 6px; border-top: 1px solid rgba(128,128,128,.2); }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.say { font-size: .88rem; line-height: 1.5; margin: 10px 0 0; padding: 10px 12px;
+       border-left: 3px solid #b03a2e; background: rgba(176,58,46,.07); border-radius: 0 8px 8px 0; }
+.legend { font-size: .8rem; opacity: .8; margin: 12px 0 0; line-height: 1.5; }
+</style></head><body>
+
+<h1>Le prior, terme par terme — 3 chansons connues</h1>
+<div class="sub">
+Chaque section du chart actuel de l'app est notée par les règles du modèle,
+en <b>nats</b> = coût d'improbabilité (0–2&nbsp;: banal · 3–5&nbsp;: suspect ·
+&gt;5&nbsp;: la règle crie). Le fond des cases va du clair (banal) au rouge
+(crie). Deux règles par section&nbsp;: l'<b>enchaînement</b> (est-ce que
+« ce qui précède → cette section » s'écrit dans les charts&nbsp;?) et la
+<b>longueur</b> — montrée en deux versions pour voir ce que la règle
+« position » ajoute. « Si idéale » = le coût si la section avait sa longueur
+préférée&nbsp;: l'écart entre les deux, c'est ce que cette section coûte
+<i>en trop</i>.
+</div>
+
+<!-- ═══════════ THIS LOVE ═══════════ -->
+<h2>This Love <span class="sub">— chart actuel : i(52) A(29)</span></h2>
+<a class="listen" href="http://100.89.209.63:7772/?open=min_maroon_5_this_love">▶ écouter dans l'app</a>
+<div class="strip">
+  <div class="blk" style="flex:52; background: rgba(176,58,46,.50);">i<small>52 mes.</small></div>
+  <div class="blk" style="flex:29; background: rgba(176,58,46,.24);">A<small>29 mes.</small></div>
+</div>
+<table>
+<tr><th>section</th><th style="text-align:right">enchaîn.</th><th style="text-align:right">longueur</th><th style="text-align:right">+ position</th><th style="text-align:right">si idéale</th></tr>
+<tr><td><b>i</b> · 52 mes. · ouvre</td>
+    <td class="num" style="background: rgba(176,58,46,.02);">0.2</td>
+    <td class="num" style="background: rgba(176,58,46,.42);">9.3</td>
+    <td class="num" style="background: rgba(176,58,46,.50);">10.6</td>
+    <td class="num">1.1 <span class="sub">(à 4 mes.)</span></td></tr>
+<tr><td><b>A</b> · 29 mes. · ferme</td>
+    <td class="num" style="background: rgba(176,58,46,.02);">0.1</td>
+    <td class="num" style="background: rgba(176,58,46,.28);">6.2</td>
+    <td class="num" style="background: rgba(176,58,46,.22);">4.9</td>
+    <td class="num">1.7 <span class="sub">(à 8 mes.)</span></td></tr>
+<tr><td>fin après A</td>
+    <td class="num" style="background: rgba(176,58,46,.10);">2.5</td>
+    <td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+</table>
+<div class="say"><b>Ce que le prior dit&nbsp;:</b> la grammaire ne voit rien
+(i→A→fin&nbsp;: banal). Tout le signal est dans la longueur&nbsp;: une intro
+de 52 mesures coûte <b>10.6 nats</b> là où une intro de 4 mesures en coûterait
+1.1 — c'est LA section à retravailler. Et note l'effet de la règle
+« position »&nbsp;: elle <b>aggrave</b> l'intro trop longue (9.3&nbsp;→&nbsp;10.6,
+une section <i>d'ouverture</i> devrait être courte) mais <b>adoucit</b> le A
+final long (6.2&nbsp;→&nbsp;4.9, une <i>dernière</i> section longue est
+normale — outro, doublage de refrain).</div>
+
+<!-- ═══════════ STAND BY ME ═══════════ -->
+<h2>Stand By Me <span class="sub">— chart actuel : i(18) A(41)</span></h2>
+<a class="listen" href="http://100.89.209.63:7772/?open=min_ben_e_king_stand_by_me_audio">▶ écouter dans l'app</a>
+<div class="strip">
+  <div class="blk" style="flex:18; background: rgba(176,58,46,.27);">i<small>18 mes.</small></div>
+  <div class="blk" style="flex:41; background: rgba(176,58,46,.41);">A<small>41 mes.</small></div>
+</div>
+<table>
+<tr><th>section</th><th style="text-align:right">enchaîn.</th><th style="text-align:right">longueur</th><th style="text-align:right">+ position</th><th style="text-align:right">si idéale</th></tr>
+<tr><td><b>i</b> · 18 mes. · ouvre</td>
+    <td class="num" style="background: rgba(176,58,46,.02);">0.2</td>
+    <td class="num" style="background: rgba(176,58,46,.27);">6.0</td>
+    <td class="num" style="background: rgba(176,58,46,.27);">5.8</td>
+    <td class="num">1.1 <span class="sub">(à 4 mes.)</span></td></tr>
+<tr><td><b>A</b> · 41 mes. · ferme</td>
+    <td class="num" style="background: rgba(176,58,46,.02);">0.1</td>
+    <td class="num" style="background: rgba(176,58,46,.38);">8.3</td>
+    <td class="num" style="background: rgba(176,58,46,.41);">8.7</td>
+    <td class="num">1.7 <span class="sub">(à 8 mes.)</span></td></tr>
+<tr><td>fin après A</td>
+    <td class="num" style="background: rgba(176,58,46,.10);">2.5</td>
+    <td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+</table>
+<div class="say"><b>Ce que le prior dit&nbsp;:</b> les DEUX sections sont
+chères (5.8 et 8.7 nats) — le modèle ne désigne pas une coupable, il dit
+« cette forme entière est invraisemblable&nbsp;: deux blocs, 18 + 41 mesures,
+ça ne s'écrit pas ». C'est la signature d'une <b>sous-segmentation</b>&nbsp;:
+la vraie forme (intro courte puis alternance de 8) donnerait des coûts de
+longueur ~1–2 partout, au prix de quelques transitions banales. Ici le prior
+ne peut pas réparer — il peut seulement dire que la baseline est fausse.</div>
+
+<!-- ═══════════ LET IT BE ═══════════ -->
+<h2>Let It Be <span class="sub">— chart actuel : A(28) B(24) A(20)</span></h2>
+<a class="listen" href="http://100.89.209.63:7772/?open=min_let_it_be_remastered_2009">▶ écouter dans l'app</a>
+<div class="strip">
+  <div class="blk" style="flex:28; background: rgba(176,58,46,.29);">A<small>28 mes.</small></div>
+  <div class="blk" style="flex:24; background: rgba(176,58,46,.22);">B<small>24 mes.</small></div>
+  <div class="blk" style="flex:20; background: rgba(176,58,46,.15);">A<small>20 mes.</small></div>
+</div>
+<table>
+<tr><th>section</th><th style="text-align:right">enchaîn.</th><th style="text-align:right">longueur</th><th style="text-align:right">+ position</th><th style="text-align:right">si idéale</th></tr>
+<tr><td><b>A</b> · 28 mes. · ouvre</td>
+    <td class="num" style="background: rgba(176,58,46,.09);">2.0</td>
+    <td class="num" style="background: rgba(176,58,46,.26);">5.9</td>
+    <td class="num" style="background: rgba(176,58,46,.28);">6.2</td>
+    <td class="num">1.3 <span class="sub">(à 8 mes.)</span></td></tr>
+<tr><td><b>B</b> · 24 mes. · milieu</td>
+    <td class="num" style="background: rgba(176,58,46,.02);">0.2</td>
+    <td class="num" style="background: rgba(176,58,46,.19);">4.3</td>
+    <td class="num" style="background: rgba(176,58,46,.22);">4.8</td>
+    <td class="num">1.1 <span class="sub">(à 8 mes.)</span></td></tr>
+<tr><td><b>A</b> · 20 mes. · ferme</td>
+    <td class="num" style="background: rgba(176,58,46,.05);">1.0</td>
+    <td class="num" style="background: rgba(176,58,46,.18);">4.1</td>
+    <td class="num" style="background: rgba(176,58,46,.15);">3.3</td>
+    <td class="num">1.7 <span class="sub">(à 8 mes.)</span></td></tr>
+<tr><td>fin après A</td>
+    <td class="num" style="background: rgba(176,58,46,.10);">2.5</td>
+    <td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+</table>
+<div class="say"><b>Ce que le prior dit&nbsp;:</b> ici la grammaire parle
+enfin&nbsp;: ouvrir directement sur A (sans intro) coûte 2.0 nats — rare mais
+pas interdit, 14% des charts du corpus le font. Les longueurs 28/24/20 sont
+toutes « suspectes sans crier » (3–6 nats)&nbsp;: des multiples de 4, mais
+pas la grille 8/16 attendue. C'est cohérent avec ce qu'on sait&nbsp;: ces
+blocs sont des <b>fusions de sous-sections</b> (couplet+refrain collés) — le
+prior préférerait qu'on les coupe, mais doucement, rien ne hurle.</div>
+
+<div class="legend"><b>Comment s'en servir&nbsp;:</b> un coût de longueur
+&gt;5 nats désigne précisément la section à retravailler (This Love&nbsp;:
+l'intro). Des coûts moyens partout = forme entière fausse, sous-segmentée
+(Stand By Me). Des coûts tièdes = fusions à couper en douceur (Let It Be).
+La colonne « + position » montre ce que la règle apprise ajoute&nbsp;: plus
+sévère sur les ouvertures longues, plus tolérante sur les finales longues.
+Les nombres viennent du modèle committé (<code>form_log_prob</code>,
+branche feat/section-form-prior) — page reproductible via
+<code>decompose_prior_3songs.py</code>.</div>
+
+</body></html>

@@ -1,0 +1,82 @@
+{
+ "stem": "DksSPZTZES0",
+ "n": 88,
+ "validated": false,
+ "sections": [
+  {
+   "label": "intro",
+   "b0": 0,
+   "b1": 7
+  },
+  {
+   "label": "intro",
+   "b0": 8,
+   "b1": 15
+  },
+  {
+   "label": "intro",
+   "b0": 16,
+   "b1": 23
+  },
+  {
+   "label": "D",
+   "b0": 24,
+   "b1": 27
+  },
+  {
+   "label": "intro",
+   "b0": 28,
+   "b1": 35
+  },
+  {
+   "label": "B",
+   "b0": 36,
+   "b1": 37
+  },
+  {
+   "label": "intro",
+   "b0": 38,
+   "b1": 45
+  },
+  {
+   "label": "D",
+   "b0": 46,
+   "b1": 47
+  },
+  {
+   "label": "C",
+   "b0": 48,
+   "b1": 51
+  },
+  {
+   "label": "intro",
+   "b0": 52,
+   "b1": 59
+  },
+  {
+   "label": "E",
+   "b0": 60,
+   "b1": 63
+  },
+  {
+   "label": "E",
+   "b0": 64,
+   "b1": 67
+  },
+  {
+   "label": "intro",
+   "b0": 68,
+   "b1": 75
+  },
+  {
+   "label": "intro",
+   "b0": 76,
+   "b1": 83
+  },
+  {
+   "label": "outro",
+   "b0": 84,
+   "b1": 87
+  }
+ ]
+}

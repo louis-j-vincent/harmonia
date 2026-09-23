@@ -1,0 +1,13 @@
+{"quand": "2026-09-19T22:22:37+00:00", "quoi": "section", "morceau": "min_9zEl-FQLI4A", "mesure_debut": 1, "mesure_fin": 8, "avant": "A", "apres": "intro", "source": null}
+{"quand": "2026-09-19T22:22:37+00:00", "quoi": "section", "morceau": "min_9zEl-FQLI4A", "mesure_debut": 33, "mesure_fin": 41, "avant": "A", "apres": "B", "source": null}
+{"quand": "2026-09-19T22:22:37+00:00", "quoi": "section", "morceau": "min_9zEl-FQLI4A", "mesure_debut": 42, "mesure_fin": 49, "avant": "A", "apres": "C", "source": null}
+{"quand": "2026-09-19T22:22:37+00:00", "quoi": "section", "morceau": "min_9zEl-FQLI4A", "mesure_debut": 50, "mesure_fin": 61, "avant": "A", "apres": "D", "source": null}
+{"quand": "2026-09-19T22:22:37+00:00", "quoi": "section", "morceau": "min_9zEl-FQLI4A", "mesure_debut": 62, "mesure_fin": 70, "avant": "A", "apres": "B", "source": null}
+{"quand": "2026-09-19T22:22:37+00:00", "quoi": "section", "morceau": "min_9zEl-FQLI4A", "mesure_debut": 71, "mesure_fin": 72, "avant": "A", "apres": "E", "source": null}
+{"quand": "2026-09-19T22:22:37+00:00", "quoi": "section", "morceau": "min_9zEl-FQLI4A", "mesure_debut": 73, "mesure_fin": 88, "avant": "A", "apres": "F", "source": null}
+{"quand": "2026-09-19T22:22:37+00:00", "quoi": "section", "morceau": "min_9zEl-FQLI4A", "mesure_debut": 89, "mesure_fin": 93, "avant": "A", "apres": "G", "source": null}
+{"quand": "2026-09-19T22:22:37+00:00", "quoi": "section", "morceau": "min_9zEl-FQLI4A", "mesure_debut": 94, "mesure_fin": 102, "avant": "A", "apres": "B", "source": null}
+{"quand": "2026-09-19T22:22:37+00:00", "quoi": "section", "morceau": "min_9zEl-FQLI4A", "mesure_debut": 103, "mesure_fin": 105, "avant": "A", "apres": "E′", "source": null}
+{"quand": "2026-09-19T22:22:37+00:00", "quoi": "section", "morceau": "min_9zEl-FQLI4A", "mesure_debut": 106, "mesure_fin": 114, "avant": "A", "apres": "B", "source": null}
+{"quand": "2026-09-19T22:22:37+00:00", "quoi": "section", "morceau": "min_9zEl-FQLI4A", "mesure_debut": 115, "mesure_fin": 120, "avant": "A", "apres": "H", "source": null}
+{"quand": "2026-09-19T22:23:38+00:00", "quoi": "accord", "morceau": "min_9zEl-FQLI4A", "mesure": 52, "temps": 3.0, "t0": null, "t1": null, "avant": null, "apres": {"texte": "F-7", "root": 5, "q": "-7", "bass": -1, "nc": false}, "contexte": {"tonalite": 2, "mode": "major", "bpm": 111.11, "precedent": null, "suivant": null, "section": "D"}}

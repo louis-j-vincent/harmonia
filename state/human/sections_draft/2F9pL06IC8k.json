@@ -1,0 +1,22 @@
+{
+ "stem": "2F9pL06IC8k",
+ "n": 73,
+ "validated": false,
+ "sections": [
+  {
+   "label": "A",
+   "b0": 0,
+   "b1": 17
+  },
+  {
+   "label": "B",
+   "b0": 18,
+   "b1": 27
+  },
+  {
+   "label": "A",
+   "b0": 28,
+   "b1": 41
+  }
+ ]
+}
