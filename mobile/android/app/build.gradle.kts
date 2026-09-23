@@ -1,12 +1,32 @@
 // Portage mobile P1 (2026-09-23). Détail complet de ce qui est embarqué / exclu :
 // docs/portage_mobile/p1_squelette_android.md
 import org.gradle.api.tasks.Copy
+import org.gradle.api.tasks.Sync
+import java.util.Properties
 
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.chaquo.python")
 }
+
+// ── Signature de release (P4, 2026-09-23) ───────────────────────────────────
+// Le keystore vit HORS du dépôt (~/harmonia/keys/harmonia-beta.jks, voir son
+// README.txt pour les mots de passe) — seul `keystore.properties` (gitignoré,
+// il pointe vers ce fichier + les mots de passe) vit dans le worktree, et
+// `keystore.properties.example` (committé) est le modèle vide. Si le fichier
+// est absent (clone frais, CI, personne n'a encore généré de keystore),
+// `signingConfigs.release` n'est PAS déclaré plutôt que de planter la
+// configuration Gradle pour `assembleDebug` — seul `assembleRelease` en a
+// besoin, et il échouera alors avec un message Gradle normal ("release
+// signing config missing"), pas une exception au moment d'évaluer le script.
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) {
+        keystorePropsFile.inputStream().use { load(it) }
+    }
+}
+val hasReleaseSigning = keystorePropsFile.exists()
 
 android {
     namespace = "fr.harmonia.app"
@@ -17,16 +37,51 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = 1
-        versionName = "0.1-p1"
+        versionName = "0.1-beta-p4"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             isMinifyEnabled = false
+        }
+        release {
+            // Chaquopy + réflexion (Flask, yt-dlp, les modules `mobile.
+            // harmonia_mobile.*` importés par nom) : R8 casserait des
+            // symboles dont le bytecode Python a besoin par leur nom exact,
+            // pour gagner quelques Mo sur un APK qui en pèse déjà ~165. Pas
+            // de minification en beta — à revisiter avec des règles
+            // `-keep` explicites si l'APK doit un jour aller sur le Play
+            // Store.
+            isMinifyEnabled = false
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+            // P4 (2026-09-23) : `isDebuggable` PAS déclaré ici — le défaut
+            // d'AGP pour `release` est `false`. Un `true` temporaire a servi
+            // DEUX FOIS pour la vérification de cette tâche (`adb shell
+            // run-as` refuse tout paquet non-debuggable, seul moyen trouvé de
+            // pousser le `.pte` PORTABLE de contournement d'émulateur sur cet
+            // AVD, voir mobile_entry.py::_looks_like_emulator ; 2e passe :
+            // vérification cache-chaud/froid de la mesure T5) — ENLEVÉ avant
+            // chacun des deux `assembleRelease` finaux, pas juste repassé à
+            // `false` (un flag explicite est plus facile à oublier qu'une
+            // absence). Si un futur agent doit refaire ce test : ajouter
+            // `isDebuggable = true` ici, tester, puis L'ENLEVER.
         }
     }
 
@@ -275,23 +330,36 @@ val copyModels = tasks.register("copyModels") {
 // `HARMONIA_MUSX_DIR` — une des trois seules variables que lit
 // `harmonia/settings.py` — dit au pipeline où ils sont.
 //
-// Ce que ça coûte, assumé : `_musx_dir()` exige aussi `cache_data/*.sdict`,
-// soit 27 Mo de poids TORCH que le téléphone n'ouvre JAMAIS (il utilise les
-// `.npz` numpy de T1b). On les embarque plutôt que de truquer la
-// vérification — poser un fichier vide pour faire passer un test est
-// exactement le genre de mensonge qui coûte cher ici. La vraie correction
-// est une fente `musx_redecode` dans `harmonia/backends.py` : pas faite,
-// voir le rapport P2d.
+// P4 (2026-09-23) : `_musx_dir()` exigeait aussi `cache_data/*.sdict` — 27 Mo
+// de poids TORCH du CNN musx que le téléphone n'ouvre JAMAIS (il calcule les
+// postérieures avec les `.npz` numpy de T1b, `mobile/harmonia_mobile/
+// musx_net.py`). Vérifié avant de couper : le seul appelant qui passe par
+// `_musx_dir()` sur mobile est `redecode()` (décodage HMM, pur numpy/logique,
+// lit `data/submission_chord_list.txt`) — jamais `_nets()` (le passage avant
+// torch, qui LUI ouvre les `.sdict`, et que mobile ne calcule jamais).
+// `harmonia/musx.py::_musx_dir()` a donc été corrigé pour ne plus exiger les
+// `.sdict` (voir sa docstring) ; ces 5 fichiers sont exclus ici plutôt que
+// posés vides — l'app ne prétend pas les avoir, elle ne les demande plus.
 val musxSrcDir = File(repoRoot, "third_party/musx_ismir2019")
 val musxDestDir = File(projectDir, "src/main/assets/harmonia_musx")
 
-val copyMusxClone = tasks.register<Copy>("copyMusxClone") {
+// P4 (2026-09-23) : `Sync`, pas `Copy`. Une build ANTÉRIEURE à l'exclusion
+// des `.sdict` avait déjà recopié les 27 Mo dans
+// `app/src/main/assets/harmonia_musx/cache_data/` — `Copy` ne supprime
+// jamais un fichier de destination devenu hors-filtre, seul `Sync` fait
+// converger la destination vers exactement ce que la source (filtrée)
+// contient. Constaté : le premier `assembleRelease` après avoir ajouté
+// `exclude("cache_data/*.sdict")` ci-dessus embarquait quand même les 5
+// fichiers (vérifié par `unzip -l`) — ce commentaire est la trace de pourquoi
+// `Sync` et pas `Copy`.
+val copyMusxClone = tasks.register<Sync>("copyMusxClone") {
     group = "harmonia"
-    description = "Copie third_party/musx_ismir2019 dans les assets (vrai dossier sur le téléphone)"
+    description = "Synchronise third_party/musx_ismir2019 dans les assets (vrai dossier sur le téléphone), sans les poids torch inutiles"
     from(musxSrcDir) {
         exclude("**/__pycache__/**")
         exclude("**/*.pyc")
         exclude(".git/**")
+        exclude("cache_data/*.sdict")
     }
     into(musxDestDir)
 }

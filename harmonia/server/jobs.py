@@ -25,6 +25,7 @@ import time
 import uuid
 from pathlib import Path
 
+from harmonia.backends import BACKENDS
 from harmonia.pipeline import analyze_steps, duration_seconds
 from harmonia.server import youtube
 from harmonia.settings import SETTINGS
@@ -42,6 +43,61 @@ _jobs: dict[str, dict] = {}
 #: lecture/écriture, pas seulement autour de la création — sinon la course
 #: reste possible sur `job.update(...)` pendant qu'une requête lit `job`.
 _JOBS_LOCK = threading.Lock()
+
+
+def _job_timings(t0: float) -> dict | None:
+    """La mesure T5 (P4, portage mobile 2026-09-23) : temps total + par
+    brique pour CE job, ou `None` sur le Mac.
+
+    `BACKENDS` chronomètre déjà ses 8 fentes des DEUX côtés (`Backends.call`,
+    `harmonia/backends.py`) — rien de neuf à instrumenter. `None` restant le
+    défaut des 8 fentes sur le Mac (aucune installée), ``all(slot is not
+    None)`` n'est vrai que lorsque `mobile.harmonia_mobile.backends_mobile.
+    install()` a tourné, c'est-à-dire uniquement sur téléphone : le signal
+    est déjà là, pas besoin d'un flag de plateforme séparé. C'est CE test qui
+    rend le champ absent sur le Mac, pas une condition ad hoc.
+
+    Regroupé dans le vocabulaire de Louis plutôt que dans les 8 noms de
+    fentes : décodage (`load_audio`), battues (`beats`), accords
+    (`musx_features` + `musx_posteriors`, le CQT et le réseau musx),
+    chroma (`nnls_bothchroma`), et « reste » — tout ce que ces 4 groupes ne
+    couvrent pas (repli/sections/tonalité, qui ne passent par aucune fente,
+    plus `duration_seconds`/`slice_to_wav`/`find_peaks`, négligeables).
+
+    CACHE CHAUD (P4, correction 2026-09-23, trouvée en relisant le premier
+    smoke test : une RÉ-analyse avait affiché « décodage 22 s » sans dire que
+    battues/accords/chroma étaient à 0 parce que RELUS d'un cache, pas
+    recalculés — Louis aurait recopié ce chiffre comme s'il mesurait T5).
+    `beats.track()` (cache "beats"), `musx.frame_posteriors()` (cache
+    "musx_probs") et `nnls_features.extract_bothchroma()` (cache "nnls")
+    lisent tous leur cache AVANT d'appeler `BACKENDS.call(...)` — sur un
+    coup de cache, la fente n'est JAMAIS invoquée, donc sa clé n'existe
+    simplement PAS dans `BACKENDS.timings` (pas "proche de zéro" : ABSENTE,
+    un signal exact, pas un seuil à deviner). `<poste>_cache` teste cette
+    absence pour battues/accords/chroma — les trois seules briques qui ont un
+    cache par morceau ; décodage n'en a pas (voir `harmonia/cache.py`, aucune
+    entrée "load_audio"), donc pas de drapeau pour ce poste.
+    """
+    if not all(getattr(BACKENDS, s) is not None for s in BACKENDS.SLOTS):
+        return None
+    t = BACKENDS.timings
+    decodage = t.get("load_audio", 0.0)
+    battues = t.get("beats", 0.0)
+    accords = t.get("musx_features", 0.0) + t.get("musx_posteriors", 0.0)
+    chroma = t.get("nnls_bothchroma", 0.0)
+    total = round(time.time() - t0, 2)
+    reste = round(max(0.0, total - decodage - battues - accords - chroma), 2)
+    return {
+        "total_s": total,
+        "decodage_s": round(decodage, 2),
+        "battues_s": round(battues, 2),
+        "battues_cache": "beats" not in t,
+        "accords_s": round(accords, 2),
+        "accords_cache": "musx_features" not in t and "musx_posteriors" not in t,
+        "chroma_s": round(chroma, 2),
+        "chroma_cache": "nnls_bothchroma" not in t,
+        "reste_s": reste,
+    }
 
 
 def _load_chart_meta() -> dict:
@@ -162,6 +218,12 @@ def _run_job(job_id: str, url: str, bar1_time=None, tempo_factor=None):
     (`duration_s`), qui ne la recalcule donc pas.
     """
     job = _jobs[job_id]
+    # P4 (2026-09-23) : `None` ici, réassigné à sa place d'origine juste
+    # avant `analyze_steps` (INCHANGÉ : c'est aussi le `t0` de `raw_s` et
+    # `refined_at`, deux champs déjà consommés ailleurs — ne pas déplacer sa
+    # sémantique). N'existe qu'en nom ici pour que le `except` plus bas
+    # puisse tester "l'analyse avait-elle commencé ?" sans `NameError`.
+    t0 = None
 
     def progress(stage, **kw):
         with _JOBS_LOCK:
@@ -232,6 +294,13 @@ def _run_job(job_id: str, url: str, bar1_time=None, tempo_factor=None):
                 except OSError as exc:
                     log.warning("chart-meta autosave failed: %s", exc)
         t0 = time.time()
+        # P4 (2026-09-23) : remet à zéro les cumuls de `BACKENDS` pour que ce
+        # job ne compte QUE ses propres briques — `Backends.timings` est un
+        # dict de process, partagé entre jobs successifs (voir `_job_timings`
+        # docstring). Deux jobs simultanés sur le même process s'y
+        # mélangeraient ; en pratique, un téléphone n'en lance qu'un à la
+        # fois — pas résolu plus loin, noté ici plutôt que découvert plus tard.
+        BACKENDS.reset_timings()
         for kind, model in analyze_steps(
                 audio_path, title=job["title"], file_key=file_key,
                 audio_url=f"/audio/{audio_path.name}", progress=progress,
@@ -274,12 +343,15 @@ def _run_job(job_id: str, url: str, bar1_time=None, tempo_factor=None):
                          "raffinement en cours",
                          job_id, time.time() - t0, file_key, model["nBars"])
             else:
+                timings = _job_timings(t0)
                 with _JOBS_LOCK:
                     job.update(status="done", url=f"/chart/{file_key}",
                                chart_url=f"/chart/{file_key}", refining=[],
                                refined_at=round(time.time() - t0, 2), stage=6,
                                phase="done",
                                sections_found=len(model["sections"]))
+                    if timings:
+                        job.update(timings=timings)
                 log.info("job %s done en %.1f s → %s (%d sections)",
                          job_id, time.time() - t0, file_key,
                          len(model["sections"]))
@@ -295,6 +367,9 @@ def _run_job(job_id: str, url: str, bar1_time=None, tempo_factor=None):
                 job.update(status="done", url=job["chart_url"], refining=[],
                            refine_error=str(exc), stage=6,
                            phase="done", sections_found=1)
+                timings = _job_timings(t0) if t0 is not None else None
+                if timings:
+                    job.update(timings=timings)
             else:
                 job.update(status="error", error=str(exc))
 

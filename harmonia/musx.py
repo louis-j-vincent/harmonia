@@ -153,16 +153,33 @@ def make_beat_arr(n_frame: int, beat_times, downbeat_times=None,
 # ── the vendored clone (imported, never edited) ──────────────────────────────
 
 def _musx_dir() -> Path:
-    """The vendored music-x-lab clone (entry script + pretrained weights).
+    """The vendored music-x-lab clone (entry script + the HMM's chord-list
+    template).
 
     Resolved once, by `harmonia.settings.SETTINGS.musx_dir` (env
     `HARMONIA_MUSX_DIR` or, since the 2026-09-14 refactor sprint 1,
     `third_party/musx_ismir2019` — the clone is a third-party dependency
     this module executes, not a piece of the old package).
+
+    Portage mobile P4 (2026-09-23): this used to also require
+    ``cache_data/*.sdict`` (the torch CNN's trained weights, 27 MB across 5
+    files) to exist. Checked and confirmed unused by anything this function
+    gates: every caller that reaches ``_musx_dir()`` is ``_InMusxDir`` via
+    ``redecode()`` -> ``_decoder()``, which only chdirs into the clone to
+    import `extractors.xhmm_ismir` and read
+    ``data/{chord_dict}_chord_list.txt`` — the HMM decode is pure numpy/logic,
+    no network. The `.sdict` weights are read by `_nets()` (the torch CNN
+    forward pass) on a separate, unguarded path that Android never calls
+    (mobile computes posteriors via `mobile.harmonia_mobile.musx_net` and its
+    `.npz` dump instead — see docs/portage_mobile/p2d_pipeline_device.md).
+    Requiring them here only forced the clone's assets to carry weights that
+    are never opened on the device that needed the smaller footprint. If
+    `_nets()` is ever called against a clone missing its weights, `torch.load`
+    will fail loudly on its own — this check does not need to anticipate it.
     """
     d = SETTINGS.musx_dir
     if (d / "chord_recognition.py").exists() and \
-       list((d / "cache_data").glob("*.sdict")):
+       (d / "data" / "submission_chord_list.txt").exists():
         return d
     raise RuntimeError("harmonia.musx: music-x-lab clone not found "
                        f"(tried {d})")

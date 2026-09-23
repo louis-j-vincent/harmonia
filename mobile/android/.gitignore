@@ -16,3 +16,5 @@ app/src/main/assets/harmonia_models/
 # third_party/musx_ismir2019/, qui EST suivi par git à sa place d'origine.
 # Le dupliquer ici doublerait 27 Mo de poids dans l'historique.
 app/src/main/assets/harmonia_musx/
+# Signature de release (P4) : chemin absolu HORS repo + mots de passe.
+keystore.properties

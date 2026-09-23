@@ -21,6 +21,52 @@ import os
 import threading
 
 
+def _looks_like_emulator() -> bool:
+    """Détection best-effort d'un émulateur (P4, 2026-09-23).
+
+    Sert UNIQUEMENT à décider s'il est sûr de charger le `.pte` délégué à
+    XNNPACK — ce n'est pas un contrôle de sécurité, pas besoin d'être
+    infalsifiable, juste de couvrir l'AVD utilisé pour développer ce portage.
+    Trois signaux, dans l'ordre où ils coûtent le moins cher à lire :
+
+    1. ``Build.FINGERPRINT`` / ``Build.HARDWARE`` / ``Build.MODEL`` (via
+       Chaquopy, ``from java import jclass`` — même mécanisme que
+       ``mobile_youtube.py``) : un AVD standard contient ``generic``,
+       ``ranchu`` ou ``goldfish``, un `sdk_gphone` la chaîne ``emulator`` ou
+       ``sdk_gphone``.
+    2. ``/proc/cpuinfo`` : repli si la classe Java n'est pas joignable pour
+       une raison quelconque (jamais vu en pratique, mais un throw ici ne
+       doit pas empêcher le reste de démarrer).
+
+    Toute exception est avalée et compte comme "pas un émulateur" plutôt que
+    de faire échouer le démarrage sur une détection qui n'est qu'une mesure
+    de confort — un vrai téléphone qui, par accident, déclencherait un faux
+    positif ici perdrait XNNPACK (lent, pas cassé) ; un émulateur non détecté
+    perdrait le message clair et retrouverait le SIGILL muet. Le premier cas
+    est le seul acceptable comme défaut.
+    """
+    try:
+        from java import jclass
+        Build = jclass("android.os.Build")
+        fingerprint = str(Build.FINGERPRINT or "").lower()
+        hardware = str(Build.HARDWARE or "").lower()
+        model = str(Build.MODEL or "").lower()
+        markers = ("generic", "ranchu", "goldfish", "sdk_gphone", "emulator")
+        if any(any(m in field for m in markers)
+               for field in (fingerprint, hardware, model)):
+            return True
+    except Exception:
+        pass
+    try:
+        with open("/proc/cpuinfo") as f:
+            cpuinfo = f.read().lower()
+        if "goldfish" in cpuinfo or "ranchu" in cpuinfo:
+            return True
+    except Exception:
+        pass
+    return False
+
+
 def _install_mobile_backends(models_dir: str) -> None:
     """Pose les moteurs « téléphone » AVANT que quoi que ce soit n'importe
     `harmonia.pipeline` (P2d, 2026-09-23).
@@ -85,6 +131,33 @@ def _install_mobile_backends(models_dir: str) -> None:
         log.warning("BEAT THIS! en mode PORTABLE (%s) — sans XNNPACK : "
                     "correct, mais la VITESSE mesurée ici ne vaut RIEN pour "
                     "le téléphone", portable)
+    elif _looks_like_emulator():
+        # P4 (2026-09-23). Sans le .pte portable poussé à la main, charger
+        # `xnn` ici serait un chargement propre (BeatsRuntime.load ne fait que
+        # mmaper le fichier) suivi d'un SIGILL au premier forward() pendant
+        # l'analyse — un crash natif du process entier, sans trace utile
+        # (voir docs/portage_mobile/p2d_pipeline_device.md §2, désassemblé :
+        # `rdsvl`, une instruction SME que XNNPACK exécute une fois à son
+        # initialisation). Refuser ICI, avec un message qui dit la cause et
+        # le geste de contournement, vaut mieux qu'un crash muet plus tard.
+        # Ce n'est PAS un défaut du téléphone de Louis : un vrai appareil
+        # n'a pas cette faille (SME réellement absent ou réellement activé) —
+        # voir `_looks_like_emulator`.
+        log.error(
+            "Beat This!: .pte XNNPACK REFUSÉ — cet appareil ressemble à un "
+            "émulateur (Build.FINGERPRINT/HARDWARE ou /proc/cpuinfo), et "
+            "XNNPACK y lève SIGILL (SME, voir p2d_pipeline_device.md §2) au "
+            "premier calcul, pas au chargement : sans intervention, l'app "
+            "mourrait pendant l'analyse sans message exploitable. Pousse le "
+            ".pte portable (outil de dev, jamais dans l'APK) : "
+            "adb push mobile/models/beat_this_final0_fixed1500_portable.pte "
+            "/data/local/tmp/bt.pte && adb shell run-as fr.harmonia.app "
+            "cp /data/local/tmp/bt.pte "
+            "files/harmonia_models/beat_this_final0_fixed1500_portable.pte")
+        raise RuntimeError(
+            "Beat This!: refus de charger le .pte XNNPACK sur un émulateur "
+            "détecté (SIGILL SME connu) — pousse le .pte portable d'abord, "
+            "voir le message d'erreur juste au-dessus dans logcat")
     else:
         pte = xnn
         log.info("Beat This! délégué à XNNPACK (%s)", xnn)

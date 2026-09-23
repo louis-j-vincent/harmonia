@@ -244,7 +244,7 @@ export function renderLoading(){
     s1.appendChild(s1f); s2.appendChild(s2f); segs.appendChild(s1); segs.appendChild(s2);
     prog.appendChild(segs);
     const meta=el("div",
-      `display:flex;justify-content:space-between;margin-top:8px;font:500 13px ${UI};color:${T.faint};`);
+      `display:flex;flex-wrap:wrap;justify-content:space-between;margin-top:8px;font:500 13px ${UI};color:${T.faint};`);
     prog.appendChild(meta); w.appendChild(prog);
 
     const body=el("div",`flex:1;min-height:0;overflow-y:auto;padding:0 10px;background:${T.paper};`);
@@ -341,6 +341,26 @@ export function paintLoading(){
       a.appendChild(el("span",`color:${done?T.green:T.ink};font-weight:700;`, j.n_bars+" bars"));
       a.appendChild(el("span","", done ? " · "+(j.sections_found||1)+" section"+((j.sections_found||1)>1?"s":"") : " decoded"));
       L.meta.appendChild(a);
+      // P4 (2026-09-23) : la mesure T5 — n'existe QUE si le job porte
+      // `timings` (posé par harmonia/server/jobs.py uniquement quand les
+      // moteurs mobiles sont installés) : invisible sur Mac, sans code de
+      // plateforme ici. Montrée une seule fois, à `done`.
+      // Correction (même jour) : battues/accords/chroma marqués "(cache)"
+      // s'ils viennent d'un cache disque (pas recalculés) — sinon Louis
+      // recopierait un temps de RELECTURE comme s'il mesurait la vitesse.
+      // Si les trois sont en cache, la ligne s'ouvre par un avertissement :
+      // ce n'est alors pas une mesure T5 du tout, juste une ré-analyse.
+      if(done && j.timings){
+        const fmt=s=>s>=60 ? `${Math.floor(s/60)} min ${Math.round(s%60)} s` : `${Math.round(s)} s`;
+        const t=j.timings;
+        const core=[["battues",t.battues_s,t.battues_cache],["accords",t.accords_s,t.accords_cache],
+                    ["chroma",t.chroma_s,t.chroma_cache]];
+        const rest=[["décodage",t.decodage_s,false],["reste",t.reste_s,false]].filter(([,v])=>v>0.05);
+        const label=([k,v,c])=>k+" "+fmt(v)+(c?" (cache)":"");
+        const warn=core.every(([,,c])=>c) ? "⚠ cache chaud — pas une mesure : " : "";
+        L.meta.appendChild(el("div",`flex:0 0 100%;margin-top:4px;font:500 12px ${UI};color:${T.faint};`,
+          `${warn}Analyse : ${fmt(t.total_s)} (${core.concat(rest).map(label).join(", ")})`));
+      }
     } else {
       L.meta.appendChild(el("span","", copy[1]));
     }
