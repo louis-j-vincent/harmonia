@@ -226,18 +226,54 @@ def compare(a_dir: Path, b_dir: Path) -> dict:
     return rows
 
 
+# ── charts produits SUR LE DEVICE (P2d, 2026-09-23) ─────────────────────────
+
+def pull(device_dir: str = "device", songs: list[str] | None = None) -> None:
+    """Rapatrie les charts que l'ANDROID vient d'écrire, dans le même format
+    de dossier que `run`, pour que `compare` les traite comme n'importe quel
+    autre chemin.
+
+    On lit le FICHIER, pas `/api/chart-model/<f>` : le fichier est exactement
+    ce que `server/jobs.py` a écrit (`json.dumps(model)`), alors que la route
+    reconstruit une réponse. Comparer des octets à des octets évite d'ajouter
+    une couche entre le calcul et la mesure.
+
+    `run-as` marche parce que l'APK est en debug ; sur un APK signé release il
+    faudrait passer par la route. C'est noté dans le rapport, pas caché ici.
+    """
+    import subprocess
+    out = OUT_ROOT / device_dir
+    out.mkdir(parents=True, exist_ok=True)
+    for stem in (songs or SONGS):
+        remote = f"files/harmonia_state/cache/charts/min_{stem}.json"
+        r = subprocess.run(
+            ["adb", "exec-out", "run-as", "fr.harmonia.app", "cat", remote],
+            capture_output=True)
+        if r.returncode != 0 or not r.stdout:
+            print(f"{stem}: ABSENT sur le device "
+                  f"({r.stderr.decode(errors='replace').strip()[:120]})")
+            continue
+        (out / f"{stem}.json").write_bytes(r.stdout)
+        print(f"{stem}: {len(r.stdout)} octets -> {out / f'{stem}.json'}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run")
     r.add_argument("--backend", choices=["reference", "mobile"], required=True)
     r.add_argument("--out-name", default=None)
+    pl = sub.add_parser("pull", help="rapatrie les charts du device Android")
+    pl.add_argument("--out", default="device")
+    pl.add_argument("--songs", nargs="*", default=None)
     c = sub.add_parser("compare")
     c.add_argument("--a", default="reference")
     c.add_argument("--b", default="mobile")
     a = ap.parse_args()
     if a.cmd == "run":
         run(a.backend, a.out_name)
+    elif a.cmd == "pull":
+        pull(a.out, a.songs)
     else:
         rows = compare(OUT_ROOT / a.a, OUT_ROOT / a.b)
         print(json.dumps(rows, indent=1, ensure_ascii=False))

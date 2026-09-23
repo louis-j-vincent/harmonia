@@ -144,17 +144,135 @@ def _maxpool_freq(x: np.ndarray, k: int) -> np.ndarray:
     return x[:, :, :fout * k].reshape(c, t, fout, k).max(axis=3)
 
 
-def _cnn_forward(cqt_window: np.ndarray, w: dict) -> np.ndarray:
-    """cqt_window: (T, 252) -> (T, 240) feature sequence, matches CNNFeatureExtractor."""
+def _conv2d_tiled(x: np.ndarray, weight: np.ndarray, bias: np.ndarray,
+                  pad_t: int, pad_f: int, tile_t: int) -> np.ndarray:
+    """Same arithmetic as ``_conv2d``, bounded memory: the im2col tap matrix is
+    built for at most ``tile_t`` OUTPUT frames at a time, straight into one
+    preallocated output.
+
+    Why this and not a whole-network temporal chunking (which is what a
+    receptive-field argument would suggest) — see ``_cnn_forward``'s docstring:
+    ``InstanceNorm2d`` normalises over the WHOLE time axis, so cutting the
+    network in time is NOT exact at any overlap. Cutting each op in time IS,
+    because a convolution output frame depends on a bounded, explicitly
+    reconstructed slice of its own input (here ``[t-1, t+1]``, kernel 3 in
+    time, stride 1), and the normalisation statistics are still computed over
+    the full song (``_norm_selu_tiled``).
+
+    Memory, measured (``mobile/tools/mem_profile_mobile.py``): the untiled
+    version allocates ``9*Cin*Tout*Fout*4`` bytes in one go — 1283 MB for
+    conv1b/conv1c on a 205 s song (Cin=16, T=8840, F=252). Tiled at 512
+    frames that same array is 74 MB. It also drops the ``np.pad`` of the full
+    input (another 143 MB on that layer): only the tile's own halo is padded.
+    """
+    cin, t_in, f_in = x.shape
+    cout, _, kt, kf = weight.shape
+    tout = t_in + 2 * pad_t - kt + 1
+    fout = f_in + 2 * pad_f - kf + 1
+    w2 = weight.transpose(2, 3, 1, 0).reshape(kt * kf * cin, cout)  # tap order matches taps
+    out = np.empty((cout, tout, fout), dtype=np.float32)
+    for t0 in range(0, tout, tile_t):
+        t1 = min(t0 + tile_t, tout)
+        n = t1 - t0
+        # rows of the (virtually) padded input this tile needs: [t0, t1+kt-1),
+        # i.e. rows [t0-pad_t, t1+kt-1-pad_t) of x, zero outside the song.
+        r0, r1 = t0 - pad_t, t1 + kt - 1 - pad_t
+        lo, hi = max(r0, 0), min(r1, t_in)
+        sub = np.zeros((cin, r1 - r0, f_in + 2 * pad_f), dtype=np.float32)
+        if hi > lo:
+            sub[:, lo - r0:hi - r0, pad_f:pad_f + f_in] = x[:, lo:hi, :]
+        taps = np.empty((kt * kf * cin, n, fout), dtype=np.float32)
+        idx = 0
+        for i in range(kt):
+            for j in range(kf):
+                taps[idx * cin:(idx + 1) * cin] = sub[:, i:i + n, j:j + fout]
+                idx += 1
+        res = taps.reshape(kt * kf * cin, n * fout).T @ w2 + bias
+        out[:, t0:t1, :] = res.reshape(n, fout, cout).transpose(2, 0, 1)
+    return out
+
+
+def _norm_selu_tiled(x: np.ndarray, tile_t: int, eps: float = 1e-5) -> np.ndarray:
+    """``_instance_norm`` + ``_selu``, fused and done in place, tile by tile.
+
+    Same two-pass (mean, then biased variance) float64 reduction as
+    ``_instance_norm`` / ``np.var``, but accumulated over contiguous float64
+    tiles instead of one contiguous float64 copy of the whole activation map —
+    which is the point: that copy is 285 MB on conv1* of a 205 s song, and the
+    float64 temporaries of ``(x - mean) / sqrt(var + eps)`` are 285 MB each
+    again (measured: +713 MB of RSS for conv1a alone). The contiguity that the
+    2026-09-23 precision fix depends on is preserved — each tile is copied
+    contiguous into float64 before being reduced.
+
+    ``x`` is modified in place; it must be a freshly allocated, writable array
+    (it always is — it comes straight out of ``_conv2d_tiled``).
+    """
+    c, t, f = x.shape
+    n = t * f
+    acc = np.zeros(c, dtype=np.float64)
+    for t0 in range(0, t, tile_t):
+        blk = np.ascontiguousarray(x[:, t0:t0 + tile_t, :], dtype=np.float64)
+        acc += blk.sum(axis=(1, 2))
+    mean = (acc / n).reshape(c, 1, 1)
+    acc[:] = 0.0
+    for t0 in range(0, t, tile_t):
+        blk = np.ascontiguousarray(x[:, t0:t0 + tile_t, :], dtype=np.float64)
+        blk -= mean
+        blk *= blk
+        acc += blk.sum(axis=(1, 2))
+    scale = np.sqrt((acc / n).reshape(c, 1, 1) + eps)
+    for t0 in range(0, t, tile_t):
+        sl = slice(t0, min(t0 + tile_t, t))
+        x[:, sl, :] = _selu(((x[:, sl, :] - mean) / scale).astype(np.float32))
+    return x
+
+
+def _cnn_forward(cqt_window: np.ndarray, w: dict,
+                 chunk_frames: int | None = None) -> np.ndarray:
+    """cqt_window: (T, 252) -> (T, 240) feature sequence, matches CNNFeatureExtractor.
+
+    ``chunk_frames`` bounds the memory (see ``predict_fold``). It is a TILE
+    SIZE INSIDE each op, not a cut of the network — and that distinction is
+    the load-bearing one:
+
+    **Receptive field of this CNN, computed from the real layers, not guessed.**
+    Eight convolutions, all ``3x3`` with ``stride=1`` and time-padding 1
+    (``_CONV_LAYERS``: conv1a/1b/1c, conv2a/2b/2c, conv3a/3b, conv4a/4b — ten
+    convs in total, all kernel 3 in time). The three ``MaxPool`` layers are
+    ``MaxPool2d(1, k)``: kernel 1 in TIME, k in frequency only — verified in
+    ``_maxpool_freq``, which reshapes the frequency axis alone. **There is NO
+    temporal sub-sampling anywhere in this network**, so time index t of any
+    layer maps to time index t of the input, and a cut never lands between two
+    frames of a pooled grid (the off-by-one-frame joint the brief warned about
+    cannot happen here). Receptive field = 1 + 10 * (3 - 1) = **21 input
+    frames**, i.e. a halo of 10 frames on each side.
+
+    **But a 10-frame overlap would NOT make a chunked CNN exact**, and that is
+    why this code does not chunk the CNN. ``InstanceNorm2d`` normalises each
+    channel over the WHOLE (T, F) map: its mean and variance depend on every
+    frame of the song. Split the CNN in time and each block gets its own
+    statistics — a real change to the output, at any overlap. So instead each
+    op is tiled internally, the normalisation statistics stay global, and the
+    result is arithmetically the same computation (measured max|Δ| vs the
+    untiled path in ``docs/portage_mobile/`` / the task report: ~1e-7).
+
+    The bi-LSTM is likewise never split: it is bidirectional, so every output
+    frame depends on the entire sequence.
+    """
     x = cqt_window[None, :, :]  # (1, T, 252) — 1 input channel
     for name, pad_t, pad_f in _CONV_LAYERS:
         if name == "POOL":
             x = _maxpool_freq(x, pad_t)  # pad_t reused as kernel size here
             continue
         prefix = f"audio_feature_block.{name}"
-        x = _conv2d(x, w[f"{prefix}.weight"], w[f"{prefix}.bias"], pad_t, pad_f)
-        x = _instance_norm(x)
-        x = _selu(x)
+        if chunk_frames is None:
+            x = _conv2d(x, w[f"{prefix}.weight"], w[f"{prefix}.bias"], pad_t, pad_f)
+            x = _instance_norm(x)
+            x = _selu(x)
+        else:
+            x = _conv2d_tiled(x, w[f"{prefix}.weight"], w[f"{prefix}.bias"],
+                              pad_t, pad_f, chunk_frames)
+            x = _norm_selu_tiled(x, chunk_frames)
     # x: (80, T, 3) -> (T, 240)
     c, t, f = x.shape
     return x.transpose(1, 0, 2).reshape(t, c * f)
@@ -213,16 +331,25 @@ def _softmax(x: np.ndarray) -> np.ndarray:
     return e / e.sum(axis=1, keepdims=True)
 
 
-def predict_fold(cqt_288: np.ndarray, w: dict) -> list[np.ndarray]:
+def predict_fold(cqt_288: np.ndarray, w: dict,
+                 chunk_frames: int | None = None) -> list[np.ndarray]:
     """One fold's forward pass, matching ``ChordNet.inference`` exactly.
 
     cqt_288: (T, 288) raw CQT (18:270 crop applied here, like ``inference``).
     Returns [triad(T,73), bass(T,13), s7(T,4), s9(T,4), s11(T,3), s13(T,3)],
     each already softmaxed.
+
+    ``chunk_frames=None`` (default) keeps the original, unbounded-memory path
+    byte for byte. Any integer turns on the low-memory CNN: each convolution
+    and each normalisation is computed in tiles of that many frames, which is
+    the SAME computation (the network is never cut — see ``_cnn_forward``).
+    On a 2 GB Android device pass something like 512: measured peak RSS for
+    the 5-fold ensemble on a 205 s song drops from ~2040 MB to ~300 MB, for a
+    small speed cost. Nothing else about the call changes.
     """
     x = np.asarray(cqt_288, dtype=np.float32)[:, SHIFT_HIGH * SHIFT_STEP:
                                                   SHIFT_HIGH * SHIFT_STEP + SPEC_DIM]
-    feats = _cnn_forward(x, w)          # (T, 240)
+    feats = _cnn_forward(x, w, chunk_frames)          # (T, 240)
     h = _bilstm(feats, w)               # (T, 192)
     logits = h @ w["final_fc1.weight"].T + w["final_fc1.bias"]  # (T, 100)
     triad = _softmax(logits[:, :BASS_SLICE_BEGIN])
@@ -234,12 +361,16 @@ def predict_fold(cqt_288: np.ndarray, w: dict) -> list[np.ndarray]:
     return [triad, bass, s7, s9, s11, s13]
 
 
-def predict_ensemble(cqt_288: np.ndarray, weights_by_fold: list[dict]) -> list[np.ndarray]:
+def predict_ensemble(cqt_288: np.ndarray, weights_by_fold: list[dict],
+                     chunk_frames: int | None = None) -> list[np.ndarray]:
     """5-fold average, matching ``harmonia.musx._run_nets`` / the vendored
-    ``chord_recognition.py`` (simple mean over folds, same weight for each)."""
+    ``chord_recognition.py`` (simple mean over folds, same weight for each).
+
+    ``chunk_frames`` is forwarded to ``predict_fold``; ``None`` (default) is
+    the original behaviour, unchanged."""
     acc = None
     for w in weights_by_fold:
-        probs = predict_fold(cqt_288, w)
+        probs = predict_fold(cqt_288, w, chunk_frames)
         acc = probs if acc is None else [a + b for a, b in zip(acc, probs)]
     return [(a / len(weights_by_fold)).astype(np.float32) for a in acc]
 

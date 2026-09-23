@@ -20,13 +20,12 @@ from __future__ import annotations
 import json
 import logging
 import re
-import subprocess
 import threading
 import time
 import uuid
 from pathlib import Path
 
-from harmonia.pipeline import analyze_steps
+from harmonia.pipeline import analyze_steps, duration_seconds
 from harmonia.server import youtube
 from harmonia.settings import SETTINGS
 
@@ -188,9 +187,13 @@ def _run_job(job_id: str, url: str, bar1_time=None, tempo_factor=None):
             # fichier.
             title = job["title"]
             job["artist"] = artist
-        dur = float(subprocess.check_output(
-            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-             "-of", "csv=p=0", str(audio_path)]).strip())
+        # `pipeline.duration_seconds`, pas un appel ffprobe en dur : c'était
+        # le DOUBLON ffprobe de ce module (noté par P2c), et le seul endroit
+        # du chemin d'analyse qui lançait encore un sous-processus sans
+        # passer par `harmonia.backends`. Sur le Mac le corps est le même
+        # ffprobe qu'avant, à la virgule près ; sur téléphone, où aucun
+        # binaire ffprobe n'existe, c'est le décodeur MediaCodec qui répond.
+        dur = float(duration_seconds(audio_path))
         with _JOBS_LOCK:
             job.update(stage=1, duration_s=dur)
         file_key = f"min_{audio_path.stem}"

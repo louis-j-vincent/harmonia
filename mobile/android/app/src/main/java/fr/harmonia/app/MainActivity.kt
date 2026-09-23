@@ -68,9 +68,12 @@ class MainActivity : Activity() {
         Thread {
             try {
                 val (stateDir, audioDir) = seedStateOnce()
+                val modelsDir = seedModelsOnce()
+                val musxDir = seedMusxOnce()
                 val py = Python.getInstance()
                 val mobileEntry: PyObject = py.getModule("mobile_entry")
-                mobileEntry.callAttr("start_server", stateDir.absolutePath, audioDir.absolutePath, port)
+                mobileEntry.callAttr("start_server", stateDir.absolutePath, audioDir.absolutePath,
+                    port, modelsDir.absolutePath, musxDir.absolutePath)
 
                 val ready = waitForServer(port, timeoutMs = 20_000)
                 Log.i(TAG, "Flask ready=$ready")
@@ -106,6 +109,98 @@ class MainActivity : Activity() {
             Log.i(TAG, "seed copied to $stateDir / $audioDir")
         }
         return Pair(stateDir, audioDir)
+    }
+
+    /**
+     * Recopie les poids des réseaux (assets/harmonia_models : le `.pte` de
+     * Beat This!, 82 Mo, et les 5 `.npz` de musx, 2 Mo chacun) vers
+     * `filesDir/harmonia_models`, une fois (P2d, 2026-09-23).
+     *
+     * POURQUOI COPIER PLUTÔT QUE LIRE L'ASSET. `Module.load` (ExecuTorch) et
+     * `np.load` (musx) veulent tous deux un CHEMIN FICHIER ; un asset
+     * Android n'en est pas un, c'est une entrée dans le zip de l'APK. Le
+     * prix est 92 Mo de stockage privé en plus de l'APK — assumé, et noté
+     * dans le rapport.
+     *
+     * Le marqueur est distinct de `.seeded` (charts/audio) exprès : les
+     * poids changent quand on réexporte un modèle, les charts de seed non.
+     * Chaque fichier est revérifié par sa TAILLE, pas seulement par sa
+     * présence — une copie interrompue laisse un fichier court, et un `.pte`
+     * tronqué se manifesterait par une erreur obscure du runtime natif au
+     * lieu d'une recopie.
+     */
+    private fun seedModelsOnce(): File {
+        val modelsDir = File(filesDir, "harmonia_models").also { it.mkdirs() }
+        val names = assets.list("harmonia_models") ?: emptyArray()
+        for (name in names) {
+            val dest = File(modelsDir, name)
+            // `openFd` ne marche QUE sur un asset non compressé — c'est le
+            // cas ici (`noCompress += listOf("pte","npz")` dans
+            // app/build.gradle.kts), et ça sert donc aussi de contrôle que ce
+            // réglage a bien pris. S'il ne prend pas, on retombe sur le
+            // critère faible « le fichier existe et n'est pas vide », en le
+            // DISANT dans le log plutôt qu'en le taisant.
+            val expected = runCatching {
+                assets.openFd("harmonia_models/$name").use { it.length }
+            }.getOrElse {
+                Log.w(TAG, "asset $name compressé (taille inconnue) — " +
+                        "vérification par présence seulement")
+                -1L
+            }
+            val ok = dest.exists() && dest.length() > 0 &&
+                    (expected < 0 || dest.length() == expected)
+            if (ok) continue
+            copyAssetFile("harmonia_models/$name", dest)
+            Log.i(TAG, "modèle copié: $name (${dest.length()} octets)")
+        }
+        return modelsDir
+    }
+
+    /**
+     * Recopie le clone musx vendu (assets/harmonia_musx) vers
+     * `filesDir/harmonia_musx`, une fois (P2d, 2026-09-23).
+     *
+     * `harmonia/musx.py::redecode` fait `chdir` dans ce dossier et y importe
+     * `extractors.xhmm_ismir` : il lui faut de VRAIS fichiers, ce que les
+     * assets ne sont pas et ce que l'archive Python de Chaquopy n'est pas non
+     * plus. Le chemin obtenu ici est passé à Python, qui le pose dans
+     * `HARMONIA_MUSX_DIR`.
+     *
+     * Le marqueur porte le nombre de fichiers copiés : si l'on réduit un jour
+     * ce qu'on embarque (les 27 Mo de fichiers `.sdict` de `cache_data`,
+     * qui sont des poids
+     * torch que le téléphone n'ouvre jamais), la recopie se refera d'elle-même
+     * au lieu de laisser un dossier à moitié à jour.
+     */
+    private fun seedMusxOnce(): File {
+        val dest = File(filesDir, "harmonia_musx")
+        val marker = File(filesDir, ".musx_seeded")
+        val n = countAssets("harmonia_musx")
+        if (marker.exists() && marker.readText() == n.toString()) return dest
+        dest.mkdirs()
+        copyAssetTree("harmonia_musx", dest)
+        marker.writeText(n.toString())
+        Log.i(TAG, "clone musx copié: $dest ($n fichiers)")
+        return dest
+    }
+
+    private fun countAssets(assetPath: String): Int {
+        val names = assets.list(assetPath) ?: return 0
+        if (names.isEmpty()) return 1   // c'est un fichier, pas un dossier
+        var total = 0
+        for (name in names) total += countAssets("$assetPath/$name")
+        return total
+    }
+
+    /** Copie RÉCURSIVE (contrairement à `copyAssetDir`, qui ne descend pas). */
+    private fun copyAssetTree(assetPath: String, dest: File) {
+        val names = assets.list(assetPath) ?: return
+        if (names.isEmpty()) {
+            copyAssetFile(assetPath, dest)
+            return
+        }
+        dest.mkdirs()
+        for (name in names) copyAssetTree("$assetPath/$name", File(dest, name))
     }
 
     private fun copyAssetDir(assetPath: String, dest: File) {

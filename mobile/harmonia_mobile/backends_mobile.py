@@ -53,16 +53,26 @@ CE QUE CE MODULE NE RÉSOUT PAS :
 from __future__ import annotations
 
 import subprocess
+import threading
 import wave
 from pathlib import Path
 
 import numpy as np
 
+#: Où sont les poids. Sur le Mac c'est `mobile/models/` à côté du code ; sur
+#: Android le code vit dans le zip d'assets de Chaquopy (pas un chemin
+#: fichier) et les poids ont été recopiés dans `filesDir` par Kotlin —
+#: `install(models_dir=...)` le dit alors explicitement.
 MODELS = Path(__file__).resolve().parents[1] / "models"
-_FOLDS = [MODELS / f"musx_fold{i}_weights.npz" for i in range(5)]
+_models_dir: Path = MODELS
+_pte_path: Path | None = None
 
 _weights_cache: list | None = None
 _audio_impl = None
+
+
+def _folds() -> list[Path]:
+    return [_models_dir / f"musx_fold{i}_weights.npz" for i in range(5)]
 
 
 # ── décodage ────────────────────────────────────────────────────────────────
@@ -122,22 +132,84 @@ def audio_mediacodec(path, sr: int, duration: float | None = None,
     return y
 
 
+#: Cache d'UN SEUL décodage (P2d, 2026-09-23). Mesuré sur l'émulateur : sans
+#: lui, une analyse décode le même fichier SIX fois (durée, aperçu de tête,
+#: battues, CQT musx, chroma NNLS, enveloppe) — 18 à 21 s par décodage sur
+#: l'AVD, soit ~100 s jetés sur un morceau de 3 min 25. Une seule entrée, pas
+#: un LRU : le pipeline demande 22050 Hz quatre fois de suite (dont deux dans
+#: des threads parallèles), PUIS 44100, PUIS 8000 — une entrée suffit à
+#: attraper tous les doublons, et n'immobilise jamais deux signaux à la fois,
+#: ce qui compte sur un appareil à 2 Go.
+_cache_key = None
+_cache_val = None
+
+#: Un VERROU, pas seulement un cache. `analyze_steps` lance les battues et
+#: musx dans deux threads qui réclament le même fichier au même taux à la
+#: même seconde. Sans verrou, deux décodages MediaCodec partent en parallèle
+#: sur le même fichier et le décodeur natif AVORTE le process (SIGABRT,
+#: message « ptr », mesuré sur l'émulateur le 2026-09-23 — l'analyse mourait
+#: une seconde après le CQT du chart de tête, sans trace Python). Avec le
+#: verrou, le second thread attend et repart du cache : c'est aussi la seule
+#: façon que le cache serve à quelque chose ici.
+_decode_lock = threading.Lock()
+
+
 def _load(path, sr, duration=None, variant: str = ""):
     """`variant` ne sert QU'au mode `pcm_dump` : il dit quel décodage de
     référence rejouer quand le pipeline du Mac en emploie plusieurs sur le
     MÊME fichier au MÊME taux. C'est le cas à 22050 Hz — `beat_this` reçoit un
     transcodage ffmpeg, musx reçoit `librosa.load`. Sur le téléphone il n'y a
-    qu'un décodeur (MediaCodec) et ce paramètre n'existe plus."""
-    return _audio_impl(path, sr, duration, variant)
+    qu'un décodeur (MediaCodec) et ce paramètre n'existe plus.
+
+    Le signal rendu par le cache est marqué NON INSCRIPTIBLE : deux étages
+    partagent alors le même tableau, et une modification en place de l'un
+    corromprait l'autre en silence. Mieux vaut une exception numpy nette au
+    premier écrivain (aucun des cinq étages n'écrit dans son entrée
+    aujourd'hui — vérifié en lançant la parité complète sur le Mac)."""
+    global _cache_key, _cache_val
+    key = (str(path), int(sr), None if duration is None else float(duration),
+           variant)
+    with _decode_lock:
+        if key == _cache_key and _cache_val is not None:
+            return _cache_val
+        y = _audio_impl(path, sr, duration, variant)
+        y = np.asarray(y, dtype=np.float32)
+        try:
+            y.flags.writeable = False
+        except ValueError:
+            pass  # vue sur un buffer non possédé : tant pis, on ne fige pas
+        _cache_key, _cache_val = key, y
+        return y
+
+
+def forget_decoded() -> None:
+    """Relâche le signal en cache. Appelé entre deux analyses ; sur un
+    appareil serré, garder 36 Mo de PCM pendant que le réseau musx travaille
+    n'a aucun intérêt."""
+    global _cache_key, _cache_val
+    _cache_key, _cache_val = None, None
 
 
 def duration_seconds(path) -> float:
-    """La durée, sans ffprobe : la longueur du signal décodé.
+    """La durée, sans ffprobe.
 
-    Ce que ça ne résout PAS : sur Android `MediaExtractor.KEY_DURATION` est
-    moins cher et devrait passer devant (P2a a mesuré qu'il rend une valeur
-    LÉGÈREMENT PLUS GRANDE que le PCM réellement décodé) ; ici on prend la
-    mesure qui ne peut pas mentir sur ce qu'on va analyser."""
+    DEUX MESURES POSSIBLES, et le choix n'est pas neutre. La longueur du PCM
+    décodé ne peut pas mentir sur ce qu'on va analyser, mais elle coûte un
+    décodage complet du fichier — 17,9 s mesurées sur l'émulateur pour un
+    morceau de 3 min 25, pour un nombre qui ne sert qu'à la fiche du morceau
+    et à décider s'il y a un aperçu de tête. `MediaExtractor.KEY_DURATION`
+    coûte quelques millisecondes. On prend donc la clé quand elle est là, et
+    le décodage sinon.
+
+    Ce que ça ne résout PAS : P2a a mesuré que la clé rend une valeur un peu
+    PLUS GRANDE que le PCM réellement décodé (~300 échantillons sur les 3
+    morceaux de seed, soit ~14 ms). Aucun accord, aucune mesure et aucune
+    battue ne dépend de cette valeur — le chart est bâti sur le PCM — mais
+    la durée affichée dans la bibliothèque peut différer du Mac au dernier
+    chiffre."""
+    if _audio_impl is audio_mediacodec:
+        import mobile_audio
+        return float(mobile_audio.duration_seconds(str(path)))
     return float(len(_load(path, 22050)) / 22050.0)
 
 
@@ -158,14 +230,14 @@ def slice_to_wav(path, seconds: float, out_wav, sr: int) -> None:
 # ── les cinq briques ────────────────────────────────────────────────────────
 
 def beats_pte(audio_path):
-    from mobile.harmonia_mobile.beats_infer import beats_from_audio
+    from mobile.harmonia_mobile.beats_infer import beats_from_audio, DEFAULT_PTE
     # variant="beats" : sur le Mac, Beat This! est nourri par un transcodage
     # ffmpeg, PAS par `librosa.load` (aucun lecteur de beat_this n'ouvre un
     # .m4a sur cette machine). Les deux décodages diffèrent assez pour changer
     # le nombre de battues (348 vs 345 sur Stand By Me) — donc la parité de la
     # PLOMBERIE doit rejouer le décodage de CE site d'appel-là.
     y = _load(audio_path, 22050, variant="beats")
-    return beats_from_audio(y)
+    return beats_from_audio(y, _pte_path or DEFAULT_PTE)
 
 
 def musx_features_numpy(audio_path) -> np.ndarray:
@@ -178,18 +250,30 @@ def _weights() -> list:
     global _weights_cache
     if _weights_cache is None:
         from mobile.harmonia_mobile.musx_net import load_weights_npz
-        missing = [p.name for p in _FOLDS if not p.exists()]
+        folds = _folds()
+        missing = [p.name for p in folds if not p.exists()]
         if missing:
             raise RuntimeError(
-                f"poids musx numpy absents ({missing}) — lancer "
-                f"mobile/tools/dump_musx_weights.py")
-        _weights_cache = [load_weights_npz(p) for p in _FOLDS]
+                f"poids musx numpy absents dans {_models_dir} ({missing}) — "
+                f"lancer mobile/tools/dump_musx_weights.py")
+        _weights_cache = [load_weights_npz(p) for p in folds]
     return _weights_cache
+
+
+#: Taille de tuile temporelle du CNN musx (P2d). `None` = le chemin d'origine,
+#: sans tuilage — c'est ce que le Mac garde, pour que la parité mesurée par
+#: P2c reste comparable octet pour octet. Un entier borne la mémoire : le
+#: calcul est le MÊME (chaque convolution est tuilée séparément, les
+#: statistiques d'InstanceNorm restent prises sur le morceau entier), écart
+#: mesuré 0.0 exactement sur les 3 morceaux (`mobile/tools/parity_out/
+#: mem_chunk_parity.json`).
+_musx_chunk_frames: int | None = None
 
 
 def musx_posteriors_numpy(cqt) -> list:
     from mobile.harmonia_mobile.musx_net import predict_ensemble
-    return predict_ensemble(np.asarray(cqt, dtype=np.float32), _weights())
+    return predict_ensemble(np.asarray(cqt, dtype=np.float32), _weights(),
+                            _musx_chunk_frames)
 
 
 def musx_torch_reference(cqt) -> list:
@@ -200,10 +284,20 @@ def musx_torch_reference(cqt) -> list:
     return _run_nets(np.asarray(cqt))
 
 
+#: Même idée que `_musx_chunk_frames`, pour l'étage FFT du chroma NNLS.
+#: `None` = chemin d'origine. Le coupable mesuré était l'étage FFT
+#: (`windowed` (T,16384) float64 et son `rfft` (T,8193) complex128, 758 Mo
+#: CHACUN sur un morceau de 4 min 28) ; tuilé, la sortie est BIT-IDENTIQUE
+#: (0.0, pas « sous 1e-6 ») et l'estimation d'accordage reste prise sur le
+#: morceau entier — la couper aurait décalé tout l'aval en silence.
+_nnls_chunk_frames: int | None = None
+
+
 def nnls_bothchroma_numpy(audio_path):
     from mobile.harmonia_mobile.nnls_chroma import extract_bothchroma_numpy
     y = _load(audio_path, 44100)
-    return extract_bothchroma_numpy(np.asarray(y, dtype=np.float32), 44100)
+    return extract_bothchroma_numpy(np.asarray(y, dtype=np.float32), 44100,
+                                    chunk_frames=_nnls_chunk_frames)
 
 
 # ── find_peaks en numpy ─────────────────────────────────────────────────────
@@ -271,12 +365,60 @@ _AUDIO = {"pcm_dump": audio_pcm_dump,
           "mediacodec": audio_mediacodec}
 
 
-def install(*, audio: str = "pcm_dump", musx: str = "numpy") -> None:
-    """Pose les huit fentes. `audio` et `musx` sont des CHOIX, pas des replis."""
-    global _audio_impl, _weights_cache
+def install(*, audio: str = "pcm_dump", musx: str = "numpy",
+            beats_runtime: str = "python", models_dir=None,
+            pte_path=None, beats_threads: int = 0,
+            musx_chunk_frames: int | None = None,
+            nnls_chunk_frames: int | None = None) -> None:
+    """Pose les huit fentes. Tout est un CHOIX explicite, jamais un repli.
+
+    `beats_runtime` dit QUI exécute le `.pte` de Beat This! :
+
+    * `"python"` (défaut, le Mac) — `executorch.runtime`, le paquet pip. C'est
+      ce runtime qui a produit toute la parité de T1c et de P2c ; le laisser
+      par défaut garantit qu'aucune mesure Mac ne bouge à cause de P2d.
+    * `"java"` (Android) — `mobile_beats_runtime.install()`, c'est-à-dire
+      `libexecutorch.so` via JNI. `mobile_beats_runtime` n'est importable que
+      sur le téléphone (il importe `java`), d'où l'import tardif ici.
+
+    `musx_chunk_frames` : la tuile temporelle du CNN musx. `None` (défaut,
+    le Mac) garde le chemin d'origine. Sur un appareil à 2 Go il FAUT une
+    valeur (512 mesuré) — sans elle le réseau alloue ~2 Go de tableaux
+    intermédiaires sur un morceau de 3 min 25 et le système tue l'app. Le
+    résultat est identique, pas approché.
+
+    `models_dir` / `pte_path` : sur Android le code Python vit dans le zip
+    d'assets de Chaquopy, qui n'est pas un chemin fichier — les poids sont
+    recopiés dans `filesDir` au premier lancement et leur emplacement est
+    passé ici. Sur le Mac, ne rien passer garde `mobile/models/`.
+    """
+    global _audio_impl, _weights_cache, _models_dir, _pte_path
+    global _musx_chunk_frames, _nnls_chunk_frames
     if audio not in _AUDIO:
         raise KeyError(f"audio={audio!r} inconnu (connus: {sorted(_AUDIO)})")
     _audio_impl = _AUDIO[audio]
+    _musx_chunk_frames = musx_chunk_frames
+    _nnls_chunk_frames = nnls_chunk_frames
+
+    if models_dir is not None:
+        _models_dir = Path(models_dir)
+        _weights_cache = None
+    if pte_path is not None:
+        _pte_path = Path(pte_path)
+    elif models_dir is not None:
+        _pte_path = _models_dir / "beat_this_final0_fixed1500.pte"
+
+    if beats_runtime == "java":
+        import mobile_beats_runtime
+        if _pte_path is None:
+            raise ValueError("beats_runtime='java' exige pte_path ou models_dir")
+        mobile_beats_runtime.install(str(_pte_path), threads=beats_threads)
+    elif beats_runtime == "python":
+        from mobile.harmonia_mobile import beats_infer
+        beats_infer.set_chunk_runner(None)
+    else:
+        raise KeyError(f"beats_runtime={beats_runtime!r} inconnu "
+                       f"(connus: 'python', 'java')")
     from harmonia.backends import BACKENDS
     BACKENDS.install(
         load_audio=_load,

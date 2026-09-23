@@ -352,11 +352,16 @@ def duration_seconds(audio_path: Path) -> float:
     `head_s`) et son appelant qui décident quoi en faire, jamais ce module en
     silence.
 
-    Ce que cette fonction ne résout PAS : le job serveur qui lance l'analyse
-    calcule déjà sa propre durée par ffprobe pour sa fiche, et n'appelle pas
-    encore `analyze_steps(duration_s=...)` avec cette valeur — la durée reste
-    donc calculée deux fois jusqu'au sprint 12, qui câble ce paramètre depuis
-    le job (voir `analyze_steps`).
+    Depuis P2d (2026-09-23) `server/jobs.py` appelle CETTE fonction au lieu
+    de son propre ffprobe en dur, et passe le résultat à
+    `analyze_steps(duration_s=...)` : la durée n'est plus calculée deux fois,
+    et sur téléphone elle passe par le décodeur MediaCodec comme le reste.
+
+    Ce que cette fonction ne résout PAS : elle ne dit rien de la durée que le
+    LECTEUR verra. Sur Android, la longueur du PCM réellement décodé et
+    `MediaExtractor.KEY_DURATION` ne coïncident pas (P2a : la clé rend une
+    valeur plus grande, de l'ordre de 300 échantillons) ; le chart est bâti
+    sur le PCM, pas sur la clé.
     """
     return BACKENDS.call("duration_seconds", _duration_ffprobe, audio_path)
 

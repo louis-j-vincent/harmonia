@@ -8,3 +8,11 @@ build/
 .idea/
 # Audio de seed : 10 Mo de .m4a copiés depuis docs/audio (non suivi) — à régénérer, jamais committé.
 app/src/main/assets/harmonia_seed/audio/
+# Poids des réseaux (P2d) : 92 Mo copiés par la tâche Gradle `copyModels`
+# depuis mobile/models/ (lui-même gitignoré, régénérable par
+# mobile/tools/export_beat_this.py et dump_musx_weights.py).
+app/src/main/assets/harmonia_models/
+# Clone musx vendu (P2d) : 30 Mo copiés par `copyMusxClone` depuis
+# third_party/musx_ismir2019/, qui EST suivi par git à sa place d'origine.
+# Le dupliquer ici doublerait 27 Mo de poids dans l'historique.
+app/src/main/assets/harmonia_musx/

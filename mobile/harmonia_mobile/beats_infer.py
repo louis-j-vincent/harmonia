@@ -37,6 +37,28 @@ DEFAULT_PTE = Path(__file__).resolve().parents[1] / "models" / "beat_this_final0
 
 _runtime_method = None  # loaded once per process
 
+#: LA FENTE DU RUNTIME (P2d, 2026-09-23). `None` = le runtime PYTHON
+#: d'ExecuTorch (`_run_pte` ci-dessous), qui est ce que le Mac utilise et
+#: ce qui a produit toute la parité de T1c. Sur Android ce paquet pip
+#: n'existe pas : le runtime y est une bibliothèque native pilotée par JNI,
+#: et `mobile_beats_runtime.install()` pose ici une fonction de MÊME
+#: signature (`(chunk, pte_path) -> (beat_logits, downbeat_logits)`).
+#:
+#: Pourquoi une variable de module et pas un `if android:` : le reste du
+#: fichier — découpage, agrégation, post-traitement — doit rester
+#: STRICTEMENT le même code sur les deux plateformes, sinon la comparaison
+#: « chart émulateur vs chart Mac » ne mesure plus le portage mais deux
+#: implémentations différentes. Seul l'appel au réseau change.
+_chunk_runner = None
+
+
+def set_chunk_runner(fn) -> None:
+    """Pose le moteur qui exécute UN bloc de 1500 trames. `fn(chunk, pte_path)`
+    rend `(beat_logits, downbeat_logits)`, chacun `(1500,)` float32.
+    `set_chunk_runner(None)` revient au runtime python."""
+    global _chunk_runner
+    _chunk_runner = fn
+
 
 def _load_method(pte_path: Path | str = DEFAULT_PTE):
     global _runtime_method
@@ -159,7 +181,8 @@ def frames_from_spect(spect: np.ndarray, pte_path: Path | str = DEFAULT_PTE) -> 
     Numpy port of `Spect2Frames.spect2frames` (chunk_size=1500, border_size=6,
     overlap_mode="keep_first" -- the only settings `Audio2Beats` ever uses)."""
     chunks, starts = split_piece(spect, CHUNK_SIZE, BORDER_SIZE, avoid_short_end=True)
-    pred_chunks = [_run_pte(c, pte_path) for c in chunks]
+    run = _chunk_runner or _run_pte
+    pred_chunks = [run(c, pte_path) for c in chunks]
     beat_logits, downbeat_logits = aggregate_prediction(pred_chunks, starts, len(spect), CHUNK_SIZE, BORDER_SIZE)
     return beat_logits, downbeat_logits
 

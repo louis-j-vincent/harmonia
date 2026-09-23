@@ -325,8 +325,118 @@ class NNLSChromaNumpy:
         self.bass_win_oc = BASSWINDOW.reshape(N_OCTAVE, 12)     # octave-major, matches D's column order
         self.treble_win_oc = TREBLEWINDOW.reshape(N_OCTAVE, 12)
 
+
+    # ── tuilage temporel (P0-T2c) : les deux étages lourds, tranche par
+    #    tranche de `chunk_frames` trames. Le seul calcul GLOBAL sur le temps
+    #    est l'estimation d'accordage (moyenne sur TOUTES les trames, cf.
+    #    `tuningmode=0`) — elle reste faite sur le `nm_all` complet (T, 256),
+    #    qui ne pèse que ~12 Mo pour 4 min, donc la statistique globale est
+    #    conservée à l'identique. Tout le reste (silence par trame, blanchiment
+    #    sur l'axe des NOTES, NNLS, repliement basse/aigu) est strictement
+    #    local à la trame — vérifié ligne à ligne, pas supposé. ──────────────
+
+    def _logfreq_spectra(self, y: np.ndarray, starts: np.ndarray, win: np.ndarray,
+                          silence_thresh: float, chunk_frames: int) -> np.ndarray:
+        """Étage FFT tuilé : remplit `nm_all` (T, N_NOTE) par tranches.
+
+        C'est CE tableau-là qui faisait déborder : `windowed` (T, 16384)
+        float64 et son `rfft` (T, 8193) complex128 pèsent chacun ~758 Mo pour
+        un morceau de 4 min 30, et sont vivants en même temps (~1,7 Go de pic).
+        Ici on n'en garde qu'une tranche à la fois.
+
+        Deux économies en plus, toutes deux exactes :
+        - pas de `y_padded` global (la concaténation recopiait tout l'audio
+          pour y ajouter <16 k échantillons) : seule la dernière tranche est
+          complétée de zéros ;
+        - pas de conversion float64 de tout l'audio : chaque tranche est
+          convertie à la volée (une conversion float32→float64 est exacte et
+          élément par élément, donc le résultat est le même).
+        """
+        T = len(starts)
+        n = len(y)
+        nm_all = np.empty((T, N_NOTE), dtype=np.float64)
+        KT = self.K.T
+        for t0 in range(0, T, chunk_frames):
+            t1 = min(t0 + chunk_frames, T)
+            s0 = int(starts[t0])
+            s1 = int(starts[t1 - 1]) + BLOCK_SIZE
+            seg = np.asarray(y[s0:min(s1, n)], dtype=np.float64)
+            if s1 > n:
+                seg = np.concatenate([seg, np.zeros(s1 - n, dtype=np.float64)])
+            frames = sliding_window_view(seg, BLOCK_SIZE)[::STEP_SIZE][:t1 - t0]
+            windowed = frames * win[None, :]
+            del frames, seg
+            spec = np.fft.rfft(windowed, axis=1)[:, :N_FFT]
+            del windowed
+            mag = np.abs(spec)
+            del spec
+            np.minimum(mag, BLOCK_SIZE, out=mag)
+            mag[mag.max(axis=1) < silence_thresh] = 0.0
+            nm_all[t0:t1] = mag @ KT
+            del mag
+        return nm_all
+
+    def _tune_whiten_solve(self, nm: np.ndarray, int_shift: int, float_shift: float,
+                            centers: np.ndarray, method: str, max_iter: int):
+        """Accordage + blanchiment + NNLS + repliement, pour un bloc de trames.
+
+        Aucune opération ici ne traverse l'axe du temps : `_special_convolution`
+        convolue sur l'axe des NOTES (axe -1), le blanchiment est par trame, le
+        masque `signifIndex` est par trame, et FISTA résout chaque trame
+        indépendamment (`grad = Y @ AtA - AtB` est une ligne par trame). Appeler
+        cette fonction sur tout le morceau ou tranche par tranche doit donc
+        donner exactement le même résultat — c'est ce que vérifie
+        `mobile/tools/nnlsmem_parity.py`.
+        """
+        Tb = nm.shape[0]
+        f2 = np.zeros((Tb, N_NOTE), dtype=np.float64)
+        k = np.arange(2, N_NOTE - 3)
+        f2[:, k] = (nm[:, k + int_shift] * (1 - float_shift) +
+                    nm[:, k + int_shift + 1] * float_shift)
+
+        running_mean = _special_convolution(f2, self.hw)
+        dev2 = (f2 - running_mean) ** 2
+        running_var = _special_convolution(dev2, self.hw)
+        del dev2
+        running_std = np.sqrt(np.maximum(running_var, 0.0))
+        del running_var
+
+        diff = f2 - running_mean
+        del running_mean
+        whitened = np.where(diff > 0, diff / np.power(np.maximum(running_std, 1e-30), WHITENING), 0.0)
+        del diff
+        f2w = np.where(running_std > 0, whitened, f2)
+        del whitened, running_std, f2
+
+        if method == "lawson":
+            bass = np.zeros((Tb, 12), dtype=np.float64)
+            treble = np.zeros((Tb, 12), dtype=np.float64)
+            for t in range(Tb):
+                b = f2w[t]
+                if not (b > 0).any():
+                    continue
+                currval = b[centers - 1] + b[centers] + b[centers + 1]
+                sig = np.where(currval > 0)[0]
+                if sig.size == 0:
+                    continue
+                Ad = self.D[:, sig]
+                x = nnls_lh(Ad, b)
+                semitone = np.zeros(N_SEMITONE_NOTES, dtype=np.float64)
+                semitone[sig] = x
+                treble[t] = np.array([semitone[i::12].dot(TREBLEWINDOW[i::12]) for i in range(12)])
+                bass[t] = np.array([semitone[i::12].dot(BASSWINDOW[i::12]) for i in range(12)])
+        else:
+            currval_all = f2w[:, centers - 1] + f2w[:, centers] + f2w[:, centers + 1]
+            mask = currval_all > 0
+            del currval_all
+            X = nnls_batch_fista(self.D, self.AtA, f2w, mask, max_iter, self.fista_step)
+            Xr = X.reshape(Tb, N_OCTAVE, 12)
+            bass = np.einsum('toc,oc->tc', Xr, self.bass_win_oc)
+            treble = np.einsum('toc,oc->tc', Xr, self.treble_win_oc)
+        return bass, treble
+
     def extract_bothchroma(self, y: np.ndarray, sr: int = SR, method: str = "fista",
-                            max_iter: int = 250):
+                            max_iter: int = 250, chunk_frames: int | None = None):
         """y: float32/float64 mono audio at `sr` (must be SR=44100, same
         assumption `nnls_features.extract_bothchroma` makes via librosa.load
         (sr=SR)). Returns (arr (T,24) float32, times (T,) float64), index 0
@@ -339,12 +449,25 @@ class NNLSChromaNumpy:
         the original per-frame Lawson-Hanson active-set NNLS (P0-T2, kept
         for reference/parity auditing) -- exact to 1e-10 per frame but a
         Python loop, slow.
+
+        `chunk_frames=None` (default) = the original, unbounded-memory path,
+        byte-for-byte the code that was validated in P0-T2/T2b. An int tiles
+        BOTH heavy stages over time in blocks of that many frames, which caps
+        the peak instead of letting it grow with song length (the Android
+        emulator's low-memory killer was taking the app out here). The global
+        tuning estimate is still computed over the WHOLE song -- see
+        `_logfreq_spectra` -- so the tiled output is not an approximation.
+        256 is a good value: ~110 Mo of peak instead of ~1,7 Go for 4 min 30.
         """
         if sr != SR:
             raise ValueError(f"nnls_chroma numpy port expects sr={SR}, got {sr}")
         if method not in ("fista", "lawson"):
             raise ValueError(f"method must be 'fista' or 'lawson', got {method!r}")
-        y = np.asarray(y, dtype=np.float64)
+        if chunk_frames is not None and chunk_frames < 1:
+            raise ValueError(f"chunk_frames must be >= 1 or None, got {chunk_frames}")
+        # float64 up-front on the untiled path only: the tiled path converts
+        # one block at a time (exact, and saves a full float64 copy of the audio).
+        y = np.asarray(y) if chunk_frames is not None else np.asarray(y, dtype=np.float64)
 
         n = len(y)
         # match vamp/frames.py: frames start at 0, step STEP_SIZE, continue
@@ -357,11 +480,23 @@ class NNLSChromaNumpy:
 
         win = _hann_periodic(BLOCK_SIZE)
 
-        pad_needed = starts[-1] + BLOCK_SIZE - n
-        y_padded = np.concatenate([y, np.zeros(max(0, pad_needed), dtype=np.float64)]) if pad_needed > 0 else y
-
         silence_thresh = BLOCK_SIZE * 2.0 / 16384.0  # == 2.0 for BLOCK_SIZE=16384
 
+        if chunk_frames is not None and ROLLON <= 0:
+            # tiled FFT stage -- the one that blew the memory budget.
+            nm_all = self._logfreq_spectra(y, starts, win, silence_thresh, chunk_frames)
+            del y
+        else:
+            pad_needed = starts[-1] + BLOCK_SIZE - n
+            y_padded = np.concatenate([y, np.zeros(max(0, pad_needed), dtype=np.float64)]) if pad_needed > 0 else y
+            nm_all = self._logfreq_untiled(y_padded, starts, T, win, silence_thresh)
+            del y_padded
+
+        return self._finish(nm_all, starts, method, max_iter, chunk_frames)
+
+    def _logfreq_untiled(self, y_padded, starts, T, win, silence_thresh):
+        """The original, un-tiled FFT stage (P0-T2b), moved verbatim into its
+        own method so the tiled one can sit beside it without touching it."""
         if ROLLON > 0:
             # rollon>0 is coded-but-never-exercised by nnls_features.py (see
             # module docstring); keep the exact per-frame reference path for
@@ -398,66 +533,48 @@ class NNLSChromaNumpy:
             silent = mag.max(axis=1) < silence_thresh
             mag[silent] = 0.0
             nm_all = mag @ self.K.T   # (T, N_FFT) @ (N_FFT, N_NOTE) -> (T, N_NOTE)
+        return nm_all
 
+    def _finish(self, nm_all, starts, method, max_iter, chunk_frames):
+        """Accordage GLOBAL, puis blanchiment + NNLS + repliement.
+
+        L'estimation d'accordage est la SEULE statistique du module qui
+        traverse l'axe du temps (`tuningmode=0` = moyenne sur toutes les
+        trames du fichier). Elle est donc toujours calculée sur `nm_all`
+        ENTIER, même en mode tuilé -- ce tableau-là est petit (T x 256, ~12 Mo
+        pour 4 min 30). C'est exactement la précaution que `musx_net` a dû
+        prendre pour `InstanceNorm2d` : tuiler ce qui est local, garder la
+        statistique globale globale. Tronquer l'audio, au contraire, CHANGE
+        l'accordage et casse la parité (cf. le faux positif de 1,52 relevé
+        dans docs/portage_mobile/p0_t2b_nnls_vitesse.md).
+        """
+        T = nm_all.shape[0]
         # ── global tuning estimate (tuningmode=0 path only) ───────────────
         tone_starts = np.arange(0, round(N_NOTE * 0.62 / N_BPS) * N_BPS + 1, N_BPS)
         # sum over all "tone" positions and all frames, per BPS offset
         gathered = nm_all[:, tone_starts[:, None] + np.arange(N_BPS)[None, :]]  # (T, n_tones, 3)
         mean_tunings = gathered.sum(axis=1).mean(axis=0)  # (3,)
+        del gathered
         real = float((mean_tunings * self.cos_bps).sum())
         imag = float((mean_tunings * self.sin_bps).sum())
         normalised_tuning = np.arctan2(imag, real) / (2 * np.pi)
         int_shift = int(np.floor(normalised_tuning * 3))
         float_shift = normalised_tuning * 3 - int_shift
 
-        # ── tune + whiten (vectorised over all T frames at once) ─────────
-        f2 = np.zeros((T, N_NOTE), dtype=np.float64)
-        k = np.arange(2, N_NOTE - 3)
-        f2[:, k] = (nm_all[:, k + int_shift] * (1 - float_shift) +
-                    nm_all[:, k + int_shift + 1] * float_shift)
-        # (edges already 0)
-
-        running_mean = _special_convolution(f2, self.hw)
-        dev2 = (f2 - running_mean) ** 2
-        running_var = _special_convolution(dev2, self.hw)
-        running_std = np.sqrt(np.maximum(running_var, 0.0))
-
-        diff = f2 - running_mean
-        whitened = np.where(diff > 0, diff / np.power(np.maximum(running_std, 1e-30), WHITENING), 0.0)
-        f2w = np.where(running_std > 0, whitened, f2)  # runningstd==0 -> unchanged (matches C++ no-op branch)
-
-        # ── NNLS + fold into bass/treble chroma ────────────────────────────
         centers = N_BPS // 2 + 2 + N_BPS * np.arange(N_SEMITONE_NOTES)  # iNote centers, 84 of them
         centers = centers[centers < N_NOTE - N_BPS // 2]
 
-        if method == "lawson":
-            bass = np.zeros((T, 12), dtype=np.float64)
-            treble = np.zeros((T, 12), dtype=np.float64)
-            for t in range(T):
-                b = f2w[t]
-                if not (b > 0).any():
-                    continue
-                currval = b[centers - 1] + b[centers] + b[centers + 1]
-                sig = np.where(currval > 0)[0]
-                if sig.size == 0:
-                    continue
-                Ad = self.D[:, sig]
-                x = nnls_lh(Ad, b)
-                semitone = np.zeros(N_SEMITONE_NOTES, dtype=np.float64)
-                semitone[sig] = x
-                treble[t] = np.array([semitone[i::12].dot(TREBLEWINDOW[i::12]) for i in range(12)])
-                bass[t] = np.array([semitone[i::12].dot(BASSWINDOW[i::12]) for i in range(12)])
+        if chunk_frames is None:
+            bass, treble = self._tune_whiten_solve(nm_all, int_shift, float_shift,
+                                                   centers, method, max_iter)
         else:
-            # batched FISTA (P0-T2b): same "signifIndex" restriction as the
-            # lawson path, but as a per-frame column MASK on the shared
-            # dictionary (see nnls_batch_fista docstring) so the whole T-frame
-            # batch is solved with a handful of (T,84)/(84,84) matmuls.
-            currval_all = f2w[:, centers - 1] + f2w[:, centers] + f2w[:, centers + 1]  # (T, 84)
-            mask = currval_all > 0
-            X = nnls_batch_fista(self.D, self.AtA, f2w, mask, max_iter, self.fista_step)  # (T, 84)
-            Xr = X.reshape(T, N_OCTAVE, 12)  # octave-major columns, see __init__ comment
-            bass = np.einsum('toc,oc->tc', Xr, self.bass_win_oc)
-            treble = np.einsum('toc,oc->tc', Xr, self.treble_win_oc)
+            bass = np.empty((T, 12), dtype=np.float64)
+            treble = np.empty((T, 12), dtype=np.float64)
+            for t0 in range(0, T, chunk_frames):
+                t1 = min(t0 + chunk_frames, T)
+                b, tr = self._tune_whiten_solve(nm_all[t0:t1], int_shift, float_shift,
+                                                 centers, method, max_iter)
+                bass[t0:t1], treble[t0:t1] = b, tr
 
         arr = np.concatenate([bass, treble], axis=1).astype(np.float32)  # (T,24) bass|treble, index0=A
         times = starts.astype(np.float64) / SR
@@ -467,14 +584,21 @@ class NNLSChromaNumpy:
 _singleton: NNLSChromaNumpy | None = None
 
 
-def extract_bothchroma_numpy(y: np.ndarray, sr: int = SR):
+def extract_bothchroma_numpy(y: np.ndarray, sr: int = SR,
+                              chunk_frames: int | None = None):
     """Drop-in, numpy-only alternative to
     `harmonia.nnls_features.extract_bothchroma`'s `vamp.collect(...,
     output="bothchroma")` call -- same (arr, times) contract. Lazily builds
     (and caches in-process) the audio-independent kernel/dictionary
     matrices on first call.
+
+    `chunk_frames=None` (default) keeps the exact behaviour validated in
+    P0-T2/T2b. Pass an int (256 recommended) to bound the peak memory on a
+    phone: the two heavy stages are then done one time-tile at a time. The
+    output is identical, not approximate -- measured max |diff| = 0.0 on the
+    3 reference songs, bass AND treble halves (mobile/tools/nnlsmem_parity.py).
     """
     global _singleton
     if _singleton is None:
         _singleton = NNLSChromaNumpy()
-    return _singleton.extract_bothchroma(y, sr)
+    return _singleton.extract_bothchroma(y, sr, chunk_frames=chunk_frames)
