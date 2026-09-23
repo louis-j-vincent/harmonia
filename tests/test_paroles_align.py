@@ -80,3 +80,84 @@ def test_un_silence_court_ne_coupe_rien():
 def test_le_seuil_par_defaut_est_celui_du_module():
     al = avec_trous([_m(0, 0.0, 1.0, SCORE_DOUTEUX - 0.01)])
     assert al[0]["trou"] is True
+
+
+# ── la piste de temps de la page karaoké (2026-09-23) ───────────────────────
+# Ce qui est testé ici est la LOGIQUE, pas le modèle : quel tic sonne à
+# l'instant t, ce que devient un trou, et ce que le sous-titre annonce.
+
+from harmonia.integrations.paroles_align import (accords_du_chart,  # noqa: E402
+                                                 index_courant, page, piste,
+                                                 resume)
+
+
+def test_index_courant_trouve_celui_qui_sonne():
+    items = [{"t0": 0.0, "t1": 1.0}, {"t0": 1.0, "t1": 2.0},
+             {"t0": 5.0, "t1": 6.0}]
+    assert index_courant(items, 0.0) == 0
+    assert index_courant(items, 0.999) == 0
+    assert index_courant(items, 1.0) == 1       # la borne appartient au suivant
+    assert index_courant(items, 5.5) == 2
+
+
+def test_index_courant_rend_moins_un_dans_un_trou():
+    """Un trou est un trou. Rendre quand même le mot le plus proche mentirait
+    sur le temps — c'est exactement ce que la page sert à détecter."""
+    items = [{"t0": 0.0, "t1": 1.0}, {"t0": 5.0, "t1": 6.0}]
+    assert index_courant(items, 3.0) == -1      # entre les deux
+    assert index_courant(items, -1.0) == -1     # avant le premier
+    assert index_courant(items, 9.0) == -1      # après le dernier
+    assert index_courant([], 1.0) == -1
+
+
+def test_piste_separe_les_tics_des_silences():
+    al = avec_trous([_m(0, 0.0, 1.0, 0.9), _m(1, 11.0, 12.0, 0.05)],
+                    silence_mini=3.0)
+    p = piste(al)
+    assert [t["rang"] for t in p["ticks"]] == [0, 1]
+    assert [t["trou"] for t in p["ticks"]] == [False, True]
+    assert p["silences"] == [{"t0": 1.0, "t1": 11.0}]
+
+
+def test_resume_compte_les_mots_la_confiance_et_le_plus_grand_trou():
+    p = piste(avec_trous([_m(0, 0.0, 1.0, 0.9), _m(1, 2.0, 3.0, 0.1),
+                          _m(2, 12.0, 13.0, 0.5)], silence_mini=3.0))
+    r = resume(p["ticks"], seuil=0.3)
+    assert r["n"] == 3
+    assert r["median"] == 0.5
+    assert r["part_douteux"] == round(1 / 3, 3)
+    assert r["plus_grand_trou"] == 9.0          # de 3,0 s à 12,0 s
+    assert resume([])["n"] == 0                 # sans mot, pas de division
+
+
+def test_accords_du_chart_nomme_avec_la_seule_definition_du_projet():
+    ch = {"prompter": {"chords": [
+        {"t0": 0, "t1": 2, "root": 0, "q": "", "bass": -1, "nc": True},
+        {"t0": 2, "t1": 4, "root": 7, "q": "7", "bass": 11, "nc": False}]}}
+    assert accords_du_chart(ch) == [
+        {"t0": 0.0, "t1": 2.0, "nom": "N.C.", "nc": True},
+        {"t0": 2.0, "t1": 4.0, "nom": "G7/B", "nc": False}]
+
+
+def test_la_page_ne_contient_JAMAIS_les_paroles():
+    """La consigne de Louis : pas de texte à l'écran. Avec les mots on lit et
+    on croit entendre ce qu'on lit ; la page est un instrument de mesure du
+    temps, pas un afficheur de paroles."""
+    al = [{"rang": 0, "mot": "shibboleth", "ligne": 0, "t0": 1.0, "t1": 1.4,
+           "score": 0.8}]
+    p = piste(avec_trous(al))
+    h = page("Un titre", "un sous-titre",
+             {"audio": "/audio/x.m4a", "duree": 10, "accords": [],
+              "ticks": p["ticks"], "silences": p["silences"]})
+    assert "shibboleth" not in h
+    assert '"t0": 1.0' in h or '"t0":1.0' in h   # le tic, lui, est bien là
+
+
+def test_la_page_n_utilise_pas_requestAnimationFrame():
+    """Piège iOS payé cher : une boucle rAF empêche le moteur audio de WebKit
+    de démarrer, et le son ne part jamais. L'horloge est `timeupdate`."""
+    h = page("T", "s", {"audio": "/audio/x.m4a", "duree": 10, "accords": [],
+                        "ticks": [], "silences": []})
+    assert "requestAnimationFrame" not in h
+    assert "timeupdate" in h and "setInterval" in h
+    assert "fetch(D.audio)" in h and "createObjectURL" in h

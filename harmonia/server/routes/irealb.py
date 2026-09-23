@@ -11,9 +11,11 @@ ni mesures ni temps, ça demande un alignement audio qui n'est pas construit
 """
 from __future__ import annotations
 
+import html
 import json
 import logging
 import re
+import time
 from pathlib import Path
 
 from flask import Blueprint, Response, jsonify, request
@@ -423,3 +425,120 @@ def tab_import():
 # Ce que ce module ne fait PAS : la recherche YouTube/locale (voir
 # `analyze.py`) — deux moteurs de recherche différents pour deux sources
 # différentes.
+
+
+@bp.get("/karaoke/<file>")
+def karaoke(file):
+    """Juger NOTRE calage dans le temps À L'OREILLE, sur ce morceau.
+
+    Louis, 2026-09-23 : « bien calée, faut pas qu'il y ait de décalage ». Un
+    chiffre ne répond pas à ça. Cette page joue l'audio et fait défiler deux
+    choses sous une ligne fixe : nos accords, et UN TIC PAR MOT aligné. Si le
+    calage est juste, le tic passe la ligne au moment où la syllabe sonne ; si
+    ça dérive, ça s'entend et ça se voit au même instant.
+
+    ELLE N'ÉCRIT PAS LES PAROLES. Avec le texte à l'écran on lit et on croit
+    entendre ce qu'on lit — la page serait un afficheur de paroles, pas un
+    instrument de mesure du temps. Seuls le tic, sa confiance (sa hauteur) et
+    les trous sont rendus.
+
+    L'alignement coûte ~9 s de calcul plus le chargement du modèle : il est mis
+    en cache par `harmonia.cache` sous la clé `<stem>__<taille>`, avec la
+    requête qui l'a produit — rouvrir la page est gratuit, changer de tab
+    (`?q=`) recalcule.
+    """
+    from harmonia import cache
+    from harmonia.integrations import paroles_align as PA
+
+    chart_p = CHARTS_DIR / f"{Path(str(file)).stem}.json"
+    requete = ""
+
+    def _dire(msg: str, code: int = 200):
+        # Jamais muet : une page blanche ferait croire à un morceau muet.
+        return Response(
+            '<!doctype html><meta charset=utf-8><meta name=viewport '
+            'content="width=device-width,initial-scale=1">'
+            '<div style="font:16px/1.5 -apple-system,system-ui,sans-serif;'
+            'max-width:26rem;margin:22vh auto;padding:0 1.5rem;color:#1c1c1c">'
+            f'<p>{msg}</p><p style="color:#9a9287;font-size:13px">'
+            f'{html.escape(str(file))}'
+            + (f' · recherche « {html.escape(requete)} »' if requete else '')
+            + '</p></div>', status=code, mimetype="text/html")
+
+    if not chart_p.exists():
+        return _dire("Chart inconnu.", 404)
+    chart = json.loads(chart_p.read_text(encoding="utf-8"))
+    stem = Path(chart.get("audio_url") or "").stem
+    audio = SETTINGS.audio_dir / f"{stem}.m4a"
+    if not stem or not audio.exists():
+        return _dire("Ce chart n'a pas d'audio — il n'y a rien à caler.", 404)
+    voix = PA.voix_de(stem)
+    if not voix.exists():
+        # 60 morceaux sur la bibliothèque ont une voix séparée ; le dire
+        # plutôt que d'échouer sur un fichier absent.
+        return _dire("Pas de voix séparée pour ce morceau : il manque "
+                     f"<code>{html.escape(str(voix))}</code>. "
+                     "L'alignement se fait sur la voix seule, jamais sur le "
+                     "mixage — la batterie et la basse sont du bruit pour un "
+                     "modèle de parole.", 404)
+
+    requete = (request.args.get("q") or "").strip() or _requete(stem, chart)
+    seuil = float(request.args.get("seuil") or PA.SCORE_DOUTEUX)
+    silence = float(request.args.get("silence") or 3.0)
+
+    garde = cache.load_json("paroles", audio)
+    if not garde or garde.get("requete") != requete:
+        from harmonia.integrations.tab_fetcher import fetch_tab_chords, search_tabs
+        try:
+            res = search_tabs(requete, tab_types=("Chords",), max_results=6)
+        except Exception:                                     # noqa: BLE001
+            log.exception("karaoke : la recherche de tab a échoué pour %s", stem)
+            return _dire("La recherche de tab a échoué — voir le journal.", 502)
+        if not res:
+            return _dire("Aucun tab trouvé : sans texte il n'y a rien à "
+                         "aligner.", 404)
+        try:
+            brut = fetch_tab_chords(res[0]).raw_content
+        except Exception:                                     # noqa: BLE001
+            log.exception("karaoke : tab illisible pour %s", stem)
+            return _dire("Le tab trouvé est illisible — voir le journal.", 502)
+        mots = PA.mots_a_aligner(PA.lignes_de_paroles(brut))
+        if not mots:
+            return _dire("Ce tab n'a que des accords, pas de paroles : rien "
+                         "à placer.", 409)
+        t0 = time.time()
+        try:
+            align = PA.aligner(voix, mots)
+        except Exception as exc:                              # noqa: BLE001
+            log.exception("karaoke : l'alignement a échoué pour %s", stem)
+            return _dire(f"L'alignement a échoué : {html.escape(str(exc))}",
+                         500)
+        if not align:
+            return _dire("L'alignement n'a placé aucun mot — le texte et "
+                         "l'audio ne correspondent pas.", 409)
+        garde = {"requete": requete, "align": align,
+                 "tab": {"titre": res[0].song_name, "artiste": res[0].artist_name,
+                         "url": res[0].tab_url, "note": round(res[0].rating or 0, 1)},
+                 "secondes": round(time.time() - t0, 1)}
+        cache.save_json("paroles", audio, garde)
+        log.info("karaoke %s : %d mots alignés en %.1f s (tab %s)",
+                 stem, len(align), garde["secondes"], garde["tab"]["url"])
+
+    pistes = PA.piste(PA.avec_trous(garde["align"], seuil=seuil,
+                                    silence_mini=silence))
+    accords = PA.accords_du_chart(chart)
+    fin = max([a["t1"] for a in accords] + [t["t1"] for t in pistes["ticks"]]
+              + [1.0])
+    r = PA.resume(pistes["ticks"], seuil=seuil)
+    tab = garde.get("tab") or {}
+    sous = (f'{r["n"]} mots placés · score médian {r["median"]:.2f} · '
+            f'{100 * r["part_douteux"]:.0f}% sous {seuil:.2f} · plus grand '
+            f'trou {r["plus_grand_trou"]:.1f} s · '
+            f'texte : <a href="{html.escape(tab.get("url") or "")}">'
+            f'{html.escape(tab.get("titre") or "?")}</a>')
+    return Response(
+        PA.page(chart.get("title") or stem, sous,
+                {"audio": f"/audio/{stem}.m4a", "duree": round(fin + 4, 2),
+                 "accords": accords, "ticks": pistes["ticks"],
+                 "silences": pistes["silences"]}),
+        mimetype="text/html")

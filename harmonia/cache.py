@@ -59,6 +59,11 @@ KINDS = {
     "musx_probs": (lambda s: s.data_cache / "musx_probs", _stem, ".npz"),
     "musx_cqt":   (lambda s: s.data_cache / "musx_cqt",   _stem, ".npz"),
     "nnls":       (lambda s: s.data_cache / "nnls_infer", _stem, ".npz"),
+    # L'alignement forcé des paroles (`integrations.paroles_align`) : ~9 s de
+    # calcul par morceau plus le chargement du modèle. Né APRÈS le sprint 15,
+    # donc il n'a pas de clé historique — `_stem` n'est là que pour remplir la
+    # case, aucun fichier ne porte ce nom.
+    "paroles":    (lambda s: s.cache_dir / "paroles",     _stem, ".json"),
 }
 
 
