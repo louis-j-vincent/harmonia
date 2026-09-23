@@ -12,8 +12,15 @@ Inventaire du chemin critique : `audit_portage_mobile_2026-09-22.md`.
   `feat/treillis-chart` au 2026-09-22 ; `main` a 378 commits de retard, ne PAS
   s'y baser). Toujours travailler ICI. Jamais dans l'arbre partagé
   (`…/Code/harmonia` sans `.claude/worktrees/mobile`) — une autre session y vit.
-- **Git** : les agents NE COMMITTENT PAS. Ils écrivent des fichiers ; l'orchestrateur
-  commit aux jalons. Jamais `checkout`, `switch`, `reset`, `stash`, `rebase`.
+- **Git — TOUJOURS COMMITER ce qui est fait et fonctionnel** (Louis,
+  2026-09-24 : la règle précédente « les agents ne committent pas » était une
+  erreur, elle a produit un cimetière de travail non commité). Chaque agent
+  commite SES fichiers dès qu'une étape est atteinte et vérifiée, sur la
+  branche où le worktree est déjà (`git branch --show-current` avant), avec
+  des chemins explicites et `git add <chemins> && git commit …` en UNE
+  commande, et donne le hash dans son rapport. Jamais `git add -A`, jamais
+  `checkout`, `switch`, `reset`, `stash`, `rebase`. Un rapport « terminé »
+  avec du travail non commité est un rapport incomplet.
 - **Venv** : `.venv` du worktree = le venv de prod, partagé et fragile. **N'y
   installer AUCUN paquet.** Tout ce qui est nouveau (executorch, coremltools…)
   va dans `~/harmonia/.venv-mobile` (Python 3.12, à créer si absent :
