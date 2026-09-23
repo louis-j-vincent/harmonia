@@ -95,3 +95,20 @@ de validation). Rien dans `harmonia/` ne change en phase 0.
 | Vitesse téléphone réel (T5, porte dure) | attend le téléphone (semaine du 28) | — |
 
 Environnement : JDK 17 (`/opt/homebrew/opt/openjdk@17`), SDK `~/Library/Android/sdk` (platform 35, build-tools 35, emulator, image arm64), AVD `harmonia_35` (userdata 4 G), venv export `~/harmonia/.venv-mobile`. Disque ≈ 10 Go libres après nettoyage.
+
+## Statut au 2026-09-23, fin de journée — la phase 2 est franchie
+
+| Brique | État | Rapport |
+|---|---|---|
+| Phase 0 (NNLS, CQT, inventaire, beat_this final0, musx numpy) | **FAIT** — chaque brique validée à ≤ 1e-3 contre sa référence Mac | `p0_*.md`, `p2b_cqt_musx.md`, `t1b_musx.md`, `t1c_beat_this_complet.md` |
+| Phase 1 (squelette : Chaquopy + Flask local + WebView) | **FAIT** — bibliothèque, chart, lecture, Practise, analyse OK sur l'émulateur | `p1_squelette_android.md`, `p1b_webview_chart_audio.md` |
+| Phase 2 (pipeline sur l'appareil) | **FAIT** — 271/273 mesures identiques au Mac sur 3 morceaux ; mémoire 546 Mo | `p2c_integration.md`, `p2d_pipeline_device.md` |
+| Décodeur audio | FAIT — décalage 0 échantillon ; rééchantillonneur à 0,02-0,15 de soxr_hq (ringing, structurel) sans effet mesuré sur les charts | `p2a_decodeur_audio.md`, `p2a_bis_resampler.md` |
+| Phase 3 (YouTube) | FAIT — téléchargement sur l'émulateur ; connexion dans l'app construite, **à valider avec le compte de Louis** | `p3_youtube.md`, `p3b_youtube_cookies_qjs.md`, `p3c_youtube_session.md` |
+| Leviers de vitesse | mesurés — aucun gratuit (small0 change la grille sur 2/3 morceaux ; 1 fold réécrit 1-52 % des mesures ; int8 = battues fantômes) ; page à écouter `plots/fastmode_3songs.html` | `t5prep_leviers_vitesse.md` |
+| Phase 4 (APK signé + notice) | **en cours (P4)** | — |
+| T5 vitesse sur téléphone réel (porte dure) | attend le téléphone (semaine du 28) — protocole dans `INSTALLER.md` | — |
+| Phase 5 (iOS) | non commencée | — |
+
+Fait structurel découvert (P2c) : le pipeline Mac décode le même fichier deux fois différemment (ffmpeg pour beat_this, CoreAudio pour musx/chroma), écart max 0,387 → 345 vs 348 battues sur Stand By Me. À porter dans `docs/known_issues.md` au merge.
+Émulateur : XNNPACK impossible (SIGILL SME) — `.pte` portable poussé à la main ; aucun chiffre de vitesse d'émulateur ne vaut pour le téléphone.
