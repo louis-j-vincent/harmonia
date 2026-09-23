@@ -177,3 +177,75 @@ def feuille(chart: dict, pose: dict, brut: str) -> list[dict]:
                     break
         out.append({"texte": texte, "accords": accords})
     return out
+
+
+# ── le rendu, une seule définition ──────────────────────────────
+# Partagé par `tools.tab_paroles_page` (en ligne de commande) et par la
+# route `/tab-paroles/<file>` de l'app : Louis lit depuis son iPhone, donc
+# c'est SON serveur qui fabrique la page, à partir du tab qu'il a récupéré.
+import html  # noqa: E402
+
+CSS = """
+:root{--pap:#f6f3ec;--enc:#1c1c1c;--nous:#8c2f2f;--eux:#9a9287;--lig:#e2dcd0}
+@media(prefers-color-scheme:dark){:root{--pap:#16150f;--enc:#ece7dc;
+  --nous:#e08a7a;--eux:#7d766b;--lig:#2b2820}}
+*{box-sizing:border-box}
+body{margin:0;padding:16px;background:var(--pap);color:var(--enc);
+  font:16px/1.5 -apple-system,system-ui,sans-serif;max-width:52rem;margin:0 auto}
+h1{font:600 22px/1.25 Georgia,serif;margin:0 0 2px}
+.sous{color:var(--eux);font-size:13px;margin:0 0 18px}
+.bloc{margin:0 0 26px;border-top:1px solid var(--lig);padding-top:14px}
+pre{margin:0;font:14px/1.15 ui-monospace,SFMono-Regular,Menlo,monospace;
+  white-space:pre;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.acc{color:var(--nous);font-weight:700}
+.eux{color:var(--eux);font-weight:400;font-size:11px}
+.mots{color:var(--enc)}
+a{color:var(--nous)}
+"""
+
+
+def ligne_accords(accords, largeur: int, montrer_eux: bool) -> str:
+    """La ligne d'accords, NOS noms posés aux colonnes du tab.
+
+    Deux accords qui se chevauchent après substitution (le nôtre est plus long
+    que le sien) sont décalés d'un cran plutôt qu'écrasés : perdre un accord en
+    silence serait pire que décaler la colonne d'un caractère.
+    """
+    buf = []
+    col = 0
+    for a in sorted(accords, key=lambda x: x["colonne"]):
+        cible = max(a["colonne"], col + 1 if col else 0)
+        buf.append(" " * max(0, cible - col))
+        col = max(col, cible)
+        nom = a["notre"]
+        morceau = f'<span class="acc">{html.escape(nom)}</span>'
+        if montrer_eux and a["leur"] != nom:
+            morceau += f'<span class="eux">{html.escape(a["leur"])}</span>'
+            col += len(nom) + len(a["leur"])
+        else:
+            col += len(nom)
+        buf.append(morceau)
+    return "".join(buf)
+
+
+def page(titre: str, feuille: list[dict], tab: dict, decalage: int,
+         montrer_eux: bool = True) -> str:
+    blocs = []
+    for l in feuille:
+        blocs.append('<pre>' + ligne_accords(l["accords"], 0, montrer_eux)
+                     + "\n" + f'<span class="mots">{html.escape(l["texte"])}</span>'
+                     + "</pre>")
+    note = (f'tab source : <a href="{html.escape(tab.get("url") or "")}">'
+            f'{html.escape(tab.get("titre") or "?")} — '
+            f'{html.escape(tab.get("artiste") or "?")}</a> '
+            f'({tab.get("note")}★, {tab.get("votes")} votes)'
+            f' · transposé de {decalage:+d} demi-ton(s) pour tomber sur notre audio')
+    return (f'<!doctype html><html lang="fr"><meta charset="utf-8">'
+            f'<meta name="viewport" content="width=device-width,initial-scale=1">'
+            f'<title>{html.escape(titre)}</title><style>{CSS}</style>'
+            f'<h1>{html.escape(titre)}</h1><p class="sous">{note}<br>'
+            f'En rouge, <b>nos</b> accords. En gris, ceux du tab quand ils '
+            f'diffèrent. La question : tombent-ils sur la bonne syllabe ?</p>'
+            f'<div class="bloc">{"".join(blocs)}</div></html>')
+
+

@@ -247,6 +247,70 @@ def _chart_ou_404(file: str):
     return json.loads(p.read_text(encoding="utf-8")), None
 
 
+@bp.get("/tab-paroles/<file>")
+def tab_paroles(file):
+    """La feuille « accords sur les mots » de CE morceau, en HTML.
+
+    Louis, 2026-09-23, depuis son iPhone : « donne-moi un lien html ouvrable ».
+    C'est donc SON serveur qui fabrique la page, à partir du tab que sa propre
+    machine va chercher — la même source que `/api/tab-doutes`, qui tourne déjà.
+
+    Ce que la page pose, ce sont NOS accords, aux colonnes où le tabbeur a mis
+    les siens, avec les siens en petit quand ils diffèrent. La question qu'elle
+    sert à trancher est unique : est-ce que nos accords tombent sur la bonne
+    syllabe ? L'accord avec le tab n'est pas le critère (Louis, 2026-08-05 :
+    nos charts battent les tabs).
+
+    Rien n'est mis en cache ici : la page se regarde, elle ne se collectionne
+    pas. Elle vit sur le serveur personnel de Louis (Tailscale), au même titre
+    que `/soudure/<file>` et `/ssm/<file>`.
+    """
+    from harmonia.integrations import tab_paroles as TP
+    from harmonia.integrations.tab_chart import poser
+    from harmonia.integrations.tab_fetcher import fetch_tab_chords, search_tabs
+
+    chart, err = _chart_ou_404(file)
+    if err:
+        return err
+    stem = Path(chart.get("audio_url") or "").stem
+    requete = (request.args.get("q") or "").strip() or _requete(stem, chart)
+
+    def _dire(msg: str, code: int = 200):
+        return Response(
+            '<!doctype html><meta charset=utf-8><meta name=viewport '
+            'content="width=device-width,initial-scale=1">'
+            '<div style="font:16px/1.5 -apple-system,system-ui,sans-serif;'
+            'max-width:26rem;margin:22vh auto;padding:0 1.5rem;color:#1c1c1c">'
+            f'<p>{msg}</p><p style="color:#9a9287;font-size:13px">'
+            f'Recherche : « {requete} »</p></div>',
+            status=code, mimetype="text/html")
+
+    try:
+        pose = poser(chart, requete)
+    except Exception:                                        # noqa: BLE001
+        # Jamais muet : une page blanche ferait croire à un morceau sans tab.
+        log.exception("tab-paroles : la pose a échoué pour %s", stem)
+        return _dire("La recherche de tab a échoué — voir le journal.", 502)
+    if pose is None:
+        return _dire("Aucun tab utilisable pour ce morceau.", 404)
+
+    res = search_tabs(requete, tab_types=("Chords",), max_results=6)
+    if not res:
+        return _dire("Aucun tab trouvé.", 404)
+    brut = fetch_tab_chords(res[0]).raw_content
+    feuille = TP.feuille(chart, pose, brut)
+    if not feuille:
+        return _dire("Les colonnes du tab et ses accords ne concordent pas : "
+                     "rien n'a été posé.", 409)
+    log.info("tab-paroles %s : %d ligne(s), %d accord(s), transposition %+d",
+             stem, len(feuille), sum(len(l["accords"]) for l in feuille),
+             int(pose.get("decalage") or 0))
+    return Response(
+        TP.page(chart.get("title") or stem, feuille, pose["tab"],
+                int(pose.get("decalage") or 0)),
+        mimetype="text/html")
+
+
 @bp.get("/api/tab-doutes")
 def tab_doutes_lire():
     """Les doutes déjà calculés pour ce morceau, sans rien relancer.
