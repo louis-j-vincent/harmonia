@@ -98,3 +98,4 @@ data/chord_dataset/
 docs/research_sessions/*tinder*.html
 # Live swipe ledgers (runtime state, mutated per-swipe by tinder_server.py):
 docs/research_sessions/*_ledger.json
+mobile/android/smoke/logcat.txt
