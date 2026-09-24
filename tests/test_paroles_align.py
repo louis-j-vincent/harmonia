@@ -139,18 +139,32 @@ def test_accords_du_chart_nomme_avec_la_seule_definition_du_projet():
         {"t0": 2.0, "t1": 4.0, "nom": "G7/B", "nc": False}]
 
 
-def test_la_page_ne_contient_JAMAIS_les_paroles():
-    """La consigne de Louis : pas de texte à l'écran. Avec les mots on lit et
-    on croit entendre ce qu'on lit ; la page est un instrument de mesure du
-    temps, pas un afficheur de paroles."""
-    al = [{"rang": 0, "mot": "shibboleth", "ligne": 0, "t0": 1.0, "t1": 1.4,
+def test_le_mot_voyage_avec_son_tic_jusqua_la_page():
+    """Louis, 2026-09-24 : « le mode karaoké c'est juste pour debug, tu peux
+    afficher les paroles ». Le mot doit donc traverser `piste` puis `page` —
+    la version d'avant le retirait, et le tic seul ne permet pas de juger LA
+    SYLLABE : il peut tomber pile sur une attaque et concerner le mot d'à côté.
+
+    Le jeton utilisé ici est inventé, pour que le test n'ait pas besoin d'un
+    vrai texte pour dire ce qu'il a à dire."""
+    al = [{"rang": 0, "mot": "zzgloub", "ligne": 0, "t0": 1.0, "t1": 1.4,
            "score": 0.8}]
     p = piste(avec_trous(al))
+    assert p["ticks"][0]["mot"] == "zzgloub", "piste doit garder le mot"
     h = page("Un titre", "un sous-titre",
              {"audio": "/audio/x.m4a", "duree": 10, "accords": [],
               "ticks": p["ticks"], "silences": p["silences"]})
-    assert "shibboleth" not in h
-    assert '"t0": 1.0' in h or '"t0":1.0' in h   # le tic, lui, est bien là
+    assert "zzgloub" in h
+    assert '"t0": 1.0' in h or '"t0":1.0' in h   # et le tic est toujours là
+
+
+def test_un_silence_na_pas_de_mot():
+    """Un trou n'est pas un mot muet : il ne doit rien porter à afficher."""
+    al = [{"rang": 0, "mot": "aa", "ligne": 0, "t0": 0.0, "t1": 0.5, "score": .9},
+          {"rang": 1, "mot": "bb", "ligne": 0, "t0": 9.0, "t1": 9.5, "score": .9}]
+    p = piste(avec_trous(al, silence_mini=3.0))
+    assert len(p["silences"]) == 1
+    assert [t["mot"] for t in p["ticks"]] == ["aa", "bb"]
 
 
 def test_la_page_n_utilise_pas_requestAnimationFrame():

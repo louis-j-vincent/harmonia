@@ -273,9 +273,14 @@ def index_courant(items: list[dict], t: float) -> int:
 def piste(align: list[dict]) -> dict:
     """La sortie d'`avec_trous` rangée pour la page : `{ticks, silences}`.
 
-    Un tic par mot (son instant, son score, son doute) ; les silences insérés
-    par `avec_trous` partent dans leur propre liste — ce sont des ABSENCES,
-    elles se dessinent comme des vides, pas comme des marques.
+    Un tic par mot (son instant, son score, son doute, et LE MOT) ; les
+    silences insérés par `avec_trous` partent dans leur propre liste — ce sont
+    des ABSENCES, elles se dessinent comme des vides, pas comme des marques.
+
+    Le mot voyage avec son tic depuis le 2026-09-24 (Louis : « le mode karaoké
+    c'est juste pour debug, tu peux afficher les paroles »). Il vient du tab que
+    SA machine est allée chercher ; rien ici ne l'écrit ni ne le stocke ailleurs
+    que dans le cache de son serveur.
     """
     ticks, silences = [], []
     for e in align:
@@ -284,7 +289,7 @@ def piste(align: list[dict]) -> dict:
             continue
         ticks.append({"rang": e.get("rang"), "t0": float(e["t0"]),
                       "t1": float(e["t1"]), "score": float(e.get("score") or 0),
-                      "trou": bool(e.get("trou"))})
+                      "trou": bool(e.get("trou")), "mot": e.get("mot")})
     return {"ticks": ticks, "silences": silences}
 
 
@@ -372,6 +377,11 @@ h1{font:600 19px/1.2 Georgia,serif;margin:0 0 2px}
 .tic{bottom:22px;width:3px;border-radius:2px;background:var(--tic)}
 .tic.dout{background:var(--dout)}
 .tic.on{box-shadow:0 0 0 2px var(--pap),0 0 0 4px var(--tic)}
+.mot{bottom:2px;height:16px;line-height:16px;font:12px/16px -apple-system,
+  system-ui,sans-serif;color:var(--tic);white-space:nowrap;opacity:.45;
+  transform:translateX(-50%);pointer-events:none}
+.mot.dout{color:var(--dout)}
+.mot.on{opacity:1;font-weight:700}
 .ligne{position:absolute;left:50%;top:0;width:2px;height:100%;
   background:var(--nous);opacity:.85;pointer-events:none}
 .ligne:after{content:"";position:absolute;left:-4px;top:32px;width:10px;
@@ -427,7 +437,7 @@ var ruban=document.getElementById('ruban'), piste=document.getElementById('piste
     btn=document.getElementById('play'), tete=document.getElementById('tete'),
     apercu=document.getElementById('apercu'), zoom=document.getElementById('zoom');
 var NIV=[30,60,110,200], iNiv=1, PPS=NIV[iNiv], CENTRE=piste.clientWidth/2;
-var noeuds=[], acEls=[], ticEls=[];
+var noeuds=[], acEls=[], ticEls=[], motEls=[];
 
 function bloc(cls,t0,t1){ var d=document.createElement('div'); d.className=cls;
   d._t0=t0; if(t1!=null) d._t1=t1; ruban.appendChild(d); noeuds.push(d); return d; }
@@ -441,7 +451,12 @@ D.ticks.forEach(function(w){
   var d=bloc('tic'+(w.trou?' dout':''),w.t0,null);
   var sc=Math.max(0,Math.min(1,w.score));
   d.style.height=(10+52*sc)+'px'; d.style.opacity=(0.3+0.7*sc).toFixed(2);
-  ticEls.push(d); });
+  ticEls.push(d);
+  // LE MOT SOUS SON TIC. C'est ce qui permet de juger la syllabe et pas
+  // seulement l'instant : un tic peut tomber pile sur une attaque et
+  // concerner le mot d'à côté.
+  if(w.mot){ var m=bloc('mot'+(w.trou?' dout':''),w.t0,null);
+    m.textContent=w.mot; motEls.push(m); } else { motEls.push(null); } });
 
 // l'aperçu du morceau entier : pour sauter d'un couplet à l'autre
 D.silences.forEach(function(x){ var u=document.createElement('u');
@@ -495,7 +510,9 @@ function peindre(){
     acNext.textContent=n?('puis '+(n.nc?'N.C.':n.nom)):''; }
   var w=courant(D.ticks,t);
   if(w!==iTic){ if(ticEls[iTic]) ticEls[iTic].classList.remove('on');
-    if(ticEls[w]) ticEls[w].classList.add('on'); iTic=w; }
+    if(motEls[iTic]) motEls[iTic].classList.remove('on');
+    if(ticEls[w]) ticEls[w].classList.add('on');
+    if(motEls[w]) motEls[w].classList.add('on'); iTic=w; }
   var j=dernier(D.ticks,t);
   var depuis=j>=0?(t-D.ticks[j].t0):0;
   lag.textContent=
