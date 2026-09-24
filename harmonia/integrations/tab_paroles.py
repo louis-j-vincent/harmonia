@@ -588,6 +588,29 @@ def accords_replies(chart: dict) -> list[dict]:
                     petit = bool(typique and dc < PART_TRANSITION * typique)
                     out.append({"t0": a + d0 * L, "t1": a + min(1.0, d1) * L,
                                 "accord": {**c, "petit": petit}})
+    out.sort(key=lambda x: x["t0"])
+
+    # LES TROUS DU REPLIEMENT SONT COMBLÉS PAR LE DÉCODAGE À PLAT.
+    # Les occurrences d'une lettre n'ont pas toutes la même longueur, et la
+    # représentation écrite ne couvre alors pas les queues des plus longues :
+    # mesuré sur This Love, la section B a 14 barres écrites pour des
+    # occurrences de 8, et les dernières mesures des occurrences 3, 4 et 5
+    # (mesures 63, 71, 79) ne tombent dans AUCUNE fenêtre. La feuille sortait
+    # donc deux lignes entières sans le moindre accord, alors que musx a un
+    # avis à cet instant. On ne laisse pas une ligne muette quand on sait
+    # quelque chose : le repliement d'abord, le décodage à plat dans ses trous.
+    plats = [c for c in ((chart.get("prompter") or {}).get("chords") or [])
+             if float(c.get("t1") or 0) > float(c.get("t0") or 0)]
+    combles = 0
+    for c in plats:
+        t0, t1 = float(c["t0"]), float(c["t1"])
+        if any(r["t0"] < t1 and r["t1"] > t0 for r in out):
+            continue                     # déjà couvert par le repliement
+        out.append({"t0": t0, "t1": t1, "accord": {**c, "petit": False}})
+        combles += 1
+    if combles:
+        logger.info("tab_paroles : %d accord(s) pris au décodage à plat, hors "
+                    "de toute fenêtre repliée", combles)
     return sorted(out, key=lambda x: x["t0"])
 
 
