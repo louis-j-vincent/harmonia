@@ -56,6 +56,59 @@ def test_passage_coupe_qui_ne_suit_pas_la_cellule_prend_un_prime():
     assert [b["label"] for b in out] == ["A", "A′"]
 
 
+def test_passage_coupe_qui_tient_le_dernier_accord_rejoint_aussi():
+    """La phase du raccord n'est plus figée à 0 (Louis, 2026-09-25, San
+    Francisco Street : mesure 40 tient le DERNIER accord de la cellule B
+    -- 0,97 de ressemblance contre la dernière position, 0,61 seulement
+    contre la première). Un passage d'UNE mesure qui prolonge la fin de la
+    cellule doit rejoindre le bloc, pas prendre un prime."""
+    cell = [0, 5, 7, 2]
+    host = _blk("A", cell + cell + cell, [(0, 3), (8, 11), (16, 19)])
+    tenu = _blk("A", [2], [(40, 40)])           # tient la DERNIÈRE position (2)
+    out = _ireal_cascade([host, tenu], None, GRID, {"A": {"period": 4}})
+    assert [b["label"] for b in out] == ["A"]
+    assert out[0]["reps"] == 4 and len(out[0]["barRanges"]) == 4
+    # rejoint en phase 3 (la dernière position), pas en phase 0
+    assert len(out[0]["barSpans"][3]) == 4 and len(out[0]["barSpans"][0]) == 3
+
+
+def test_passage_coupe_phase_0_toujours_prioritaire():
+    """Une phase 0 valide continue de gagner (compat exacte de l'ancien
+    comportement) même quand une autre phase matcherait aussi."""
+    cell = [0, 0, 0, 0]                          # toutes les phases matchent
+    host = _blk("A", cell + cell, [(0, 3), (8, 11)])
+    court = _blk("A", [0], [(40, 40)])
+    out = _ireal_cascade([host, court], None, GRID, {"A": {"period": 4}})
+    assert [b["label"] for b in out] == ["A"]
+    assert len(out[0]["barSpans"][0]) == 3 and len(out[0]["barSpans"][1]) == 2
+
+
+def test_passage_coupe_rejoint_un_host_a_fin_alternative():
+    """Un host qui porte déjà un 1st/2nd-ending n'est plus écarté d'office
+    (Louis, 2026-09-25, San Francisco Street : B a une fin alternative ET
+    une mesure orpheline sur le même B -- les deux doivent coexister). Le
+    raccord doit tomber dans la rangée de la variante MAJORITAIRE, jamais
+    dans celle de la variante alternative ni ailleurs."""
+    bars = {}
+    for c0 in (0, 16):
+        for i, r in enumerate([0, 5, 7, 2]):
+            bars[c0 + i] = _bar(r)
+    for i, r in enumerate([0, 5, 7, 4]):        # 3e passage: fin alternative
+        bars[32 + i] = _bar(r)
+    blk = _blk("B", [0, 5, 7, 2], [(0, 3), (16, 19), (32, 35)])
+    _ireal_endings(blk, bars, GRID)
+    assert blk["endings"]["tail"] == 1
+
+    court = _blk("B", [2], [(50, 50)])          # tient la fin MAJORITAIRE (2)
+    out = _ireal_cascade([blk, court], bars, GRID, {"B": {"period": 4}})
+    assert [b["label"] for b in out] == ["B"]   # pas de B′
+    assert out[0]["reps"] == 4
+    assert [50, 50] in out[0]["barRanges"]
+    # rejoint la rangée de la variante majoritaire (index 3), pas celle de
+    # l'alternative (index 4, inchangée à 1 seule mesure)
+    assert len(out[0]["barSpans"][3]) == 3 and len(out[0]["barSpans"][4]) == 1
+
+
 def test_sans_cellule_connue_le_test_devient_le_prefixe():
     """Repli refusé, ou découpage à la main (chemin Soudure, aucun rapport de
     repli) : on teste « est-ce le début du bloc long ? »."""

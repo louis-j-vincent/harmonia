@@ -1566,8 +1566,27 @@ def _merge_coupe(host: dict, blk: dict, cell, P, grid) -> bool:
     jouée deux fois, avec parfois une mesure qui garde la lecture d'un
     passage). Sunny Afternoon en est l'exemple : le bloc de 8 a un `B♭m7` de
     plus en mesure 2, le bloc de 6 suit la cellule à la note près.
+
+    LA PHASE DU RACCORD EST CHERCHÉE, PAS SUPPOSÉE À 0 (Louis, 2026-09-25,
+    San Francisco Street : « c'est encore le B qui boucle mais qui ne se
+    termine pas, tu considères ça comme un B encore »). Un passage coupé
+    n'est pas toujours un DÉBUT interrompu — mesure 40 de ce morceau est un
+    accord TENU, qui prolonge la DERNIÈRE position de la cellule (0,97 de
+    ressemblance) et non la première (0,61). Le test balaie toutes les
+    phases de la cellule au lieu de fixer `i % P` à la phase 0 ; la phase 0
+    reste toujours essayée en premier, donc un raccord qui marchait déjà
+    (le cas measuré, phase 0) continue à marcher identiquement — ce
+    changement ne fait qu'AJOUTER des raccords, jamais en retirer.
     """
-    if host.get("endings") or len(blk["bars"]) >= len(host["bars"]):
+    # Un host à 1st/2nd-ending n'est plus écarté d'office (Louis, même
+    # échange que ci-dessus). `barSpans` y a déjà les rangées du tronc PUIS
+    # celles de chaque variante, dans l'ordre où `_ireal_endings` les a
+    # écrites ; la recherche de phase ci-dessous retombe naturellement sur
+    # la bonne rangée — SI le raccord colle au contenu ÉCRIT (`host["bars"]`,
+    # la variante retenue), il rejoint sa rangée ; sinon (il colle à une
+    # AUTRE variante, jamais testée ici) la comparaison échoue proprement et
+    # il garde sa propre lettre, comme avant.
+    if len(blk["bars"]) >= len(host["bars"]):
         return False
     # UN BLOC PLUS LONG RESTE REFUSÉ, et c'est un choix repris en arrière.
     # Essayé le 2026-09-18 (un bloc plus long qui n'est QUE de la répétition
@@ -1583,18 +1602,24 @@ def _merge_coupe(host: dict, blk: dict, cell, P, grid) -> bool:
         # du bloc long ? Un passage qui commence pareil et s'arrête plus tôt
         # est un passage coupé, que le repli des accords ait abouti ou non.
         cell, P = [_barsig(b) for b in host["bars"]], len(host["bars"])
-    if any(_barsig(bar) != cell[i % P] for i, bar in enumerate(blk["bars"])):
+    sig = [_barsig(bar) for bar in blk["bars"]]
+    L = len(sig)
+    offset = next((off for off in range(P)
+                   if all(sig[i] == cell[(off + i) % P] for i in range(L))),
+                  None)
+    if offset is None:
         return False
     n_rows = len(host["barSpans"])
     for c0, c1 in blk["barRanges"]:
-        for b in range(c0, c1 + 1):
-            r = b - c0
+        for i, b in enumerate(range(c0, c1 + 1)):
+            r = offset + i
             if r < n_rows:
                 host["barSpans"][r].append(
                     [grid[b], grid[min(len(grid) - 1, b + 1)]])
     host["barRanges"] += [list(r) for r in blk["barRanges"]]
     host["spans"] += [list(s) for s in blk["spans"]]
     host["reps"] += blk["reps"]
-    logger.info("ireal: passage coupé mes. %s rejoint %s (×%d désormais)",
-                blk["barRanges"], host["label"], host["reps"])
+    logger.info("ireal: passage coupé mes. %s rejoint %s en phase %d "
+                "(×%d désormais)", blk["barRanges"], host["label"], offset,
+                host["reps"])
     return True
