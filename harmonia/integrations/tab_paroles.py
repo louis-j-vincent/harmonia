@@ -159,17 +159,35 @@ def feuille_calee(chart: dict, brut: str, align: list[dict]) -> list[dict]:
             continue
         poses.setdefault(cible["ligne"], []).append((cible, c))
 
+    # UN ACCORD ACCROCHÉ À SON MOT, pas à une colonne (Louis, 2026-09-24 :
+    # « sur le html version téléphone les accords ne sont pas alignés au-dessus
+    # de la bonne parole »). L'ancien rendu comptait des CARACTÈRES dans un
+    # <pre> : n'importe quelle différence typographique entre la ligne
+    # d'accords et la ligne de mots — graisse, repli de police, réglage de
+    # taille de texte de Safari iOS — décale tout ce qui suit. Mesuré : 0 px
+    # d'écart sous Chromium à 390 comme à 1280 px, et pourtant faux sur son
+    # iPhone. Plutôt que de chercher LA cause, on retire la dépendance : le
+    # mot porte son accord, le navigateur les empile, et aucune police ne peut
+    # plus les séparer. Ça règle aussi le défilement horizontal, qui n'a rien
+    # à faire sur un téléphone.
+    par_mot: dict = {}
+    for i, liste in poses.items():
+        for mot, c in liste:
+            par_mot.setdefault(mot["rang"], []).append(c)
+
     out = []
     for i in sorted(par_ligne):
-        texte = _BALISE.sub("", lignes[i]).rstrip() if i < len(lignes) else ""
-        accords = []
-        for mot, c in poses.get(i, []):
-            accords.append({"colonne": int(mot.get("debut_car") or 0),
-                            "notre": texte_du_chart(c), "leur": "",
-                            "t": round(float(c["t0"]), 2)})
-        if not accords:
+        mots = []
+        for m in sorted(par_ligne[i], key=lambda x: x.get("debut_car") or 0):
+            accs = par_mot.get(m["rang"]) or []
+            mots.append({"mot": m["mot"],
+                         "accords": [texte_du_chart(c) for c in accs],
+                         "t": round(float(m["t0"]), 2),
+                         "douteux": bool(m.get("score") is not None
+                                         and m["score"] < 0.30)})
+        if not any(w["accords"] for w in mots):
             continue
-        out.append({"texte": texte, "accords": accords})
+        out.append({"mots": mots})
     return out
 
 
@@ -319,3 +337,56 @@ def page(titre: str, feuille: list[dict], tab: dict, decalage: int,
             f'<div class="bloc">{"".join(blocs)}</div></html>')
 
 
+
+
+# ── le rendu par MOTS : l'accord est empilé sur son mot ─────────────────────
+# Remplace le comptage de caractères dans un <pre>. Le navigateur empile, donc
+# aucune police, graisse ni réglage de taille de texte ne peut plus décaler un
+# accord de son mot. Et la ligne se replie au lieu de défiler horizontalement.
+CSS_MOTS = """
+:root{--pap:#f6f3ec;--enc:#1c1c1c;--nous:#8c2f2f;--dout:#b5651d;
+  --eux:#9a9287;--lig:#e2dcd0}
+@media(prefers-color-scheme:dark){:root{--pap:#16150f;--enc:#ece7dc;
+  --nous:#e08a7a;--dout:#d89a5b;--eux:#7d766b;--lig:#2b2820}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0 auto;padding:16px;max-width:46rem;background:var(--pap);
+  color:var(--enc);font:16px/1.5 -apple-system,system-ui,sans-serif}
+h1{font:600 21px/1.25 Georgia,serif;margin:0 0 2px}
+.sous{color:var(--eux);font-size:13px;margin:0 0 20px}
+.ligne{display:flex;flex-wrap:wrap;align-items:flex-end;
+  gap:2px 6px;margin:0 0 16px}
+.u{display:flex;flex-direction:column;align-items:flex-start;min-width:0}
+.u i{font:700 13px/1.35 -apple-system,system-ui,sans-serif;color:var(--nous);
+  font-style:normal;white-space:nowrap;min-height:1.35em}
+.u b{font:400 17px/1.35 Georgia,serif;white-space:nowrap}
+.u.dout b{color:var(--eux)}
+a{color:var(--nous)}
+"""
+
+
+def page_mots(titre: str, feuille: list[dict], tab: dict,
+              sous_extra: str = "") -> str:
+    """La feuille, un mot par élément, son accord empilé dessus.
+
+    `feuille` : ce que rend `feuille_calee` — `[{mots: [{mot, accords, ...}]}]`.
+    """
+    blocs = []
+    for l in feuille:
+        u = []
+        for w in l["mots"]:
+            acc = " ".join(w["accords"])
+            u.append(f'<span class="u{" dout" if w["douteux"] else ""}">'
+                     f'<i>{html.escape(acc)}</i>'
+                     f'<b>{html.escape(w["mot"])}</b></span>')
+        blocs.append(f'<div class="ligne">{"".join(u)}</div>')
+    note = (f'texte : <a href="{html.escape(tab.get("url") or "")}">'
+            f'{html.escape(tab.get("titre") or "?")}</a>' if tab else "")
+    return (f'<!doctype html><html lang="fr"><meta charset="utf-8">'
+            f'<meta name="viewport" content="width=device-width,initial-scale=1">'
+            f'<title>{html.escape(titre)}</title><style>{CSS_MOTS}</style>'
+            f'<h1>{html.escape(titre)}</h1>'
+            f'<p class="sous">{sous_extra}{" · " if sous_extra and note else ""}'
+            f'{note}<br>Nos accords, posés sur le mot qui sonne à leur instant. '
+            f'Un mot en gris est un mot dont le calage est douteux.</p>'
+            f'{"".join(blocs)}</html>')

@@ -316,10 +316,10 @@ def tab_paroles(file):
     except Exception:                                        # noqa: BLE001
         log.exception("tab-paroles : cache d'alignement illisible pour %s", stem)
 
-    feuille = []
+    feuille, par_mots = [], False
     if align:
         feuille = TP.feuille_calee(chart, brut, align)
-        source = "nos instants"
+        source, par_mots = "nos instants", bool(feuille)
     if not feuille:
         # Repli ASSUMÉ et DIT : sans voix isolée il n'y a pas d'alignement, et
         # les colonnes du tabbeur restent la seule information de placement.
@@ -328,10 +328,21 @@ def tab_paroles(file):
     if not feuille:
         return _dire("Les colonnes du tab et ses accords ne concordent pas : "
                      "rien n'a été posé.", 409)
+    n_acc = (sum(len(w["accords"]) for l in feuille for w in l["mots"])
+             if par_mots else sum(len(l["accords"]) for l in feuille))
     log.info("tab-paroles %s : %d ligne(s), %d accord(s), placement par %s, "
-             "transposition %+d", stem, len(feuille),
-             sum(len(l["accords"]) for l in feuille), source,
+             "transposition %+d", stem, len(feuille), n_acc, source,
              int(pose.get("decalage") or 0))
+    if par_mots:
+        # Le rendu par MOTS : l'accord est empilé sur son mot par le
+        # navigateur, donc aucune police ne peut les séparer (voir
+        # `tab_paroles.page_mots`).
+        n_mots = sum(len(l["mots"]) for l in feuille)
+        return Response(
+            TP.page_mots(chart.get("title") or stem, feuille, pose["tab"],
+                         f"{len(feuille)} ligne(s) · {n_mots} mot(s) · "
+                         f"{n_acc} accord(s)"),
+            mimetype="text/html")
     return Response(
         TP.page(chart.get("title") or stem, feuille, pose["tab"],
                 int(pose.get("decalage") or 0)),
