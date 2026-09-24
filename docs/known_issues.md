@@ -5,13 +5,60 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
-## Une section qui n'apparaît qu'une fois, avec une boucle interne jouée EXACTEMENT 2×, ne replie jamais (2026-09-24, OUVERT)
+## Un brique gelée ne reconnaît plus ses propres reprises ailleurs dans le morceau (2026-09-24, OUVERT)
+
+San Francisco Street (Sun Rai, `9zEl-FQLI4A`) : le vamp `Dmaj7 Em7` (mesures
+41–48, section C) est EXACTEMENT le motif intérieur de la section A (mesures
+8–31, qui n'est que ce même vamp joué 6 fois). Louis : « on devrait clairement
+avoir le pattern Dmaj Em qui se répète qui devrait compter dans un
+repliement ». Il a raison — et l'algo du retour, tourné À FROID sur ce
+morceau (sans aucune brique humaine gelée), le voit très bien : le mot
+harmonique donne `abab` pour A(8–15,16–23), B(32–38, en partie), C(41–48),
+et 5 AUTRES blocs plus loin (57–64, 65–72, 89–96, 97–104, 105–112) — tous
+`type: abab`, donc tous nommés **la même lettre** par `nommer()`
+(`harmonia/phrases4.py:96-124`, comparaison stricte de la chaîne `type`). Sur
+9 occurrences repliées ensemble, `folding.py` aurait largement de quoi
+empiler (voir l'entrée voisine).
+
+LA CASSE ARRIVE DÈS QU'UNE OCCURRENCE EST GELÉE. `sections_draft` de ce
+morceau vient d'une passe où A (8–31) a déjà été fixée comme brique unique de
+24 mesures — vérifié en rejouant `remplir_par_algo(chart, occ=[{8,31,"A"}])`
+(`harmonia/sections/simulation.py:249`) : les AUTRES occurrences du même
+`abab` (0–7, 32–39, 42–49…) ressortent bien groupées ENTRE ELLES sous une
+lettre commune (`B`), mais JAMAIS sous `A` — alors que c'est visiblement le
+même motif. La cause : une brique gelée entre dans `nommer()` comme UN SEUL
+jeton, non décomposé (`geles` dans `merges4`, `simulation.py:262-267`) —
+son `type` est la concaténation de TOUTES ses bi-mesures d'un coup
+(`"cbcbcbcbcbcb"`, 12 caractères), jamais `"abab"` (4 caractères). La
+comparaison de `nommer()` (`u == t`, ou même longueur pour le prime) ne peut
+donc PLUS jamais matcher un bloc libre de 4 caractères contre une brique
+gelée de 12 — même s'ils sonnent identiques. Et `remplir_par_algo` (:284-297)
+aggrave : il ne compare jamais le `type` d'un bloc « algo » à celui d'une
+brique gelée, il lui donne juste la prochaine lettre libre de l'alphabet.
+**Une lettre humaine gelée devient un trou noir pour la reconnaissance de son
+propre motif ailleurs dans le morceau.** Résultat mesuré : la même idée
+musicale ressort sous 4 lettres différentes (A, B, D, F/G selon la zone) au
+lieu d'une seule, chacune avec trop peu d'occurrences pour replier avec
+confiance — c'est la vraie raison pour laquelle C se retrouve seule et
+tombe dans le veto « too few gated members » décrit ci-dessous.
+
+Pas encore fixé : il faudrait comparer le `type` d'un bloc libre à la
+DÉCOMPOSITION interne de chaque brique gelée (pas à son blob entier), ou
+laisser les bri­ques gelées entrer dans `nommer()` sous leur propre période
+plutôt qu'en un seul jeton. Les deux touchent l'algo du retour — état de
+référence de Louis (2026-08-16, « c'est vraiment top »/`retour.py`) — donc
+arbitrage avant d'y toucher.
+
+## Une section qui n'apparaît qu'une fois, avec une boucle interne jouée EXACTEMENT 2×, ne replie jamais (2026-09-24, OUVERT — symptôme du dessus, chacune indépendante)
 
 San Francisco Street (Sun Rai, `9zEl-FQLI4A`), section C (mesures 41–48,
-occurrence unique) : `D^7 D^7 E-7 E-7 | D^7 D^7 E-7 E-7` — les 4 dernières
+occurrence unique une fois qu'elle a perdu son identité avec A — voir
+l'entrée au-dessus) : `D^7 D^7 E-7 E-7 | D^7 D^7 E-7 E-7` — les 4 dernières
 mesures répètent texto les 4 premières. `fold["C"]` dit
 `{"period": 4, "reason": "too few gated members"}` : la boucle EST détectée,
-mais le repli est refusé quand même.
+mais le repli est refusé quand même. Ce défaut resterait même si l'entrée
+au-dessus était corrigée : n'importe quelle lettre à occurrence unique avec
+boucle interne 2× le rencontrerait.
 
 LA MÉCANIQUE (`harmonia/folding.py:596-641`). Pour une section à occurrence
 unique dont la période interne P est plus courte que la section
