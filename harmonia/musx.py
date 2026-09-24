@@ -434,6 +434,43 @@ def label_confidence(triad: np.ndarray, t0: float, t1: float,
     return float(triad[a:b, col].mean())
 
 
+#: family index -> the label_confidence-compatible quality string this
+#: module decodes to for that family. Coarse on purpose (triad-plane has no
+#: 7ths) -- this is for a quick, template-free "what's actually in the
+#: audio here" read, not a chart-quality decode.
+_TRIAD_FAMILY_QUAL = {1: "maj", 2: "min", 3: "sus4", 4: "sus2", 5: "dim", 6: "aug"}
+_ROOT_NAMES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
+
+
+def decode_window(triad: np.ndarray, t0: float, t1: float) -> tuple[str, float]:
+    """(label, confidence) straight off the mean triad-plane posterior over
+    [t0, t1) -- no chart, no per-letter template, no averaging across
+    occurrences. `label` is "N" or "<root>:<qual>" (same format
+    `label_confidence` reads back), confidence is that column's mean.
+
+    THE reason this exists (2026-09-24, San Francisco Street repliement
+    session): a repeated section-letter's OTHER occurrences are never
+    independently decoded in production (`soudure.sections_pour_chart`
+    picks one winning pass via `pass_rank` and copies its chords onto every
+    occurrence when internal-period folding was rejected for that letter,
+    see known_issues.md) -- so trusting the chart's displayed text for a
+    repeated letter can silently show a chord that isn't in that
+    occurrence's actual audio. This function is the independent check:
+    always decode a bar from its OWN window, never copy a sibling's.
+    """
+    a = max(0, int(round(t0 / FRAME_DT)))
+    b = min(triad.shape[0], int(round(t1 / FRAME_DT)))
+    if b <= a:
+        return "N", 0.0
+    m = triad[a:b].mean(0)
+    col = int(m.argmax())
+    if col == 0:
+        return "N", float(m[0])
+    root = (col - 1) % 12
+    fam = (col - 1) // 12 + 1
+    return f"{_ROOT_NAMES[root]}:{_TRIAD_FAMILY_QUAL[fam]}", float(m[col])
+
+
 def _decoder(penalty: float, beat_trans_penalty=(15.0, 45.0, 100.0),
              chord_dict: str = "submission"):
     from extractors.xhmm_ismir import XHMMDecoder

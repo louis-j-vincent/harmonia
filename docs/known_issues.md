@@ -80,6 +80,16 @@ plutôt qu'en un seul jeton. Les deux touchent l'algo du retour — état de
 référence de Louis (2026-08-16, « c'est vraiment top »/`retour.py`) — donc
 arbitrage avant d'y toucher.
 
+**Prototype de la lecture cible : `tools.repli_propose <chart>` (2026-09-24).**
+Reproduit tout San Francisco Street automatiquement — 4 cellules trouvées
+(alpha ×8, beta ×15, gamma ×2, pont ×4), sans frontière de lettre, avec les
+2 fins alternatives repérées à l'oreille par Louis. N'utilise PAS
+`find_repeats` (sa recherche transposée, calibrée pour un humain qui a déjà
+désigné une occurrence réelle, fusionnait tout le morceau en une seule
+famille à l'amorçage aveugle) — fenêtres glissantes + vecteurs chord-tone
+concaténés (pas moyennés) + seuil 0,90. Diagnostic seul, ne touche à rien ;
+sert de base si `nommer()`/`remplir_par_algo` sont un jour corrigés.
+
 ## Une section qui n'apparaît qu'une fois, avec une boucle interne jouée EXACTEMENT 2×, ne replie jamais (2026-09-24, OUVERT — symptôme du dessus, chacune indépendante)
 
 San Francisco Street (Sun Rai, `9zEl-FQLI4A`), section C (mesures 41–48,
