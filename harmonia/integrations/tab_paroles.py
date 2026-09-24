@@ -214,6 +214,15 @@ def feuille_calee(chart: dict, brut: str, align: list[dict]) -> list[dict]:
         for mot, c in liste:
             par_mot.setdefault(mot["rang"], []).append(c)
 
+    # UNE MESURE DE CE MORCEAU-CI, lue sur ses battues plutôt que supposée :
+    # 2,0 s sur Stand By Me, 2,5 s sur This Love. C'est l'unité du seuil de
+    # rappel ci-dessous.
+    import statistics as st
+    _t = sorted(float(x) for x in (chart.get("beatTimes") or []))
+    _pas = (st.median([b - a for a, b in zip(_t, _t[1:])])
+            if len(_t) > 3 else 0.5)
+    une_mesure = _pas * int(chart.get("bpb") or 4)
+
     def sonnant_a(t: float):
         """L'accord qui SONNE à cet instant — pas celui qui y commence."""
         for c in notres:
@@ -237,13 +246,30 @@ def feuille_calee(chart: dict, brut: str, align: list[dict]) -> list[dict]:
                                          and m["score"] < 0.30)})
         if not any(w["accords"] for w in mots):
             continue
-        # L'ACCORD EN DÉBUT DE LIGNE (Louis, 2026-09-24). Une ligne qui
-        # commence AU MILIEU d'un accord ne disait pas lequel : il fallait
-        # remonter la ligne d'avant. On le rappelle donc, marqué `rappel` pour
-        # que le rendu le distingue d'un vrai changement — sinon on lirait un
-        # accord joué deux fois.
+        # L'ACCORD EN DÉBUT DE LIGNE, ET QUAND IL NE SERT À RIEN.
+        #
+        # Le rappel existe pour une seule raison : une ligne qui commence AU
+        # MILIEU d'un accord ne disait pas lequel, il fallait remonter la ligne
+        # d'avant. Mais si un VRAI changement arrive juste derrière, le rappel
+        # devient du bruit — on lit deux accords là où il n'y a qu'un
+        # changement (Louis, 2026-09-24 : « n'écris pas la répétition de
+        # l'accord précédent sur une nouvelle ligne s'il y a un autre accord
+        # juste après »).
+        #
+        # LE SEUIL EST UNE MESURE, et il est mesuré, pas choisi. Délais entre
+        # le début de ligne et le premier vrai accord, sur les deux morceaux :
+        #
+        #     Stand By Me   1,4 · 1,4 · 1,4 · 1,4 · 1,5   puis 3,1   (mesure 2,0 s)
+        #     This Love     0,2 … 1,7 (neuf valeurs)      puis 4,3   (mesure 2,5 s)
+        #
+        # Les deux populations sautent au même endroit, et une mesure passe
+        # entre elles sur les deux morceaux. Ne survivent que les rappels où
+        # l'on resterait vraiment dans le flou.
         if mots and not mots[0]["accords"]:
-            c = sonnant_a(mots[0]["t"])
+            suivant = next((w for w in mots[1:] if w["accords"]), None)
+            trop_tot = (suivant is not None
+                        and suivant["t"] - mots[0]["t"] <= une_mesure)
+            c = None if trop_tot else sonnant_a(mots[0]["t"])
             if c is not None:
                 mots[0]["accords"] = [texte_du_chart(c)]
                 mots[0]["petits"] = [False]      # un rappel n'est pas un changement
