@@ -87,6 +87,33 @@ OUTLIER_Z = 3.0          # Louis's refined rule (2026-08-01): compare each
                          # Measured: true variants z=5.7–38, normal members
                          # z≤1.7. Replaces the absolute cosine member gate
                          # AND the VAR_MAX position skip.
+#: L'UNANIMITÉ DIRECTE BAT LA MOYENNE INDIRECTE (Louis, 2026-09-24 : « on ne
+#: devrait pas souvent contredire musx »).
+#:
+#: Le gabarit est un outil de LISSAGE : on moyenne les postérieures des
+#: occurrences d'une position et on re-décode. Quand les passages propres d'une
+#: mesure sont UNANIMES contre ce gabarit sur la tierce, ce sont eux qui ont
+#: raison — on ne lisse pas une observation unanime.
+#:
+#: LE CAS QUI L'A RÉVÉLÉ, This Love, fin de refrain. La mesure écrite n'a que
+#: deux passages, et les DEUX entendent un fa majeur :
+#:
+#:     occurrence 1 (56,6 s)   F7   confiance 0,629
+#:     occurrence 2 (107,1 s)  F    confiance 0,675
+#:     écrit sur le chart      F-   ← contredit ses deux sources
+#:
+#: Le mineur venait du gabarit : le repliement avait détecté une boucle interne
+#: de 2 mesures, donc cette mesure était empilée avec les mesures 17, 19, 21 de
+#: chaque occurrence — 18 postérieures moyennées, dominées par les fa mineurs
+#: de la boucle. Le tab de Louis écrit lui aussi un fa majeur là, et son oreille
+#: a tranché dans le même sens.
+#:
+#: La règle ne demande aucun seuil : pas de distance, pas de cohérence. Elle
+#: compare la tierce du gabarit à celle des passages de la MÊME POSITION DANS
+#: LA SECTION (pas dans la boucle interne), et s'abstient d'écrire quand ils
+#: sont unanimes contre lui.
+UNANIMITE_BAT_GABARIT = True
+
 STACK_COHERENCE = 0.85   # per-position MEDIAN PAIRWISE cos of the gated
                          # stack must reach this, else the letter does NOT
                          # fold. Mean-to-centroid was tautological after the
@@ -341,6 +368,43 @@ def merge_similar_letters(sections: list[dict], bars: list,
     for s in sections:
         if s["label"] in remap:
             s["label"] = remap[s["label"]]
+
+
+def _tierce(accord) -> str | None:
+    """« maj », « min » ou None pour UN accord — la note qui décide.
+
+    On lit la qualité DÉCODÉE, qui est le verdict de musx, et non le chroma :
+    fa majeur et fa mineur y partagent deux notes sur trois et se ressemblent
+    donc à tort. None quand l'accord ne tranche pas (N.C., suspendu) — il ne
+    vote alors ni dans un sens ni dans l'autre.
+    """
+    if not accord or accord.get("nc"):
+        return None
+    q = str(accord.get("q") or "")
+    if q.startswith("sus"):
+        return None
+    if q.startswith(("-", "o", "h", "°", "ø")) or (
+            q.startswith("m") and not q.startswith("maj")):
+        return "min"
+    return "maj"
+
+
+def _tierces_par_position(barre) -> dict:
+    """{fondamentale: tierce} pour les accords d'une mesure.
+
+    On indexe par FONDAMENTALE et non par rang : deux passages d'une même
+    mesure peuvent ne pas découper le temps pareil (un accord tenu ici, deux
+    accords là), mais quand ils parlent du même degré ils parlent de la même
+    chose. Comparer rang par rang ferait dire n'importe quoi au premier
+    passage qui a un accord de plus.
+    """
+    out = {}
+    for c in barre or []:
+        t = _tierce(c)
+        if t is None:
+            continue
+        out.setdefault(int(c.get("root", -1)) % 12, t)
+    return out
 
 
 def _bar_vecs(F: np.ndarray, n_bars: int) -> np.ndarray:
@@ -604,8 +668,13 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
         pos_members: list[list[int]] = [[] for _ in range(P)]
         section_last = set()
         fins_hors_pile: list[int] = []
+        #: mesure -> son rang DANS sa section (pas dans la boucle interne) :
+        #: deux mesures de même rang sont « la même mesure, jouée deux fois »
+        offset_section: dict[int, int] = {}
         for s in secs:
             b0, b1 = s["barRanges"][0]
+            for b in range(b0, b1 + 1):
+                offset_section[b] = b - b0
             section_last.add(b1)
             sous_phrase = P < (b1 - b0 + 1)
             for b in range(b0, b1 + 1):
@@ -700,7 +769,42 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
             variant = _bar_variant([bars[b] for b in gated[k]], pos_chords[k])
             if variant:
                 _attach_variant(pos_chords[k], variant)
+            # L'UNANIMITÉ DIRECTE BAT LA MOYENNE INDIRECTE (voir
+            # `UNANIMITE_BAT_GABARIT`). On regroupe les mesures gardées par
+            # POSITION DANS LA SECTION — c'est ce qu'un lecteur voit comme
+            # « la même mesure, jouée N fois » — et si leurs décodages de
+            # première passe s'accordent tous sur une tierce que le gabarit
+            # contredit, on n'écrit pas : musx ne s'est pas contredit, nous
+            # n'avons pas à le faire.
+            sans_ecraser = set()
+            if UNANIMITE_BAT_GABARIT:
+                gab = _tierces_par_position(pos_chords[k])
+                par_offset: dict[int, list[int]] = {}
+                for b in gated[k]:
+                    o = offset_section.get(b)
+                    if o is not None:
+                        par_offset.setdefault(o, []).append(b)
+                for o, membres in par_offset.items():
+                    vus = [_tierces_par_position(bars[b]) for b in membres]
+                    # une fondamentale que TOUS les passages nomment, et tous
+                    # de la même tierce, contre un gabarit qui dit l'inverse
+                    for racine, t_gab in gab.items():
+                        dits = [v.get(racine) for v in vus]
+                        if any(x is None for x in dits) or not dits:
+                            continue
+                        if len(set(dits)) == 1 and dits[0] != t_gab:
+                            sans_ecraser.update(membres)
+                            logger.info(
+                                "fold %s: position %d, les %d passage(s) sont "
+                                "unanimes en %s sur la fondamentale %d contre "
+                                "un gabarit en %s — on garde leur décodage "
+                                "(mes. %s)", letter, k + 1, len(membres),
+                                dits[0], racine, t_gab,
+                                [b + 1 for b in sorted(membres)])
+                            break
             for b in gated[k]:
+                if b in sans_ecraser:
+                    continue
                 if _write_position(bars, grid, b, pos_chords[k], bpb, n_obs[k]):
                     changed.append(b)
         # cv_skip DANS le report (handoff §2.3 : l'affichage repliait ×N ce
