@@ -5,6 +5,37 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Un accord fantôme peut apparaître sur la 2e occurrence d'une lettre repliée (2026-09-24, OUVERT — non confirmé en prod)
+
+San Francisco Street, pont (lettre F) : les DEUX occurrences (mes.74-81 et
+mes.82-89, après correction — voir l'entrée du dessous) affichaient un
+Am7 en tête. Décodé indépendamment mesure par mesure, à même les
+postérieures musx brutes, sur la fenêtre audio RÉELLE de chaque mesure
+(hors gabarit de chart) : mes.74 (1er passage) n'a jamais eu d'Am7 —
+c'est juste l'accord de tournant du beta voisin (confiance 0,26, comme
+les 14 AUTRES tournants du morceau) ; mes.82 (2e passage) est du Dmaj7
+confiant à 0,64, pas de l'Am du tout. Page qui montre le calcul :
+`docs/plots/san_francisco_street_repli_propose_2026-09-24.html`.
+
+LE MÉCANISME PROBABLE (pas encore vérifié sur un chart servi en direct,
+seulement sur `state/cache/charts/min_9zEl-FQLI4A.json`) :
+`soudure.sections_pour_chart` (`harmonia/soudure.py:885`) choisit UN SEUL
+passage représentatif par lettre repliée (`pass_rank`, « la passe qui
+porte le plus d'attaques réelles ») et écrit SES accords pour TOUTES les
+occurrences (`"bars": vue[b0:b1+1]`, réutilisé pour chaque `barRange`). Le
+repli interne par période (`folding.py`, qui moyennerait les postérieures
+des deux passages) avait justement été refusé pour cette lettre
+(`fold["F"] = {"period": 4, "reason": "stack incoherent (min median
+pairwise 0.82)"}`) — donc rien ne vérifie que le passage NON écrit
+ressemble vraiment au passage écrit. Si l'audio du 2e passage diverge, le
+chart peut montrer un accord qui n'existe dans AUCUNE des deux occurrences
+réelles.
+
+Pas encore fait : vérifier si ce morceau, ouvert dans l'app en direct,
+montre bien ce même Am7 fantôme (le cache peut être différent du rendu
+live) ; si oui, chercher d'autres lettres du corpus dans le même cas
+(refus de repli interne + occurrences qui divergent).
+
 ## Un brique gelée ne reconnaît plus ses propres reprises ailleurs dans le morceau (2026-09-24, OUVERT)
 
 San Francisco Street (Sun Rai, `9zEl-FQLI4A`) : le vamp `Dmaj7 Em7` (mesures
