@@ -328,6 +328,26 @@ def accords_du_chart(chart: dict) -> list[dict]:
     return out
 
 
+def accords_du_tab(pose: dict) -> list[dict]:
+    """LES ACCORDS DU TAB, sur notre horloge et dans notre tonalité.
+
+    `tab_chart.poser` a déjà fait le travail : ses `segments` portent l'instant
+    où chaque accord du tab tombe dans NOTRE audio, et `texte` le nomme après
+    la transposition qu'il a fallu pour l'y poser. On ne refait donc aucun
+    alignement ici — on range.
+
+    Les mettre sous les nôtres, sur la même ligne du temps, est la seule façon
+    de voir OÙ on diverge plutôt que COMBIEN : un taux d'accord de 16 % ne dit
+    pas si on se trompe partout un peu ou beaucoup à un seul endroit.
+    """
+    out = []
+    for g in (pose or {}).get("segments") or []:
+        out.append({"t0": round(float(g["t0"]), 3),
+                    "t1": round(float(g["t1"]), 3),
+                    "nom": g.get("texte") or "?", "nc": False})
+    return out
+
+
 # ── la page, UNE seule définition (même loi que `tab_paroles.page`) ─────────
 # Contraintes iOS, payées cher et non négociables (voir la mémoire du projet
 # et `harmonia/static/audio.js`) :
@@ -373,6 +393,11 @@ h1{font:600 19px/1.2 Georgia,serif;margin:0 0 2px}
   color:var(--nous);white-space:nowrap;overflow:hidden;opacity:.5}
 .ac.nc{border-left-color:var(--gris);opacity:.25}
 .ac.on{opacity:1}
+.act{top:32px;height:22px;line-height:22px;border-left:2px solid var(--eux);
+  padding-left:4px;font:500 12px/22px -apple-system,system-ui,sans-serif;
+  color:var(--eux);white-space:nowrap;overflow:hidden;opacity:.45}
+.act.on{opacity:1}
+.act.diff{color:var(--dout);border-left-color:var(--dout)}
 .dur{bottom:18px;height:2px;background:var(--tic);opacity:.25}
 .tic{bottom:22px;width:3px;border-radius:2px;background:var(--tic)}
 .tic.dout{background:var(--dout)}
@@ -437,7 +462,7 @@ var ruban=document.getElementById('ruban'), piste=document.getElementById('piste
     btn=document.getElementById('play'), tete=document.getElementById('tete'),
     apercu=document.getElementById('apercu'), zoom=document.getElementById('zoom');
 var NIV=[30,60,110,200], iNiv=1, PPS=NIV[iNiv], CENTRE=piste.clientWidth/2;
-var noeuds=[], acEls=[], ticEls=[], motEls=[];
+var noeuds=[], acEls=[], actEls=[], ticEls=[], motEls=[];
 
 function bloc(cls,t0,t1){ var d=document.createElement('div'); d.className=cls;
   d._t0=t0; if(t1!=null) d._t1=t1; ruban.appendChild(d); noeuds.push(d); return d; }
@@ -446,6 +471,14 @@ for(var s=0;s<=Math.ceil(D.duree);s++) bloc('g'+(s%5===0?' g5':''),s,null);
 D.silences.forEach(function(x){ bloc('sil',x.t0,x.t1); });
 D.accords.forEach(function(a){ var d=bloc('ac'+(a.nc?' nc':''),a.t0,a.t1);
   d.textContent=a.nc?'N.C.':a.nom; acEls.push(d); });
+// LA VOIE DU TAB, juste dessous. En orange quand elle ne dit pas la même chose
+// que nous au même instant : c'est ce désaccord-là qui est à écouter.
+function notreA(t){ for(var i=0;i<D.accords.length;i++){
+  if(D.accords[i].t0<=t && t<D.accords[i].t1) return D.accords[i].nom; } return null; }
+(D.accords_tab||[]).forEach(function(a){
+  var n=notreA(a.t0), diff=(n!==null && n!==a.nom);
+  var d=bloc('act'+(diff?' diff':''),a.t0,a.t1);
+  d.textContent=a.nom; actEls.push(d); });
 D.ticks.forEach(function(w){
   bloc('dur',w.t0,Math.max(w.t1,w.t0+0.04));
   var d=bloc('tic'+(w.trou?' dout':''),w.t0,null);
@@ -488,7 +521,7 @@ function dernier(arr,t){ var lo=0,hi=arr.length-1,r=-1;
 // ── l'horloge : `timeupdate` + un setInterval de 50 ms, JAMAIS de rAF ──────
 var audio=new Audio(); audio.preload='auto'; audio.playsInline=true;
 try{ audio.setAttribute('playsinline',''); audio.setAttribute('webkit-playsinline',''); }catch(e){}
-var iAc=-2, iTic=-2, tPeint=0, dtEcran=0, tTU=0, pret=false;
+var iAc=-2, iAct=-2, iTic=-2, tPeint=0, dtEcran=0, tTU=0, pret=false;
 // COMPENSATION DE SORTIE AUDIO, en ms : elle décale l'AFFICHAGE, jamais le
 // son. Sans elle on ne peut pas distinguer « notre alignement est en avance »
 // de « la sortie Bluetooth de l'iPhone a 150 ms de retard » — deux causes
@@ -508,6 +541,9 @@ function peindre(){
     acNow.textContent=a>=0?(D.accords[a].nc?'N.C.':D.accords[a].nom):'—';
     var n=D.accords[(a<0?dernier(D.accords,t):a)+1];
     acNext.textContent=n?('puis '+(n.nc?'N.C.':n.nom)):''; }
+  var kt=courant(D.accords_tab||[],t);
+  if(kt!==iAct){ if(actEls[iAct]) actEls[iAct].classList.remove('on');
+    if(actEls[kt]) actEls[kt].classList.add('on'); iAct=kt; }
   var w=courant(D.ticks,t);
   if(w!==iTic){ if(ticEls[iTic]) ticEls[iTic].classList.remove('on');
     if(motEls[iTic]) motEls[iTic].classList.remove('on');

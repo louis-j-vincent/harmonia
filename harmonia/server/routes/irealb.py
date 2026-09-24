@@ -437,10 +437,16 @@ def karaoke(file):
     calage est juste, le tic passe la ligne au moment où la syllabe sonne ; si
     ça dérive, ça s'entend et ça se voit au même instant.
 
-    ELLE N'ÉCRIT PAS LES PAROLES. Avec le texte à l'écran on lit et on croit
-    entendre ce qu'on lit — la page serait un afficheur de paroles, pas un
-    instrument de mesure du temps. Seuls le tic, sa confiance (sa hauteur) et
-    les trous sont rendus.
+    ELLE ÉCRIT LE MOT SOUS SON TIC depuis le 2026-09-24 (Louis : « c'est juste
+    pour debug »). Le tic seul ne dit que l'INSTANT ; avec le mot on juge la
+    SYLLABE, qui est la vraie question — un tic peut tomber pile sur une
+    attaque et concerner le mot d'à côté. Le texte vient du tab que sa machine
+    est allée chercher et ne quitte pas son serveur.
+
+    DEUX VOIES D'ACCORDS depuis le 2026-09-24 : les nôtres, et ceux du tab
+    ramenés sur notre horloge par `tab_chart.poser`. Les superposer montre
+    OÙ on diverge, là où un taux d'accord global ne dit pas si on se trompe
+    partout un peu ou beaucoup au même endroit.
 
     L'alignement coûte ~9 s de calcul plus le chargement du modèle : il est mis
     en cache par `harmonia.cache` sous la clé `<stem>__<taille>`, avec la
@@ -449,6 +455,7 @@ def karaoke(file):
     """
     from harmonia import cache
     from harmonia.integrations import paroles_align as PA
+    from harmonia.integrations import tab_chart as TC
 
     chart_p = CHARTS_DIR / f"{Path(str(file)).stem}.json"
     requete = ""
@@ -527,18 +534,41 @@ def karaoke(file):
     pistes = PA.piste(PA.avec_trous(garde["align"], seuil=seuil,
                                     silence_mini=silence))
     accords = PA.accords_du_chart(chart)
+
+    # LES ACCORDS DU TAB, deuxième voie. `poser` coûte une requête réseau plus
+    # un alignement : on le range dans le MÊME cache que les mots, et un cache
+    # écrit avant l'existence de cette voie se complète tout seul à la
+    # première ouverture, sans être invalidé.
+    if "accords_tab" not in garde:
+        try:
+            pose = TC.poser(chart, garde.get("requete") or requete)
+            garde["accords_tab"] = PA.accords_du_tab(pose) if pose else []
+        except Exception:                                     # noqa: BLE001
+            # Jamais muet, et jamais bloquant : sans la voie du tab la page
+            # garde tout son sens, c'est la nôtre qu'on vient écouter.
+            log.exception("karaoke : accords du tab indisponibles pour %s", stem)
+            garde["accords_tab"] = []
+        cache.save_json("paroles", audio, garde)
+    accords_tab = garde.get("accords_tab") or []
     fin = max([a["t1"] for a in accords] + [t["t1"] for t in pistes["ticks"]]
               + [1.0])
     r = PA.resume(pistes["ticks"], seuil=seuil)
     tab = garde.get("tab") or {}
+    diff = sum(1 for g in accords_tab
+               if (n := next((a["nom"] for a in accords
+                              if a["t0"] <= g["t0"] < a["t1"]), None))
+               and n != g["nom"])
     sous = (f'{r["n"]} mots placés · score médian {r["median"]:.2f} · '
             f'{100 * r["part_douteux"]:.0f}% sous {seuil:.2f} · plus grand '
             f'trou {r["plus_grand_trou"]:.1f} s · '
+            f'accords : {len(accords)} à nous, {len(accords_tab)} au tab, '
+            f'{diff} en désaccord · '
             f'texte : <a href="{html.escape(tab.get("url") or "")}">'
             f'{html.escape(tab.get("titre") or "?")}</a>')
     return Response(
         PA.page(chart.get("title") or stem, sous,
                 {"audio": f"/audio/{stem}.m4a", "duree": round(fin + 4, 2),
-                 "accords": accords, "ticks": pistes["ticks"],
+                 "accords": accords, "accords_tab": accords_tab,
+                 "ticks": pistes["ticks"],
                  "silences": pistes["silences"]}),
         mimetype="text/html")
