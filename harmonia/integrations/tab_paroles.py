@@ -175,6 +175,13 @@ def feuille_calee(chart: dict, brut: str, align: list[dict]) -> list[dict]:
         for mot, c in liste:
             par_mot.setdefault(mot["rang"], []).append(c)
 
+    def sonnant_a(t: float):
+        """L'accord qui SONNE à cet instant — pas celui qui y commence."""
+        for c in notres:
+            if float(c["t0"]) <= t < float(c["t1"]):
+                return c
+        return None
+
     out = []
     for i in sorted(par_ligne):
         mots = []
@@ -187,6 +194,16 @@ def feuille_calee(chart: dict, brut: str, align: list[dict]) -> list[dict]:
                                          and m["score"] < 0.30)})
         if not any(w["accords"] for w in mots):
             continue
+        # L'ACCORD EN DÉBUT DE LIGNE (Louis, 2026-09-24). Une ligne qui
+        # commence AU MILIEU d'un accord ne disait pas lequel : il fallait
+        # remonter la ligne d'avant. On le rappelle donc, marqué `rappel` pour
+        # que le rendu le distingue d'un vrai changement — sinon on lirait un
+        # accord joué deux fois.
+        if mots and not mots[0]["accords"]:
+            c = sonnant_a(mots[0]["t"])
+            if c is not None:
+                mots[0]["accords"] = [texte_du_chart(c)]
+                mots[0]["rappel"] = True
         out.append({"mots": mots})
     return out
 
@@ -354,13 +371,14 @@ body{margin:0 auto;padding:16px;max-width:46rem;background:var(--pap);
   color:var(--enc);font:16px/1.5 -apple-system,system-ui,sans-serif}
 h1{font:600 21px/1.25 Georgia,serif;margin:0 0 2px}
 .sous{color:var(--eux);font-size:13px;margin:0 0 20px}
-.ligne{display:flex;flex-wrap:wrap;align-items:flex-end;
-  gap:2px 6px;margin:0 0 16px}
-.u{display:flex;flex-direction:column;align-items:flex-start;min-width:0}
+.ligne{margin:0 0 16px}
+.u{display:inline-flex;flex-direction:column;align-items:flex-start;
+  vertical-align:bottom}
 .u i{font:700 13px/1.35 -apple-system,system-ui,sans-serif;color:var(--nous);
   font-style:normal;white-space:nowrap;min-height:1.35em}
 .u b{font:400 17px/1.35 Georgia,serif;white-space:nowrap}
 .u.dout b{color:var(--eux)}
+.u i.rap{opacity:.45;font-weight:500}
 a{color:var(--nous)}
 """
 
@@ -377,9 +395,12 @@ def page_mots(titre: str, feuille: list[dict], tab: dict,
         for w in l["mots"]:
             acc = " ".join(w["accords"])
             u.append(f'<span class="u{" dout" if w["douteux"] else ""}">'
-                     f'<i>{html.escape(acc)}</i>'
+                     f'<i class="{"rap" if w.get("rappel") else ""}">'
+                     f'{html.escape(acc)}</i>'
                      f'<b>{html.escape(w["mot"])}</b></span>')
-        blocs.append(f'<div class="ligne">{"".join(u)}</div>')
+        # une VRAIE espace entre les unités : la ligne doit se lire comme une
+        # phrase, pas comme une liste de mots espacés
+        blocs.append(f'<div class="ligne">{" ".join(u)}</div>')
     note = (f'texte : <a href="{html.escape(tab.get("url") or "")}">'
             f'{html.escape(tab.get("titre") or "?")}</a>' if tab else "")
     return (f'<!doctype html><html lang="fr"><meta charset="utf-8">'
