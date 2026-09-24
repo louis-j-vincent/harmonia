@@ -22,6 +22,32 @@ TAB = (
 )
 
 
+def test_rien_AVANT_la_premiere_ligne_daccords_nest_chante():
+    """Louis, 2026-09-24 : « au début tu as parsé une ou deux phrases qui ne
+    sont pas les paroles de la chanson ». C'était l'en-tête du tab — titre,
+    artiste, accordage — que l'alignement essayait ensuite de caser dans le
+    chant, en tordant le début du morceau. Mesuré : 4 lignes parasites sur
+    Stand By Me, 1 sur This Love.
+
+    La règle tient à la FORME d'un tab : les paroles sont toujours SOUS une
+    ligne d'accords, donc rien avant la première n'est chanté."""
+    tab = ("Titre de la chanson\n"
+           "par Quelqu un\n"
+           "Tuning: Standard\n"
+           "Capo: 2nd fret\n"
+           "\n"
+           "[ch]C[/ch]\n"
+           "aaa bbb ccc\n")
+    lignes = lignes_de_paroles(tab)
+    assert [l["texte"] for l in lignes] == ["aaa bbb ccc"]
+
+
+def test_un_tab_SANS_aucun_accord_ne_rend_rien():
+    """Pas de ligne d'accords, donc aucune parole repérable : on n'invente pas
+    une frontière, on s'abstient."""
+    assert lignes_de_paroles("juste du texte\net encore\n") == []
+
+
 def test_on_ecarte_les_accords_et_les_entetes():
     """Une ligne d'accords et un `[Verse]` ne sont pas des mots chantés."""
     lignes = lignes_de_paroles(TAB)

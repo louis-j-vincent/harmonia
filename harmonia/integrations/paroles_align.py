@@ -79,20 +79,41 @@ def _modele():
     return _MODELE
 
 
+#: une ligne d'en-tête de tab : « Tuning: Standard », « Capo: 2nd fret »…
+_ENTETE = re.compile(r"^[A-Za-z][A-Za-z /]{0,20}\s*:", re.I)
+
+
 def lignes_de_paroles(brut: str) -> list[dict]:
     """Les lignes de TEXTE d'un tab, avec leur numéro de ligne d'origine.
 
-    On écarte les lignes d'accords (elles portent le balisage `[ch]`) et les
-    en-têtes de section (`[Verse]`, `[Chorus]`) : ce sont des annotations du
-    tabbeur, pas des mots chantés. Le numéro de ligne est gardé pour pouvoir
-    rejoindre les accords posés par `tab_paroles.feuille`.
+    TROIS CHOSES SONT ÉCARTÉES, et la troisième a été payée :
+
+      * les lignes d'accords (elles portent le balisage `[ch]`) ;
+      * les en-têtes de section (`[Verse]`, `[Chorus]`) et les lignes de
+        métadonnée (`Tuning:`, `Capo:`) — des annotations du tabbeur ;
+      * **tout ce qui précède la PREMIÈRE ligne d'accords.** Louis,
+        2026-09-24 : « au début tu as parsé une ou deux phrases qui ne sont pas
+        les paroles de la chanson ». C'était l'en-tête du tab — titre, artiste,
+        accordage — que l'alignement essayait ensuite de placer dans le chant,
+        en tordant le début du morceau pour y arriver. Mesuré : 4 lignes
+        parasites sur Stand By Me, 1 sur This Love.
+
+    La règle du troisième point tient à la FORME d'un tab : les paroles y sont
+    toujours sous une ligne d'accords. Rien avant la première n'est chanté.
+
+    Le numéro de ligne est gardé pour pouvoir rejoindre les accords posés par
+    `tab_paroles.feuille`.
     """
+    lignes = (brut or "").splitlines()
+    premier = next((i for i, l in enumerate(lignes) if "[ch]" in l), None)
+    if premier is None:
+        return []
     out = []
-    for i, ligne in enumerate((brut or "").splitlines()):
-        if "[ch]" in ligne:
+    for i, ligne in enumerate(lignes):
+        if i < premier or "[ch]" in ligne:
             continue
         propre = _BALISE.sub("", ligne).strip()
-        if not propre or _CROCHET.match(propre):
+        if not propre or _CROCHET.match(propre) or _ENTETE.match(propre):
             continue
         if not _MOT.search(propre):
             continue

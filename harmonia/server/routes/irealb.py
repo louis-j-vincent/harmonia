@@ -300,12 +300,37 @@ def tab_paroles(file):
     if not res:
         return _dire("Aucun tab trouvé.", 404)
     brut = fetch_tab_chords(res[0]).raw_content
-    feuille = TP.feuille(chart, pose, brut)
+
+    # NOS INSTANTS D'ABORD (2026-09-24). L'ancienne feuille allait chercher
+    # notre accord à l'instant où le TABBEUR avait posé le sien : un accord
+    # qu'il a mis un temps trop tôt nous faisait écrire le mauvais. Quand
+    # l'alignement des mots existe — et Louis l'a validé à l'oreille — on pose
+    # chaque accord devant le mot qui sonne à SON propre t0, et le tab ne sert
+    # plus que de texte.
+    from harmonia import cache
+    align, source = None, "colonnes du tab"
+    try:
+        garde = cache.load_json("paroles", SETTINGS.audio_dir / f"{stem}.m4a")
+        if garde and garde.get("align"):
+            align = garde["align"]
+    except Exception:                                        # noqa: BLE001
+        log.exception("tab-paroles : cache d'alignement illisible pour %s", stem)
+
+    feuille = []
+    if align:
+        feuille = TP.feuille_calee(chart, brut, align)
+        source = "nos instants"
+    if not feuille:
+        # Repli ASSUMÉ et DIT : sans voix isolée il n'y a pas d'alignement, et
+        # les colonnes du tabbeur restent la seule information de placement.
+        feuille = TP.feuille(chart, pose, brut)
+        source = "colonnes du tab"
     if not feuille:
         return _dire("Les colonnes du tab et ses accords ne concordent pas : "
                      "rien n'a été posé.", 409)
-    log.info("tab-paroles %s : %d ligne(s), %d accord(s), transposition %+d",
-             stem, len(feuille), sum(len(l["accords"]) for l in feuille),
+    log.info("tab-paroles %s : %d ligne(s), %d accord(s), placement par %s, "
+             "transposition %+d", stem, len(feuille),
+             sum(len(l["accords"]) for l in feuille), source,
              int(pose.get("decalage") or 0))
     return Response(
         TP.page(chart.get("title") or stem, feuille, pose["tab"],

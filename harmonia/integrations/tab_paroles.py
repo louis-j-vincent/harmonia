@@ -103,6 +103,63 @@ def indices_compresses(seq: list[dict]) -> list[int]:
     return out
 
 
+def feuille_calee(chart: dict, brut: str, align: list[dict]) -> list[dict]:
+    """La feuille, NOS accords posés sur NOS instants — plus les colonnes du tab.
+
+    LE DÉFAUT QUE ÇA CORRIGE (Louis, 2026-09-24 : « le guitar tabs que tu fais
+    fait des accords pas bons, tu mets bien les mêmes accords que dans le
+    karaoké ? »). Oui, les mêmes — mais `feuille` les lisait à la MAUVAISE
+    HORLOGE. Elle allait chercher notre accord à l'instant où le TABBEUR avait
+    posé le sien : si lui l'a mis un temps trop tôt, on lit notre accord à ce
+    moment-là et on écrit le mauvais. Le karaoké, lui, prend nos accords à NOS
+    instants — d'où « ceux-là ont l'air bons ».
+
+    Ici on ne consulte plus le tab que pour son TEXTE. Chaque accord à nous est
+    posé devant le mot qui sonne à son propre `t0`, d'après l'alignement forcé
+    (`paroles_align.aligner`) que Louis a validé à l'oreille le 2026-09-24.
+
+    CE QUE ÇA NE RÉSOUT PAS : un accord qui tombe dans un trou de l'alignement
+    (passage instrumental, ligne que le tab n'a pas écrite) n'a aucun mot où
+    s'accrocher — il est rattaché au mot suivant, et l'indiquer reste à faire.
+    """
+    from harmonia.integrations.tab_chart import texte_du_chart
+
+    notres = [c for c in ((chart.get("prompter") or {}).get("chords") or [])
+              if float(c.get("t1") or 0) > float(c.get("t0") or 0)]
+    if not align or not notres:
+        return []
+
+    lignes = (brut or "").splitlines()
+    par_ligne: dict[int, list] = {}
+    for m in align:
+        par_ligne.setdefault(m["ligne"], []).append(m)
+
+    # chaque accord va au mot qui sonne à son t0 ; à défaut, au mot suivant
+    mots = sorted(align, key=lambda m: m["t0"])
+    poses: dict[int, list] = {}
+    for c in notres:
+        t = float(c["t0"])
+        cible = next((m for m in mots if m["t0"] <= t < m["t1"]), None)
+        if cible is None:
+            cible = next((m for m in mots if m["t0"] >= t), None)
+        if cible is None:
+            continue
+        poses.setdefault(cible["ligne"], []).append((cible, c))
+
+    out = []
+    for i in sorted(par_ligne):
+        texte = _BALISE.sub("", lignes[i]).rstrip() if i < len(lignes) else ""
+        accords = []
+        for mot, c in poses.get(i, []):
+            accords.append({"colonne": int(mot.get("debut_car") or 0),
+                            "notre": texte_du_chart(c), "leur": "",
+                            "t": round(float(c["t0"]), 2)})
+        if not accords:
+            continue
+        out.append({"texte": texte, "accords": accords})
+    return out
+
+
 def feuille(chart: dict, pose: dict, brut: str) -> list[dict]:
     """Le tab réécrit : ses lignes de texte, NOS accords au-dessus.
 
