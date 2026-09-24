@@ -747,18 +747,44 @@ def feuille_barres(chart: dict, align: list[dict], *,
     # des strophes ».
     infos = {x["ligne"]: x for x in (structure or [])}
 
-    out, precedent = [], None
-    for lg in sorted(par):
-        ms = sorted(par[lg], key=lambda x: x["t0"])
-        a = ms[0]["t0"]
+    # LA MESURE DE CHAQUE LIGNE, calculée d'AVANCE : il faut connaître celle de
+    # la ligne SUIVANTE pour savoir où la ligne courante s'arrête.
+    ordre = sorted(par)
+    barre = {}
+    for lg in ordre:
+        a = min(x["t0"] for x in par[lg])
         b = max(0, min(bisect.bisect_right(grid, a) - 1, len(grid) - 2))
+        # L'ANACROUSE APPARTIENT À LA MESURE QUI SUIT. Un mot qui démarre juste
+        # AVANT une barre est une levée : le rattacher à la mesure d'avant
+        # raccourcit sa ligne et gonfle la suivante. Mesuré sur le refrain de
+        # This Love : deux lignes ancrées à une mesure d'écart, l'une recevant
+        # deux accords et l'autre six, alors que le refrain est une boucle
+        # régulière de quatre. On avance donc d'une mesure quand le mot est à
+        # moins d'un temps de la barre suivante.
+        if b + 2 < len(grid) and (grid[b + 1] - a) < _pas:
+            b += 1
+        barre[lg] = b
+
+    out, precedent = [], None
+    for idx, lg in enumerate(ordre):
+        ms = sorted(par[lg], key=lambda x: x["t0"])
+        b = barre[lg]
         # LA TÊTE : l'accord qui sonne SUR LA BARRE de cette ligne, pas à son
         # premier mot — c'est toute la différence, le mot arrivant souvent
         # après le premier temps.
         tete_c = sonnant(grid[b])
         tete = texte_du_chart(tete_c) if tete_c is not None else ""
         precedent = tete or precedent
-        fin = ms[-1]["t1"] + DELAI_MOT
+
+        # UNE LIGNE S'ARRÊTE OÙ COMMENCE LA SUIVANTE. Je bornais par « dernier
+        # mot + 1,5 s », ce qui débordait sur la ligne d'après : les mêmes
+        # accords étaient écrits DEUX FOIS, et sur le refrain de This Love —
+        # une boucle de quatre accords — ça donnait une bouillie. Mesuré :
+        # la ligne de la mesure 17 courait jusqu'à 46,92 s alors que celle de
+        # la mesure 18 commençait à 44,00 s. Chaque accord appartient
+        # désormais à une seule ligne.
+        b_suiv = barre[ordre[idx + 1]] if idx + 1 < len(ordre) else len(grid) - 1
+        fin = grid[max(b_suiv, b + 1)] if b_suiv > b else ms[-1]["t1"]
 
         # CHAQUE ACCORD VA À UN SEUL MOT, ET C'EST LE SENS QUI COMPTE.
         # Je faisais l'inverse : chaque mot ramassait TOUS les accords de sa
