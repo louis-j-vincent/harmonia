@@ -401,6 +401,166 @@ def _page_brut(data: dict) -> str:
 """
 
 
+def _page_folded(data: dict) -> str:
+    """Le chart REPLIÉ : chaque cellule écrite une fois, en ordre de
+    lecture -- pas la vue diagnostic groupée par famille. Un badge x N sur
+    le premier passage ; les passages suivants se réduisent à une pastille
+    cliquable (le contenu ne change pas, pourquoi le réécrire) ; une fin
+    alternative reste écrite en entier, comme un 1st/2nd ending -- jamais
+    remplacée par une moyenne, toujours le vrai contenu de CE passage-là."""
+    chart, grid, n = data["chart"], data["grid"], data["n"]
+    raw, families = data["raw"], data["families"]
+    title = chart.get("title") or data["stem"]
+
+    fam_color = {}
+    for i, fam in enumerate(f for f in families if not f["unique"]):
+        fam_color[id(fam)] = FAMILY_COLORS[i % len(FAMILY_COLORS)]
+
+    entries = []
+    for f in families:
+        alt = f.get("alt_ending", [False] * len(f["members"]))
+        for mi, (b0, b1) in enumerate(f["members"]):
+            entries.append((b0, b1, f, mi, alt[mi] if mi < len(alt) else False))
+    entries.sort(key=lambda e: e[0])
+
+    seen = set()
+    blocks = []
+    for b0, b1, f, mi, is_alt in entries:
+        n_mem = len(f["members"])
+        first = (id(f) not in seen)
+        if not f["unique"]:
+            seen.add(id(f))
+        blocks.append((b0, b1, f, mi, n_mem, first, is_alt))
+
+    html_blocks = []
+    for b0, b1, f, mi, n_mem, first, is_alt in blocks:
+        color = UNIQUE_COLOR if f["unique"] else fam_color[id(f)]
+        bg, fg = color
+        t0, t1 = grid[b0], grid[b1 + 1] if b1 + 1 < len(grid) else grid[b0] + 2
+        if f["unique"] or first or is_alt:
+            cells = []
+            for i in range(b0, b1 + 1):
+                rlab, rconf = raw[i]
+                lowconf = " lowconf" if rconf < LOWCONF else ""
+                cells.append(
+                    f'<div class="bar{lowconf}" data-t0="{grid[i]:.3f}" data-t1="{grid[i+1]:.3f}" '
+                    f'title="raw decode: {rlab} (conf {rconf:.2f})">'
+                    f'<span class="chord">{_short_chord(rlab)}</span></div>'
+                )
+            badge = ""
+            if f["unique"]:
+                badge = f'<span class="tag">unique</span>'
+            elif is_alt:
+                badge = f'<span class="tag alt">fin alternative -- passage {mi+1}/{n_mem}</span>'
+            else:
+                badge = f'<span class="tag">&times;{n_mem}</span>'
+            html_blocks.append(
+                f'<div class="cell" style="background:{bg};color:{fg}" '
+                f'data-t0="{t0:.3f}" data-t1="{t1:.3f}" tabindex="0" role="button">'
+                f'<div class="cell-head">mes.{b0+1}-{b1+1} {badge}</div>'
+                f'<div class="cell-bars">{"".join(cells)}</div></div>'
+            )
+        else:
+            html_blocks.append(
+                f'<div class="pill" style="background:{bg};color:{fg}" '
+                f'data-t0="{t0:.3f}" data-t1="{t1:.3f}" tabindex="0" role="button">'
+                f'passage {mi+1}/{n_mem} &middot; mes.{b0+1}-{b1+1}</div>'
+            )
+
+    n_fam = sum(1 for f in families if not f["unique"])
+    n_written = sum(1 for _, _, f, _, _, first, is_alt in blocks if f["unique"] or first or is_alt)
+    n_collapsed = len(blocks) - n_written
+
+    return f"""<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>{title} — chart replie</title>
+<style>
+  body {{ font-family: -apple-system, Helvetica, Arial, sans-serif; background:#111318; color:#eee;
+         margin:0; padding:24px 16px 80px; }}
+  h1 {{ font-size:1.3rem; margin:0 0 4px; }}
+  .sub {{ color:#9aa3af; margin:0 0 8px; font-size:0.95rem; }}
+  #audiostatus {{ font-size:0.85rem; color:#9aa3af; margin:0 0 20px; min-height:1.2em; }}
+  #audiostatus.ready {{ color:#7fd0a0; }}
+  #audiostatus.err {{ color:#e08a7a; }}
+  .form {{ display:flex; flex-wrap:wrap; gap:8px; align-items:flex-start; }}
+  .cell {{ border-radius:10px; padding:8px 10px; cursor:pointer; min-width:120px;
+          border:1.5px solid transparent; }}
+  .cell:hover {{ border-color:rgba(255,255,255,0.65); }}
+  .cell.playing {{ border-color:#fff; }}
+  .cell-head {{ font-size:0.72rem; opacity:0.85; margin-bottom:6px; display:flex; gap:6px; align-items:center; }}
+  .tag {{ background:rgba(0,0,0,0.28); border-radius:5px; padding:1px 6px; font-weight:700; }}
+  .tag.alt {{ background:#7a5a00; color:#ffe9b0; }}
+  .cell-bars {{ display:flex; gap:3px; flex-wrap:wrap; }}
+  .cell-bars .bar {{ background:rgba(0,0,0,0.2); border-radius:5px; padding:3px 6px; }}
+  .bar.lowconf {{ border:1px dashed rgba(255,255,255,0.5); }}
+  .chord {{ font-weight:600; font-size:0.85rem; }}
+  .pill {{ border-radius:20px; padding:6px 12px; font-size:0.78rem; opacity:0.85; cursor:pointer;
+          border:1.5px dashed transparent; align-self:center; }}
+  .pill:hover {{ border-color:rgba(255,255,255,0.65); opacity:1; }}
+  .pill.playing {{ border-color:#fff; opacity:1; }}
+</style>
+</head>
+<body>
+<h1>{title} — chart replie</h1>
+<p class="sub">{n} mesures &middot; {n_fam} cellule(s) repliee(s) &middot; {n_written} bloc(s) ecrit(s)
+  en entier, {n_collapsed} passage(s) reduits a une pastille (meme contenu, deja ecrit plus haut).
+  Ordre de lecture du morceau, de gauche a droite puis de haut en bas. Clique pour ecouter CE passage.</p>
+<p id="audiostatus">clique un bloc pour charger l'audio</p>
+
+<div class="form">{"".join(html_blocks)}</div>
+
+<script>
+(function(){{
+  var AUDIO_URL = {json.dumps(data["audio_url"])};
+  var statusEl = document.getElementById('audiostatus');
+  var audioEl = null, blobPromise = null, stopTimer = null, curEl = null;
+  function setStatus(txt, cls){{ statusEl.textContent = txt; statusEl.className = cls || ''; }}
+  function ensureAudio(){{
+    if(!blobPromise){{
+      setStatus('chargement de l\\'audio…');
+      audioEl = new Audio();
+      blobPromise = fetch(AUDIO_URL)
+        .then(function(r){{ if(!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); }})
+        .then(function(b){{
+          return new Promise(function(resolve){{
+            audioEl.src = URL.createObjectURL(b);
+            var ready = function(){{ setStatus('audio pret', 'ready'); resolve(); }};
+            if(audioEl.readyState >= 1) ready();
+            else audioEl.addEventListener('loadedmetadata', ready, {{once:true}});
+          }});
+        }})
+        .catch(function(e){{ setStatus('audio indisponible : ' + e, 'err'); throw e; }});
+    }}
+    return blobPromise;
+  }}
+  function playBlock(t0, t1, el){{
+    if(curEl) curEl.classList.remove('playing');
+    curEl = el;
+    el.classList.add('playing');
+    clearTimeout(stopTimer);
+    ensureAudio().then(function(){{
+      try{{ audioEl.currentTime = t0; }}catch(e){{}}
+      audioEl.play().catch(function(e){{ setStatus('lecture refusee : ' + e, 'err'); }});
+      var durMs = Math.max(150, (t1 - t0) * 1000);
+      stopTimer = setTimeout(function(){{ audioEl.pause(); el.classList.remove('playing'); }}, durMs);
+    }});
+  }}
+  document.querySelectorAll('.cell, .pill').forEach(function(el){{
+    var t0 = parseFloat(el.dataset.t0), t1 = parseFloat(el.dataset.t1);
+    el.addEventListener('click', function(){{ playBlock(t0, t1, el); }});
+    el.addEventListener('keydown', function(ev){{
+      if(ev.key === 'Enter' || ev.key === ' '){{ ev.preventDefault(); playBlock(t0, t1, el); }}
+    }});
+  }});
+}})();
+</script>
+</body>
+</html>
+"""
+
+
 def _render_ssm_png(S: np.ndarray, boundaries: list[int], out_png: Path) -> None:
     import matplotlib
     matplotlib.use("Agg")
@@ -614,6 +774,9 @@ def main(argv=None) -> int:
     ap.add_argument("--brut", action="store_true",
                     help="le chart tel qu'affiche en prod (gabarits de lettre compris) "
                          "+ decode independant en regard, PAS les cellules auto-decouvertes")
+    ap.add_argument("--folded", action="store_true",
+                    help="le resultat du repliement : chaque cellule ecrite une fois, "
+                         "en ordre de lecture, avec ses x N et ses fins alternatives")
     a = ap.parse_args(argv)
 
     data = build(a.chart)
@@ -625,6 +788,16 @@ def main(argv=None) -> int:
         n_low = sum(1 for _, c in data["raw"] if c < LOWCONF)
         print(f"→ {out}")
         print(f"   {data['n']} mesures, {n_low} sous confiance {LOWCONF}")
+        return 0
+
+    if a.folded:
+        out = a.out or (SETTINGS.reports_dir / f"chart_replie_{a.chart}.html")
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(_page_folded(data), encoding="utf-8")
+        n_fam = sum(1 for f in data["families"] if not f["unique"])
+        n_alt = sum(sum(f.get("alt_ending", [])) for f in data["families"])
+        print(f"→ {out}")
+        print(f"   {data['n']} mesures -> {n_fam} cellules repliees, {n_alt} fins alternatives")
         return 0
 
     out = a.out or (SETTINGS.reports_dir / f"repli_propose_{a.chart}.html")
