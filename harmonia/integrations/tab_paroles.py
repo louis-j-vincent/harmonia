@@ -52,6 +52,16 @@ import re
 
 logger = logging.getLogger(__name__)
 
+#: DISTANCE MAXIMALE ENTRE UN ACCORD ET LE DÉBUT DE SON MOT, en secondes.
+#: Deux pannes, une seule règle. (1) Un accord qui tombe dans un passage
+#: instrumental s'entassait sur le premier mot d'après. (2) L'alignement forcé
+#: produit parfois un mot ANORMALEMENT LONG : mesuré sur Stand By Me le
+#: 2026-09-24, un mot de 26,4 s contre une durée médiane de 0,22 s — il
+#: avalait à lui seul 18 accords, 360 px de large, d'où le débordement
+#: horizontal sur téléphone. Exiger que l'accord soit proche du DÉBUT du mot,
+#: et pas seulement dans sa fenêtre, traite les deux.
+DELAI_MOT = 1.5
+
 _CH = re.compile(r"\[ch\](.*?)\[/ch\]", re.S)
 #: le balisage qu'on retire pour retrouver la ligne telle qu'elle s'affiche
 _BALISE = re.compile(r"\[/?(?:ch|tab)\]")
@@ -125,7 +135,21 @@ def feuille_calee(chart: dict, brut: str, align: list[dict]) -> list[dict]:
     from harmonia.integrations.paroles_align import lignes_muettes
     from harmonia.integrations.tab_chart import texte_du_chart
 
-    notres = [c for c in ((chart.get("prompter") or {}).get("chords") or [])
+    # LES ACCORDS UNIFORMISÉS D'ABORD (Louis, 2026-09-24). Le repliement a déjà
+    # fait dire la même chose aux occurrences d'une même section ; on lit donc
+    # les accords ÉCRITS. Sans sections repliées, `accords_replies` ne rend
+    # rien et on retombe sur le décodage à plat — repli DIT, pas silencieux.
+    replies = accords_replies(chart)
+    if replies:
+        notres = [{**r["accord"], "t0": r["t0"], "t1": r["t1"]} for r in replies]
+        logger.info("tab_paroles : %d accord(s) lus sur les sections repliées",
+                    len(notres))
+    else:
+        notres = [c for c in ((chart.get("prompter") or {}).get("chords") or [])
+                  if float(c.get("t1") or 0) > float(c.get("t0") or 0)]
+        logger.info("tab_paroles : pas de section repliée, on lit le décodage "
+                    "à plat (%d accord(s))", len(notres))
+    notres = [c for c in notres
               if float(c.get("t1") or 0) > float(c.get("t0") or 0)]
     if not align or not notres:
         return []
@@ -147,17 +171,32 @@ def feuille_calee(chart: dict, brut: str, align: list[dict]) -> list[dict]:
     for m in align:
         par_ligne.setdefault(m["ligne"], []).append(m)
 
-    # chaque accord va au mot qui sonne à son t0 ; à défaut, au mot suivant
+    # CHAQUE ACCORD VA AU MOT QUI SONNE À SON t0 — et à personne si aucun mot
+    # ne sonne près de là. Le repli « à défaut, le mot suivant » n'avait pas de
+    # garde-fou : tous les accords d'un passage instrumental s'entassaient sur
+    # le premier mot d'après. Mesuré le 2026-09-24 : UN SEUL mot portait 18
+    # accords sur Stand By Me, 360 px de large, d'où le débordement horizontal
+    # sur téléphone. Un accord qui n'a pas de parole sous lui n'est pas écrit
+    # ici — il reste dans le chart, c'est cette feuille-ci qui ne le montre pas.
     mots = sorted(align, key=lambda m: m["t0"])
     poses: dict[int, list] = {}
+    perdus = 0
     for c in notres:
         t = float(c["t0"])
-        cible = next((m for m in mots if m["t0"] <= t < m["t1"]), None)
+        cible = next((m for m in mots
+                      if m["t0"] <= t < m["t1"] and t - m["t0"] <= DELAI_MOT),
+                     None)
         if cible is None:
-            cible = next((m for m in mots if m["t0"] >= t), None)
+            suivant = next((m for m in mots if m["t0"] >= t), None)
+            if suivant is not None and suivant["t0"] - t <= DELAI_MOT:
+                cible = suivant
         if cible is None:
+            perdus += 1
             continue
         poses.setdefault(cible["ligne"], []).append((cible, c))
+    if perdus:
+        logger.info("tab_paroles : %d accord(s) sans parole dessous, non "
+                    "écrits sur la feuille", perdus)
 
     # UN ACCORD ACCROCHÉ À SON MOT, pas à une colonne (Louis, 2026-09-24 :
     # « sur le html version téléphone les accords ne sont pas alignés au-dessus
@@ -189,6 +228,10 @@ def feuille_calee(chart: dict, brut: str, align: list[dict]) -> list[dict]:
             accs = par_mot.get(m["rang"]) or []
             mots.append({"mot": m["mot"],
                          "accords": [texte_du_chart(c) for c in accs],
+                         # « les accords qui ne tombent pas sur les temps
+                         # mets-les en petit » : une syncope réelle ou une
+                         # frontière mal placée, dans les deux cas plus discret
+                         "petits": [petit_si(c) for c in accs],
                          "t": round(float(m["t0"]), 2),
                          "douteux": bool(m.get("score") is not None
                                          and m["score"] < 0.30)})
@@ -203,6 +246,7 @@ def feuille_calee(chart: dict, brut: str, align: list[dict]) -> list[dict]:
             c = sonnant_a(mots[0]["t"])
             if c is not None:
                 mots[0]["accords"] = [texte_du_chart(c)]
+                mots[0]["petits"] = [False]      # un rappel n'est pas un changement
                 mots[0]["rappel"] = True
         out.append({"mots": mots})
     return out
@@ -372,13 +416,16 @@ body{margin:0 auto;padding:16px;max-width:46rem;background:var(--pap);
 h1{font:600 21px/1.25 Georgia,serif;margin:0 0 2px}
 .sous{color:var(--eux);font-size:13px;margin:0 0 20px}
 .ligne{margin:0 0 16px}
-.u{display:inline-flex;flex-direction:column;align-items:flex-start;
+.u{display:inline-block;position:relative;padding-top:1.45em;
   vertical-align:bottom}
-.u i{font:700 13px/1.35 -apple-system,system-ui,sans-serif;color:var(--nous);
-  font-style:normal;white-space:nowrap;min-height:1.35em}
+.u i{position:absolute;left:0;top:0;font:700 13px/1.45 -apple-system,
+  system-ui,sans-serif;color:var(--nous);font-style:normal;white-space:nowrap}
 .u b{font:400 17px/1.35 Georgia,serif;white-space:nowrap}
 .u.dout b{color:var(--eux)}
 .u i.rap{opacity:.45;font-weight:500}
+.u i em{font-style:normal}
+.u i em+em{margin-left:.35em}
+.u i em.pt{font-size:.78em;opacity:.75;font-weight:500}
 a{color:var(--nous)}
 """
 
@@ -393,10 +440,13 @@ def page_mots(titre: str, feuille: list[dict], tab: dict,
     for l in feuille:
         u = []
         for w in l["mots"]:
-            acc = " ".join(w["accords"])
+            pet = w.get("petits") or [False] * len(w["accords"])
+            acc = "".join(
+                f'<em class="{"pt" if (pet[k] if k < len(pet) else False) else ""}">'
+                f'{html.escape(a)}</em>'
+                for k, a in enumerate(w["accords"]))
             u.append(f'<span class="u{" dout" if w["douteux"] else ""}">'
-                     f'<i class="{"rap" if w.get("rappel") else ""}">'
-                     f'{html.escape(acc)}</i>'
+                     f'<i class="{"rap" if w.get("rappel") else ""}">{acc}</i>'
                      f'<b>{html.escape(w["mot"])}</b></span>')
         # une VRAIE espace entre les unités : la ligne doit se lire comme une
         # phrase, pas comme une liste de mots espacés
@@ -411,3 +461,136 @@ def page_mots(titre: str, feuille: list[dict], tab: dict,
             f'{note}<br>Nos accords, posés sur le mot qui sonne à leur instant. '
             f'Un mot en gris est un mot dont le calage est douteux.</p>'
             f'{"".join(blocs)}</html>')
+
+
+# ── les accords UNIFORMISÉS par le repliement ───────────────────────────────
+def accords_replies(chart: dict) -> list[dict]:
+    """Les accords ÉCRITS du chart, étalés sur toutes les occurrences.
+
+    Louis, 2026-09-24 : « sers-toi du repliement des sous-sections pour
+    détecter les parties similaires et uniformiser les accords ».
+
+    Le repliement a DÉJÀ fait ce travail et on ne le refait pas : une section
+    jouée six fois porte huit barres écrites UNE SEULE FOIS (`section["bars"]`)
+    plus une fenêtre de temps par barre et par occurrence
+    (`section["barSpans"][barre][occurrence]`). Lire l'accord là, c'est lire
+    la version uniformisée ; lire `prompter.chords`, c'est lire le décodage à
+    plat, qui peut dire autre chose à la troisième reprise qu'à la première.
+
+    Rend `[{t0, t1, accord}]` trié — l'accord écrit, projeté sur chaque
+    occurrence. Une barre qui porte plusieurs accords voit sa fenêtre
+    découpée dans les MÊMES proportions que dans la barre écrite.
+
+    CE QUE ÇA NE RÉSOUT PAS : si `SETTINGS.sections == "aucune"` et que Louis
+    n'a rien annoté, le chart n'a qu'une section « A » d'une occurrence — il
+    n'y a alors rien à uniformiser, et cette fonction rend l'équivalent du
+    décodage à plat. L'uniformisation vient de SES sections, pas d'ici.
+    """
+    import statistics as st
+    out = []
+    for sec in chart.get("sections") or []:
+        bars = sec.get("bars") or []
+        spans = sec.get("barSpans") or []
+        # LA DURÉE TYPIQUE DE CETTE SECTION-CI. Comparer à une durée globale
+        # écraserait une section entière dont tous les accords sont courts
+        # (This Love, section B : 2 temps partout, et tous structurels).
+        durees = [float(c.get("t1") or 0) - float(c.get("t0") or 0)
+                  for b in bars for c in b
+                  if float(c.get("t1") or 0) > float(c.get("t0") or 0)]
+        typique = st.median(durees) if durees else 0.0
+        for k, barre in enumerate(bars):
+            if k >= len(spans) or not barre:
+                continue
+            # positions relatives des accords DANS la barre écrite
+            t0b = min(float(c.get("t0") or 0) for c in barre)
+            t1b = max(float(c.get("t1") or 0) for c in barre)
+            duree = max(1e-6, t1b - t0b)
+            for fen in spans[k] or []:
+                if not fen or len(fen) < 2:
+                    continue
+                a, b = float(fen[0]), float(fen[1])
+                L = max(1e-6, b - a)
+                for c in barre:
+                    d0 = (float(c.get("t0") or 0) - t0b) / duree
+                    d1 = (float(c.get("t1") or 0) - t0b) / duree
+                    dc = float(c.get("t1") or 0) - float(c.get("t0") or 0)
+                    petit = bool(typique and dc < PART_TRANSITION * typique)
+                    out.append({"t0": a + d0 * L, "t1": a + min(1.0, d1) * L,
+                                "accord": {**c, "petit": petit}})
+    return sorted(out, key=lambda x: x["t0"])
+
+
+#: un accord plus court que cette fraction de la durée TYPIQUE DE SA SECTION
+#: est un accord de passage — voir `petit_si`
+PART_TRANSITION = 0.60
+
+
+def petit_si(accord: dict) -> bool:
+    """Cet accord doit-il s'écrire en petit ?
+
+    LA DEMANDE ET POURQUOI ELLE A CHANGÉ. Louis, 2026-09-24 : « les accords qui
+    ne tombent pas sur les temps mets-les en petit ». Mesuré avant d'écrire :
+    la condition n'arrive JAMAIS.
+
+        Stand By Me   décodage à plat : 1 accord sur 38 · replié : 0 sur 127
+        This Love     décodage à plat : 0 sur 119    · replié : 0 sur 113
+        écart au temps le plus proche, accords repliés : 21 ms au pire
+
+    Le mécanisme est structurel, pas réglable : `SETTINGS.quarter_bar` fait
+    poser les changements d'accord SUR la grille des temps (tout temps peut en
+    porter un, rien entre deux temps). Un accord hors des temps ne peut pas
+    être produit. Et lire les accords repliés l'exclut doublement, puisque
+    leurs fenêtres viennent de la grille de mesures.
+
+    CE QU'ON ÉCRIT EN PETIT À LA PLACE. Louis, 2026-09-24, en donnant le vrai
+    critère : « sur la première partie il y a clairement 4 accords, et les
+    autres sont des accords de transition ». C'est la DURÉE, et elle sort toute
+    seule des accords repliés de This Love :
+
+        section A   G/B · C- · F-7   4 temps chacun   ← la charpente
+                    Dø7 · Ab-7       2 temps          ← les transitions
+        section B   C- · F- · Bb · Eb  2 temps chacun ← tous structurels !
+
+    D'OÙ LA RÈGLE RELATIVE, et c'est tout l'enjeu : en section B, TOUS les
+    accords font 2 temps. Un seuil absolu à « moins de 4 temps » y écraserait
+    la section entière. On compare donc chaque accord à la durée TYPIQUE DE SA
+    PROPRE SECTION (la médiane), et on écrit en petit ce qui est nettement plus
+    court. Sur les trois sections mesurées, ça marque exactement les accords
+    que Louis appelle des transitions, et rien d'autre.
+
+    `accord["petit"]` est posé par `accords_replies`, qui seul connaît la
+    section d'appartenance ; cette fonction ne fait que le relire.
+
+    CE QUE ÇA NE DIT PAS : qu'il est FAUX, ni qu'il ne faut pas le jouer. Un
+    accord de passage est un vrai accord — il est écrit plus discrètement
+    parce qu'il ne porte pas la section.
+    """
+    return bool(accord.get("petit"))
+
+
+def hors_des_temps(chart: dict, marge: float = 0.25) -> callable:
+    """Rend `f(t) -> bool` : cet instant tombe-t-il À CÔTÉ d'un temps ?
+
+    GARDÉE MAIS PLUS UTILISÉE PAR LE RENDU (2026-09-24) : mesurée sur deux
+    morceaux, elle rend faux partout — voir `petit_si` pour le pourquoi et
+    pour ce qui la remplace. On la garde parce qu'elle redeviendra vraie le
+    jour où le décodage saura placer un accord entre deux temps.
+
+    `marge` est la fraction d'un temps au-delà de laquelle on considère que ça
+    tombe à côté. Le temps de référence est la MÉDIANE des intervalles du
+    morceau, pas un tempo supposé.
+    """
+    temps = sorted(float(t) for t in (chart.get("beatTimes") or []))
+    if len(temps) < 4:
+        return lambda t: False
+    import statistics as st
+    pas = st.median([b - a for a, b in zip(temps, temps[1:])]) or 0.5
+    seuil = marge * pas
+
+    def f(t: float) -> bool:
+        import bisect
+        i = bisect.bisect_left(temps, t)
+        proches = [temps[j] for j in (i - 1, i) if 0 <= j < len(temps)]
+        return bool(proches) and min(abs(t - x) for x in proches) > seuil
+
+    return f
