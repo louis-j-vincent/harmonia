@@ -56,6 +56,19 @@ BUNDLE = "WAV2VEC2_ASR_BASE_960H"
 #: sous ce score, le mot n'a probablement pas été chanté là — c'est l'alarme
 #: qui dit « le texte ne colle pas », voir la docstring du module
 SCORE_DOUTEUX = 0.30
+#: SOUS CE SCORE MÉDIAN, LA LIGNE ENTIÈRE N'A PAS ÉTÉ CHANTÉE. Louis,
+#: 2026-09-24 : « vire ce qui n'est pas le début de la chanson ». Pas besoin
+#: d'une source extérieure pour ça — l'AUDIO le dit. Une ligne d'en-tête
+#: (titre, artiste, accordage) ou de crédits ne correspond à rien dans le
+#: chant, donc son score s'effondre. Mesuré le 2026-09-24 sur deux morceaux :
+#:
+#:     Stand By Me   lignes parasites 0,00 · 0,01 · 0,07   1er quartile 0,19
+#:     This Love     lignes parasites 0,01 · 0,05 · 0,06   1er quartile 0,21
+#:
+#: 0,15 passe donc entre les deux populations. C'est un plancher volontairement
+#: BAS : on préfère garder une ligne douteuse (elle se verra à ses mots
+#: orange) que jeter une vraie ligne mal chantée.
+LIGNE_MUETTE = 0.15
 
 _MOT = re.compile(r"[A-Za-z']+")
 _BALISE = re.compile(r"\[/?(?:ch|tab)\]")
@@ -214,6 +227,26 @@ def aligner(vocals_wav, mots: list[dict]) -> list[dict]:
                     "t1": round(p[-1].end * dt, 3),
                     "score": round(sum(sc) / len(sc), 3)})
     return out
+
+
+def lignes_muettes(align: list[dict], *, plancher: float = LIGNE_MUETTE) -> set:
+    """Les numéros de ligne dont AUCUN mot n'a vraiment été chanté.
+
+    Le score médian de la ligne, comparé à `LIGNE_MUETTE`. On regarde la
+    médiane et pas la moyenne : un seul mot bien placé par hasard ne doit pas
+    sauver une ligne d'en-tête, et un mot raté ne doit pas condamner une vraie
+    ligne.
+
+    CE QUE ÇA NE RÉSOUT PAS : une ligne réellement chantée mais absente du
+    tab reste absente — ce filtre ENLÈVE du faux, il n'ajoute pas du vrai.
+    """
+    import statistics as st
+    par: dict = {}
+    for m in align:
+        if m.get("ligne") is None:
+            continue
+        par.setdefault(m["ligne"], []).append(float(m.get("score") or 0))
+    return {k for k, v in par.items() if st.median(v) < plancher}
 
 
 def avec_trous(align: list[dict], *, seuil: float = SCORE_DOUTEUX,

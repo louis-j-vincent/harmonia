@@ -201,3 +201,38 @@ def test_la_page_n_utilise_pas_requestAnimationFrame():
     assert "requestAnimationFrame" not in h
     assert "timeupdate" in h and "setInterval" in h
     assert "fetch(D.audio)" in h and "createObjectURL" in h
+
+
+# ── les lignes que personne n'a chantées (Louis, 2026-09-24) ────────────────
+
+def test_une_ligne_dont_le_score_s_effondre_est_ecartee():
+    """« Vire ce qui n'est pas le début de la chanson ». Pas besoin d'une
+    source extérieure : l'AUDIO le dit. Une ligne d'en-tête ne correspond à
+    rien dans le chant, donc son score tombe. Mesuré : lignes parasites à 0,00
+    et 0,07 contre un premier quartile à 0,19 sur les vraies lignes."""
+    from harmonia.integrations.paroles_align import lignes_muettes
+    al = [{"ligne": 0, "score": 0.01}, {"ligne": 0, "score": 0.03},
+          {"ligne": 5, "score": 0.62}, {"ligne": 5, "score": 0.55}]
+    assert lignes_muettes(al) == {0}
+
+
+def test_on_regarde_la_MEDIANE_pas_la_moyenne():
+    """Un seul mot bien placé par hasard ne doit pas sauver une ligne d'en-tête,
+    et un mot raté ne doit pas condamner une vraie ligne."""
+    from harmonia.integrations.paroles_align import lignes_muettes
+    # un coup de chance à 0,95 au milieu de zéros : la ligne reste muette
+    faux = [{"ligne": 1, "score": s} for s in (0.01, 0.02, 0.95, 0.01, 0.02)]
+    assert lignes_muettes(faux) == {1}
+    # un raté au milieu de bons scores : la ligne est gardée
+    vraie = [{"ligne": 2, "score": s} for s in (0.6, 0.7, 0.02, 0.65, 0.55)]
+    assert lignes_muettes(vraie) == set()
+
+
+def test_le_plancher_est_volontairement_bas():
+    """On préfère garder une ligne douteuse — elle se verra à ses mots orange —
+    que jeter une vraie ligne mal chantée."""
+    from harmonia.integrations.paroles_align import (LIGNE_MUETTE,
+                                                     lignes_muettes)
+    assert LIGNE_MUETTE < SCORE_DOUTEUX, "le plancher de ligne est sous celui du mot"
+    juste = [{"ligne": 0, "score": LIGNE_MUETTE + 0.01}]
+    assert lignes_muettes(juste) == set()

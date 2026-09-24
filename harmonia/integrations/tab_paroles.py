@@ -122,12 +122,25 @@ def feuille_calee(chart: dict, brut: str, align: list[dict]) -> list[dict]:
     (passage instrumental, ligne que le tab n'a pas écrite) n'a aucun mot où
     s'accrocher — il est rattaché au mot suivant, et l'indiquer reste à faire.
     """
+    from harmonia.integrations.paroles_align import lignes_muettes
     from harmonia.integrations.tab_chart import texte_du_chart
 
     notres = [c for c in ((chart.get("prompter") or {}).get("chords") or [])
               if float(c.get("t1") or 0) > float(c.get("t0") or 0)]
     if not align or not notres:
         return []
+
+    # CE QUI N'A PAS ÉTÉ CHANTÉ SORT (Louis, 2026-09-24). L'audio le dit tout
+    # seul : une ligne d'en-tête ou de crédits ne correspond à rien dans le
+    # chant, donc son score s'effondre. Pas besoin d'une source extérieure.
+    muettes = lignes_muettes(align)
+    align = [m for m in align if m["ligne"] not in muettes]
+    if not align:
+        return []
+    if muettes:
+        logger.info("tab_paroles : %d ligne(s) écartée(s), rien n'y est "
+                    "chanté (rangs %s)", len(muettes),
+                    ", ".join(str(x) for x in sorted(muettes)[:8]))
 
     lignes = (brut or "").splitlines()
     par_ligne: dict[int, list] = {}
