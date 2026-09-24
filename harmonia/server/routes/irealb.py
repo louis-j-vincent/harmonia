@@ -308,13 +308,39 @@ def tab_paroles(file):
     # chaque accord devant le mot qui sonne à SON propre t0, et le tab ne sert
     # plus que de texte.
     from harmonia import cache
+    from harmonia.integrations import paroles_align as PA
+    audio = SETTINGS.audio_dir / f"{stem}.m4a"
     align, source = None, "colonnes du tab"
     try:
-        garde = cache.load_json("paroles", SETTINGS.audio_dir / f"{stem}.m4a")
+        garde = cache.load_json("paroles", audio)
         if garde and garde.get("align"):
             align = garde["align"]
     except Exception:                                        # noqa: BLE001
         log.exception("tab-paroles : cache d'alignement illisible pour %s", stem)
+
+    # CETTE ROUTE CALCULE SON PROPRE ALIGNEMENT (2026-09-24). Elle se contentait
+    # de LIRE un cache que seule `/karaoke/` remplissait : vider ce cache la
+    # faisait retomber sur les colonnes du tabbeur, silencieusement du point de
+    # vue de l'écran (le journal le disait, pas la page). Un couplage caché
+    # entre deux routes est exactement le genre de repli muet que ce projet
+    # refuse. Elle paie donc l'alignement elle-même si personne ne l'a fait.
+    if align is None:
+        voix = SETTINGS.data_cache / "stems" / "htdemucs" / stem / "vocals.wav"
+        if voix.exists():
+            try:
+                mots_al = PA.mots_a_aligner(PA.lignes_de_paroles(brut))
+                if mots_al:
+                    align = PA.aligner(voix, mots_al)
+                    cache.save_json("paroles", audio, {
+                        "requete": requete, "align": align,
+                        "tab": {"titre": res[0].song_name,
+                                "artiste": res[0].artist_name,
+                                "url": res[0].tab_url}})
+                    log.info("tab-paroles %s : alignement calculé ici "
+                             "(%d mots)", stem, len(align))
+            except Exception:                                # noqa: BLE001
+                log.exception("tab-paroles : alignement impossible pour %s",
+                              stem)
 
     feuille, par_mots = [], False
     if align:

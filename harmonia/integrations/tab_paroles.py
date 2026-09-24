@@ -178,9 +178,24 @@ def feuille_calee(chart: dict, brut: str, align: list[dict]) -> list[dict]:
     # accords sur Stand By Me, 360 px de large, d'où le débordement horizontal
     # sur téléphone. Un accord qui n'a pas de parole sous lui n'est pas écrit
     # ici — il reste dans le chart, c'est cette feuille-ci qui ne le montre pas.
+    # UNE MESURE DE CE MORCEAU-CI, lue sur ses battues plutôt que supposée :
+    # 2,0 s sur Stand By Me, 2,5 s sur This Love. C'est l'unité du seuil de
+    # rappel ci-dessous.
+    import statistics as st
+    _t = sorted(float(x) for x in (chart.get("beatTimes") or []))
+    _pas = (st.median([b - a for a, b in zip(_t, _t[1:])])
+            if len(_t) > 3 else 0.5)
+    une_mesure = _pas * int(chart.get("bpb") or 4)
+
     mots = sorted(align, key=lambda m: m["t0"])
     poses: dict[int, list] = {}
     perdus = 0
+    # le premier mot de chaque ligne, pour la règle de bascule ci-dessous
+    premiers = set()
+    for m in mots:
+        if m["ligne"] not in {x["ligne"] for x in mots if x["t0"] < m["t0"]}:
+            premiers.add(m["rang"])
+
     for c in notres:
         t = float(c["t0"])
         cible = next((m for m in mots
@@ -190,6 +205,18 @@ def feuille_calee(chart: dict, brut: str, align: list[dict]) -> list[dict]:
             suivant = next((m for m in mots if m["t0"] >= t), None)
             if suivant is not None and suivant["t0"] - t <= DELAI_MOT:
                 cible = suivant
+                # UN ACCORD QUI TOMBE JUSTE AVANT UN DÉBUT DE LIGNE S'ÉCRIT
+                # SUR LA LIGNE D'AVANT (Louis, 2026-09-24) — c'est ainsi qu'un
+                # tab est vraiment écrit : le changement de fin de phrase se
+                # note au-dessus de la fin de cette phrase. Mesuré, l'écart au
+                # dernier mot d'avant :
+                #   Stand By Me  0,4…1,4 s puis 2,7 et 5,3  (mesure 2,0 s)
+                #   This Love    0,1…1,6 s                  (mesure 2,5 s)
+                # Une mesure sépare les cas normaux des deux vrais trous.
+                if suivant["rang"] in premiers:
+                    avant = [m for m in mots if m["t1"] <= t]
+                    if avant and t - avant[-1]["t1"] <= une_mesure:
+                        cible = avant[-1]
         if cible is None:
             perdus += 1
             continue
@@ -213,15 +240,6 @@ def feuille_calee(chart: dict, brut: str, align: list[dict]) -> list[dict]:
     for i, liste in poses.items():
         for mot, c in liste:
             par_mot.setdefault(mot["rang"], []).append(c)
-
-    # UNE MESURE DE CE MORCEAU-CI, lue sur ses battues plutôt que supposée :
-    # 2,0 s sur Stand By Me, 2,5 s sur This Love. C'est l'unité du seuil de
-    # rappel ci-dessous.
-    import statistics as st
-    _t = sorted(float(x) for x in (chart.get("beatTimes") or []))
-    _pas = (st.median([b - a for a, b in zip(_t, _t[1:])])
-            if len(_t) > 3 else 0.5)
-    une_mesure = _pas * int(chart.get("bpb") or 4)
 
     def sonnant_a(t: float):
         """L'accord qui SONNE à cet instant — pas celui qui y commence."""
@@ -275,6 +293,34 @@ def feuille_calee(chart: dict, brut: str, align: list[dict]) -> list[dict]:
                 mots[0]["petits"] = [False]      # un rappel n'est pas un changement
                 mots[0]["rappel"] = True
         out.append({"mots": mots})
+
+    # UN ACCORD RÉPÉTÉ DEUX FOIS DE SUITE NE S'ÉCRIT QU'UNE FOIS (Louis,
+    # 2026-09-24). C'est la convention de tous les tabs : on note les
+    # CHANGEMENTS, pas l'accord à chaque fois qu'il pourrait être rejoué. La
+    # suppression se fait en ORDRE DE LECTURE et enjambe les sauts de ligne —
+    # un accord identique à celui qui finissait la ligne d'avant est une
+    # répétition, même s'il ouvre la ligne suivante. C'est d'ailleurs ce qui
+    # rend le rappel de début de ligne cohérent : il ne survit que lorsqu'il
+    # dit quelque chose de neuf.
+    precedent = None
+    n_doublons = 0
+    for l in out:
+        for w in l["mots"]:
+            gardes, petits = [], []
+            pet = w.get("petits") or [False] * len(w["accords"])
+            for k, nom in enumerate(w["accords"]):
+                if nom == precedent:
+                    n_doublons += 1
+                    continue
+                gardes.append(nom)
+                petits.append(pet[k] if k < len(pet) else False)
+                precedent = nom
+            w["accords"], w["petits"] = gardes, petits
+            if not gardes:
+                w.pop("rappel", None)
+    if n_doublons:
+        logger.info("tab_paroles : %d répétition(s) d'accord non réécrite(s)",
+                    n_doublons)
     return out
 
 
