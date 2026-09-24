@@ -90,6 +90,20 @@ famille à l'amorçage aveugle) — fenêtres glissantes + vecteurs chord-tone
 concaténés (pas moyennés) + seuil 0,90. Diagnostic seul, ne touche à rien ;
 sert de base si `nommer()`/`remplir_par_algo` sont un jour corrigés.
 
+**Limite confirmée (2026-09-24, This Love) :** l'outil essaie les cellules
+de 4 mesures avant celles de 2, et ne revérifie jamais si une cellule de 4
+qu'il vient de trouver est en fait une cellule de 2 déguisée. Sur This
+Love B, il rend deux cellules de 4 mesures là où `fold["B"]` (period=2,
+cohérence 0,93+, en production) dit une pompe de 2 — exactement ce que le
+commentaire de `folding.py` décrit. Vérifié aussi avec `--brut` (le chart
+tel qu'affiché + décode indépendant en regard, même commit) : la confiance
+brute est uniformément faible (0,35–0,55) sur TOUTE la section B, contre
+0,6–0,9+ ailleurs dans le même morceau — un vrai point faible localisé de
+musx sur ce passage (harmonie rapide, 2 accords par mesure), pas du bruit
+partout. Pas encore fixé : il faudrait retester en 2 après un succès en 4
+(`section_tool.choose_granularity` sait déjà faire ça sur UNE sélection —
+pas encore branché ici).
+
 ## Une section qui n'apparaît qu'une fois, avec une boucle interne jouée EXACTEMENT 2×, ne replie jamais (2026-09-24, OUVERT — symptôme du dessus, chacune indépendante)
 
 San Francisco Street (Sun Rai, `9zEl-FQLI4A`), section C (mesures 41–48,
