@@ -238,6 +238,169 @@ def build(chart_key: str) -> dict:
     }
 
 
+#: one stable color per production section-letter (cycles), so repeated
+#: occurrences of the same letter read as the same color -- the point of
+#: this view is to compare the app's OWN letters/chords against the raw
+#: independent decode, not to show a family clustering of my own.
+LETTER_COLORS = FAMILY_COLORS
+
+
+def _page_brut(data: dict) -> str:
+    """Le chart brut : chords tels que l'app les affiche AUJOURD'HUI (gabarit
+    de lettre compris, avec son bug de copie s'il y en a un), le decoupage de
+    sections tel qu'il existe EN PROD, et par-dessus le decode brut
+    independant + sa confiance -- pour voir d'un coup d'oeil si le texte
+    affiche colle a ce que musx a vraiment entendu, mesure par mesure."""
+    chart, grid, n = data["chart"], data["grid"], data["n"]
+    raw = data["raw"]
+    title = chart.get("title") or data["stem"]
+
+    NOTE = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
+
+    def chord_name(c):
+        s = NOTE[c["root"] % 12] + (c["q"] or "")
+        bass = c.get("bass", -1)
+        if bass is not None and bass >= 0 and bass != c["root"]:
+            s += "/" + NOTE[bass % 12]
+        return s
+
+    full = {}
+    for s in chart.get("sections") or []:
+        for b0, b1 in s.get("barRanges") or []:
+            for i in range(b0, b1 + 1):
+                src_bar = s["bars"][(i - b0) % len(s["bars"])]
+                full[i] = " ".join(chord_name(c) for c in src_bar) if src_bar else "·"
+
+    letter_color = {}
+    blocks = []  # (b0, b1, label, occurrence_index)
+    for s in chart.get("sections") or []:
+        label = s.get("label") or "?"
+        if label not in letter_color:
+            letter_color[label] = LETTER_COLORS[len(letter_color) % len(LETTER_COLORS)]
+        for oi, (b0, b1) in enumerate(s.get("barRanges") or []):
+            blocks.append((b0, b1, label, oi + 1, len(s.get("barRanges") or [])))
+    blocks.sort(key=lambda b: b[0])
+
+    rows = []
+    for b0, b1, label, oi, n_occ in blocks:
+        bg, fg = letter_color[label]
+        cells = []
+        for i in range(b0, min(b1, n - 1) + 1):
+            t0, t1 = grid[i], grid[i + 1]
+            rlab, rconf = raw[i]
+            lowconf = " lowconf" if rconf < LOWCONF else ""
+            cells.append(
+                f'<div class="bar{lowconf}" data-t0="{t0:.3f}" data-t1="{t1:.3f}" '
+                f'title="chart: {full.get(i, "?")} | raw decode: {rlab} (conf {rconf:.2f})" '
+                f'tabindex="0" role="button">'
+                f'<span class="idx">{i+1}</span><span class="chord">{full.get(i, "?")}</span>'
+                f'<span class="lab">{rconf:.2f}</span></div>'
+            )
+        occ_txt = f" -- occurrence {oi}/{n_occ}" if n_occ > 1 else ""
+        rows.append(
+            f'<div class="seg" style="background:{bg};color:{fg}">'
+            f'<div class="seg-note">mes. {b0+1}-{b1+1} &middot; lettre {label}{occ_txt}</div>'
+            f'<div class="bars">{"".join(cells)}</div></div>'
+        )
+
+    legend_html = "".join(
+        f'<span class="chip" style="background:{bg};color:{fg}">{lab}</span>'
+        for lab, (bg, fg) in letter_color.items()
+    )
+    n_low = sum(1 for _, c in raw if c < LOWCONF)
+
+    return f"""<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>{title} — chart brut</title>
+<style>
+  body {{ font-family: -apple-system, Helvetica, Arial, sans-serif; background:#111318; color:#eee;
+         margin:0; padding:24px 16px 80px; }}
+  h1 {{ font-size:1.3rem; margin:0 0 4px; }}
+  .sub {{ color:#9aa3af; margin:0 0 8px; font-size:0.95rem; }}
+  .legend {{ margin:16px 0 12px; display:flex; flex-wrap:wrap; gap:8px; }}
+  .chip {{ padding:4px 10px; border-radius:6px; font-size:0.85rem; }}
+  #audiostatus {{ font-size:0.85rem; color:#9aa3af; margin:0 0 20px; min-height:1.2em; }}
+  #audiostatus.ready {{ color:#7fd0a0; }}
+  #audiostatus.err {{ color:#e08a7a; }}
+  .seg {{ border-radius:10px; padding:10px 12px; margin-bottom:10px; }}
+  .seg-note {{ font-size:0.82rem; opacity:0.9; margin-bottom:6px; }}
+  .bars {{ display:flex; flex-wrap:wrap; gap:4px; }}
+  .bar {{ background:rgba(0,0,0,0.18); border-radius:6px; padding:4px 8px; min-width:48px;
+         display:flex; flex-direction:column; align-items:center; cursor:pointer;
+         border:1.5px solid transparent; transition:transform .08s, border-color .08s; }}
+  .bar.lowconf {{ border:1.5px dashed rgba(255,255,255,0.55); }}
+  .bar:hover {{ border-color:rgba(255,255,255,0.75); }}
+  .bar:active {{ transform:scale(0.95); }}
+  .bar.playing {{ border-color:#fff; background:rgba(255,255,255,0.3); }}
+  .idx {{ font-size:0.62rem; opacity:0.75; }}
+  .chord {{ font-weight:600; font-size:0.88rem; }}
+  .lab {{ font-size:0.6rem; opacity:0.7; font-variant-numeric:tabular-nums; }}
+</style>
+</head>
+<body>
+<h1>{title} — chart brut (tel qu'affiche aujourd'hui + decode independant)</h1>
+<p class="sub">{n} mesures &middot; accord = ce que le chart affiche (gabarit de la lettre, copie
+  sur chaque occurrence) &middot; petit chiffre sous chaque case = confiance du decode brut
+  independant (musx, sur l'audio reel de CETTE mesure) &middot; {n_low} mesure(s) sous {LOWCONF}
+  (pointilles). Survole une case pour comparer les deux. Clique pour ecouter.</p>
+<p id="audiostatus">clique une mesure pour charger l'audio</p>
+
+<div class="legend">{legend_html}</div>
+
+{"".join(rows)}
+
+<script>
+(function(){{
+  var AUDIO_URL = {json.dumps(data["audio_url"])};
+  var statusEl = document.getElementById('audiostatus');
+  var audioEl = null, blobPromise = null, stopTimer = null, curBar = null;
+  function setStatus(txt, cls){{ statusEl.textContent = txt; statusEl.className = cls || ''; }}
+  function ensureAudio(){{
+    if(!blobPromise){{
+      setStatus('chargement de l\\'audio…');
+      audioEl = new Audio();
+      blobPromise = fetch(AUDIO_URL)
+        .then(function(r){{ if(!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); }})
+        .then(function(b){{
+          return new Promise(function(resolve){{
+            audioEl.src = URL.createObjectURL(b);
+            var ready = function(){{ setStatus('audio pret', 'ready'); resolve(); }};
+            if(audioEl.readyState >= 1) ready();
+            else audioEl.addEventListener('loadedmetadata', ready, {{once:true}});
+          }});
+        }})
+        .catch(function(e){{ setStatus('audio indisponible : ' + e, 'err'); throw e; }});
+    }}
+    return blobPromise;
+  }}
+  function playBar(t0, t1, cellEl){{
+    if(curBar) curBar.classList.remove('playing');
+    curBar = cellEl;
+    cellEl.classList.add('playing');
+    clearTimeout(stopTimer);
+    ensureAudio().then(function(){{
+      try{{ audioEl.currentTime = t0; }}catch(e){{}}
+      audioEl.play().catch(function(e){{ setStatus('lecture refusee : ' + e, 'err'); }});
+      var durMs = Math.max(150, (t1 - t0) * 1000);
+      stopTimer = setTimeout(function(){{ audioEl.pause(); cellEl.classList.remove('playing'); }}, durMs);
+    }});
+  }}
+  document.querySelectorAll('.bar').forEach(function(cell){{
+    var t0 = parseFloat(cell.dataset.t0), t1 = parseFloat(cell.dataset.t1);
+    cell.addEventListener('click', function(){{ playBar(t0, t1, cell); }});
+    cell.addEventListener('keydown', function(ev){{
+      if(ev.key === 'Enter' || ev.key === ' '){{ ev.preventDefault(); playBar(t0, t1, cell); }}
+    }});
+  }});
+}})();
+</script>
+</body>
+</html>
+"""
+
+
 def _render_ssm_png(S: np.ndarray, boundaries: list[int], out_png: Path) -> None:
     import matplotlib
     matplotlib.use("Agg")
@@ -448,9 +611,22 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--chart", required=True, help="ex: min_9zEl-FQLI4A")
     ap.add_argument("--out", type=Path, default=None)
+    ap.add_argument("--brut", action="store_true",
+                    help="le chart tel qu'affiche en prod (gabarits de lettre compris) "
+                         "+ decode independant en regard, PAS les cellules auto-decouvertes")
     a = ap.parse_args(argv)
 
     data = build(a.chart)
+
+    if a.brut:
+        out = a.out or (SETTINGS.reports_dir / f"chart_brut_{a.chart}.html")
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(_page_brut(data), encoding="utf-8")
+        n_low = sum(1 for _, c in data["raw"] if c < LOWCONF)
+        print(f"→ {out}")
+        print(f"   {data['n']} mesures, {n_low} sous confiance {LOWCONF}")
+        return 0
+
     out = a.out or (SETTINGS.reports_dir / f"repli_propose_{a.chart}.html")
     out.parent.mkdir(parents=True, exist_ok=True)
     png_name = f"repli_propose_{a.chart}_ssm.png"
