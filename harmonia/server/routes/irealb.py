@@ -347,7 +347,10 @@ def tab_paroles(file):
     # `tab_paroles.feuille_barres` pour le cas qui l'a imposé.
     feuille, par_barres = [], False
     if align:
-        feuille = TP.feuille_barres(chart, align)
+        # la structure humaine du tab — strophes et noms de sections — voyage
+        # avec le texte, sinon la feuille est une suite de lignes indistinctes
+        feuille = TP.feuille_barres(
+            chart, align, structure=PA.lignes_de_paroles(brut))
         source, par_barres = "mesures", bool(feuille)
     if align and not feuille:
         feuille = TP.feuille_calee(chart, brut, align)

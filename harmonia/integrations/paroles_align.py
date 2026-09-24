@@ -122,15 +122,30 @@ def lignes_de_paroles(brut: str) -> list[dict]:
     if premier is None:
         return []
     out = []
+    section, saut = "", False
     for i, ligne in enumerate(lignes):
-        if i < premier or "[ch]" in ligne:
-            continue
         propre = _BALISE.sub("", ligne).strip()
-        if not propre or _CROCHET.match(propre) or _ENTETE.match(propre):
+        # LA STRUCTURE HUMAINE EST DANS LE TAB, et on la gardait pas (Louis,
+        # 2026-09-24 : « les retours à la ligne devraient correspondre à des
+        # strophes, faire sens d'un point de vue humain »). Mesuré sur This
+        # Love : 25 lignes vides et 7 en-têtes de section étaient jetés, d'où
+        # 31 lignes indifférenciées à l'écran. Une ligne vide sépare deux
+        # strophes ; un `[Chorus]` nomme ce qui suit. Les deux se retiennent au
+        # lieu d'être perdus.
+        if not propre:
+            saut = True
+            continue
+        if _CROCHET.match(propre):
+            section = propre.strip("[]").strip()
+            saut = True
+            continue
+        if i < premier or "[ch]" in ligne or _ENTETE.match(propre):
             continue
         if not _MOT.search(propre):
             continue
-        out.append({"ligne": i, "texte": propre})
+        out.append({"ligne": i, "texte": propre, "section": section,
+                    "strophe": saut})
+        saut = False
     return out
 
 

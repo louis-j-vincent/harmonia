@@ -493,7 +493,6 @@ h1{font:600 21px/1.25 Georgia,serif;margin:0 0 2px}
 .u i{position:absolute;left:0;top:0;font:700 13px/1.45 -apple-system,
   system-ui,sans-serif;color:var(--nous);font-style:normal;white-space:nowrap}
 .u b{font:400 17px/1.35 Georgia,serif;white-space:nowrap}
-.u.dout b{color:var(--eux)}
 .u i.rap{opacity:.45;font-weight:500}
 .u i em{font-style:normal}
 .u i em+em{margin-left:.35em}
@@ -674,6 +673,7 @@ MESURES_PAR_LIGNE = 2
 
 
 def feuille_barres(chart: dict, align: list[dict], *,
+                   structure: list[dict] | None = None,
                    par_ligne: int = 0) -> list[dict]:
     """La feuille : le PHRASÉ du tab, calé sur NOS mesures.
 
@@ -735,6 +735,13 @@ def feuille_barres(chart: dict, align: list[dict], *,
                 return r["accord"]
         return None
 
+    # LA STRUCTURE HUMAINE, telle que le tabbeur l'a écrite : à quelle section
+    # appartient chaque ligne, et laquelle ouvre une strophe. Sans elle la
+    # feuille est une suite de lignes indifférenciées — Louis, 2026-09-24 :
+    # « ça ressemble à rien, les retours à la ligne devraient correspondre à
+    # des strophes ».
+    infos = {x["ligne"]: x for x in (structure or [])}
+
     out, precedent = [], None
     for lg in sorted(par):
         ms = sorted(par[lg], key=lambda x: x["t0"])
@@ -766,9 +773,12 @@ def feuille_barres(chart: dict, align: list[dict], *,
                           "t": round(float(m["t0"]), 2),
                           "douteux": bool(m.get("score") is not None
                                           and m["score"] < 0.30)})
+        info = infos.get(lg) or {}
         out.append({"mesure": b + 1, "t0": round(grid[b], 2), "tete": tete,
                     "tete_petit": bool(tete_c is not None
                                        and tete_c.get("petit")),
+                    "section": info.get("section") or "",
+                    "strophe": bool(info.get("strophe")),
                     "mots": items})
     return out
 
@@ -780,13 +790,16 @@ def lignes_muettes_de(align: list[dict]) -> set:
 
 
 CSS_BARRES = CSS_MOTS + """
-.bar{display:flex;gap:10px;align-items:flex-start;margin:0 0 14px}
-.num{flex:0 0 2.2em;text-align:right;font:500 11px/2.6 ui-monospace,Menlo,
-  monospace;color:var(--eux);padding-top:1.1em}
-.corps{flex:1 1 auto;min-width:0;border-left:2px solid var(--lig);
-  padding-left:10px}
-.tete{font:700 15px/1.45 -apple-system,system-ui,sans-serif;color:var(--nous)}
-.tete.pt{font-size:.8em;opacity:.75;font-weight:500}
+.bar{display:flex;gap:8px;align-items:flex-start;margin:0 0 6px}
+.bar.str{margin-top:20px}
+.num{flex:0 0 1.9em;text-align:right;font:500 10px/1 ui-monospace,Menlo,
+  monospace;color:var(--lig);padding-top:1.6em}
+.corps{flex:1 1 auto;min-width:0}
+.sect{font:600 12px/1 -apple-system,system-ui,sans-serif;color:var(--eux);
+  letter-spacing:.08em;text-transform:uppercase;margin:26px 0 8px;
+  padding-bottom:4px;border-bottom:1px solid var(--lig)}
+.sect:first-of-type{margin-top:6px}
+
 """
 
 
@@ -796,8 +809,16 @@ def page_barres(titre: str, feuille: list[dict], tab: dict,
 
     `feuille` : ce que rend `feuille_barres`.
     """
-    blocs = []
+    blocs, section = [], None
     for l in feuille:
+        if l.get("tete") and l["mots"]:
+            p0 = l["mots"][0]
+            p0["accords"] = [l["tete"], *p0.get("accords", [])]
+            p0["petits"] = [bool(l.get("tete_petit")),
+                            *(p0.get("petits") or [])]
+        if l.get("section") and l["section"] != section:
+            section = l["section"]
+            blocs.append(f'<div class="sect">{html.escape(section)}</div>')
         u = []
         for w in l["mots"]:
             pet = w.get("petits") or [False] * len(w["accords"])
@@ -807,11 +828,17 @@ def page_barres(titre: str, feuille: list[dict], tab: dict,
                 for k, a in enumerate(w["accords"]))
             u.append(f'<span class="u{" dout" if w["douteux"] else ""}">'
                      f'<i>{acc}</i><b>{html.escape(w["mot"])}</b></span>')
-        tete = (f'<div class="tete{" pt" if l.get("tete_petit") else ""}">'
-                f'{html.escape(l["tete"])}</div>' if l.get("tete") else "")
+        # LA TÊTE SE FOND DANS LES ACCORDS DU PREMIER MOT. En faire une
+        # unité à part obligeait à lui réserver une largeur invisible, qui
+        # décalait le premier mot vers la droite. Placée devant les accords du
+        # premier mot, elle occupe la même rangée sans rien pousser — et c'est
+        # exactement la disposition d'un tab : l'accord de la barre, puis les
+        # changements, au-dessus des mots.
+        # une strophe respire : c'est le tabbeur qui a mis la ligne vide
         blocs.append(
-            f'<div class="bar"><div class="num">{l["mesure"]}</div>'
-            f'<div class="corps">{tete}'
+            f'<div class="bar{" str" if l.get("strophe") else ""}">'
+            f'<div class="num">{l["mesure"]}</div>'
+            f'<div class="corps">'
             f'<div class="ligne">{" ".join(u)}</div></div></div>')
     note = (f'texte : <a href="{html.escape(tab.get("url") or "")}">'
             f'{html.escape(tab.get("titre") or "?")}</a>' if tab else "")
