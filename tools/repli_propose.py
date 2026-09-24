@@ -38,6 +38,20 @@ Ce script fait ce que la main a fini par faire, mécaniquement :
      n'est pas une nouvelle lettre — c'est un 1st/2nd ending. Le seuil
      réutilise `folding.PERIOD_MIN_SCORE` (0,80), jamais un nouveau chiffre
      inventé pour l'occasion.
+  4. absorbe les mesures orphelines (Louis, 2026-09-25, sur les 3 derniers
+     accords du morceau : « c'est encore le B qui boucle mais qui ne se
+     termine pas, tu considères ça comme un B encore ! »). Un reliquat
+     « unique » qui suit immédiatement une famille et colle à son propre
+     contenu (même seuil PERIOD_MIN_SCORE) EST cette famille, coupée court —
+     jamais une lettre à part (`_absorb_truncated_tails`).
+  5. ne laisse jamais une mesure orpheline SEULE sur sa ligne, sauf si elle
+     clôt vraiment le morceau (Louis, même jour, sur une mesure en plus au
+     milieu d'un B : « je trouve ça moche de rajouter toute une ligne pour
+     juste une barre, à la place ... diviser la cellule juste avant en
+     deux »). Une troncature EN MILIEU de morceau se fond avec le passage
+     complet juste avant elle, redécoupé en deux moitiés à peu près égales ;
+     une troncature EN FIN de morceau reste seule — c'est la vraie fin,
+     Louis l'a confirmé, elle mérite sa ligne (`_split_midsong_truncations`).
 
 Ce que ça NE fait PAS : ça ne réécrit aucun chart, aucune section — c'est un
 diagnostic, comme `arbitrage_repli` et `chart_simule`. Une lecture proposée,
@@ -176,6 +190,104 @@ def _discover_families(V: np.ndarray, n: int) -> list[dict]:
         b0, b1 = leftover[i], leftover[j]
         families.append({"cell_bars": b1 - b0 + 1, "members": [(b0, b1)], "unique": True})
         i = j + 1
+    for f in families:
+        f["trunc"] = [False] * len(f["members"])
+    return families
+
+
+def _absorb_truncated_tails(families: list[dict], V: np.ndarray, n: int) -> list[dict]:
+    """A short 'unique' leftover that immediately CONTINUES an established
+    family's own cell is that family, cut short -- not a thing of its own.
+
+    Louis, 2026-09-25, about the song's last 3 chords: "c'est encore le B
+    qui boucle mais qui ne se termine pas, tu considères ça comme un B
+    encore !" General rule: any leftover run whose bars match the
+    immediately preceding family's cell content (>= PERIOD_MIN_SCORE, the
+    same bar-level threshold folding.py's own stacking already uses) gets
+    pulled into that family as a genuine member -- flagged in `f["trunc"]`,
+    never silently merged into an average.
+
+    THE MATCH CAN START AT ANY POSITION IN THE CELL, not just position 0 --
+    measured on San Francisco Street, bar 40 (one leftover bar) reads as a
+    HELD final chord (0.97 cosine against the cell's OWN last position),
+    not a restart from the top (0.61 against position 0). A leftover is a
+    continuation of whatever moment the cell was cut off at, and that can
+    just as well be its tail as its head; only trying position 0 missed it.
+    """
+    fam_by_last_bar = {}
+    for f in families:
+        if f["unique"]:
+            continue
+        for b0, b1 in f["members"]:
+            fam_by_last_bar[b1] = f
+    absorbed = set()
+    for leftover in families:
+        if not leftover["unique"]:
+            continue
+        b0, b1 = leftover["members"][0]
+        prev = fam_by_last_bar.get(b0 - 1)
+        if prev is None:
+            continue
+        L, P = b1 - b0 + 1, prev["cell_bars"]
+        if L >= P:
+            continue
+        best_sims = None
+        for off in range(0, P - L + 1):
+            sims = []
+            for k in range(L):
+                pos_vecs = [V[m0 + off + k] for m0, m1 in prev["members"] if m0 + off + k <= m1]
+                if not pos_vecs:
+                    continue
+                ref = np.mean(pos_vecs, axis=0)
+                ref = ref / max(float(np.linalg.norm(ref)), 1e-9)
+                sims.append(float(V[b0 + k] @ ref))
+            if sims and (best_sims is None or min(sims) > min(best_sims)):
+                best_sims = sims
+        sims = best_sims or []
+        if sims and min(sims) >= PERIOD_MIN_SCORE:
+            prev["members"].append((b0, b1))
+            prev["trunc"].append(True)
+            order = sorted(range(len(prev["members"])), key=lambda i: prev["members"][i][0])
+            prev["members"] = [prev["members"][i] for i in order]
+            prev["trunc"] = [prev["trunc"][i] for i in order]
+            absorbed.add(id(leftover))
+    return [f for f in families if id(f) not in absorbed]
+
+
+def _split_midsong_truncations(families: list[dict], n: int) -> list[dict]:
+    """A truncated member that ISN'T the last bars of the whole song sits
+    between two other things -- Louis, 2026-09-25, about exactly this case:
+    "je trouve ça moche de rajouter toute une ligne pour juste une barre, à
+    la place ... diviser la cellule ... juste avant en deux, et ajouter les
+    barres dans cette cellule." So: merge it with the FULL member right
+    before it and re-split that combined span into two roughly-even halves
+    -- nothing left standing alone as a one-bar row. A truncation at the
+    very end of the song stays untouched: nothing follows it to merge with,
+    and Louis confirmed that one should just read as its family, alone
+    (the song stopping mid-loop IS the ending, worth its own line)."""
+    for f in families:
+        if f["unique"]:
+            continue
+        i = 0
+        while i < len(f["members"]):
+            if not f["trunc"][i]:
+                i += 1
+                continue
+            b0, b1 = f["members"][i]
+            if b1 == n - 1 or i == 0:
+                i += 1
+                continue
+            pb0, pb1 = f["members"][i - 1]
+            if pb1 + 1 != b0 or f["trunc"][i - 1]:
+                i += 1
+                continue
+            span = b1 - pb0 + 1
+            half = span // 2
+            f["members"][i - 1] = (pb0, pb0 + half - 1)
+            f["members"][i] = (pb0 + half, b1)
+            f["trunc"][i - 1] = "split"
+            f["trunc"][i] = "split"
+            i += 1
     return families
 
 
@@ -228,7 +340,9 @@ def build(chart_key: str) -> dict:
     S = V @ V.T
 
     families = _discover_families(V, n)
+    families = _absorb_truncated_tails(families, V, n)
     families = [_flag_alt_endings(f, V) for f in families]
+    families = _split_midsong_truncations(families, n)
     families.sort(key=lambda f: f["members"][0][0])
 
     return {
@@ -419,25 +533,30 @@ def _page_folded(data: dict) -> str:
     entries = []
     for f in families:
         alt = f.get("alt_ending", [False] * len(f["members"]))
+        trunc = f.get("trunc", [False] * len(f["members"]))
         for mi, (b0, b1) in enumerate(f["members"]):
-            entries.append((b0, b1, f, mi, alt[mi] if mi < len(alt) else False))
+            entries.append((b0, b1, f, mi, alt[mi] if mi < len(alt) else False,
+                           trunc[mi] if mi < len(trunc) else False))
     entries.sort(key=lambda e: e[0])
 
     seen = set()
     blocks = []
-    for b0, b1, f, mi, is_alt in entries:
-        n_mem = len(f["members"])
+    for b0, b1, f, mi, is_alt, is_trunc in entries:
+        n_normal = sum(1 for t in f.get("trunc", []) if t is False) or len(f["members"])
         first = (id(f) not in seen)
         if not f["unique"]:
             seen.add(id(f))
-        blocks.append((b0, b1, f, mi, n_mem, first, is_alt))
+        blocks.append((b0, b1, f, mi, n_normal, first, is_alt, is_trunc))
 
     html_blocks = []
-    for b0, b1, f, mi, n_mem, first, is_alt in blocks:
+    for b0, b1, f, mi, n_mem, first, is_alt, is_trunc in blocks:
         color = UNIQUE_COLOR if f["unique"] else fam_color[id(f)]
         bg, fg = color
         t0, t1 = grid[b0], grid[b1 + 1] if b1 + 1 < len(grid) else grid[b0] + 2
-        if f["unique"] or first or is_alt:
+        # write in full: the shape/length is not that of the cell's normal
+        # repeat, so a collapsed "same as above" pastille would lie.
+        write_full = f["unique"] or (first and not is_trunc) or is_alt or is_trunc
+        if write_full:
             cells = []
             for i in range(b0, b1 + 1):
                 rlab, rconf = raw[i]
@@ -452,6 +571,10 @@ def _page_folded(data: dict) -> str:
                 badge = f'<span class="tag">unique</span>'
             elif is_alt:
                 badge = f'<span class="tag alt">fin alternative -- passage {mi+1}/{n_mem}</span>'
+            elif is_trunc is True:
+                badge = f'<span class="tag alt">dernier passage, tronque (le morceau s\'arrete ici)</span>'
+            elif is_trunc == "split":
+                badge = f'<span class="tag">suite (mesure orpheline absorbee)</span>'
             else:
                 badge = f'<span class="tag">&times;{n_mem}</span>'
             html_blocks.append(
@@ -464,11 +587,12 @@ def _page_folded(data: dict) -> str:
             html_blocks.append(
                 f'<div class="pill" style="background:{bg};color:{fg}" '
                 f'data-t0="{t0:.3f}" data-t1="{t1:.3f}" tabindex="0" role="button">'
-                f'passage {mi+1}/{n_mem} &middot; mes.{b0+1}-{b1+1}</div>'
+                f'mes.{b0+1}-{b1+1}</div>'
             )
 
     n_fam = sum(1 for f in families if not f["unique"])
-    n_written = sum(1 for _, _, f, _, _, first, is_alt in blocks if f["unique"] or first or is_alt)
+    n_written = sum(1 for _, _, f, _, _, first, is_alt, is_trunc in blocks
+                    if f["unique"] or (first and not is_trunc) or is_alt or is_trunc)
     n_collapsed = len(blocks) - n_written
 
     return f"""<!doctype html>
@@ -608,10 +732,15 @@ def _page(data: dict, ssm_png_name: str) -> str:
         n_members = len(fam["members"])
         for mi, (b0, b1) in enumerate(fam["members"]):
             is_alt = fam.get("alt_ending", [False] * n_members)[mi]
+            is_trunc = fam.get("trunc", [False] * n_members)[mi]
             if fam["unique"]:
                 note = f"unique -- ne se repete nulle part ailleurs ({cell_bars} mes.)"
             elif is_alt:
                 note = f"passage {mi+1}/{n_members} -- FIN ALTERNATIVE (derniere position divergente)"
+            elif is_trunc is True:
+                note = f"passage {mi+1}/{n_members} -- tronque, le morceau s'arrete ici (encore cette cellule, coupee court)"
+            elif is_trunc == "split":
+                note = f"passage {mi+1}/{n_members} -- moitie d'une cellule voisine, redecoupee pour absorber une mesure orpheline"
             else:
                 note = f"passage {mi+1}/{n_members} (cellule {cell_bars} mes., {n_members} occurrences trouvees)"
             cells = []
