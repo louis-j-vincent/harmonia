@@ -728,6 +728,11 @@ def feuille_barres(chart: dict, align: list[dict], *,
     rep = accords_replies(chart)
     if not rep:
         return []
+    import statistics as st
+    _t = sorted(float(x) for x in (chart.get("beatTimes") or []))
+    _pas = (st.median([b - a for a, b in zip(_t, _t[1:])])
+            if len(_t) > 3 else 0.5)
+    une_mesure = _pas * int(chart.get("bpb") or 4)
 
     def sonnant(t: float):
         for r in rep:
@@ -755,24 +760,45 @@ def feuille_barres(chart: dict, align: list[dict], *,
         precedent = tete or precedent
         fin = ms[-1]["t1"] + DELAI_MOT
 
-        items = []
-        for m in ms:
-            accs, pets = [], []
-            for r in rep:
-                if not (m["t0"] <= r["t0"] < min(m["t1"] + DELAI_MOT, fin)):
+        # CHAQUE ACCORD VA À UN SEUL MOT, ET C'EST LE SENS QUI COMPTE.
+        # Je faisais l'inverse : chaque mot ramassait TOUS les accords de sa
+        # fenêtre (sa durée plus 1,5 s). À ce tempo — un accord toutes les deux
+        # battues sur le refrain de This Love — un mot en ramassait deux ou
+        # trois, et ils s'affichaient collés au-dessus de LUI au lieu d'être
+        # répartis sur les mots qu'ils accompagnent. C'est ce que Louis voyait
+        # sur son iPhone : « Bb C- F- » entassés en début de ligne.
+        #
+        # On parcourt donc les ACCORDS, et chacun choisit son mot : celui qui
+        # sonne à son instant, sinon le plus proche dans la ligne.
+        items = [{"mot": m["mot"], "accords": [], "petits": [],
+                  "t": round(float(m["t0"]), 2),
+                  "douteux": bool(m.get("score") is not None
+                                  and m["score"] < 0.30)}
+                 for m in ms]
+        for r in rep:
+            t = r["t0"]
+            if not (grid[b] < t < fin):
+                continue                         # hors de cette ligne
+            nom = texte_du_chart(r["accord"])
+            if nom == precedent:
+                continue                         # pas deux fois de suite
+            k = next((i for i, m in enumerate(ms) if m["t0"] <= t < m["t1"]),
+                     None)
+            if k is None:
+                # Pas de mot à cet instant : on n'accepte le plus proche que
+                # s'il est VRAIMENT proche. Sans ce garde-fou, tous les accords
+                # d'un trou instrumental se rabattaient sur le même mot — on
+                # voyait cinq accords collés au-dessus d'une seule syllabe.
+                k = min(range(len(ms)), key=lambda i: abs(ms[i]["t0"] - t))
+                if abs(ms[k]["t0"] - t) > une_mesure / 2:
                     continue
-                if r["t0"] <= grid[b]:
-                    continue                     # déjà dit par la tête
-                nom = texte_du_chart(r["accord"])
-                if nom == precedent:
-                    continue
-                accs.append(nom)
-                pets.append(bool(r["accord"].get("petit")))
-                precedent = nom
-            items.append({"mot": m["mot"], "accords": accs, "petits": pets,
-                          "t": round(float(m["t0"]), 2),
-                          "douteux": bool(m.get("score") is not None
-                                          and m["score"] < 0.30)})
+            if len(items[k]["accords"]) >= 2:
+                # Un mot ne porte pas trois accords : au-delà, c'est que
+                # l'alignement ou la grille dit n'importe quoi ici.
+                continue
+            items[k]["accords"].append(nom)
+            items[k]["petits"].append(bool(r["accord"].get("petit")))
+            precedent = nom
         info = infos.get(lg) or {}
         out.append({"mesure": b + 1, "t0": round(grid[b], 2), "tete": tete,
                     "tete_petit": bool(tete_c is not None
