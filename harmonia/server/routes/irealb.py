@@ -301,6 +301,24 @@ def tab_paroles(file):
         return _dire("Aucun tab trouvé.", 404)
     brut = fetch_tab_chords(res[0]).raw_content
 
+    # LE TEXTE PEUT VENIR D'UNE API SOUS LICENCE (2026-09-24, choix de Louis).
+    # Sans clé, ou si elle ne rend qu'un extrait tronqué, on garde celui du
+    # tab — et on le DIT dans le journal plutôt que de servir un demi-morceau
+    # en silence. Voir `paroles_api` pour ce qu'un palier gratuit donne
+    # vraiment (environ 30 % du texte chez Musixmatch).
+    from harmonia.integrations import paroles_api as PApi
+    structure, d_source = None, "tab"
+    _p = PApi.paroles(chart.get("title") or stem,
+                      (chart.get("artist") or ""))
+    if _p and _p.get("complet"):
+        structure = PApi.en_lignes(_p["texte"])
+        d_source = _p["source"]
+        log.info("tab-paroles %s : texte par %s (%d lignes)", stem,
+                 d_source, len(structure))
+    elif _p:
+        log.warning("tab-paroles %s : %s n'a rendu qu'un extrait tronqué — "
+                    "on garde le texte du tab", stem, _p.get("source"))
+
     # NOS INSTANTS D'ABORD (2026-09-24). L'ancienne feuille allait chercher
     # notre accord à l'instant où le TABBEUR avait posé le sien : un accord
     # qu'il a mis un temps trop tôt nous faisait écrire le mauvais. Quand
@@ -350,7 +368,8 @@ def tab_paroles(file):
         # la structure humaine du tab — strophes et noms de sections — voyage
         # avec le texte, sinon la feuille est une suite de lignes indistinctes
         feuille = TP.feuille_barres(
-            chart, align, structure=PA.lignes_de_paroles(brut))
+            chart, align,
+            structure=structure or PA.lignes_de_paroles(brut))
         source, par_barres = "mesures", bool(feuille)
     if align and not feuille:
         feuille = TP.feuille_calee(chart, brut, align)

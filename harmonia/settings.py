@@ -68,6 +68,14 @@ class Settings:
     #: où les worktrees passeront à `HARMONIA_PORT`, pas avant.
     port: int = int(_env("HARMONIA_PORT", _env("HARMONIA_MIN_PORT", "7772")))
 
+    #: LA CLÉ DE L'API DE PAROLES, et le fournisseur. Quatrième et dernier nom
+    #: lu dans l'environnement : c'est un SECRET, il n'a rien à faire dans le
+    #: code ni dans git. Sans clé, le texte continue de venir du tab que l'app
+    #: récupère déjà — voir `harmonia/integrations/paroles_api.py`, qui dit
+    #: aussi ce qu'une clé achète vraiment selon le palier.
+    paroles_cle: str = _env("HARMONIA_PAROLES_CLE", "")
+    paroles_source: str = _env("HARMONIA_PAROLES_SOURCE", "musixmatch")
+
     # ── Choix d'algorithme : des constantes, pas des réglages ──────────────
     #: AUCUNE DÉTECTION AUTOMATIQUE DE SECTIONS (Louis, 2026-09-19 : « on vire
     #: s'il prend autant de temps »). SongFormer était le seul détecteur depuis
