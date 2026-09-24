@@ -44,14 +44,20 @@ Ce script fait ce que la main a fini par faire, mécaniquement :
      « unique » qui suit immédiatement une famille et colle à son propre
      contenu (même seuil PERIOD_MIN_SCORE) EST cette famille, coupée court —
      jamais une lettre à part (`_absorb_truncated_tails`).
-  5. ne laisse jamais une mesure orpheline SEULE sur sa ligne, sauf si elle
-     clôt vraiment le morceau (Louis, même jour, sur une mesure en plus au
-     milieu d'un B : « je trouve ça moche de rajouter toute une ligne pour
-     juste une barre, à la place ... diviser la cellule juste avant en
-     deux »). Une troncature EN MILIEU de morceau se fond avec le passage
-     complet juste avant elle, redécoupé en deux moitiés à peu près égales ;
-     une troncature EN FIN de morceau reste seule — c'est la vraie fin,
-     Louis l'a confirmé, elle mérite sa ligne (`_split_midsong_truncations`).
+  5. une troncature EN MILIEU de morceau ne s'affiche PAS DU TOUT (Louis,
+     2026-09-25, après deux essais ratés — voir `.claude/skills/
+     ask-before-guessing` — tranché par AskUserQuestion : « absorbée en
+     silence, invisible »). Elle compte dans le x N de sa famille, sans
+     jamais dessiner sa propre ligne ni mini-cellule — ni lettre à part
+     (règle 4), ni ligne séparée (ancienne règle 5) : rien du tout à
+     l'écran. Une troncature EN FIN de morceau, elle, reste écrite — c'est
+     la vraie fin de la chanson, Louis l'a confirmé, elle mérite sa ligne.
+  6. un passage à fin alternative se dessine en DEUX mini-cellules — sa
+     propre moitié commune (identique aux autres passages) puis sa propre
+     moitié divergente — au lieu d'un bracket 1st/2nd-ending compressé sur
+     UNE seule colonne. Seul CE passage se redécoupe ; les passages
+     normaux restent une cellule pleine (AskUserQuestion, même échange :
+     « 2 mini-cellules seulement sur le passage alt »).
 
 Ce que ça NE fait PAS : ça ne réécrit aucun chart, aucune section — c'est un
 diagnostic, comme `arbitrage_repli` et `chart_simule`. Une lecture proposée,
@@ -254,43 +260,6 @@ def _absorb_truncated_tails(families: list[dict], V: np.ndarray, n: int) -> list
     return [f for f in families if id(f) not in absorbed]
 
 
-def _split_midsong_truncations(families: list[dict], n: int) -> list[dict]:
-    """A truncated member that ISN'T the last bars of the whole song sits
-    between two other things -- Louis, 2026-09-25, about exactly this case:
-    "je trouve ça moche de rajouter toute une ligne pour juste une barre, à
-    la place ... diviser la cellule ... juste avant en deux, et ajouter les
-    barres dans cette cellule." So: merge it with the FULL member right
-    before it and re-split that combined span into two roughly-even halves
-    -- nothing left standing alone as a one-bar row. A truncation at the
-    very end of the song stays untouched: nothing follows it to merge with,
-    and Louis confirmed that one should just read as its family, alone
-    (the song stopping mid-loop IS the ending, worth its own line)."""
-    for f in families:
-        if f["unique"]:
-            continue
-        i = 0
-        while i < len(f["members"]):
-            if not f["trunc"][i]:
-                i += 1
-                continue
-            b0, b1 = f["members"][i]
-            if b1 == n - 1 or i == 0:
-                i += 1
-                continue
-            pb0, pb1 = f["members"][i - 1]
-            if pb1 + 1 != b0 or f["trunc"][i - 1]:
-                i += 1
-                continue
-            span = b1 - pb0 + 1
-            half = span // 2
-            f["members"][i - 1] = (pb0, pb0 + half - 1)
-            f["members"][i] = (pb0 + half, b1)
-            f["trunc"][i - 1] = "split"
-            f["trunc"][i] = "split"
-            i += 1
-    return families
-
-
 def _flag_alt_endings(fam: dict, V: np.ndarray) -> dict:
     """Marks members whose LAST bar-position alone diverges from the
     family's own median at that position -- a 1st/2nd-ending variant, not a
@@ -342,7 +311,6 @@ def build(chart_key: str) -> dict:
     families = _discover_families(V, n)
     families = _absorb_truncated_tails(families, V, n)
     families = [_flag_alt_endings(f, V) for f in families]
-    families = _split_midsong_truncations(families, n)
     families.sort(key=lambda f: f["members"][0][0])
 
     return {
@@ -518,10 +486,16 @@ def _page_brut(data: dict) -> str:
 def _page_folded(data: dict) -> str:
     """Le chart REPLIÉ : chaque cellule écrite une fois, en ordre de
     lecture -- pas la vue diagnostic groupée par famille. Un badge x N sur
-    le premier passage ; les passages suivants se réduisent à une pastille
-    cliquable (le contenu ne change pas, pourquoi le réécrire) ; une fin
-    alternative reste écrite en entier, comme un 1st/2nd ending -- jamais
-    remplacée par une moyenne, toujours le vrai contenu de CE passage-là."""
+    le premier passage ; les passages suivants normaux se réduisent à une
+    pastille cliquable (le contenu ne change pas, pourquoi le réécrire).
+
+    Deux cas particuliers, tranchés par AskUserQuestion le 2026-09-25 (voir
+    `.claude/skills/ask-before-guessing`) plutôt que devinés :
+      * une troncature EN MILIEU de morceau ne dessine RIEN -- ni ligne, ni
+        pastille, ni mini-cellule -- juste absorbée dans le x N ;
+      * une fin alternative se dessine en DEUX mini-cellules (sa moitié
+        commune, puis sa moitié divergente -- le vrai contenu de CE
+        passage, jamais un bracket 1st/2nd-ending compressé sur 1 colonne)."""
     chart, grid, n = data["chart"], data["grid"], data["n"]
     raw, families = data["raw"], data["families"]
     title = chart.get("title") or data["stem"]
@@ -542,48 +516,66 @@ def _page_folded(data: dict) -> str:
     seen = set()
     blocks = []
     for b0, b1, f, mi, is_alt, is_trunc in entries:
+        # mid-song truncation: invisible, contributes nothing to render --
+        # not even to "first" bookkeeping, it never had a display identity.
+        if is_trunc is True and b1 != n - 1:
+            continue
         n_normal = sum(1 for t in f.get("trunc", []) if t is False) or len(f["members"])
         first = (id(f) not in seen)
         if not f["unique"]:
             seen.add(id(f))
         blocks.append((b0, b1, f, mi, n_normal, first, is_alt, is_trunc))
 
+    def bar_cell(i):
+        rlab, rconf = raw[i]
+        lowconf = " lowconf" if rconf < LOWCONF else ""
+        return (f'<div class="bar{lowconf}" data-t0="{grid[i]:.3f}" data-t1="{grid[i+1]:.3f}" '
+                f'title="raw decode: {rlab} (conf {rconf:.2f})">'
+                f'<span class="chord">{_short_chord(rlab)}</span></div>')
+
     html_blocks = []
     for b0, b1, f, mi, n_mem, first, is_alt, is_trunc in blocks:
         color = UNIQUE_COLOR if f["unique"] else fam_color[id(f)]
         bg, fg = color
-        t0, t1 = grid[b0], grid[b1 + 1] if b1 + 1 < len(grid) else grid[b0] + 2
-        # write in full: the shape/length is not that of the cell's normal
-        # repeat, so a collapsed "same as above" pastille would lie.
-        write_full = f["unique"] or (first and not is_trunc) or is_alt or is_trunc
-        if write_full:
-            cells = []
-            for i in range(b0, b1 + 1):
-                rlab, rconf = raw[i]
-                lowconf = " lowconf" if rconf < LOWCONF else ""
-                cells.append(
-                    f'<div class="bar{lowconf}" data-t0="{grid[i]:.3f}" data-t1="{grid[i+1]:.3f}" '
-                    f'title="raw decode: {rlab} (conf {rconf:.2f})">'
-                    f'<span class="chord">{_short_chord(rlab)}</span></div>'
+        if is_alt:
+            # two mini-cells: the shared half, then this pass's OWN
+            # divergent half -- only this one occurrence splits, every
+            # other normal pass of the family stays one full cell.
+            half = max(1, f["cell_bars"] // 2)
+            for hb0, hb1, tag in ((b0, min(b1, b0 + half - 1), ""),
+                                  (b0 + half, b1, " alt")):
+                if hb0 > hb1:
+                    continue
+                t0 = grid[hb0]
+                t1 = grid[hb1 + 1] if hb1 + 1 < len(grid) else grid[hb0] + 2
+                cells = "".join(bar_cell(i) for i in range(hb0, hb1 + 1))
+                badge = (f'<span class="tag alt">fin alternative -- passage {mi+1}/{n_mem}</span>'
+                        if tag else "")
+                html_blocks.append(
+                    f'<div class="cell mini" style="background:{bg};color:{fg}" '
+                    f'data-t0="{t0:.3f}" data-t1="{t1:.3f}" tabindex="0" role="button">'
+                    f'<div class="cell-head">mes.{hb0+1}-{hb1+1} {badge}</div>'
+                    f'<div class="cell-bars">{cells}</div></div>'
                 )
-            badge = ""
+            continue
+        write_full = f["unique"] or first or is_trunc is True
+        if write_full:
+            cells = "".join(bar_cell(i) for i in range(b0, b1 + 1))
             if f["unique"]:
-                badge = f'<span class="tag">unique</span>'
-            elif is_alt:
-                badge = f'<span class="tag alt">fin alternative -- passage {mi+1}/{n_mem}</span>'
+                badge = '<span class="tag">unique</span>'
             elif is_trunc is True:
-                badge = f'<span class="tag alt">dernier passage, tronque (le morceau s\'arrete ici)</span>'
-            elif is_trunc == "split":
-                badge = f'<span class="tag">suite (mesure orpheline absorbee)</span>'
+                badge = '<span class="tag alt">dernier passage, tronque (le morceau s\'arrete ici)</span>'
             else:
                 badge = f'<span class="tag">&times;{n_mem}</span>'
             html_blocks.append(
                 f'<div class="cell" style="background:{bg};color:{fg}" '
-                f'data-t0="{t0:.3f}" data-t1="{t1:.3f}" tabindex="0" role="button">'
+                f'data-t0="{grid[b0]:.3f}" data-t1="{(grid[b1+1] if b1+1<len(grid) else grid[b0]+2):.3f}" '
+                f'tabindex="0" role="button">'
                 f'<div class="cell-head">mes.{b0+1}-{b1+1} {badge}</div>'
-                f'<div class="cell-bars">{"".join(cells)}</div></div>'
+                f'<div class="cell-bars">{cells}</div></div>'
             )
         else:
+            t0, t1 = grid[b0], grid[b1 + 1] if b1 + 1 < len(grid) else grid[b0] + 2
             html_blocks.append(
                 f'<div class="pill" style="background:{bg};color:{fg}" '
                 f'data-t0="{t0:.3f}" data-t1="{t1:.3f}" tabindex="0" role="button">'
@@ -591,9 +583,11 @@ def _page_folded(data: dict) -> str:
             )
 
     n_fam = sum(1 for f in families if not f["unique"])
-    n_written = sum(1 for _, _, f, _, _, first, is_alt, is_trunc in blocks
-                    if f["unique"] or (first and not is_trunc) or is_alt or is_trunc)
-    n_collapsed = len(blocks) - n_written
+    n_hidden = sum(1 for f in families if not f["unique"]
+                   for t, (mb0, mb1) in zip(f.get("trunc", []), f["members"])
+                   if t is True and mb1 != n - 1)
+    n_written = sum(1 for h in html_blocks if 'class="pill"' not in h)
+    n_collapsed = sum(1 for h in html_blocks if 'class="pill"' in h)
 
     return f"""<!doctype html>
 <html lang="fr">
@@ -611,6 +605,7 @@ def _page_folded(data: dict) -> str:
   .form {{ display:flex; flex-wrap:wrap; gap:8px; align-items:flex-start; }}
   .cell {{ border-radius:10px; padding:8px 10px; cursor:pointer; min-width:120px;
           border:1.5px solid transparent; }}
+  .cell.mini {{ min-width:64px; }}
   .cell:hover {{ border-color:rgba(255,255,255,0.65); }}
   .cell.playing {{ border-color:#fff; }}
   .cell-head {{ font-size:0.72rem; opacity:0.85; margin-bottom:6px; display:flex; gap:6px; align-items:center; }}
@@ -629,7 +624,8 @@ def _page_folded(data: dict) -> str:
 <body>
 <h1>{title} — chart replie</h1>
 <p class="sub">{n} mesures &middot; {n_fam} cellule(s) repliee(s) &middot; {n_written} bloc(s) ecrit(s)
-  en entier, {n_collapsed} passage(s) reduits a une pastille (meme contenu, deja ecrit plus haut).
+  en entier, {n_collapsed} passage(s) reduits a une pastille (meme contenu, deja ecrit plus haut),
+  {n_hidden} mesure(s) orpheline(s) absorbee(s) en silence (aucun affichage, comptee(s) dans le x N).
   Ordre de lecture du morceau, de gauche a droite puis de haut en bas. Clique pour ecouter CE passage.</p>
 <p id="audiostatus">clique un bloc pour charger l'audio</p>
 
