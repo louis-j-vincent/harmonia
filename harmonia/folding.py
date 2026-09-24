@@ -1542,7 +1542,13 @@ def _ireal_cascade(out: list[dict], bars, grid, fold_report) -> list[dict]:
         # un repli REFUSÉ ne sert pas de cellule (sa `period` est celle qu'il
         # testait, pas celle qu'il a validée) — on passe alors au test préfixe
         P = None if rep.get("reason") else rep.get("period")
-        cell = [_barsig(b) for b in host["bars"][:P]] if P else None
+        # `_barsig_famille`, pas `_barsig` : `_merge_coupe` cherche une
+        # RESSEMBLANCE (un passage coupé est-il le MÊME moment musical ?),
+        # jamais une différence — voir la docstring de `_barsig_famille`
+        # (le cas Fallin', un seul `B-7` au lieu de `B-` cassait le
+        # raccord). `_ireal_endings`, juste au-dessus, cherche l'inverse
+        # (une VRAIE fin change d'accord) et garde `_barsig` exact.
+        cell = [_barsig_famille(b) for b in host["bars"][:P]] if P else None
         rank = 0
         for blk in blks:
             if blk is host:
@@ -1601,8 +1607,8 @@ def _merge_coupe(host: dict, blk: dict, cell, P, grid) -> bool:
         # test le plus simple et le plus sûr : le bloc court est-il le DÉBUT
         # du bloc long ? Un passage qui commence pareil et s'arrête plus tôt
         # est un passage coupé, que le repli des accords ait abouti ou non.
-        cell, P = [_barsig(b) for b in host["bars"]], len(host["bars"])
-    sig = [_barsig(bar) for bar in blk["bars"]]
+        cell, P = [_barsig_famille(b) for b in host["bars"]], len(host["bars"])
+    sig = [_barsig_famille(bar) for bar in blk["bars"]]
     L = len(sig)
     offset = next((off for off in range(P)
                    if all(sig[i] == cell[(off + i) % P] for i in range(L))),

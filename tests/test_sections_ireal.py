@@ -109,6 +109,35 @@ def test_passage_coupe_rejoint_un_host_a_fin_alternative():
     assert len(out[0]["barSpans"][3]) == 3 and len(out[0]["barSpans"][4]) == 1
 
 
+def test_passage_coupe_matche_par_famille_pas_par_qualite_exacte():
+    """Louis, meme echange que ci-dessus, sur la toute fin de San Francisco
+    Street (D, sans 7e) contre la cellule ecrite (Dmaj7) : une triade nue et
+    sa version avec 7e sont le MEME moment musical (`famille_de`), le bruit
+    de decodage sur la 7e ne doit pas empecher le raccord -- exactement le
+    cas Fallin' documente par `_barsig_famille` mais jamais branche jusqu'ici."""
+    def _b(root, q):
+        return [{"root": root, "q": q, "nc": False}]
+
+    host = {
+        "id": "LB", "label": "B", "tag": "", "reps": 2,
+        "spans": [[0.0, 4.0], [16.0, 20.0]],
+        "barRanges": [[0, 3], [16, 19]],
+        "bars": [_b(2, "^7"), _b(7, "^7"), _b(4, "-7"), _b(9, "7")],
+        "barSpans": [[[float(c0 + i), float(c0 + i + 1)] for c0, _ in
+                     [(0, 3), (16, 19)]] for i in range(4)],
+    }
+    fin = {  # une triade nue, sans 7e -- meme famille que "^7" (majeure)
+        "id": "LBx", "label": "B", "tag": "", "reps": 1,
+        "spans": [[117.0, 118.0], [118.0, 119.0], [119.0, 120.0]],
+        "barRanges": [[117, 119]],
+        "bars": [_b(2, ""), _b(7, "^7"), _b(4, "-7")],
+        "barSpans": [[[117.0, 118.0]], [[118.0, 119.0]], [[119.0, 120.0]]],
+    }
+    out = _ireal_cascade([host, fin], None, GRID, {"B": {"period": 4}})
+    assert [b["label"] for b in out] == ["B"]
+    assert [117, 119] in out[0]["barRanges"]
+
+
 def test_sans_cellule_connue_le_test_devient_le_prefixe():
     """Repli refusé, ou découpage à la main (chemin Soudure, aucun rapport de
     repli) : on teste « est-ce le début du bloc long ? »."""
