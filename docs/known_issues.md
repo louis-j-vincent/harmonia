@@ -5,6 +5,38 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Une section qui n'apparaît qu'une fois, avec une boucle interne jouée EXACTEMENT 2×, ne replie jamais (2026-09-24, OUVERT)
+
+San Francisco Street (Sun Rai, `9zEl-FQLI4A`), section C (mesures 41–48,
+occurrence unique) : `D^7 D^7 E-7 E-7 | D^7 D^7 E-7 E-7` — les 4 dernières
+mesures répètent texto les 4 premières. `fold["C"]` dit
+`{"period": 4, "reason": "too few gated members"}` : la boucle EST détectée,
+mais le repli est refusé quand même.
+
+LA MÉCANIQUE (`harmonia/folding.py:596-641`). Pour une section à occurrence
+unique dont la période interne P est plus courte que la section
+(`sous_phrase = P < longueur`), la dernière mesure de l'occurrence est retirée
+de la pile par `FIN_SECTION_HORS_PILE` (`:614-624`) — un garde-fou pensé pour
+protéger la cadence de fin de CHAQUE passage quand plusieurs occurrences
+s'empilent (This Love B, 4 passages). Avec une seule occurrence il n'y a rien
+d'autre à empiler contre cette cadence : la retirer prive juste la dernière
+position de pile d'une observation. Pour une boucle à 2 répétitions
+(longueur == 2×P, le cas le plus simple et le plus fréquent), c'est
+mathématiquement garanti d'échouer : sum(gated) = 2×(P−1) + 1 = 2P−1, et le
+veto `:640` exige `>= 2×P`. Toute section à occurrence unique, boucle interne
+de période P, jouée EXACTEMENT 2 fois, échoue TOUJOURS ce veto — pas un cas
+limite, une garantie arithmétique. Ça ne mord que le cas 2 occurrences : à 3+
+occurrences internes la dernière position retombe à 2 membres (suffisant), et
+à occurrence multiple (plusieurs passages du label dans le morceau) il y a
+assez d'autres occurrences pour compenser la perte d'une mesure.
+
+Pas encore diagnostiqué : combien de lettres du corpus tombent dans ce cas
+précis (occurrence unique × boucle interne 2×) — un seul exemple confirmé
+pour l'instant (San Francisco Street C). Pas encore fixé — c'est un seuil
+calibré (`docs/refactor_2026-09/` + l'en-tête de `folding.py` : « toute
+refonte doit se comparer » aux valeurs mesurées), Louis arbitre avant qu'on y
+touche.
+
 ## Déplacer le début de la section 1 n'atteint pas le chart (2026-09-20, RÉSOLU — trois voisins restent ouverts)
 
 Louis : « quand dans l'annotation on redéfinit le début de la section 1, c'est
