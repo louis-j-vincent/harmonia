@@ -666,3 +666,161 @@ def hors_des_temps(chart: dict, marge: float = 0.25) -> callable:
         return bool(proches) and min(abs(t - x) for x in proches) > seuil
 
     return f
+
+
+# ── la feuille bâtie sur LA GRILLE DE MESURES ──────────────────────────────
+#: combien de mesures par ligne écrite
+MESURES_PAR_LIGNE = 2
+
+
+def feuille_barres(chart: dict, align: list[dict], *,
+                   par_ligne: int = 0) -> list[dict]:
+    """La feuille : le PHRASÉ du tab, calé sur NOS mesures.
+
+    Louis, 2026-09-24 : « il faut imaginer que chaque ligne correspond à une ou
+    deux barres, et donc on y met les paroles associées... la ligne devrait
+    commencer par le C- ».
+
+    DEUX ESSAIS, ET LE SECOND EST LE BON. J'ai d'abord découpé par tranches
+    FIXES de deux mesures, en jetant les lignes du tab. Mesuré ensuite, ce que
+    couvre réellement une ligne de tab :
+
+        This Love     médiane 2 mesures   (2 ×16, 4 ×5, 3 ×4, 1 ×4, 7 ×2)
+        Stand By Me   médiane 4 mesures   (4 ×8, 3 ×4, 5 ×2, 2 ×2, …)
+
+    Une tranche fixe de deux mesures coupe donc chaque phrase de Stand By Me en
+    deux, et la longueur varie AUSSI à l'intérieur d'un même morceau. Le phrasé
+    n'est pas une constante : il est déjà écrit dans le tab, qui est le seul
+    endroit où quelqu'un l'a noté à la main.
+
+    ON GARDE DONC SES LIGNES POUR GROUPER, et on ne prend de notre grille que
+    ce qu'elle sait vraiment : OÙ SONT LES BARRES. Chaque ligne est rattachée à
+    la mesure où tombe son premier mot, et l'accord qui sonne sur cette barre
+    ouvre la ligne — toujours écrit, même s'il se répète. C'est ce qui corrige
+    le refrain de This Love : son premier mot tombe 0,60 s APRÈS la barre 17,
+    donc le C- de cette mesure n'apparaissait nulle part ; il ouvre maintenant
+    la ligne par construction.
+
+    `par_ligne` est ignoré, gardé pour ne pas casser les appelants : le
+    regroupement ne se décide plus en nombre de mesures.
+
+    Rend `[{mesure, t0, tete, tete_petit, mots}]`.
+
+    CE QUE ÇA NE RÉSOUT PAS : le phrasé reste celui du tabbeur, avec ses
+    coupures maladroites là où il en a fait. On corrige l'ACCORD de tête et le
+    numéro de mesure, pas son découpage des phrases.
+    """
+    import bisect
+
+    from harmonia.integrations.tab_chart import texte_du_chart
+
+    grid = [float(x) for x in (chart.get("barGrid") or [])]
+    if len(grid) < 3 or not align:
+        return []
+    muettes = lignes_muettes_de(align)
+    par: dict = {}
+    for m in align:
+        if m["ligne"] in muettes:
+            continue
+        par.setdefault(m["ligne"], []).append(m)
+    if not par:
+        return []
+    rep = accords_replies(chart)
+    if not rep:
+        return []
+
+    def sonnant(t: float):
+        for r in rep:
+            if r["t0"] <= t < r["t1"]:
+                return r["accord"]
+        return None
+
+    out, precedent = [], None
+    for lg in sorted(par):
+        ms = sorted(par[lg], key=lambda x: x["t0"])
+        a = ms[0]["t0"]
+        b = max(0, min(bisect.bisect_right(grid, a) - 1, len(grid) - 2))
+        # LA TÊTE : l'accord qui sonne SUR LA BARRE de cette ligne, pas à son
+        # premier mot — c'est toute la différence, le mot arrivant souvent
+        # après le premier temps.
+        tete_c = sonnant(grid[b])
+        tete = texte_du_chart(tete_c) if tete_c is not None else ""
+        precedent = tete or precedent
+        fin = ms[-1]["t1"] + DELAI_MOT
+
+        items = []
+        for m in ms:
+            accs, pets = [], []
+            for r in rep:
+                if not (m["t0"] <= r["t0"] < min(m["t1"] + DELAI_MOT, fin)):
+                    continue
+                if r["t0"] <= grid[b]:
+                    continue                     # déjà dit par la tête
+                nom = texte_du_chart(r["accord"])
+                if nom == precedent:
+                    continue
+                accs.append(nom)
+                pets.append(bool(r["accord"].get("petit")))
+                precedent = nom
+            items.append({"mot": m["mot"], "accords": accs, "petits": pets,
+                          "t": round(float(m["t0"]), 2),
+                          "douteux": bool(m.get("score") is not None
+                                          and m["score"] < 0.30)})
+        out.append({"mesure": b + 1, "t0": round(grid[b], 2), "tete": tete,
+                    "tete_petit": bool(tete_c is not None
+                                       and tete_c.get("petit")),
+                    "mots": items})
+    return out
+
+
+def lignes_muettes_de(align: list[dict]) -> set:
+    """Passe-plat vers `paroles_align.lignes_muettes` — une seule définition."""
+    from harmonia.integrations.paroles_align import lignes_muettes
+    return lignes_muettes(align)
+
+
+CSS_BARRES = CSS_MOTS + """
+.bar{display:flex;gap:10px;align-items:flex-start;margin:0 0 14px}
+.num{flex:0 0 2.2em;text-align:right;font:500 11px/2.6 ui-monospace,Menlo,
+  monospace;color:var(--eux);padding-top:1.1em}
+.corps{flex:1 1 auto;min-width:0;border-left:2px solid var(--lig);
+  padding-left:10px}
+.tete{font:700 15px/1.45 -apple-system,system-ui,sans-serif;color:var(--nous)}
+.tete.pt{font-size:.8em;opacity:.75;font-weight:500}
+"""
+
+
+def page_barres(titre: str, feuille: list[dict], tab: dict,
+                sous_extra: str = "") -> str:
+    """La feuille par mesures — une ou deux barres par ligne, l'accord en tête.
+
+    `feuille` : ce que rend `feuille_barres`.
+    """
+    blocs = []
+    for l in feuille:
+        u = []
+        for w in l["mots"]:
+            pet = w.get("petits") or [False] * len(w["accords"])
+            acc = "".join(
+                f'<em class="{"pt" if (pet[k] if k < len(pet) else False) else ""}">'
+                f'{html.escape(a)}</em>'
+                for k, a in enumerate(w["accords"]))
+            u.append(f'<span class="u{" dout" if w["douteux"] else ""}">'
+                     f'<i>{acc}</i><b>{html.escape(w["mot"])}</b></span>')
+        tete = (f'<div class="tete{" pt" if l.get("tete_petit") else ""}">'
+                f'{html.escape(l["tete"])}</div>' if l.get("tete") else "")
+        blocs.append(
+            f'<div class="bar"><div class="num">{l["mesure"]}</div>'
+            f'<div class="corps">{tete}'
+            f'<div class="ligne">{" ".join(u)}</div></div></div>')
+    note = (f'texte : <a href="{html.escape(tab.get("url") or "")}">'
+            f'{html.escape(tab.get("titre") or "?")}</a>' if tab else "")
+    return (f'<!doctype html><html lang="fr"><meta charset="utf-8">'
+            f'<meta name="viewport" content="width=device-width,initial-scale=1">'
+            f'<title>{html.escape(titre)}</title><style>{CSS_BARRES}</style>'
+            f'<h1>{html.escape(titre)}</h1>'
+            f'<p class="sous">{sous_extra}{" · " if sous_extra and note else ""}'
+            f'{note}<br>Une ligne = deux mesures. L\'accord en tête est celui '
+            f'qui sonne sur la barre ; il est toujours écrit, même s\'il se '
+            f'répète. Les accords de passage sont en petit.</p>'
+            f'{"".join(blocs)}</html>')

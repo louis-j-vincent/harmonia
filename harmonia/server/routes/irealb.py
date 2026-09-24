@@ -342,10 +342,16 @@ def tab_paroles(file):
                 log.exception("tab-paroles : alignement impossible pour %s",
                               stem)
 
-    feuille, par_mots = [], False
+    # LE DÉCOUPAGE VIENT DE NOTRE GRILLE (2026-09-24), plus des lignes du tab :
+    # une ligne = deux mesures, et l'accord de la barre ouvre la ligne. Voir
+    # `tab_paroles.feuille_barres` pour le cas qui l'a imposé.
+    feuille, par_barres = [], False
     if align:
+        feuille = TP.feuille_barres(chart, align)
+        source, par_barres = "mesures", bool(feuille)
+    if align and not feuille:
         feuille = TP.feuille_calee(chart, brut, align)
-        source, par_mots = "nos instants", bool(feuille)
+        source = "nos instants"
     if not feuille:
         # Repli ASSUMÉ et DIT : sans voix isolée il n'y a pas d'alignement, et
         # les colonnes du tabbeur restent la seule information de placement.
@@ -355,10 +361,19 @@ def tab_paroles(file):
         return _dire("Les colonnes du tab et ses accords ne concordent pas : "
                      "rien n'a été posé.", 409)
     n_acc = (sum(len(w["accords"]) for l in feuille for w in l["mots"])
-             if par_mots else sum(len(l["accords"]) for l in feuille))
+             if (par_barres or par_mots)
+             else sum(len(l["accords"]) for l in feuille))
     log.info("tab-paroles %s : %d ligne(s), %d accord(s), placement par %s, "
              "transposition %+d", stem, len(feuille), n_acc, source,
              int(pose.get("decalage") or 0))
+    if par_barres:
+        n_mots = sum(len(l["mots"]) for l in feuille)
+        n_acc = sum(len(w["accords"]) for l in feuille for w in l["mots"])
+        return Response(
+            TP.page_barres(chart.get("title") or stem, feuille, pose["tab"],
+                           f"{len(feuille)} ligne(s) de 2 mesures · "
+                           f"{n_mots} mot(s) · {n_acc} changement(s)"),
+            mimetype="text/html")
     if par_mots:
         # Le rendu par MOTS : l'accord est empilé sur son mot par le
         # navigateur, donc aucune police ne peut les séparer (voir
