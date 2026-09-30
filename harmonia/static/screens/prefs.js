@@ -148,6 +148,7 @@ export function openPrefsSheet(){
         {height:SZ.control, font:12}));
       body.appendChild(vs);
     }
+    body.appendChild(seg("Analyse tab",[["off","Hidden"],["on","Shown"]],()=>PREF.analyse?"on":"off",v=>{ PREF.analyse=(v==="on"); try{localStorage.setItem("harmAnalyse",PREF.analyse?"1":"0");}catch(e){} if(!PREF.analyse && S.mode==="analyse") S.mode="read"; }));
     // share — moved here from the old app-bar icon (§2). No `grow`: in this
     // flex COLUMN it re-bases the height to 0 and the button collapses.
     if(S.model && S.model.file){

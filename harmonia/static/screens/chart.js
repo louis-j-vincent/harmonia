@@ -718,10 +718,9 @@ export function chartDock(){
     row.appendChild(loop);
     if(audible) dock.appendChild(row);
 
+    if(!PREF.analyse && S.mode==="analyse") S.mode="read";
     const modes=kitSegmented(
-      audible
-        ? [["read","Read"],["analyse","Analyse"],["annotate","Annotate"],["practise","Practise"]]
-        : [["read","Read"],["analyse","Analyse"],["annotate","Annotate"]],
+      [["read","Read"], ...(PREF.analyse?[["analyse","Analyse"]]:[]), ["annotate","Annotate"], ...(audible?[["practise","Practise"]]:[])],
       ()=>S.mode,
       v=>{
         // QUITTER L'OUTIL DE SECTIONS PAR CE BOUTON REND AUSSI LA VUE REPLIÉE

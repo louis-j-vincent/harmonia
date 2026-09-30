@@ -35,6 +35,10 @@ export const PREF={
     // grille ») : "epure" = barres verticales seules (défaut), "treillis" =
     // les cellules bordées d'avant.
     grille:(()=>{ try{return localStorage.getItem("harmGrille")==="treillis"?"treillis":"epure";}catch(e){return "epure";} })(),
+    // Onglet Analyse caché par défaut (Louis, 2026-10-01 : « le analyse tu me
+    // le caches dans une option pour l'instant ») — la dock ne montre que
+    // Read / Annotate / Practise ; Aa › « Analyse tab » le fait revenir.
+    analyse:(()=>{ try{return localStorage.getItem("harmAnalyse")==="1";}catch(e){return false;} })(),
   };
 export function applyTheme(){
     Object.assign(T, PREF.theme==="dark"?DARK:LIGHT);
