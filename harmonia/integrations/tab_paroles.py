@@ -1015,9 +1015,32 @@ def page_barres(titre: str, feuille: list[dict], tab: dict,
         # exactement la disposition d'un tab : l'accord de la barre, puis les
         # changements, au-dessus des mots.
         # une strophe respire : c'est le tabbeur qui a mis la ligne vide
-        _t0 = l.get("t0", 0)
-        _t1 = (feuille[blocs_i + 1].get("t0") if (blocs_i + 1) < len(feuille)
-               else _t0 + 8)
+        # LA LIGNE CHANGE QUAND LE CHANT ENTRE, PAS À LA BARRE (Louis,
+        # 2026-09-30 : « transitionne à la ligne suivante vraiment quand le
+        # chanteur dit le premier mot »).
+        #
+        # La barre de mesure et l'entrée de la voix ne coïncident presque
+        # jamais. Mesuré sur les deux morceaux, l'avance que prenait la
+        # surbrillance en se calant sur la barre :
+        #
+        #     This Love     médiane 0,38 s · 7 lignes sur 31 à plus d'un temps
+        #     Stand By Me   médiane 0,47 s · 9 lignes sur 18 à plus d'un temps
+        #     (jusqu'à 1,5 s dans les deux cas)
+        #
+        # On borne donc chaque ligne par le PREMIER MOT CHANTÉ, le sien et
+        # celui de la suivante. Les levées sont prises en charge du même coup :
+        # sur This Love, 8 lignes commencent à chanter AVANT leur propre barre,
+        # et elles s'allument désormais à temps plutôt qu'en retard.
+        #
+        # La première ligne court depuis 0 : sans quoi la page resterait sans
+        # tête de lecture pendant toute l'intro.
+        def _voix(li):
+            ms = li.get("mots") or []
+            return min((w["t"] for w in ms), default=li.get("t0", 0))
+
+        _t0 = 0.0 if blocs_i == 0 else _voix(l)
+        _t1 = (_voix(feuille[blocs_i + 1]) if (blocs_i + 1) < len(feuille)
+               else _voix(l) + 8)
         blocs.append(
             f'<div class="bar{" str" if l.get("strophe") else ""}" '
             f'data-t0="{_t0}" data-t1="{_t1}">'
