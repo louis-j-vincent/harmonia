@@ -87,6 +87,10 @@ TROU_K = 2.0
 #: la plus petite variabilité admise : en dessous, deux pics à 0,9998 et
 #: 0,9999 « feraient un trou » (The Ronettes C) — c'est du bruit de moyenne.
 BRUIT_PIC = 0.01
+#: RÈGLE 5 (2026-09-30 nuit, voir `maxima_locaux`) : un départ doit dépasser
+#: ses voisins à moins d'une boucle. Interrupteur pour la page de comparaison
+#: v3/v4 (`tools/occurrences_brique_v4.py`) — pas un réglage, toujours vrai.
+REGLE5 = True
 
 
 def _chevauche(a: int, b: int, pris) -> bool:
@@ -236,6 +240,50 @@ def reference_du_morceau(pics: list[dict]) -> dict | None:
     return ref
 
 
+def maxima_locaux(c, Lb: int, candidats) -> set[int]:
+    """RÈGLE 5 de Louis (2026-09-30 nuit, après `docs/plots/the_walk_decalage.html`) :
+
+        « si on hésite entre un départ et celui de ses deux voisins, on prend
+        celui qui est plus grand que ses voisins d'avant et d'après
+        (généralise au cas où on aurait des boucles plus grandes que 2) ».
+
+    Rend les départs de `candidats` dont le score est le maximum de la courbe
+    `c` parmi les AUTRES candidats à ±(Lb − 1) mesures — une suppression des
+    non-maxima dans une fenêtre d'une boucle. Deux candidats à moins d'une
+    boucle l'un de l'autre sont deux calages rivaux de la même reprise : seul
+    le plus haut est un départ.
+
+    LES VOISINS SONT DES CANDIDATS, pas toute la courbe : « on hésite entre »
+    deux départs seulement s'ils ont tous deux passé la règle 3 (plancher +
+    proéminence). Un plateau à 0,95 qui ne se détache pas de son fond n'est pas
+    une reprise rivale : il n'efface pas un pic isolé à 0,88 juste à côté.
+
+    ÉGALITÉ : un voisin ne bat p que s'il le dépasse de plus de `BRUIT_PIC`
+    (0,01, le bruit de moyenne déjà admis par la règle 4). À moins que ça, les
+    deux restent des départs et c'est la couverture qui choisit. Pas « le plus
+    tôt gagne » : sur un plateau de sous-période (The Walk, A–Bm : 29, 31,
+    33… tous à 0,995–1,0), la règle stricte ne garderait qu'UN départ, au
+    hasard du bruit, et effacerait la moitié des vraies reprises.
+
+    RÈGLE 1 : un départ dont la fenêtre chevauche la zone donnée n'est jamais
+    candidat, donc jamais voisin — ses scores sont la brique contre elle-même,
+    ils n'effacent pas une reprise posée juste après la brique.
+
+    CE QUE ÇA NE RÉSOUT PAS : c'est la courbe qui décide, pas l'oreille. Si le
+    calage décalé est plus haut que le bon (un jumeau qui déborde mieux),
+    c'est lui qui reste. Sur un plateau (écarts ≤ 0,01), la phase reste
+    choisie par la couverture : la règle ne tranche qu'entre des calages
+    nettement différents. Et elle ne crée aucune reprise : elle ne fait
+    qu'en retirer."""
+    cands = sorted(candidats)
+    out = set()
+    for p in cands:
+        voisins = [c[q] for q in cands if q != p and abs(q - p) < Lb]
+        if not voisins or c[p] >= max(voisins) - BRUIT_PIC:
+            out.add(p)
+    return out
+
+
 def _passages(p: int, Lb: int, T: int, L: int) -> list[tuple[int, int]]:
     """La brique posée en p, découpée comme elle l'est elle-même : T // Lb
     boucles, puis sa fin (s'il en reste)."""
@@ -323,6 +371,17 @@ def cherche_sur_matrices(S, V, b0: int, b1: int) -> tuple[list[tuple], dict]:
                                "fond": round(fond, 4), "rho": round(rho, 3),
                                "ok": ok, "pris": False})
     detail["reference"] = reference_du_morceau(detail["pics"])
+    # RÈGLE 5 : seuls les maxima locaux (à ±Lb−1) restent candidats. APRÈS la
+    # règle 4 (qui compte donc encore les calages décalés parmi « tous les
+    # autres pics », comme en v3 : ne pas déplacer Let It Be), AVANT le choix.
+    if REGLE5:
+        passe3 = {x["p"] for x in detail["pics"] if x["ok"] or x.get("sous_reference")}
+        maxi = maxima_locaux(c, Lb, passe3)
+        for x in detail["pics"]:
+            x["maximum_local"] = x["p"] in maxi
+            if x["ok"] and not x["maximum_local"]:
+                x["ok"] = False
+                x["pas_maximum"] = True
     cand = {x["p"]: x for x in detail["pics"] if x["ok"]}
     # Parmi les départs qui passent, le plus de reprises sans recouvrement
     # (à égalité : les mieux notées). Pas un glouton par hauteur : quand la
@@ -429,6 +488,24 @@ def cherche_brique(chart: dict, b0: int, b1: int, audio_dir,
          sur un fond à 0,65 passent ; un 0,97 sur un plateau à 0,95 non.
          Parmi les départs qui passent : le plus de reprises sans
          recouvrement, à égalité les mieux notées.
+      4. LA RÉFÉRENCE DU MORCEAU (`reference_du_morceau`) : un groupe de pics
+         nettement sous la meilleure reprise, et plus nombreux qu'elle, est
+         refusé (Let It Be : le refrain).
+      5. UN DÉPART DOIT DÉPASSER SES VOISINS (`maxima_locaux`, 2026-09-30
+         nuit). Parmi les départs qui passent les règles 3–4, n'est candidat
+         que celui qui est le plus haut de tous ceux qui ont passé la règle 3
+         à ±(Lb − 1) mesures (égalité à 0,01 près : les deux restent). Le
+         choix « le plus de reprises » ne choisit donc plus qu'entre des
+         maxima locaux. The Walk : en 25–56, 7 boucles décalées de 2 (dont
+         les deux de bord à 0,91, sur le C♯m du B) battaient 6 boucles en
+         phase à 0,996 ; 27 perd contre 29, 51 contre 49 — elles ne sont plus
+         candidates. Posée APRÈS la règle 4, qui compte donc encore les
+         calages décalés parmi « tous les autres pics » (inchangée). Ne touche
+         ni les passages de la brique (toujours rendus), ni la recherche de sa
+         fin (posée juste après une suite de boucles retrouvée : elle suit la
+         phase des boucles), ni les transposées (glouton par hauteur sur la
+         brique entière), ni l'ancienne loi des briques < 8 mesures (glouton
+         par hauteur, qui prend déjà le plus haut d'abord).
 
     Une brique de MOINS DE 8 MESURES ne peut pas montrer une boucle de 4 jouée
     deux fois : elle garde l'ancienne loi (seuil médiane + 1,5 σ du morceau,
