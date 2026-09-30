@@ -62,6 +62,25 @@ bien étiquetées en hausse partout sauf Let It Be (égal), aucune en baisse ;
 rapport d'or 0 mesure changée (seules les propositions de l'outil bougent).
 Serveur PAS redémarré.
 
+**RÈGLE 5 de Louis, branchée (2026-09-30 nuit, commit 63c3df7)** — l'option
+(a) généralisée : « si on hésite entre un départ et celui de ses deux voisins,
+on prend celui qui est plus grand que ses voisins ». `simulation.maxima_locaux` :
+parmi les départs qui passent la règle 3, seul le plus haut à ±(boucle − 1)
+mesures reste candidat ; égalité à 0,01 près (les deux restent, sinon un
+plateau de sous-période serait réduit à un départ) ; la zone donnée n'est
+jamais voisine ; posée après la règle 4 (inchangée), avant le choix « le plus
+de boucles ». **The Walk A réglé** : 29, 33, …, 49 au lieu de 27, …, 51 ; 85,
+89, 93 au lieu de 83…95 (justes 40 = 40, en trop 6 → 4). Page
+`docs/plots/occurrences_brique_v4_2026-09-30.html`
+(`python -m tools.occurrences_brique_v4 --page`). **Pertes, à arbitrer par
+Louis** : Lazy Song A −8 mesures justes, She Will Be Loved A −4 — deux accords
+qui alternent, et le bon départ y est un peu PLUS BAS que son voisin décalé de
+2 (0,963 contre 0,977–0,991) : la règle tranche sur du bruit. She Will Be
+Loved D : −8 en trop. Total justes 1394 → 1382, en trop 380 → 370.
+**Variante 5b, NON branchée** : égalité jusqu'à la tolérance du morceau de la
+règle 4 (0,04–0,07) au lieu de 0,01 — The Walk réglé pareil, aucune perte
+(justes 1394, en trop 378). Serveur pas redémarré.
+
 CE QUI RESTE :
 1. **Jumeaux harmoniques au niveau des vraies reprises** : She Will Be Loved A
    (+28) et D (+60, même grille presque tout du long), This Love A (l'intro),
@@ -69,7 +88,10 @@ CE QUI RESTE :
    (comme Stand By Me ?). Si le meilleur pic hors zone est un jumeau, la règle 4
    se calibre dessus (X-yIEMduRXk A).
 2. **Phase d'une boucle à deux accords** : The Walk B — v3 garde la bonne phase
-   mais rate toujours les 2e et 3e passages de chaque B.
+   mais rate toujours les 2e et 3e passages de chaque B. La règle 5 règle The
+   Walk A, mais sur un plateau (écarts de 0,01–0,03) la phase reste décidée par
+   le bruit de la courbe (Lazy Song A, She Will Be Loved A) — l'harmonie seule
+   ne sait pas la phase d'A–Bm–A–Bm.
 3. **Vamp** (Chain of Fools, 0,99 partout) : abstention, comme avant.
 4. Stand By Me C : 15–22 refusé de justesse (proéminence 0,57).
 

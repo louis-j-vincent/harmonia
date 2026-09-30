@@ -221,3 +221,57 @@ la seconde condition qui le sauve). Rapport d'or : 0 mesure changée (60 cuits,
   zone est une vraie reprise.
 - Pas touché par la règle : She Will Be Loved A/D (jumeaux au niveau des vrais
   A, 14 / 13 et 17 / 13, aucun trou).
+
+## 10. Le décalage de The Walk, et la règle 5 de Louis (branchée)
+
+**Le défaut** (`docs/plots/the_walk_decalage.html`) : A donné en 9–16, boucle
+de 4 (A–Bm–A–Bm, accords qui tournent toutes les 2 mesures). Le choix « le plus
+de boucles sans recouvrement » prenait 7 boucles décalées de 2 dans 25–56
+(départs 27…51, les deux du bord à 0,91 sur le C♯m du B) plutôt que 6 en phase
+à 0,996 (29…49) ; de nouveau juste à 57, décalé encore à 83.
+
+**Sa règle 5, mot pour mot** : « si on hésite entre un départ et celui de ses
+deux voisins, on prend celui qui est plus grand que ses voisins d'avant et
+d'après (généralise au cas où on aurait des boucles plus grandes que 2) ».
+
+**Implémentation** (`simulation.maxima_locaux`, commit 63c3df7) : parmi les
+départs qui passent la règle 3, un départ reste candidat seulement s'il est le
+plus haut de ceux qui l'ont aussi passée à ±(Lb − 1) mesures (Lb = la boucle
+minimale de la règle 2). Choix, dits dans le docstring :
+- **égalité à 0,01 près (`BRUIT_PIC`) : les deux restent**, la couverture
+  choisit. « Le plus tôt gagne » réduirait un plateau de sous-période (tout à
+  0,995–1,0) à un seul départ, au hasard du bruit ;
+- **les voisins sont les départs qui passent la règle 3, pas toute la courbe** :
+  un plateau à 0,95 qui ne se détache pas de son fond n'efface pas un pic isolé
+  à 0,88 (sinon le test de la règle 3 casse) ;
+- la zone donnée (règle 1) n'est jamais voisine : elle n'efface pas une reprise
+  posée juste après la brique ;
+- **après la règle 4, avant le choix** : la règle 4 compte toujours les calages
+  décalés parmi « tous les autres pics » (inchangée, Let It Be ne bouge pas) ;
+- pas touchés : les passages de la brique (toujours rendus), la recherche de sa
+  fin (posée derrière les boucles retrouvées, elle suit leur phase), les
+  transposées et l'ancienne loi < 8 mesures (gloutons par hauteur).
+
+**Mesuré** (page `docs/plots/occurrences_brique_v4_2026-09-30.html`, rejouable
+`python -m tools.occurrences_brique_v4 --page`) — 4 lettres changent :
+
+| lettre | départs v3 → v4 | justes / ratées / en trop v3 → v4 | 5b |
+|---|---|---|---|
+| The Walk A | 27…51, 83…95 → 29…49, 85, 89, 93 | 40/0/6 → 40/0/4 | = v4 |
+| Lazy Song A | 24, 58, 62 → 60 | 48/0/8 → **40/8/8** | = v3 |
+| She Will Be Loved A | 34 perdu | 36/0/28 → **32/4/28** | = v3 |
+| She Will Be Loved D | 13, 17 → 15 | 10/0/60 → 10/0/52 | = v3 |
+
+Total : justes 1394 → 1382, ratées 136 → 148, en trop 380 → 370. Rapport d'or :
+0 mesure changée (60 cuits, 2 froids, 1 erreur préexistante h_D3VFfhvs4).
+
+**Ce que ça ne résout pas** : sur deux accords qui alternent, le bon départ peut
+être un peu PLUS BAS que son voisin décalé de 2 (Lazy Song : 0,963 contre
+0,977–0,991 ; She Will Be Loved A : 0,977 contre 0,994) ; la règle tranche alors
+sur du bruit et perd des mesures justes. L'harmonie seule ne connaît pas la
+phase d'A–Bm–A–Bm.
+
+**À arbitrer par Louis** : variante **5b**, non branchée — deux départs à
+égalité tant que leur écart est sous la tolérance du morceau de la règle 4
+(2 × max(1 − R, écart du groupe du haut, 0,01) ; 0,04–0,07 sur ces morceaux).
+The Walk réglé pareil, aucune perte : justes 1394, en trop 378.
