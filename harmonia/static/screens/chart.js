@@ -381,6 +381,10 @@ export function loadModel(m, opts){
                    // `s.barSpans` : tronc, puis la queue de chaque variant.
                    beats: (s.meters && s.meters[rbCursor]) || null,
                    secFirst: !!meta.secFirst, ending: meta.ending||null,
+                   // LES REPRISES ||: … :|| ×N (2026-09-30, docs/STATE.md) :
+                   // une section écrite par sa boucle minimale (`s.boucle`)
+                   repOpen: !!meta.repOpen, repClose: !!meta.repClose,
+                   repN: meta.repN||null,
                    endingFirst: !!meta.endingFirst, endingOwn: !!meta.endingOwn,
                    endingPasses: meta.endingPasses||null};
         rbCursor++;
@@ -422,7 +426,19 @@ export function loadModel(m, opts){
       const allPass = c => s.spans.map(sp=>[c.t0 + (sp[0]-base), c.t1 + (sp[0]-base)]);
       // shared prefix (or the whole section when there are no endings)
       const prefixBars = tail ? s.bars.slice(0, prefixLen) : s.bars;
-      prefixBars.forEach((bar,bi)=>emitBar(bar, {secFirst: bi===0}, allPass));
+      // ×N = les tours ENTIERS de chaque passage (un dernier tour incomplet
+      // reste audible, la carte `barSpans` le suit, il ne compte pas) ; des
+      // passages qui n'en jouent pas autant écrivent « ×3/2 ».
+      const bcl = s.boucle || null;
+      let repN = null;
+      if(bcl){
+        const tp=(bcl.tours_par_passe||[bcl.tours_pleins||0]).filter(t=>t>0);
+        const vus=[]; tp.forEach(t=>{ if(!vus.includes(t)) vus.push(t); });
+        if(vus.length) repN="×"+vus.join("/");
+      }
+      prefixBars.forEach((bar,bi)=>emitBar(bar, {secFirst: bi===0,
+        repOpen: !!bcl && bi===0, repClose: !!bcl && bi===prefixBars.length-1,
+        repN}, allPass));
       if(tail && s.endings){
         const blocs = endingBlocks(s, tail, prefixLen);
         blocs.forEach(g=>{
@@ -1413,6 +1429,7 @@ export function buildIReal(){
     S._cells=[];
     let rowCells=[];
     const bars=S.bars.map(b=>({sec:b.sec, secId:b.secId, secFirst:b.secFirst, reps:b.reps, beats:b.beats,
+                               repOpen:b.repOpen, repClose:b.repClose, repN:b.repN,
                                ending:b.ending, endingFirst:b.endingFirst, endingOwn:b.endingOwn,
                                chords:b.idxs.map(i=>({ch:S.chords[i], idx:i}))}));
     // Key/scale halo (2026-07-21 rework of the old per-root keyFill text colour).
@@ -1725,6 +1742,38 @@ export function buildIReal(){
         // (la barre noire d'ouverture de section a disparu d'ici: Louis en
         // veut UNE, continue sur toute la hauteur du chart — elle est posée
         // une seule fois sur le cadre, tout en bas de cette fonction.)
+      }
+      // LES REPRISES ||: … :|| ×N (2026-09-30, docs/STATE.md). Encre, jamais
+      // le rouge ; posées sur les bords de la mesure, pas au-dessus des
+      // accords. À gauche : deux points après la barre d'ouverture (la
+      // double barre de section d'Épurée, la barre noire du treillis) ; à
+      // droite : deux points + une barre fine puis épaisse ; ×N en haut à
+      // droite, discret.
+      if(b.repOpen || b.repClose){
+        const hMid = `calc(${rowPT}px + (100% - ${rowPT}px) / 2)`;
+        const dots = side => {
+          [-5, 3].forEach(dy=>cell.appendChild(el("div",
+            `position:absolute;${side};top:calc(${hMid} + ${dy}px);width:3px;height:3px;`+
+            `border-radius:50%;background:${T.ink};z-index:3;pointer-events:none;`)));
+        };
+        // les accords s'écartent des signes (vu au rendu 390px : les points
+        // mordaient « Cm » et « Fm/A♭ » sur This Love)
+        if(b.repOpen) cell.style.paddingLeft=`${narrow?11:14}px`;
+        if(b.repClose) cell.style.paddingRight=`${narrow?15:18}px`;
+        if(b.repOpen){
+          if(!EP) cell.appendChild(el("div",`position:absolute;left:0;top:${rowPT}px;bottom:0;width:3px;background:${T.ink};z-index:3;pointer-events:none;`));
+          dots(`left:${EP?3:6}px`);
+        }
+        if(b.repClose){
+          const top=`top:${rowPT+(EP?6:0)}px;bottom:${EP?6:0}px`;
+          cell.appendChild(el("div",`position:absolute;right:0;${top};width:3px;background:${T.ink};z-index:3;pointer-events:none;`));
+          cell.appendChild(el("div",`position:absolute;right:5px;${top};width:1px;background:${T.ink};z-index:3;pointer-events:none;`));
+          dots("right:9px");
+          if(b.repN) cell.appendChild(el("div",
+            `position:absolute;right:${narrow?12:14}px;top:${rowPT+(narrow?2:3)}px;`+
+            `font:700 ${narrow?10:11}px ${UI};line-height:1;color:${T.faint};z-index:3;pointer-events:none;`,
+            b.repN));
+        }
       }
       if(endingHead){
         // §4 — UN VRAI CROCHET DE REPRISE, dessiné par-dessus le treillis.
