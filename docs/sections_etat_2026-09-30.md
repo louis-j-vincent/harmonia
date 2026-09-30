@@ -121,3 +121,10 @@ revérifie pas une cellule de 4 qui serait une cellule de 2 (This Love B).
   nombre de mesures égale le `n` de la vérité terrain.
 - Un autre agent corrige un bug de mesure 0 dans `bars.py` : une grille décalée
   d'une mesure déplacerait toutes les comparaisons ci-dessus d'autant.
+
+## 7. Diagnostic du jour (étape 2-3)
+
+`docs/plots/occurrences_brique_2026-09-30.html` et l'entrée du même jour dans
+`docs/known_issues.md` : le seuil qui bute au plafond 0,999, puis la longueur
+figée, puis les jumeaux harmoniques. Candidat 1 (plafond 0,97) prêt à
+arbitrer ; candidat 2 (longueur libre) : prémisse vraie, version à refaire.
