@@ -581,8 +581,14 @@ def occurrences_de_tous(chart: dict, traits: list[dict],
     for b0, b1, label in gardes:
         reprises, info = cherche_brique(chart, b0, b1, audio_dir, label=label)
         diagnostics.append(info)
+        # UN TRAIT DE LOUIS EST SOUVERAIN, AVANT OU APRÈS (2026-09-30, The
+        # Walk) : les traits sont traités dans l'ordre des mesures, donc une
+        # reprise de A pouvait recouvrir le trait B posé plus loin — et tous
+        # les passages de B étaient ensuite refusés, B disparaissait. Une
+        # reprise ne recouvre aucun AUTRE trait ; ses propres passages, si.
+        autres = [(c, d) for c, d, _l in gardes if (c, d) != (b0, b1)]
         for x, y, sc, rot in reprises:
-            if any(not (y < c or d < x) for c, d in pris):
+            if any(not (y < c or d < x) for c, d in pris + autres):
                 continue
             pris.append((x, y))
             out.append({"m0": x, "m1": y, "label": label,

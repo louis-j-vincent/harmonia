@@ -27,7 +27,7 @@ REPO = Path(__file__).resolve().parents[1]
 PAGE = REPO / "docs" / "plots" / "the_walk_decalage.html"
 STEM = "mayer_hawthorne_the_walk"
 NOMS = ["C", "D♭", "D", "E♭", "E", "F", "G♭", "G", "A♭", "A", "B♭", "B"]
-X0, W = 70, 1000          # marge gauche, largeur utile (px) pour 100 mesures
+X0, W = 130, 960           # marge gauche, largeur utile (px) pour 100 mesures
 
 
 def _nom(c):
@@ -59,6 +59,48 @@ def charge():
     S = np.asarray(VS.ssm(tri, g))
     V = np.asarray(VS.harmonic_vectors(tri, g))
     return chart, beats, secs, g, n, par_mesure, S, V
+
+
+def ancien_occurrences(chart, traits):
+    """`simulation.occurrences_de_tous` AVANT le correctif du 2026-09-30 : une
+    reprise pouvait recouvrir un trait de Louis posé plus loin."""
+    from harmonia.soudure import traits_propres
+    gardes, _ = traits_propres(traits, len(chart["barGrid"]) - 1)
+    pris, out = [], []
+    for b0, b1, lbl in gardes:
+        rep, _ = SIM.cherche_brique(chart, b0, b1, SETTINGS.audio_dir, label=lbl)
+        for x, y, _sc, _r in rep:
+            if any(not (y < c or d < x) for c, d in pris):
+                continue
+            pris.append((x, y))
+            out.append({"m0": x, "m1": y, "label": lbl})
+    return sorted(out, key=lambda o: o["m0"])
+
+
+def corpus_traits():
+    """Sur chaque découpage validé de Louis, ses premières occurrences de
+    chaque lettre comme traits : ce que l'outil rendait avant / après."""
+    rows = []
+    for f in sorted((SETTINGS.repo / "state/human/sections").glob("*.json")):
+        d = json.loads(f.read_text())
+        p = SETTINGS.repo / "state/cache/charts" / f"min_{d.get('stem')}.json"
+        if not d.get("validated") or not p.exists():
+            continue
+        ch = json.loads(p.read_text())
+        vus, tr = set(), []
+        for s in d["sections"]:
+            if s["label"] not in vus:
+                vus.add(s["label"])
+                tr.append({"mesure_debut": s["b0"] + 1, "mesure_fin": s["b1"] + 1, "label": s["label"]})
+        lab = {i: s["label"] for s in d["sections"] for i in range(s["b0"], s["b1"] + 1)}
+        a = {(o["m0"], o["m1"], o["label"]) for o in ancien_occurrences(ch, tr)}
+        b = {(o["m0"], o["m1"], o["label"]) for o in SIM.occurrences_de_tous(ch, tr, SETTINGS.audio_dir)[0]}
+        if a == b:
+            continue
+        just = lambda S: sum(1 for x, y, lb in S for i in range(x, y + 1) if lab.get(i) == lb)  # noqa: E731
+        mangés = sorted({lb for x, y, lb in b - a})
+        rows.append((d["stem"], just(a), just(b), mangés))
+    return rows
 
 
 def xb(i, n):
@@ -127,7 +169,8 @@ def svg_bandes(g, n, par_mesure, secs, occ_seul, occ_trois, lo=0, hi=None):
                  "rgba(63,158,90,.55)" if _phase_louis(o["m0"], secs) else "rgba(192,69,58,.75)", "")
                 for o in occ]
     rows.append(("outil : tu donnes A", blocs(occ_seul), 18))
-    rows.append(("outil : intro + A + B", blocs(occ_trois), 18))
+    rows.append(("outil : intro+A+B, avant", blocs(occ_trois[0]), 18))
+    rows.append(("intro+A+B, corrigé", blocs(occ_trois[1]), 18))
     H = 30 + 26 * len(rows) + 20
     out = [f'<svg class="plot" viewBox="0 0 {X0 + W + 20} {H}">']
     for i in range(0, n + 1, 4):
@@ -203,8 +246,9 @@ def main():
     chart, beats, secs, g, n, par_mesure, S, V = charge()
     T = lambda a, b, lbl: {"mesure_debut": a + 1, "mesure_fin": b + 1, "label": lbl}  # noqa: E731
     occ_seul, _, _ = SIM.occurrences_de_tous(chart, [T(8, 15, "A")], SETTINGS.audio_dir)
-    occ_trois, _, _ = SIM.occurrences_de_tous(chart, [T(0, 7, "intro"), T(8, 15, "A"), T(24, 35, "B")],
-                                              SETTINGS.audio_dir)
+    trois = [T(0, 7, "intro"), T(8, 15, "A"), T(24, 35, "B")]
+    occ_trois = (ancien_occurrences(chart, trois), SIM.occurrences_de_tous(chart, trois, SETTINGS.audio_dir)[0])
+    corpus = corpus_traits()
     _out, det = SIM.cherche_sur_matrices(S, V, 8, 15)
     c = det["courbe"]
     pris = {p["p"] for p in det["pics"] if p["pris"]}
@@ -234,7 +278,7 @@ ressemblent qu'à 0,91, contre 0,99+ pour les bonnes.</div>
              'le pont sur 65. L\'outil, lui, pose ses boucles A en vert tant qu\'il est à ta phase, puis en '
              '<b>rouge = décalé de 2</b> à partir de 27, de nouveau juste à 57, puis décalé encore à 83. '
              'Dernière rangée : si tu as aussi tracé B (25–36), les A décalés le recouvrent et <b>ton B disparaît</b> '
-             'de la réponse (deuxième défaut, corrigé ci-dessous).</div>',
+             'de la réponse (deuxième défaut, corrigé : dernière rangée, et section 6).</div>',
              '<div class="legend"><span style="background:#3f9e5a"></span>A <span style="background:#4d8fe0"></span>Bm'
              '<span style="background:#c9962b"></span>C♯m <span style="background:#c0453a"></span>E7 '
              '<span style="background:rgba(63,158,90,.55)"></span>bloc proposé à ta phase '
@@ -263,6 +307,17 @@ ressemblent qu'à 0,91, contre 0,99+ pour les bonnes.</div>
              'numérotation et les rangées de 4 ne bougent pas. Ta marque « mesure 1 » (18,23 s) et la grille '
              f'(1re mesure à {g[0]:.2f} s) sont à 0,08 s l\'une de l\'autre. Le chart servi est tes sections, telles '
              'quelles : ' + ", ".join(f'{s["label"]} {s["b0"] + 1}–{s["b1"] + 1}' for s in secs) + '.</div>',
+             "<h2>6. Le deuxième défaut, corrigé : un trait de Louis mangé par les reprises d'un autre</h2>",
+             '<div class="say">Ce que ça montre : sur tes découpages validés, en traçant la première occurrence de '
+             'chaque lettre, les reprises d\'une lettre pouvaient recouvrir un trait que tu avais posé PLUS LOIN '
+             'dans le morceau — ton trait disparaissait alors de la réponse (The Walk : ton B 25–36 sous les A '
+             'décalés). Correctif : une reprise ne recouvre plus aucun de tes traits. Mesures bien étiquetées, '
+             'avant → après ; aucune ne baisse. Les charts ne bougent pas (rapport d\'or : 0 mesure changée) — '
+             'seules les propositions de l\'outil d\'annotation changent.</div>',
+             '<div class="tablewrap"><table><tr><th>morceau</th><th>mesures justes avant</th><th>après</th>'
+             '<th>lettres de tes traits qui revenaient</th></tr>' + "".join(
+                 f'<tr><td>{st}</td><td class="num">{a}</td><td class="num ok">{b}</td><td>{", ".join(m)}</td></tr>'
+                 for st, a, b, m in corpus) + '</table></div>',
              ]
     page = f"""<!doctype html><html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>The Walk décalage</title>
@@ -270,7 +325,9 @@ ressemblent qu'à 0,91, contre 0,99+ pour les bonnes.</div>
     PAGE.write_text(page, encoding="utf-8")
     print(PAGE)
     print("tu donnes A :", [(o["m0"] + 1, o["m1"] + 1) for o in occ_seul])
-    print("intro+A+B   :", [(o["m0"] + 1, o["m1"] + 1, o["label"]) for o in occ_trois])
+    print("intro+A+B   :", [(o["m0"] + 1, o["m1"] + 1, o["label"]) for o in occ_trois[1]])
+    for r in corpus:
+        print(r)
 
 
 if __name__ == "__main__":

@@ -37,8 +37,30 @@ Louis. Total : justes 1402 → 1394, ratées 128 → 136, en trop 408 → 380.
 Rapport d'or : 0 mesure changée. **Arbitré par Louis le 2026-09-30 : « cette
 règle est top, on garde » — EN PROD (:7772 redémarré), pertes The Walk B /
 X-yIEMduRXk A acceptées.** Nouveau signalement le même jour : sur The Walk,
-après les ~3 premiers petits A, les reprises semblent décalées (~2 mesures ?),
-cause inconnue — en cours d'investigation.
+après les ~3 premiers petits A, les reprises semblent décalées (~2 mesures).
+**Diagnostiqué** (`docs/plots/the_walk_decalage.html`,
+`tools/the_walk_decalage.py`) : grille (premiers temps beatthis à ±20 ms,
+tempo fixe), accords (A/Bm, jamais de changement de parité), sections de Louis
+et affichage (intro avec accords, pas masquée) sont justes. Le décalage vient
+de l'outil d'annotation : A donné en 9–16 → boucle de 4 (A–Bm–A–Bm) posée à
+27, 31, 35… au lieu de 29, 33, 37 (mes. 27 = 75,0 s), de nouveau juste à 57,
+décalée encore à 83. Cause : le choix final « le plus de boucles sans
+recouvrement » — depuis 27 on en case 7 dans 25–56, depuis 29 seulement 6 ;
+les deux boucles de bord (27, 51) commencent sur le C♯m du B et ne valent que
+0,91 contre 0,996, mais passent plancher, règle 3 (fond ~0,2 aux décalages
+impairs) et règle 4 (7 pics bas contre 29 hauts : pas de coupe). C'est le
+point 2 de CE QUI RESTE, en plus général. Options, à arbitrer par Louis :
+(a) un départ n'est gardé que s'il est au moins aussi haut que ses voisins à
+±sous-période (27 perd contre 29, 51 contre 49) ; (b) règle 4 sans la
+condition « plus de pics en bas qu'en haut » quand la boucle a une
+sous-période ; (c) au lieu du nombre, maximiser la somme des scores au-dessus
+du fond. **Deuxième défaut trouvé en chemin, corrigé** : une reprise
+pouvait recouvrir un trait de Louis posé plus loin (les traits sont traités
+dans l'ordre des mesures) et le trait disparaissait — The Walk B 25–36 mangé
+par les A décalés. Sur les découpages validés : 11 morceaux concernés, mesures
+bien étiquetées en hausse partout sauf Let It Be (égal), aucune en baisse ;
+rapport d'or 0 mesure changée (seules les propositions de l'outil bougent).
+Serveur PAS redémarré.
 
 CE QUI RESTE :
 1. **Jumeaux harmoniques au niveau des vraies reprises** : She Will Be Loved A
