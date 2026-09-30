@@ -399,8 +399,16 @@ def tab_paroles(file):
         n_acc = sum(len(w["accords"]) for l in feuille for w in l["mots"])
         return Response(
             TP.page_barres(chart.get("title") or stem, feuille, pose["tab"],
-                           f"{len(feuille)} ligne(s) de 2 mesures · "
-                           f"{n_mots} mot(s) · {n_acc} changement(s)"),
+                           f"{len(feuille)} ligne(s) · {n_mots} mot(s) · "
+                           f"{n_acc} changement(s)",
+                           # LA FEUILLE DÉFILE AVEC LE MORCEAU : on lui passe
+                           # l'audio quand le fichier existe. Absent (un chart
+                           # importé d'iReal n'en a pas), la page reste une
+                           # feuille muette plutôt que d'afficher un transport
+                           # qui ne ferait rien.
+                           audio=(f"/audio/{stem}.m4a"
+                                  if (SETTINGS.audio_dir / f"{stem}.m4a").exists()
+                                  else "")),
             mimetype="text/html")
     if par_mots:
         # Le rendu par MOTS : l'accord est empilé sur son mot par le

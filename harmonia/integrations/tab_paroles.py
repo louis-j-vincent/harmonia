@@ -47,6 +47,7 @@ CE QUE ÇA NE RÉSOUT PAS :
 """
 from __future__ import annotations
 
+import json
 import logging
 import re
 
@@ -478,9 +479,9 @@ def page(titre: str, feuille: list[dict], tab: dict, decalage: int,
 # accord de son mot. Et la ligne se replie au lieu de défiler horizontalement.
 CSS_MOTS = """
 :root{--pap:#f6f3ec;--enc:#1c1c1c;--nous:#8c2f2f;--dout:#b5651d;
-  --eux:#9a9287;--lig:#e2dcd0}
+  --eux:#9a9287;--lig:#e2dcd0;--surl:#ece2cf}
 @media(prefers-color-scheme:dark){:root{--pap:#16150f;--enc:#ece7dc;
-  --nous:#e08a7a;--dout:#d89a5b;--eux:#7d766b;--lig:#2b2820}}
+  --nous:#e08a7a;--dout:#d89a5b;--eux:#7d766b;--lig:#2b2820;--surl:#242118}}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0 auto;padding:16px;max-width:46rem;background:var(--pap);
@@ -531,7 +532,72 @@ def page_mots(titre: str, feuille: list[dict], tab: dict,
             f'<p class="sous">{sous_extra}{" · " if sous_extra and note else ""}'
             f'{note}<br>Nos accords, posés sur le mot qui sonne à leur instant. '
             f'Un mot en gris est un mot dont le calage est douteux.</p>'
-            f'{"".join(blocs)}</html>')
+            f'{"".join(blocs)}'
+            f'{_transport(audio)}</html>')
+
+
+def _transport(audio: str) -> str:
+    """Le lecteur et la synchro, ou rien du tout si la page n'a pas d'audio.
+
+    LA SYNCHRO EST PILOTÉE PAR `timeupdate`, jamais par une boucle d'animation
+    (voir la docstring de `page_barres` : une boucle rAF empêche WebKit de
+    démarrer son moteur audio sur iPhone). `timeupdate` bat environ 4 fois par
+    seconde, ce qui suffit largement pour éclairer une ligne de deux mesures.
+
+    LE SUIVI SE COUPE DÈS QUE LA PERSONNE FAIT DÉFILER À LA MAIN, et le bouton
+    « Suivre » le rallume : reprendre la main de force pendant qu'on cherche un
+    passage est le défaut classique de ce genre de page.
+    """
+    if not audio:
+        return ""
+    return (
+        '<div id="tr"><button id="pp" aria-label="Lire">&#9654;</button>'
+        '<input id="sk" type="range" min="0" max="1000" value="0">'
+        '<span id="tt">0:00</span>'
+        '<button id="fw" class="on">Suivre</button></div>'
+        '<script>(function(){'
+        'var A=new Audio(),lit=document.body;lit.className="lit";'
+        'var lignes=[].slice.call(document.querySelectorAll(".bar"));'
+        'var pp=document.getElementById("pp"),sk=document.getElementById("sk"),'
+        'tt=document.getElementById("tt"),fw=document.getElementById("fw");'
+        'var suivre=true,cour=null;'
+        # fetch()+blob : sans ça le lecteur d'une PWA installée ne bufferise pas
+        'fetch(' + json.dumps(audio) + ').then(function(r){return r.blob();})'
+        '.then(function(b){A.src=URL.createObjectURL(b);})'
+        '.catch(function(){tt.textContent="audio ?";});'
+        'function mmss(x){x=Math.max(0,x|0);var m=(x/60)|0,s=x%60;'
+        'return m+":"+(s<10?"0":"")+s;}'
+        'function place(t){'
+        'var n=null;'
+        'for(var i=0;i<lignes.length;i++){'
+        'var a=+lignes[i].dataset.t0,z=+lignes[i].dataset.t1;'
+        'if(t>=a&&t<z){n=lignes[i];break;}}'
+        'if(n!==cour){'
+        'if(cour)cour.classList.remove("now");'
+        'if(n){n.classList.add("now");'
+        'if(suivre)n.scrollIntoView({block:"center",behavior:"smooth"});}'
+        'cour=n;}'
+        'if(cour){var ms=cour.querySelectorAll(".u"),k=null;'
+        'for(var j=0;j<ms.length;j++){if(+ms[j].dataset.t<=t)k=ms[j];}'
+        'for(var j2=0;j2<ms.length;j2++)ms[j2].classList.remove("now");'
+        'if(k)k.classList.add("now");}}'
+        'A.addEventListener("timeupdate",function(){'
+        'var d=A.duration||0;place(A.currentTime);'
+        'tt.textContent=mmss(A.currentTime);'
+        'if(d)sk.value=Math.round(1000*A.currentTime/d);});'
+        'A.addEventListener("ended",function(){pp.innerHTML="&#9654;";});'
+        'pp.onclick=function(){if(A.paused){A.play();pp.innerHTML="&#10073;&#10073;";}'
+        'else{A.pause();pp.innerHTML="&#9654;";}};'
+        'sk.oninput=function(){var d=A.duration||0;if(d){A.currentTime=d*sk.value/1000;'
+        'suivre=true;fw.className="on";}};'
+        'fw.onclick=function(){suivre=!suivre;fw.className=suivre?"on":"";'
+        'if(suivre&&cour)cour.scrollIntoView({block:"center",behavior:"smooth"});};'
+        # un défilement À LA MAIN coupe le suivi : on ne reprend pas la main de force
+        'var gardeT=0;'
+        'window.addEventListener("scroll",function(){'
+        'var n=Date.now();if(n-gardeT<900)return;gardeT=n;'
+        'if(suivre&&!A.paused){suivre=false;fw.className="";}},{passive:true});'
+        '})();</script>')
 
 
 # ── les accords UNIFORMISÉS par le repliement ───────────────────────────────
@@ -875,17 +941,56 @@ CSS_BARRES = CSS_MOTS + """
   padding-bottom:4px;border-bottom:1px solid var(--lig)}
 .sect:first-of-type{margin-top:6px}
 
+/* LA TÊTE DE LECTURE. La ligne courante s'éclaire ; on ne déplace RIEN
+   (pas de gras, pas de taille) — un saut de mise en page à chaque mesure
+   rendrait la lecture illisible en jouant. */
+.bar.now{background:var(--surl);border-radius:10px;
+  box-shadow:0 0 0 6px var(--surl)}
+.bar.now .num{color:var(--nous);font-weight:700}
+.u.now b{color:var(--nous)}
+body.lit{padding-bottom:96px}
+#tr{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;
+  align-items:center;gap:12px;padding:10px 16px
+  calc(10px + env(safe-area-inset-bottom));
+  background:var(--pap);border-top:1px solid var(--lig)}
+#pp{flex:0 0 auto;width:46px;height:46px;border-radius:50%;border:0;
+  background:var(--nous);color:#fff;font:700 17px ui-monospace,Menlo,monospace;
+  cursor:pointer;display:flex;align-items:center;justify-content:center}
+#sk{flex:1 1 auto;min-width:0;-webkit-appearance:none;appearance:none;height:4px;
+  border-radius:2px;background:var(--lig);outline:none}
+#sk::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;
+  border-radius:50%;background:var(--nous)}
+#tt{flex:0 0 auto;font:500 12px ui-monospace,Menlo,monospace;color:var(--eux);
+  font-variant-numeric:tabular-nums}
+#fw{flex:0 0 auto;border:1px solid var(--lig);background:transparent;
+  border-radius:8px;padding:7px 9px;font:600 11px -apple-system,system-ui,
+  sans-serif;color:var(--eux);cursor:pointer}
+#fw.on{background:var(--nous);color:#fff;border-color:var(--nous)}
+
 """
 
 
 def page_barres(titre: str, feuille: list[dict], tab: dict,
-                sous_extra: str = "") -> str:
+                sous_extra: str = "", audio: str = "") -> str:
     """La feuille par mesures — une ou deux barres par ligne, l'accord en tête.
 
     `feuille` : ce que rend `feuille_barres`.
+    `audio`   : l'URL du morceau ; vide, la page reste une feuille muette.
+
+    ELLE DÉFILE AVEC LA MUSIQUE quand `audio` est donné (Louis, 2026-09-30 :
+    « il faut que le tab défile avec la musique comme un chart »). Chaque ligne
+    porte son instant de mesure, chaque mot le sien : la tête de lecture
+    surligne la ligne courante et la ramène au centre de l'écran.
+
+    DEUX PIÈGES iOS, déjà payés ailleurs dans ce projet et repris ici :
+      * le fichier est chargé par fetch() + blob, sinon le lecteur d'une PWA
+        installée ne met jamais en mémoire tampon (tempête de 206) ;
+      * la synchro est pilotée par l'événement `timeupdate` du lecteur (~4/s),
+        JAMAIS par une boucle `requestAnimationFrame` — une telle boucle
+        empêche WebKit de démarrer son moteur audio.
     """
     blocs, section = [], None
-    for l in feuille:
+    for blocs_i, l in enumerate(feuille):
         if l.get("tete") and l["mots"]:
             p0 = l["mots"][0]
             p0["accords"] = [l["tete"], *p0.get("accords", [])]
@@ -910,8 +1015,12 @@ def page_barres(titre: str, feuille: list[dict], tab: dict,
         # exactement la disposition d'un tab : l'accord de la barre, puis les
         # changements, au-dessus des mots.
         # une strophe respire : c'est le tabbeur qui a mis la ligne vide
+        _t0 = l.get("t0", 0)
+        _t1 = (feuille[blocs_i + 1].get("t0") if (blocs_i + 1) < len(feuille)
+               else _t0 + 8)
         blocs.append(
-            f'<div class="bar{" str" if l.get("strophe") else ""}">'
+            f'<div class="bar{" str" if l.get("strophe") else ""}" '
+            f'data-t0="{_t0}" data-t1="{_t1}">'
             f'<div class="num">{l["mesure"]}</div>'
             f'<div class="corps">'
             f'<div class="ligne">{" ".join(u)}</div></div></div>')
@@ -925,4 +1034,69 @@ def page_barres(titre: str, feuille: list[dict], tab: dict,
             f'{note}<br>Une ligne = deux mesures. L\'accord en tête est celui '
             f'qui sonne sur la barre ; il est toujours écrit, même s\'il se '
             f'répète. Les accords de passage sont en petit.</p>'
-            f'{"".join(blocs)}</html>')
+            f'{"".join(blocs)}'
+            f'{_transport(audio)}</html>')
+
+
+def _transport(audio: str) -> str:
+    """Le lecteur et la synchro, ou rien du tout si la page n'a pas d'audio.
+
+    LA SYNCHRO EST PILOTÉE PAR `timeupdate`, jamais par une boucle d'animation
+    (voir la docstring de `page_barres` : une boucle rAF empêche WebKit de
+    démarrer son moteur audio sur iPhone). `timeupdate` bat environ 4 fois par
+    seconde, ce qui suffit largement pour éclairer une ligne de deux mesures.
+
+    LE SUIVI SE COUPE DÈS QUE LA PERSONNE FAIT DÉFILER À LA MAIN, et le bouton
+    « Suivre » le rallume : reprendre la main de force pendant qu'on cherche un
+    passage est le défaut classique de ce genre de page.
+    """
+    if not audio:
+        return ""
+    return (
+        '<div id="tr"><button id="pp" aria-label="Lire">&#9654;</button>'
+        '<input id="sk" type="range" min="0" max="1000" value="0">'
+        '<span id="tt">0:00</span>'
+        '<button id="fw" class="on">Suivre</button></div>'
+        '<script>(function(){'
+        'var A=new Audio(),lit=document.body;lit.className="lit";'
+        'var lignes=[].slice.call(document.querySelectorAll(".bar"));'
+        'var pp=document.getElementById("pp"),sk=document.getElementById("sk"),'
+        'tt=document.getElementById("tt"),fw=document.getElementById("fw");'
+        'var suivre=true,cour=null;'
+        # fetch()+blob : sans ça le lecteur d'une PWA installée ne bufferise pas
+        'fetch(' + json.dumps(audio) + ').then(function(r){return r.blob();})'
+        '.then(function(b){A.src=URL.createObjectURL(b);})'
+        '.catch(function(){tt.textContent="audio ?";});'
+        'function mmss(x){x=Math.max(0,x|0);var m=(x/60)|0,s=x%60;'
+        'return m+":"+(s<10?"0":"")+s;}'
+        'function place(t){'
+        'var n=null;'
+        'for(var i=0;i<lignes.length;i++){'
+        'var a=+lignes[i].dataset.t0,z=+lignes[i].dataset.t1;'
+        'if(t>=a&&t<z){n=lignes[i];break;}}'
+        'if(n!==cour){'
+        'if(cour)cour.classList.remove("now");'
+        'if(n){n.classList.add("now");'
+        'if(suivre)n.scrollIntoView({block:"center",behavior:"smooth"});}'
+        'cour=n;}'
+        'if(cour){var ms=cour.querySelectorAll(".u"),k=null;'
+        'for(var j=0;j<ms.length;j++){if(+ms[j].dataset.t<=t)k=ms[j];}'
+        'for(var j2=0;j2<ms.length;j2++)ms[j2].classList.remove("now");'
+        'if(k)k.classList.add("now");}}'
+        'A.addEventListener("timeupdate",function(){'
+        'var d=A.duration||0;place(A.currentTime);'
+        'tt.textContent=mmss(A.currentTime);'
+        'if(d)sk.value=Math.round(1000*A.currentTime/d);});'
+        'A.addEventListener("ended",function(){pp.innerHTML="&#9654;";});'
+        'pp.onclick=function(){if(A.paused){A.play();pp.innerHTML="&#10073;&#10073;";}'
+        'else{A.pause();pp.innerHTML="&#9654;";}};'
+        'sk.oninput=function(){var d=A.duration||0;if(d){A.currentTime=d*sk.value/1000;'
+        'suivre=true;fw.className="on";}};'
+        'fw.onclick=function(){suivre=!suivre;fw.className=suivre?"on":"";'
+        'if(suivre&&cour)cour.scrollIntoView({block:"center",behavior:"smooth"});};'
+        # un défilement À LA MAIN coupe le suivi : on ne reprend pas la main de force
+        'var gardeT=0;'
+        'window.addEventListener("scroll",function(){'
+        'var n=Date.now();if(n-gardeT<900)return;gardeT=n;'
+        'if(suivre&&!A.paused){suivre=false;fw.className="";}},{passive:true});'
+        '})();</script>')
