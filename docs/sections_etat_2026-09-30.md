@@ -176,3 +176,48 @@ découpages, en mesures) : justes 1270 → 1402, ratées 260 → 128, en trop
 X-yIEMduRXk B). San Francisco Street A 24 → 40/41, Stand By Me A 32 → 80/80,
 Let It Be A 8 → 32/32 (+24 en trop, le refrain), The Walk A 12 → 40/40.
 Chain of Fools : vamp, abstention (inchangé). Rapport d'or : 0 mesure changée.
+
+## 9. Verdict de Louis sur la page v2, et sa règle 4 (branchée)
+
+**Verdict** : « beaucoup beaucoup beaucoup mieux », sauf **Let It Be** — le
+refrain B, vraiment différent, sort comme des A (24 mesures en trop).
+
+**Sa règle 4, mot pour mot** : « Prends le score du pic le + grand trouvé en
+dehors de la section déjà identifiée — ça nous donne une idée de la
+variabilité inter-chanson. Ensuite utilise cet indice de variabilité + la
+taille de tous les autres pics pour décider d'un score qui permet de
+différencier le A du B dans Let It Be, tout en gardant Stand By Me. »
+
+**Implémentation** (`simulation.reference_du_morceau`, commit eb72b62) : parmi
+les départs qui passent la règle 3, R = le plus haut ; on trie les hauteurs et
+on prend le plus grand trou entre deux consécutives ; tolérance =
+`TROU_K (2) × max(1 − R, écart dans le groupe du haut, BRUIT_PIC 0,01)` ; on
+coupe tout ce qui est sous le trou si trou > tolérance ET groupe du bas plus
+nombreux que celui du haut (« la taille des autres pics »).
+
+**Mesuré** (page `docs/plots/occurrences_brique_v3_2026-09-30.html`, rejouable
+`python -m tools.occurrences_brique_v3 --page`) — la règle ne coupe que 3 lettres
+sur les 20 découpages validés :
+
+| lettre | R | trou | tolérance | haut / bas | justes / ratées / en trop v2 → v3 |
+|---|---|---|---|---|---|
+| Let It Be A | 1,000 | 0,066 (0,994 → 0,928) | 0,020 | 6 / 15 | 32/0/24 → 32/0/0 |
+| Stand By Me A | 0,943 | 0,020 | 0,114 | 1 / 8 | 80/0/0 → 80/0/0 (pas de coupe) |
+| The Walk B | 1,000 | 0,075 | 0,020 | 2 / 4 | 24/12/4 → 20/16/0 |
+| X-yIEMduRXk A | 0,994 | 0,092 | 0,020 | 2 / 3 | 24/1/8 → 20/5/8 |
+
+Total : justes 1402 → 1394, ratées 128 → 136, en trop 408 → 380. Tout le reste
+identique à v2 (Every Breath You Take A : trou 0,072 mais 3 / 3, gardé — c'est
+la seconde condition qui le sauve). Rapport d'or : 0 mesure changée (60 cuits,
+2 froids, 1 erreur préexistante h_D3VFfhvs4).
+
+**À arbitrer par Louis** (rien n'a été retouché) :
+- The Walk B : la coupe enlève les boucles décalées de 2 mesures (51, 55, 79,
+  83 à 0,92) ; le décalage disparaît (0 en trop) mais 57–58 et 85–86 sont
+  perdues. Le 2e et le 3e passage de chaque B restent ratés, comme en v2.
+- X-yIEMduRXk A : un jumeau dans le C (départ 44, 0,991) est aussi haut que la
+  vraie reprise (23, 0,994) et gonfle le groupe du haut ; la vraie reprise
+  31–34 (0,873) est coupée. La règle suppose que la meilleure trouvaille hors
+  zone est une vraie reprise.
+- Pas touché par la règle : She Will Be Loved A/D (jumeaux au niveau des vrais
+  A, 14 / 13 et 17 / 13, aucun trou).

@@ -5,7 +5,7 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
-## Retrouver les occurrences d'une section donnée : les trois règles de Louis branchées (2026-09-30 soir, RÉSOLU en partie — reste les jumeaux)
+## Retrouver les occurrences d'une section donnée : les quatre règles de Louis branchées (2026-09-30 soir, RÉSOLU en partie — reste les jumeaux)
 
 Louis sur la page du matin : « le détecteur avec pics est bon », verdicts
 (Stand By Me = une seule section ; The Walk, B peut être plus court) et trois
@@ -22,13 +22,28 @@ en trop 278 → 408. Corrigés : San Francisco Street A (24 → 40/41, la repris
 de 16 est retrouvée), Stand By Me A (32 → 80/80), Let It Be A (8 → 32/32),
 The Walk A (12 → 40/40). Rapport d'or : 0 mesure changée (60 cuits).
 
+RÈGLE 4 (2026-09-30 soir, après la page v2 : « beaucoup beaucoup beaucoup
+mieux » sauf Let It Be) : la meilleure reprise hors zone (R) calibre le
+morceau ; on coupe sous le plus grand trou entre hauteurs de pics s'il dépasse
+2 × max(1 − R, écart du groupe du haut, 0,01) ET si le groupe du bas est plus
+nombreux (`simulation.reference_du_morceau`, eb72b62). Page :
+`docs/plots/occurrences_brique_v3_2026-09-30.html`. Ne coupe que 3 lettres :
+Let It Be A 24 en trop → 0 (trou 0,066 contre tolérance 0,02, 15 pics dessous
+contre 6) ; Stand By Me intact (tolérance 0,114, trou 0,020) ; **The Walk B**
+20/16/0 au lieu de 24/12/4 (décalage supprimé mais 4 mesures justes perdues) et
+**X-yIEMduRXk A** 20/5/8 au lieu de 24/1/8 (un jumeau dans le C aussi haut que
+la vraie reprise gonfle le groupe du haut, 31–34 coupé) — à arbitrer par
+Louis. Total : justes 1402 → 1394, ratées 128 → 136, en trop 408 → 380.
+Rapport d'or : 0 mesure changée.
+
 CE QUI RESTE :
-1. **Jumeaux harmoniques, plus fréquents** : une boucle de 4 ressemble à plus
-   de choses qu'une brique de 8 — Let It Be A (+24, le refrain finit sur les
-   mêmes accords), She Will Be Loved A (+28) et D (+60, même grille presque
-   tout du long), This Love A (l'intro). Aucune règle sur la courbe ne les
-   sépare ; Louis tranche (comme Stand By Me ?).
-2. **Phase d'une boucle à deux accords** : The Walk B trouvé décalé de 2 mesures.
+1. **Jumeaux harmoniques au niveau des vraies reprises** : She Will Be Loved A
+   (+28) et D (+60, même grille presque tout du long), This Love A (l'intro),
+   X-yIEMduRXk B. La règle 4 ne les voit pas (aucun trou) ; Louis tranche
+   (comme Stand By Me ?). Si le meilleur pic hors zone est un jumeau, la règle 4
+   se calibre dessus (X-yIEMduRXk A).
+2. **Phase d'une boucle à deux accords** : The Walk B — v3 garde la bonne phase
+   mais rate toujours les 2e et 3e passages de chaque B.
 3. **Vamp** (Chain of Fools, 0,99 partout) : abstention, comme avant.
 4. Stand By Me C : 15–22 refusé de justesse (proéminence 0,57).
 
