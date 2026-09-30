@@ -884,8 +884,13 @@ def _carte_de_lecture(occ, b0, b1, grid, n) -> list[list[list[float]]]:
 
 def sections_pour_chart(chart: dict, secs: list[dict],
                         bars: list | None = None,
-                        fold_report: dict | None = None) -> list[dict]:
+                        fold_report: dict | None = None,
+                        fusion: int | None = None) -> list[dict]:
     """Les sections du chart, refaites à partir du découpage de la Soudure.
+
+    `fusion` : le cran du curseur « fusion des sections »
+    (`folding.FUSION_NIVEAUX`) ; None = le défaut. Pour stocker tous les crans
+    dans le chart, voir `sections_et_fusions`.
 
     `secs` : [{label, mesure_debut, mesure_fin}] en mesures 1-indexées, fin
     incluse — la forme que la page exporte.
@@ -976,9 +981,22 @@ def sections_pour_chart(chart: dict, secs: list[dict],
     # Fins iReal et cascade sur le BRUT, comme minimal_fold (voir le
     # commentaire là-bas : lues sur la vue, les fins exposaient le bruit
     # des dernières mesures — Louis, 2026-09-15).
+    from harmonia.folding import FUSION_DEFAUT
     for blk in out:
-        _ireal_endings(blk, bars, grid)
+        _ireal_endings(blk, bars, grid,
+                       FUSION_DEFAUT if fusion is None else fusion)
     return _ireal_cascade(out, bars, grid, None)
+
+
+def sections_et_fusions(chart: dict, secs: list[dict], bars=None,
+                        fold_report: dict | None = None) -> tuple[list, dict]:
+    """(sections au défaut, `sectionsFusion`) — `sections_pour_chart` à
+    chaque cran du curseur de fusion, pour que le curseur de l'app réponde
+    sans refaire l'empilement. Voir `folding.sections_par_fusion`."""
+    from harmonia.folding import sections_par_fusion
+    return sections_par_fusion(
+        lambda n: sections_pour_chart(chart, secs, bars=bars,
+                                      fold_report=fold_report, fusion=n))
 
 
 def song_du_chart(chart: dict, audio_dir=None) -> dict | None:

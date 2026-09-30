@@ -219,8 +219,12 @@ def soudure_valider(file):
     # dit la précédente ; le jeter lui rendrait un chart moins bon qu'avant.
     from harmonia.refold import refold
     bars, rap = refold(chart, secs, AUDIO_DIR)
-    neuves = sections_pour_chart(chart, secs, bars=bars,
-                                 fold_report=rap.get("rapport"))
+    # Tous les crans du curseur « fusion des sections » d'un coup (Louis,
+    # 2026-09-30) : le curseur de l'app choisit ensuite parmi eux, sans
+    # refaire l'empilement. `sections` reste le défaut.
+    from harmonia.soudure import sections_et_fusions
+    neuves, fusions = sections_et_fusions(chart, secs, bars=bars,
+                                          fold_report=rap.get("rapport"))
     if not neuves:
         return jsonify({"error": "aucune section utilisable"}), 400
     try:
@@ -248,6 +252,10 @@ def soudure_valider(file):
             log.exception("registre des corrections : sections non notées "
                           "pour %s", file)
         chart["sections"] = neuves
+        if fusions:
+            chart["sectionsFusion"] = fusions
+        else:
+            chart.pop("sectionsFusion", None)
         # Le repli d'origine décrivait les ANCIENNES sections : le garder
         # ferait lire au chart une carte qui ne correspond plus au terrain.
         # Celui de `refold` décrit CE découpage-ci, il a le droit d'y rester.

@@ -78,6 +78,12 @@ def chart_model(file):
     # Rehydrate server-side: the shell POSTs annotations but never GETs
     # them, so the overlay has to happen here or every lock dies on reload.
     model = json.loads(p.read_text(encoding="utf-8"))
+    # LE CURSEUR « FUSION DES SECTIONS » (Louis, 2026-09-30), réglé par
+    # morceau dans `chart_meta.json` : on sert le cran choisi AVANT la
+    # surcouche des annotations, qui s'applique donc aux sections affichées.
+    from harmonia.folding import appliquer_fusion
+    niveau = (_load_chart_meta().get(Path(file).stem) or {}).get("fusion")
+    model = appliquer_fusion(model, niveau)
     ann = annotations.load_annotation(file)
     model = annotations.overlay(model, ann)
     # overlay() can insert a new chord into a bar that already has one (it
@@ -100,8 +106,28 @@ def chart_meta(file):
         return jsonify({"error": "bad stem"}), 400
     doc = request.get_json(silent=True) or {}
     meta = _load_chart_meta()
-    meta[stem] = {"artist": (doc.get("artist") or "").strip()[:120],
-                  "title": (doc.get("title") or "").strip()[:200]}
+    # FUSION : la ligne d'un morceau porte aussi le cran du curseur « fusion
+    # des sections » (2026-09-30). On FUSIONNE la ligne au lieu de la
+    # remplacer — sinon renommer l'artiste effacerait le réglage, et régler
+    # le curseur effacerait l'artiste. Chaque champ n'est écrit que s'il est
+    # dans la requête.
+    entry = dict(meta.get(stem) or {})
+    if "artist" in doc or "title" in doc:
+        entry["artist"] = (doc.get("artist") or "").strip()[:120]
+        entry["title"] = (doc.get("title") or "").strip()[:200]
+    if "fusion" in doc:
+        from harmonia.folding import FUSION_DEFAUT, FUSION_NIVEAUX
+        try:
+            niv = int(doc["fusion"])
+        except (TypeError, ValueError):
+            return jsonify({"error": "bad fusion"}), 400
+        if niv not in FUSION_NIVEAUX:
+            return jsonify({"error": "bad fusion"}), 400
+        if niv == FUSION_DEFAUT:
+            entry.pop("fusion", None)
+        else:
+            entry["fusion"] = niv
+    meta[stem] = entry
     try:
         META_PATH.parent.mkdir(parents=True, exist_ok=True)
         META_PATH.write_text(json.dumps(meta, ensure_ascii=False, indent=1))

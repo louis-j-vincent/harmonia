@@ -63,6 +63,7 @@ avait déjà son défaut réglé sur ce qui survit ici.
 """
 from __future__ import annotations
 
+import json
 import logging
 
 import numpy as np
@@ -1427,12 +1428,195 @@ _PRIMES = ("\u2032", "\u2033", "\u2034", "\u2057")
 #: Au-delà, ce n'est plus une fin alternative, c'est une autre musique.
 _ENDING_TAIL_MAX = 2
 
+# ── LE CURSEUR « FUSION DES SECTIONS » (Louis, 2026-09-30) ──────────────────
+# « Il faudrait un curseur sur lequel on peut jouer qui force à quel point tu
+# merges les sections ou tu les laisses avoir des bouts alternatifs. »
+#
+# Il ne pilote QUE la décision « ces passes d'une même lettre ont-elles des
+# fins différentes ? » (`_ireal_endings`) — c'est la seule qui soit un choix
+# d'ÉCRITURE. Les portes du repli (cohérence de pile, z des mesures rejetées)
+# décident quels ACCORDS on écrit, pas combien de blocs : les brancher sur un
+# réglage d'affichage ferait changer des accords en bougeant un curseur, et
+# demanderait de relancer l'empilement (musx) à chaque cran.
+#
+#   0  garder toutes les fins : une simple couleur (C7 / C-7) fait une fin
+#   1  le défaut, le comportement d'avant le curseur (une vraie fin change
+#      de fondamentale sonnée)
+#   2  fusionner les fins PROCHES : une queue dont les notes ressemblent à
+#      ≥ 0,90 à la queue la plus jouée la rejoint
+#   3  fusionner les fins APPARENTÉES : même chose à ≥ 0,70
+#   4  tout fusionner : un bloc ×N, écrit avec la fin la plus jouée
+#
+# « Ressembler » = le cosinus des notes sonnées (basse comprise, pondérées par
+# la durée), mesure par mesure, moyenné sur la queue — la ressemblance
+# chord-tone du projet (Bb plus près de G- que de F). Mesuré sur la
+# bibliothèque le 2026-09-30 (11 blocs à fins) : Claustrophobic C9 F7 / Bb7
+# F^7 contre C7sus4 F^7 à 0,94-0,96, Bb-7 à la place d'Eb7 à 0,71 ; This
+# Love ≥ 0,81 ; My Cherie Amour Ab7 / A7 à 0,65 ; She Will Be Loved Ab / Bb
+# à 0,00. Les seuils sont posés entre ces valeurs, pas au milieu d'un nuage.
+FUSION_NIVEAUX = (0, 1, 2, 3, 4)
+FUSION_DEFAUT = 1
+_FUSION_SEUIL = {2: 0.90, 3: 0.70}
+
+
+def _vec_notes(bar) -> list[float]:
+    v = [0.0] * 12
+    from harmonia.roles import pcs
+    for c in bar or []:
+        if c.get("nc"):
+            continue
+        try:
+            d = float(c["t1"]) - float(c["t0"])
+        except (KeyError, TypeError, ValueError):
+            d = 1.0
+        for p in pcs(c):
+            v[p] += max(d, 1e-3)
+    return v
+
+
+def _ressemblance_queues(qa: list, qb: list) -> float:
+    """Cosinus des notes sonnées, mesure par mesure, moyenné sur la queue."""
+    def cos(a, b):
+        na = sum(x * x for x in a) ** .5
+        nb = sum(x * x for x in b) ** .5
+        if not na or not nb:
+            return 1.0 if na == nb else 0.0
+        return sum(x * y for x, y in zip(a, b)) / (na * nb)
+    if not qa:
+        return 1.0
+    return sum(cos(_vec_notes(a), _vec_notes(b))
+               for a, b in zip(qa, qb)) / len(qa)
+
+
+def cle_sections(sections: list) -> str:
+    """L'empreinte d'un découpage (lettres + passes) : les variantes de fusion
+    stockées dans un chart ne valent que pour le découpage qui les a vues
+    naître. Une route qui réécrit `sections` sans les refaire les périme."""
+    import hashlib
+    brut = json.dumps([[s.get("label"), s.get("barRanges")]
+                       for s in sections or []], sort_keys=True)
+    return hashlib.sha1(brut.encode()).hexdigest()[:16]
+
+
+def sections_par_fusion(construire) -> tuple[list, dict]:
+    """(sections au défaut, variantes) — `construire(niveau)` rend les
+    sections du chart à ce niveau de fusion.
+
+    Les variantes vont dans `chart["sectionsFusion"]` : un niveau qui rend
+    exactement le défaut n'y est pas ; deux niveaux qui rendent la même chose
+    partagent une entrée (la seconde vaut le NOM de la première). `cle` =
+    l'empreinte du découpage (`cle_sections`)."""
+    defaut = construire(FUSION_DEFAUT)
+    alt: dict = {}
+    vus = [(FUSION_DEFAUT, defaut)]
+    for n in FUSION_NIVEAUX:
+        if n == FUSION_DEFAUT:
+            continue
+        s = construire(n)
+        pareil = next((m for m, t in vus if t == s), None)
+        if pareil == FUSION_DEFAUT:
+            continue
+        if pareil is not None:
+            alt[str(n)] = str(pareil)
+        else:
+            alt[str(n)] = s
+            vus.append((n, s))
+    if alt:
+        alt["cle"] = cle_sections(defaut)
+    return defaut, alt
+
+
+def appliquer_fusion(model: dict, niveau) -> dict:
+    """Le chart tel que servi au client, au niveau de fusion choisi par Louis
+    pour ce morceau (`chart_meta.json`, clé `fusion`). Retire les variantes
+    (elles ne voyagent pas jusqu'au téléphone) ; pose `fusion` (le niveau
+    effectif) et `fusionDispo` (le curseur change-t-il quelque chose ici ?).
+    Variantes périmées (découpage réécrit depuis) → le défaut, sans bruit."""
+    alt = model.pop("sectionsFusion", None) or {}
+    try:
+        niveau = int(niveau)
+    except (TypeError, ValueError):
+        niveau = FUSION_DEFAUT
+    if niveau not in FUSION_NIVEAUX:
+        niveau = FUSION_DEFAUT
+    frais = bool(alt) and alt.get("cle") == cle_sections(model.get("sections"))
+    model["fusionDispo"] = frais
+    if frais and niveau != FUSION_DEFAUT:
+        s = alt.get(str(niveau))
+        if isinstance(s, str):
+            s = alt.get(s)
+        if isinstance(s, list):
+            model["sections"] = s
+    model["fusion"] = niveau
+    return model
+
+
+def accord_sonnant(c: dict) -> tuple[int, str]:
+    """(fondamentale, qualité) de l'accord tel qu'il SONNE sur sa basse.
+
+    Louis, 2026-09-30, sur Claustrophobic : « t'as différencié un A où il y a
+    un Bb/C d'un A où il y a un C7sus4 alors qu'essentiellement c'est la même
+    chose ». Bb/C, c'est Bb-D-F sur un do : do, 9, 11, b7 — un C9sus4. Même
+    chose pour F/G (G9sus4), Ab/Bb (Bb9sus4), G-7/C (C11).
+
+    LA RÈGLE, par le contenu et non par une liste : une basse ÉTRANGÈRE à
+    l'accord (pas un renversement), et, lues depuis cette basse, une septième
+    mineure sans aucune tierce → un accord sus sur la basse, écrit `7sus4`
+    (la 9 est une couleur : `9sus4` s'écrit `7sus4` aussi).
+
+    CE QUE ÇA NE FAIT PAS, exprès : une basse étrangère qui fait entendre une
+    tierce reste l'accord écrit — Eb7/C sonne C-7(b9), un accord MINEUR, et
+    `roles.role` (règle 2, « toute basse étrangère = sus ») l'aurait appelé
+    dominante. Un renversement (C/E) ne change rien. D/C (pas de b7 au-dessus
+    du do) ne change rien. Si Louis veut Eb7/C ≡ C-7, c'est une autre règle,
+    à arbitrer à part.
+    """
+    root, q = int(c["root"]) % 12, c.get("q") or ""
+    if q == "9sus4":
+        q = "7sus4"
+    b = c.get("bass", -1)
+    if c.get("nc") or b is None or b < 0 or b % 12 == root:
+        return root, q
+    b %= 12
+    from harmonia.labels import chord_pcs
+    from harmonia.roles import _PCS
+    up = {(root + r) % 12 for r in (_PCS.get(q) or chord_pcs(root, q))}
+    if b in up:
+        return root, q
+    rel = {(p - b) % 12 for p in up}
+    if 10 in rel and 3 not in rel and 4 not in rel:
+        return b, "7sus4"
+    return root, q
+
+
+def lectures(c: dict) -> frozenset:
+    """Les façons LÉGITIMES de lire un accord : {(fondamentale, qualité)}.
+
+    Un accord ordinaire n'en a qu'une — l'accord écrit (sa basse ignorée,
+    comme avant : Bb/D ≡ Bb). Un sus-sur-basse (`accord_sonnant`) en a DEUX :
+    la triade écrite ET le sus sur la basse — Bb/C se lit Bb (comme avant) OU
+    C7sus4 (Louis, 2026-09-30). Deux accords se valent s'ils partagent une
+    lecture. Ce n'est PAS une égalité (Bb ≡ Bb/C ≡ C7sus4 n'entraîne pas
+    Bb ≡ C7sus4) : c'est voulu, et c'est pour ça qu'on compare par
+    `_compat` et jamais par `==`.
+
+    Conséquence mesurée (rapport d'or 2026-09-30) : une première version
+    remplaçait la lecture écrite par la lecture sonnée ; elle CASSAIT un
+    raccord qui marchait (9zEl-FQLI4A : `G/A` d'un passage contre `G^7` de
+    l'autre, un A′ apparaissait). Avec deux lectures, l'équivalence ne fait
+    qu'AJOUTER des accords — jamais en retirer un.
+    """
+    r, q = int(c["root"]) % 12, c.get("q") or ""
+    if q == "9sus4":
+        q = "7sus4"
+    return frozenset({(r, q), accord_sonnant(c)})
+
 
 def _barsig(bar) -> tuple:
-    """Ce qu'une mesure JOUE, à la note près — sert à REPÉRER UNE DIFFÉRENCE
-    (les queues divergentes d'une 1re/2e fin), où l'exactitude est ce qu'on
-    veut."""
-    return tuple((c["root"], c["q"], bool(c["nc"])) for c in (bar or []))
+    """Ce qu'une mesure JOUE — sert à REPÉRER UNE DIFFÉRENCE (les queues
+    divergentes d'une 1re/2e fin). Par accord : (ses lectures, N.C.?).
+    Se compare avec `_compat`."""
+    return tuple((lectures(c), bool(c["nc"])) for c in (bar or []))
 
 
 def _barsig_famille(bar) -> tuple:
@@ -1445,13 +1629,34 @@ def _barsig_famille(bar) -> tuple:
     les lettres sont la boucle `E-|B-`, l'exactitude de `_barsig` empêchait
     `_merge_coupe` d'absorber les passages courts — un seul `B-7` au lieu d'un
     `B-` suffisait à les déclarer autres, et le chart gardait trois blocs pour
-    une boucle.
+    une boucle. Se compare avec `_compat`, comme `_barsig`.
     """
-    return tuple((c["root"] % 12, famille_de(c.get("q")), bool(c.get("nc")))
-                 for c in (bar or []))
+    return tuple((frozenset((r, famille_de(q)) for r, q in lectures(c)),
+                  bool(c.get("nc"))) for c in (bar or []))
 
 
-def _ireal_endings(blk: dict, bars, grid) -> None:
+def _compat(a, b) -> bool:
+    """Deux signatures (mesure, ou suite de mesures) se valent : même nombre
+    d'accords, et chaque paire partage une lecture et son statut N.C. Pour
+    des accords à lecture unique, c'est exactement l'ancienne égalité."""
+    if len(a) != len(b):
+        return False
+    if a and isinstance(a[0], tuple) and len(a[0]) == 2 \
+            and isinstance(a[0][0], frozenset):
+        return all(xa[1] == xb[1] and bool(xa[0] & xb[0])
+                   for xa, xb in zip(a, b))
+    return all(_compat(xa, xb) for xa, xb in zip(a, b))
+
+
+def _racines(sig) -> tuple:
+    """La même signature réduite aux fondamentales lisibles."""
+    if sig and isinstance(sig[0], tuple) and len(sig[0]) == 2 \
+            and isinstance(sig[0][0], frozenset):
+        return tuple((frozenset(r for r, _ in x[0]), x[1]) for x in sig)
+    return tuple(_racines(x) for x in sig)
+
+
+def _ireal_endings(blk: dict, bars, grid, fusion: int = FUSION_DEFAUT) -> None:
     """Règle 2 : des passages qui ne diffèrent QUE sur leur queue deviennent
     UN bloc avec une 1ʳᵉ et une 2ᵉ fin. Mute `blk` sur place.
 
@@ -1465,6 +1670,8 @@ def _ireal_endings(blk: dict, bars, grid) -> None:
     Ne s'applique QUE si le bloc écrit est un passage entier : quand le repli
     a déjà réduit le bloc à sa cellule (4 mesures pour un passage de 8), il
     n'y a pas de place pour suspendre une queue.
+
+    `fusion` : le cran du curseur « fusion des sections » (FUSION_NIVEAUX).
     """
     ranges = [tuple(r) for r in blk["barRanges"]]
     if len(ranges) < 2 or blk.get("endings"):
@@ -1478,17 +1685,47 @@ def _ireal_endings(blk: dict, bars, grid) -> None:
     sigs = [[_barsig(bars[c0 + r]) for r in range(L)] for c0, _ in ranges]
     prefix_len = L
     for r in range(L):
-        if len({s[r] for s in sigs}) > 1:
+        if not all(_compat(sa[r], sb[r]) for i, sa in enumerate(sigs)
+                   for sb in sigs[i + 1:]):
             prefix_len = r
             break
     tail = L - prefix_len
     if not (1 <= tail <= _ENDING_TAIL_MAX) or prefix_len < 2:
         return
-    bytail: dict[tuple, list[int]] = {}
+    # les groupes de queues, dans l'ordre de leur première passe ; une passe
+    # rejoint le premier groupe dont la passe-témoin se lit pareil
+    groupes: list[dict] = []
     for pi, s in enumerate(sigs):
-        bytail.setdefault(tuple(s[prefix_len:]), []).append(pi)
-    if len(bytail) < 2:
+        t = tuple(s[prefix_len:])
+        g = next((g for g in groupes if _compat(g["sig"], t)), None)
+        if g is None:
+            groupes.append({"sig": t, "passes": [pi], "rep": pi})
+        else:
+            g["passes"].append(pi)
+    if len(groupes) < 2:
         return
+
+    # LE CURSEUR (voir FUSION_NIVEAUX). Au défaut, ce bloc ne fait rien.
+    def queue(pi):
+        return [bars[ranges[pi][0] + r] for r in range(prefix_len, L)]
+    if fusion > FUSION_DEFAUT:
+        # l'hôte = la queue la plus jouée (à égalité, la première entendue)
+        hote = max(groupes, key=lambda g: (len(g["passes"]), -g["passes"][0]))
+        q_hote = queue(hote["rep"])
+        seuil = _FUSION_SEUIL.get(fusion)       # None au cran max : tout
+        for g in [g for g in groupes if g is not hote]:
+            if seuil is None or \
+                    _ressemblance_queues(queue(g["rep"]), q_hote) >= seuil:
+                hote["passes"] = sorted(hote["passes"] + g["passes"])
+                groupes.remove(g)
+        if len(groupes) < 2:
+            # toutes les fins ont rejoint l'hôte : un bloc ×N, écrit avec
+            # la fin la plus jouée ; la carte de lecture (une rangée par
+            # mesure, toutes les passes) reste celle du bloc entier.
+            blk["bars"] = list(blk["bars"][:prefix_len]) + q_hote
+            logger.info("ireal: %s ×%d, fins fusionnées (curseur %d)",
+                        blk["label"], len(ranges), fusion)
+            return
     # UNE VRAIE 2e FIN CHANGE D'ACCORD, PAS DE COULEUR (2026-09-14). Sur Sunny
     # Afternoon la queue des trois refrains ne diffère que par `C7` contre
     # `Cm7` sur la dernière mesure — et cette mesure-là est justement celle que
@@ -1496,15 +1733,18 @@ def _ireal_endings(blk: dict, bars, grid) -> None:
     # décodage est du premier jet, passage par passage. Suspendre un crochet
     # « 1./2. » pour ça, c'est sur-noter du bruit. On exige donc que la queue
     # change de FONDAMENTALE quelque part (This Love : `B♭ E♭` contre `A♭ G`).
-    roots = {tuple(tuple(ch[0] for ch in bar) for bar in key)
-             for key in bytail}
-    if len(roots) < 2:
+    # Au cran 0 (« garder toutes les fins »), une couleur suffit.
+    rac = [_racines(g["sig"]) for g in groupes]
+    meme_fond = all(_compat(ra, rb) for i, ra in enumerate(rac)
+                    for rb in rac[i + 1:])
+    if meme_fond and fusion != 0:
         return
     variants = []
     rows = [[[grid[c0 + r], grid[min(len(grid) - 1, c0 + r + 1)]]
              for c0, _ in ranges] for r in range(prefix_len)]
-    for _key, passes in sorted(bytail.items(), key=lambda kv: kv[1][0]):
-        v0 = ranges[passes[0]][0]
+    for g in sorted(groupes, key=lambda g: g["passes"][0]):
+        passes = g["passes"]
+        v0 = ranges[g["rep"]][0]
         variants.append({"passes": passes,
                          "bars": [bars[v0 + r] for r in range(prefix_len, L)]})
         for r in range(prefix_len, L):
@@ -1611,7 +1851,8 @@ def _merge_coupe(host: dict, blk: dict, cell, P, grid) -> bool:
     sig = [_barsig_famille(bar) for bar in blk["bars"]]
     L = len(sig)
     offset = next((off for off in range(P)
-                   if all(sig[i] == cell[(off + i) % P] for i in range(L))),
+                   if all(_compat(sig[i], cell[(off + i) % P])
+                          for i in range(L))),
                   None)
     if offset is None:
         return False

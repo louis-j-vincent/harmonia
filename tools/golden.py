@@ -91,10 +91,11 @@ def charger_moteur(nom: str) -> dict:
     if nom == "harmonia":
         from harmonia.pipeline import analyze
         from harmonia.refold import refold
-        from harmonia.soudure import sections_pour_chart
+        from harmonia.soudure import sections_et_fusions, sections_pour_chart
         s = SETTINGS
         return {"analyze": analyze, "refold": refold,
                 "sections_pour_chart": sections_pour_chart,
+                "sections_et_fusions": sections_et_fusions,
                 "charts": s.charts_dir, "sections": s.sections_dir,
                 "marks": s.marks_dir}
     raise SystemExit(f"moteur inconnu : {nom}")
@@ -223,10 +224,12 @@ def cuire(eng: dict, key: str, charts: Path, out: Path) -> dict:
         a_la_main, n_comble = completer(a_la_main, model, n)
         if a_la_main:
             bars, rap = eng["refold"](model, a_la_main, AUDIO)
-            neuves = eng["sections_pour_chart"](model, a_la_main, bars=bars,
-                                                fold_report=rap.get("rapport"))
+            neuves, fusions = eng["sections_et_fusions"](
+                model, a_la_main, bars=bars, fold_report=rap.get("rapport"))
             if neuves:
                 model["sections"] = neuves
+                if fusions:          # les crans du curseur de fusion
+                    model["sectionsFusion"] = fusions
                 model["fold"] = rap.get("rapport") or {}
                 model["form"] = None
                 note = f"sections à la main rejouées (+{n_comble} comblées)"

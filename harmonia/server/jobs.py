@@ -220,7 +220,9 @@ def _run_job(job_id: str, url: str, bar1_time=None, tempo_factor=None):
         if artist or title:
             _meta = _load_chart_meta()
             if not (_meta.get(file_key) or {}).get("title"):
-                _meta[file_key] = {"artist": artist, "title": title}
+                # fusionner : la ligne peut déjà porter le cran de fusion
+                _meta[file_key] = {**(_meta.get(file_key) or {}),
+                                   "artist": artist, "title": title}
                 try:
                     META_PATH.parent.mkdir(parents=True, exist_ok=True)
                     META_PATH.write_text(
