@@ -5,6 +5,33 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Fins alternatives : Bb/C ≡ C7sus4, et le curseur « Section merging » (2026-09-30, RÉSOLU en partie)
+
+Louis, sur Claustrophobic (mCwI0YA4mIY) : un A avec Bb/C et un A avec
+C7sus4 faisaient deux fins. Cause : `folding._ireal_endings` groupait les
+queues par égalité exacte (fondamentale, qualité), basse ignorée — Bb/C
+comptait pour « Bb ». **Fait** : (1) un accord sur basse étrangère avec b7
+et sans tierce au-dessus de la basse se lit AUSSI 7sus4 sur la basse
+(`accord_sonnant`, `lectures`, comparaison `_compat` dans les fins et dans
+le raccord `_merge_coupe`) ; la lecture écrite reste, donc rien ne se
+dé-fusionne (une 1re version l'a fait sur 9zEl-FQLI4A : `G/A` contre
+`G^7`). Rapport d'or : 0 mesure changée / 63 ; seule décision changée :
+Claustrophobic, fins [1] + [2,3] fusionnées. (2) Curseur 0–4 par morceau
+dans Aa (défaut 1 = avant) : 0 garde les fins de couleur, 2/3 fusionnent
+les fins qui ressemblent à ≥ 0,90 / 0,70 (cosinus chord-tone) à la plus
+jouée, 4 = un bloc ×N. Rendus précalculés (`chart.sectionsFusion`) à
+« Valider » et au rapport d'or, réglage dans `chart_meta.json[stem].fusion`.
+Captures : `docs/plots/fusion_fins_2026-09-30/`.
+**Reste ouvert** : (a) les charts déjà en cache n'ont pas les rendus → le
+curseur n'apparaît qu'après un « Valider les sections » ou une republication
+(`tools.golden --publish`), et après redémarrage du serveur ; (b) le curseur
+ne touche pas les blocs de longueurs différentes (A′) ni le chemin pipeline
+(morceaux non annotés, une seule section) ; (c) Eb7/C (= C-7b9) n'est PAS
+lu comme C-7 — autre règle, à arbitrer ; (d) Claustrophobic au défaut garde
+4 fins (Bb-7 au lieu d'Eb7, C9 F7, Bb7 F^7) ; l'app n'en dessine que 3
+(« A », « alt 1 », « alt 2 ») — la variante C9 F7 manque au rendu, non
+investigué.
+
 ## « Il manque une section avant un A : c'est une intro, pas un C » (2026-09-30, RÉSOLU en partie)
 
 « Valider les sections » nommait la zone libre de tête d'une lettre neuve
