@@ -58,6 +58,9 @@ Louis : « on commence toujours une mesure trop tôt j'ai l'impression, à
 chaque fois le chart commence par un % ou un N.C. ». Mesuré (46 charts
 chauds, rendu Read émulé) : **13/46 imprimaient « N.C. » ou « % » en
 premier ; 6/46 après.** Page : `/plots/premiere_mesure.html`.
+**Arbitré par Louis le 2026-09-30 : « clairement mieux le après » — EN PROD
+(:7772 redémarré le même jour).** Consigne liée : virer l'ancienne façon
+(`_force_bar1_sections` et la branche SongFormer qui la portait).
 
 **Cause (7 des 13).** La grille part de la 1re battue du traqueur ; la
 musique ou la marque « mesure 1 » arrive 1 à 7 mesures plus tard. Ces
