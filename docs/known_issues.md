@@ -5,6 +5,21 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Transposer puis verrouiller un accord réécrivait les annotations (2026-10-01, RÉSOLU)
+
+Trouvé par l'audit UX (`docs/plots/ux_audit_2026-10-01.html`). `transposeTo`
+décalait `S.chords` sur place et `saveAnnotations` envoyait ces racines
+décalées : après une transposition, le moindre verrouillage réécrivait TOUS
+les accords verrouillés du morceau dans la mauvaise tonalité (Gm/B♭ enregistré
+Cm/B♭). La basse n'était même pas transposée à l'écran. Correctif : la basse
+suit la transposition, et la sauvegarde ramène tout dans la tonalité
+d'origine. Test rouge→vert : `tests/ui/check_transpose_save.py` (Playwright,
+POST intercepté). **Non résolu** : (1) les annotations déjà écrites après
+une transposition ne sont pas détectables automatiquement — à réécouter si
+tu as transposé puis corrigé ; (2) les suggestions d'un accord ajouté
+(`/api/chord-candidates`) arrivent dans la tonalité d'origine et ne sont pas
+décalées dans une vue transposée.
+
 ## TODO — la fin alternative de B en 2 mini-cellules, pas un bracket (2026-10-01)
 
 Louis, après le repli de San Francisco Street (B a une vraie fin

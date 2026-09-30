@@ -429,5 +429,9 @@ export function openRotor(){
 // lues dans l'enregistrement, donc transposer l'AFFICHAGE doit les déplacer
 // comme les racines, sinon les cercles de basse du compas désignent des
 // lettres qui ne veulent plus rien dire.
-export function transposeTo(pc){ const d=mod(pc-S.key,12); S.chords.forEach(c=>{ c.root=mod(c.root+d,12); if(c.sug) c.sug.forEach(s=>{ s.root=mod(s.root+d,12); }); if(c.sugBass) c.sugBass.forEach(b=>{ b.pc=mod(b.pc+d,12); }); }); S.key=pc; go("chart"); }
+// Transposer n'agit que sur l'AFFICHAGE : saveAnnotations (annotate.js)
+// ramène racine et basse dans la tonalité d'origine (S.model.key.tonic) avant
+// d'écrire. La basse est décalée elle aussi — avant 2026-10-01 elle restait
+// en place (Gm/B♭ → Cm/B♭ au lieu de Cm/E♭).
+export function transposeTo(pc){ const d=mod(pc-S.key,12); S.chords.forEach(c=>{ c.root=mod(c.root+d,12); if(c.bass!=null&&c.bass>=0) c.bass=mod(c.bass+d,12); if(c.sug) c.sug.forEach(s=>{ s.root=mod(s.root+d,12); }); if(c.sugBass) c.sugBass.forEach(b=>{ b.pc=mod(b.pc+d,12); }); }); S.key=pc; go("chart"); }
 

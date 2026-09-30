@@ -1062,8 +1062,13 @@ export async function saveAnnotations(){
     // dire « pas d'avis, garde celle du modèle » et non « pas de basse » —
     // envoyer `c.bass` tel quel transformerait chaque inférence en
     // affirmation humaine au premier verrouillage venu.
-    const chords=S.chords.filter(c=>c.confirmed).map(c=>({bar:c.bar, beat:c.beat, root:c.root,
-      bass:(c.bassPicked && c.bass>=0)?c.bass:-1, q:c.q, t0:c.t0, t1:c.t1}));
+    // Un chart transposé à l'écran (transposeTo) s'enregistre dans SA tonalité
+    // d'origine : sans ce décalage, verrouiller un accord après transposition
+    // réécrivait tous les accords verrouillés du morceau (bug trouvé par
+    // l'audit UX du 2026-10-01, tests/ui/check_transpose_save.py).
+    const back=mod(S.model.key.tonic-S.key,12);
+    const chords=S.chords.filter(c=>c.confirmed).map(c=>({bar:c.bar, beat:c.beat, root:mod(c.root+back,12),
+      bass:(c.bassPicked && c.bass>=0)?mod(c.bass+back,12):-1, q:c.q, t0:c.t0, t1:c.t1}));
     const merges=S.model.merges||[];
     try{ await api.post("/api/annotations/"+S.model.file, {annotator:"", chords, merges}); }catch(e){}
   }
