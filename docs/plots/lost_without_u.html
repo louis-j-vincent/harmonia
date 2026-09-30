@@ -1,0 +1,51 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lost Without U</title>
+<style>
+:root{--bg:#f7f3ea;--ink:#1c1a17;--mute:#6b645a;--acc:#8a2a2a;--line:#d8cfbf;--ok:#2f6b3a}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1b1916;--ink:#eee8dc;--mute:#a59d90;--acc:#e08a7a;--line:#3a352e;--ok:#7fc08a}}
+:root[data-theme="dark"]{--bg:#1b1916;--ink:#eee8dc;--mute:#a59d90;--acc:#e08a7a;--line:#3a352e;--ok:#7fc08a}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,system-ui,sans-serif;margin:0;padding:16px;max-width:900px;margin:auto}
+h1{font:italic 700 26px Georgia,serif;margin:.2em 0}h2{font-size:18px;margin:1.4em 0 .4em}
+table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px solid var(--line);padding:6px 4px;text-align:left;vertical-align:top}
+code{font-size:13px}.bad{color:var(--acc);font-weight:700}.ok{color:var(--ok);font-weight:700}
+.shots{display:grid;grid-template-columns:1fr 1fr;gap:12px}.shots img{width:100%;border:1px solid var(--line);border-radius:8px}
+a{color:var(--acc)}.m{color:var(--mute);font-size:14px}
+</style></head><body>
+<h1>Lost Without U — « juste un A et un B »</h1>
+<p class="m">Robin Thicke, 0DdCoNbbRvQ · 2026-10-01 · commit 631c071</p>
+<p><b>En une ligne :</b> ton découpage ne contient que A, B et une outro. Le chart inventait A′, A″ et B′. C'est corrigé par deux règles générales. L'outro, elle, vient de ton fichier.</p>
+
+<h2>Ouvrir dans l'app</h2>
+<p><a href="http://100.89.209.63:7772/?open=old_0DdCoNbbRvQ">AVANT</a> · <a href="http://100.89.209.63:7772/?open=new_0DdCoNbbRvQ">APRÈS</a> · <a href="http://100.89.209.63:7772/?open=new_9zEl-FQLI4A">San Francisco Street APRÈS</a> (seul autre morceau touché)</p>
+<div class="shots"><div><b>Avant</b><img src="lost_without_u_avant.png" alt="avant"></div><div><b>Après</b><img src="lost_without_u_apres.png" alt="après"></div></div>
+
+<h2>Qui inventait chaque étiquette</h2>
+<table><tr><th>Imprimé</th><th>Mesures (1 = première)</th><th>Ce que dit ton fichier</th><th>Qui l'a inventé, et pourquoi</th></tr>
+<tr><td class="bad">A′</td><td>34–37 : Dm7 | G7 | C△7 | F△7</td><td>A</td><td><code>_ireal_cascade</code> (folding.py). Ce A de 4 mesures devait se raccorder au grand A. Le test exigeait la mesure accord pour accord : la 4e mesure n'a pas le Gm7 de relance (F△7 au lieu de F△7 Gm7). Refusé → prime.</td></tr>
+<tr><td class="bad">A″</td><td>58 : N.C. seul</td><td>A (1 mesure)</td><td>Même fonction. Un silence ne ressemble à aucune mesure du A → prime.</td></tr>
+<tr><td class="bad">B′</td><td>38–41 : F△7 | Dm7 | Am7 | Am7</td><td>B</td><td>Même fonction. À égalité de passages, l'« hôte » de B était le premier B : la mesure 25, un N.C. seul. Le vrai B (4 mesures) est plus long que son hôte, il ne peut pas s'y fondre → prime.</td></tr>
+<tr><td>outro</td><td>83–89</td><td><b>outro</b></td><td>Personne : c'est ton étiquette (validée le 18/09).</td></tr>
+<tr><td>« bridge »</td><td>—</td><td>—</td><td>Aucune étiquette « bridge » n'existe dans le chart. Je suppose que tu parlais du B′.</td></tr></table>
+
+<h2>La correction (générale, pas propre au morceau)</h2>
+<ol>
+<li><b>Une plage muette n'est jamais l'hôte de sa lettre.</b> Elle rejoint sa lettre (elle reste dans la bande de forme, à sa place) mais n'allume aucune case.</li>
+<li><b>Un accord de passage ne fait pas un A′.</b> Deux mesures sont « le même moment » si elles ont le même premier accord et que l'une ne fait qu'ajouter un accord (F△7 contre F△7 Gm7).</li>
+<li>Un fondu muet en fin de passage ne compte pas contre le raccord.</li>
+</ol>
+<p><b>Garde-fou</b> (sous-replier plutôt que sur-replier) : un passage qui joue autre chose (Em7 | A7 | Dm7 | G7 contre la boucle A) garde son prime — c'est testé.</p>
+<p><b>Ce qui reste :</b> le bloc A écrit fait 8 mesures, sans ×N. Ce n'est pas lié à ce correctif : c'est la règle de boucle (commit 0031e9a, une autre session) qui refuse de factoriser, parce que certains tours jouent G7sus4 là où les autres jouent Gm7. Le passage 34–37 est écrit avec le Gm7 du bloc, qu'il ne joue pas lui-même.</p>
+
+<h2>Mesures 83–89 (ton « outro »)</h2>
+<table><tr><th>Mesure</th><th>83</th><th>84</th><th>85</th><th>86</th><th>87</th><th>88–89</th></tr>
+<tr><td>Joue</td><td>G7sus4</td><td>G7</td><td>C</td><td>C Gm7</td><td>Gm7 Dm7</td><td>N.C.</td></tr>
+<tr><td>Boucle A à cette place</td><td>Dm7</td><td>G7</td><td>C△7</td><td>F△7 Gm7</td><td>Dm7</td><td>—</td></tr></table>
+<p>Ce sont les accords du A (même tonalité, ressemblance d'accords 0,75–1,0 à la boucle), mais avec une vraie cadence finale : G7sus4 tenu, puis G7 → C tenu deux mesures (la boucle, elle, ne se pose jamais sur C), puis un fondu. C'est <b>le dernier A qui finit autrement</b>.</p>
+<p><b>La tension :</b> si tu renommes 83–89 en A dans l'outil, le chart écrira <b>A′</b>. Deux mesures sur cinq diffèrent vraiment (G7sus4 à la place de Dm7, C à la place de F△7), et la règle « sous-replier » les garde à part. Je n'ai pas changé ça sans ton avis. Trois choix :</p>
+<ul><li>garder « outro » (ce qui est imprimé aujourd'hui) ;</li>
+<li>renommer en A → tu vois A′ (une fin de A différente) ;</li>
+<li>me demander une règle « la dernière section qui ressemble à une lettre s'écrit comme la queue de cette lettre ».</li></ul>
+
+<h2>Effets sur les autres morceaux</h2>
+<p>J'ai comparé l'ancien et le nouveau code sur tes 23 morceaux découpés à la main. <b>Un seul autre morceau change : San Francisco Street.</b> La mesure 71 (D△7 G△7, étiquetée A) était imprimée comme un second bloc « A′ », qui doublonnait le vrai A′. Elle rejoint maintenant le A. Aucun accord n'a changé ailleurs.</p>
+</body></html>
