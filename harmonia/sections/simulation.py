@@ -80,6 +80,13 @@ PROEMINENCE_MIN = 0.6
 #: ENTIER ressemble à la brique (vamp, Chain of Fools, tout à 0,99). Sans ce
 #: plancher, (c − fond)/(1 − fond) divise du bruit par presque rien.
 ECART_FOND_MIN = 0.05
+#: RÈGLE 4 (2026-09-30 soir, voir `reference_du_morceau`) : un trou entre
+#: deux hauteurs de pics consécutives coupe s'il dépasse TROU_K fois la
+#: variabilité des reprises du morceau.
+TROU_K = 2.0
+#: la plus petite variabilité admise : en dessous, deux pics à 0,9998 et
+#: 0,9999 « feraient un trou » (The Ronettes C) — c'est du bruit de moyenne.
+BRUIT_PIC = 0.01
 
 
 def _chevauche(a: int, b: int, pris) -> bool:
@@ -164,6 +171,69 @@ def _fond(c, p: int, Lb: int, p0: int, interdit) -> float | None:
     vals = [c[q] for d in range(1, Lb) if d % p0 for q in (p - d, p + d)
             if 0 <= q < len(c) and not interdit(q)]
     return float(np.median(vals)) if vals else None
+
+
+def reference_du_morceau(pics: list[dict]) -> dict | None:
+    """RÈGLE 4 de Louis (2026-09-30 soir, après la page v2 : « beaucoup
+    beaucoup beaucoup mieux », seul Let It Be est rejeté — le B, vraiment
+    différent, sort comme un A) :
+
+        « Prends le score du pic le + grand trouvé en dehors de la section
+        déjà identifiée — ça nous donne une idée de la variabilité
+        inter-chanson. Ensuite utilise cet indice de variabilité + la taille
+        de tous les autres pics pour décider d'un score qui permet de
+        différencier le A du B dans Let It Be, tout en gardant Stand By Me. »
+
+    Parmi les départs qui passent la règle 3, R = le plus haut (hors zone
+    donnée, par construction). On trie les autres par hauteur et on cherche le
+    PLUS GRAND TROU entre deux hauteurs consécutives. La tolérance du morceau
+    est `TROU_K × max(1 − R, dispersion du groupe du haut, BRUIT_PIC)` : 1 − R dit à quel
+    point même la meilleure reprise de CE morceau est loin d'une copie
+    parfaite (Stand By Me 0,057 : bruité ; Let It Be 0,000 : exact), la
+    dispersion du haut dit à quel point les reprises du groupe de R varient
+    entre elles. On coupe — tout ce qui est sous le trou est refusé (`ok =
+    False`, `sous_reference = True`) — si le trou dépasse la tolérance ET si
+    le groupe du bas est PLUS NOMBREUX que celui du haut (« la taille de tous
+    les autres pics ») : c'est alors le niveau du reste du morceau (des
+    jumeaux partout), pas quelques reprises à fin différente. Sans cette
+    condition, Every Breath You Take perdait ses deux A à autre fin (0,919 et
+    0,902 contre 0,998 : exactement les hauteurs du refrain de Let It Be),
+    Don't Know Why, This Love et Fjufjv4rH0s une reprise chacun.
+
+    Mesuré : Let It Be A — R 1,000, groupe du haut 0,994–1,000 (6 pics),
+    trou 0,066 jusqu'à 0,928, tolérance 0,02, 15 pics en dessous → refrain
+    refusé (24 mesures en trop → 0). Stand By Me A — R 0,943, plus grand trou
+    0,020, tolérance 2 × 0,057 = 0,114 → rien ne bouge. Porte ET avec la règle 3 : la règle 3 juge un départ contre son
+    fond local (elle écarte les décalages), la règle 4 juge les pics qui ont
+    passé contre les autres pics (elle écarte les jumeaux moins ressemblants
+    que les vraies reprises). Aucune des deux ne fait le travail de l'autre :
+    le refrain de Let It Be a une proéminence de 0,63–0,73.
+
+    CE QUE ÇA NE RÉSOUT PAS : un jumeau AUSSI ressemblant que les vraies
+    reprises (She Will Be Loved, la même grille presque partout) ne laisse
+    aucun trou. Si la meilleure trouvaille hors zone est elle-même un jumeau
+    (aucune vraie reprise), elle devient la référence. Et vu depuis une
+    section, un jumeau à 0,91 d'un morceau exact est refusé même quand Louis
+    dit « même section » (Stand By Me vu depuis C : les A sont à 0,91 contre
+    0,99, exactement la situation du refrain de Let It Be)."""
+    oks = sorted((x for x in pics if x["ok"]), key=lambda x: -x["c"])
+    if len(oks) < 2:
+        return None
+    h = [x["c"] for x in oks]
+    gaps = [h[i] - h[i + 1] for i in range(len(h) - 1)]
+    i = max(range(len(gaps)), key=lambda k: gaps[k])
+    tol = TROU_K * max(1.0 - h[0], h[0] - h[i], BRUIT_PIC)
+    n_haut, n_bas = i + 1, len(h) - i - 1
+    ref = {"R": round(h[0], 4), "trou": round(gaps[i], 4), "bas_du_haut": round(h[i], 4),
+           "tolerance": round(tol, 4), "n_haut": n_haut, "n_bas": n_bas,
+           "coupe": bool(gaps[i] > tol and n_bas > n_haut)}
+    for x in pics:
+        x["sous_reference"] = False
+    if ref["coupe"]:
+        for x in oks[i + 1:]:
+            x["ok"] = False
+            x["sous_reference"] = True
+    return ref
 
 
 def _passages(p: int, Lb: int, T: int, L: int) -> list[tuple[int, int]]:
@@ -252,6 +322,7 @@ def cherche_sur_matrices(S, V, b0: int, b1: int) -> tuple[list[tuple], dict]:
         detail["pics"].append({"p": q, "c": round(float(c[q]), 4),
                                "fond": round(fond, 4), "rho": round(rho, 3),
                                "ok": ok, "pris": False})
+    detail["reference"] = reference_du_morceau(detail["pics"])
     cand = {x["p"]: x for x in detail["pics"] if x["ok"]}
     # Parmi les départs qui passent, le plus de reprises sans recouvrement
     # (à égalité : les mieux notées). Pas un glouton par hauteur : quand la

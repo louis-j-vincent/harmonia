@@ -189,3 +189,47 @@ def test_les_passages_de_la_brique_restent_ses_traits(monkeypatch):
         {"barGrid": [float(i) for i in range(41)]}, [], "/nulle/part")
     assert [(o["m0"], o["trace"]) for o in occ] == [(0, True), (4, True),
                                                     (20, False)]
+
+
+# ── règle 4 : la référence du morceau (2026-09-30 soir) ──────────────────────
+
+def test_let_it_be_un_jumeau_loin_de_la_reference_est_refuse(courbe):
+    """Let It Be : les vraies reprises à 0,99–1,0, le refrain (jumeau) à
+    0,90–0,91 un peu partout, sur un fond à 0,6 — la règle 3 seule le prenait.
+    La meilleure reprise hors zone (1,0) dit ce qu'est une reprise DANS CE
+    MORCEAU ; les jumeaux en sont séparés par un trou bien plus grand que la
+    dispersion des vraies reprises, et ils sont la MAJORITÉ des pics : c'est
+    le niveau du reste du morceau, pas quelques variantes."""
+    sc = [0.60] * 33
+    sc[0] = 1.0
+    sc[8] = 1.0
+    sc[16] = 0.994
+    sc[24], sc[26], sc[28] = 0.91, 0.905, 0.90   # les jumeaux
+    chart, audio = courbe(sc)
+    occ, info = sim.cherche_brique(chart, 0, 7, audio, label="A")
+    assert [(a, b) for a, b, *_r in occ] == [(0, 7), (8, 15), (16, 23)]
+
+
+def test_every_breath_quelques_reprises_a_fin_differente_restent(courbe):
+    """Every Breath You Take : 3 reprises exactes et une à fin différente
+    (0,919). Même trou que Let It Be, mais le groupe du bas n'est pas la
+    majorité : c'est une variante, pas le niveau du morceau. Elle reste."""
+    sc = [0.60] * 33
+    sc[0] = 1.0
+    sc[8], sc[16], sc[24] = 0.999, 0.997, 0.919
+    chart, audio = courbe(sc)
+    occ, _info = sim.cherche_brique(chart, 0, 7, audio, label="A")
+    assert [(a, b) for a, b, *_r in occ] == [(0, 7), (8, 15), (16, 23), (24, 31)]
+
+
+def test_stand_by_me_un_plateau_de_reprises_bruitees_est_garde(courbe):
+    """Stand By Me : les reprises s'étalent de 0,90 à 0,94 sans trou net, et
+    la meilleure est elle-même loin de 1,0 (le morceau est bruité). Toutes
+    restent."""
+    sc = [0.62] * 33
+    sc[0] = 1.0
+    for p, v in ((8, 0.943), (16, 0.914), (24, 0.896)):
+        sc[p] = v
+    chart, audio = courbe(sc)
+    occ, _info = sim.cherche_brique(chart, 0, 7, audio, label="A")
+    assert [(a, b) for a, b, *_r in occ] == [(0, 7), (8, 15), (16, 23), (24, 31)]
