@@ -88,15 +88,49 @@ def boucles_du_tab(brut: str, dec: int) -> dict:
     return {k: boucle(_sans_repetitions(v)) for k, v in out.items() if v}
 
 
-def comparer(chart: dict, requete: str) -> dict | None:
+def _normal(x: str) -> str:
+    """Un nom réduit à ses lettres et chiffres, pour comparer des graphies."""
+    return re.sub(r"[^a-z0-9]", "", (x or "").lower())
+
+
+def meme_morceau(notre_titre: str, notre_artiste: str, t) -> bool:
+    """Ce tab parle-t-il bien de NOTRE morceau ?
+
+    SANS CE GARDE-FOU, L'OUTIL MENT. Le 2026-09-30, faute de l'avoir écrit, la
+    recherche par TITRE SEUL a rendu :
+
+        « Bora Bora » (Henri Salvador)  ->  « Electric Love » de BØRNS
+        « Bein Green »                  ->  « Tired Of Being Alone » d'Al Green
+
+    et les « désaccords d'accords » qui en sortaient comparaient donc deux
+    chansons sans rapport. Louis l'a vu tout de suite ; l'outil, non.
+
+    On exige que l'artiste concorde quand on le connaît, et à défaut que le
+    titre concorde vraiment (pas une sous-chaîne lointaine).
+    """
+    tt, ta = _normal(t.song_name), _normal(t.artist_name)
+    nt, na = _normal(notre_titre), _normal(notre_artiste)
+    if na:
+        if not (na in ta or ta in na):
+            return False
+    if not nt:
+        return False
+    return nt in tt or tt in nt
+
+
+def comparer(chart: dict, requete: str, artiste: str = "") -> dict | None:
     """Nos sections contre celles du meilleur tab trouvé pour `requete`.
 
     Rend `{note, tab, sections: [{label, reps, nous, tab, manque, enplus}]}`,
     ou None si aucun tab exploitable. `manque` = ce que le tab a et pas nous ;
     `enplus` = l'inverse. Les deux vides = les boucles concordent.
     """
-    res = search_tabs(requete, tab_types=("Chords",), max_results=6)
+    # l'ARTISTE fait partie de la requête : sans lui, UG rend une autre chanson
+    res = search_tabs(requete, artiste, tab_types=("Chords",), max_results=8)
+    res = [x for x in res if meme_morceau(requete, artiste, x)]
     if not res:
+        logger.info("tab_boucles : aucun tab qui soit bien %r de %r",
+                    requete, artiste or "?")
         return None
     pose = poser(chart, requete)
     if pose is None:
