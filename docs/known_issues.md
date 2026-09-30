@@ -5,6 +5,25 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Sections écrites par leur boucle minimale + reprises ||: :|| ×N (2026-09-30, FAIT, à arbitrer)
+
+Louis : « This Love […] la section A ne devrait faire que 4 barres ».
+`folding.boucle_minimale_ecrite` (pipeline + sections à la main), reprises
+dessinées par chart.js (captures `docs/plots/reprises_2026-09-30/`). Rapport
+d'or : 100 mesures, 16 morceaux ; avant/après `/reports/avant_apres.html`.
+Raccourcies : This Love intro/A/bridge 8→4, B 8→4 ; Let It Be A 8→4 ; The
+Walk intro/A/bridge 8→4, B 12→4 ; She Will Be Loved A/B 8→4, D 10→4 ;
+Don't Know Why B 8→4 ; Sunny A 8→4 ; Be My Baby A 8→4 ; Lazy Song D 8→4 ;
+Every Breath C 10→4 ; Claustrophobic B 8→4 ; San Francisco Street intro
+8→4, A 24→8 (×3/2), B 9→4 ; X-yIEMduRXk A 12→4, B 8→4 ; Fjufjv4rH0s A 8→4 ;
+0DdCoNbbRvQ A 8→4 ; Julia (à la main) A 8→4. **Reste ouvert** : (a) les
+lectures d'un tour qui diffèrent sont en `var` (petite lecture), pas en
+crochet 1./2. — Julia A (Eb9 Eb7 du 2e tour), SF A (turnaround du dernier
+tour, 4 mesures), This Love B (Ab G) ; les crochets indexent des passages,
+pas des tours ; (b) à 390px les points « :|| » mordent un 2e accord large
+dans la dernière mesure (This Love intro « Fm/A♭ ») ; (c) grille transposée
+au 2e tour (Fjufjv4rH0s B, Sunny C) : refusée par le garde 25 %.
+
 ## Julia : « C = B avec une queue », « D = petite boucle sur 3 lignes » (2026-09-30, RÉSOLU en partie)
 
 Page : `docs/plots/julia_sections.html`. (1) Le « C » (12 mes.) était B
