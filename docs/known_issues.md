@@ -34,7 +34,11 @@ contre 6) ; Stand By Me intact (tolérance 0,114, trou 0,020) ; **The Walk B**
 **X-yIEMduRXk A** 20/5/8 au lieu de 24/1/8 (un jumeau dans le C aussi haut que
 la vraie reprise gonfle le groupe du haut, 31–34 coupé) — à arbitrer par
 Louis. Total : justes 1402 → 1394, ratées 128 → 136, en trop 408 → 380.
-Rapport d'or : 0 mesure changée.
+Rapport d'or : 0 mesure changée. **Arbitré par Louis le 2026-09-30 : « cette
+règle est top, on garde » — EN PROD (:7772 redémarré), pertes The Walk B /
+X-yIEMduRXk A acceptées.** Nouveau signalement le même jour : sur The Walk,
+après les ~3 premiers petits A, les reprises semblent décalées (~2 mesures ?),
+cause inconnue — en cours d'investigation.
 
 CE QUI RESTE :
 1. **Jumeaux harmoniques au niveau des vraies reprises** : She Will Be Loved A
