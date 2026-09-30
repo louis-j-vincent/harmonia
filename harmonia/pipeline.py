@@ -98,20 +98,70 @@ def prompter_chords(segments, triad: np.ndarray) -> list[dict]:
     return out
 
 
-def _one_section(bars: list, grid: list, n_bars: int) -> list[dict]:
-    """UNE section « A » couvrant tout le morceau, chaque mesure écrite.
+def _one_section(bars: list, grid: list, n_bars: int,
+                 bar1_bar: int | None = None) -> list[dict]:
+    """Le chart BRUT : une section « A », précédée de son intro s'il en a une.
 
-    C'est la forme du chart BRUT, celle que `analyze_steps` rend au premier
-    yield ("raw") — la seule définition, appelée depuis ce seul point, pour
-    qu'aucune deuxième copie ne puisse diverger.
+    C'est la forme que `analyze_steps` rend au premier yield ("raw") et, tant
+    que `SETTINGS.sections == "aucune"`, au chart final — la seule définition,
+    appelée depuis ce seul point, pour qu'aucune deuxième copie ne puisse
+    diverger.
+
+    L'INTRO (Louis, 2026-09-30 : « à chaque fois le chart commence par un %
+    ou un N.C. ce qui n'a aucun sens »). La grille de mesures part de la
+    PREMIÈRE battue du traqueur ; la musique — ou la marque « mesure 1 »,
+    posée à la main ou par `harmonia.debut` — arrive souvent une à sept
+    mesures plus tard. Ces mesures de tête ne portent que des N.C. ou rien
+    (13 charts sur 46 imprimaient « N.C. » ou « % » en premier). Jusqu'au
+    2026-09-19, `_force_bar1_sections` les rangeait dans une section
+    « intro », que chart.js cache en lecture quand elle n'a aucun accord (un
+    trou dans la bande de forme) ; la sortie de SongFormer (bbb0ab0) a fait
+    passer le chart à UNE section et ces mesures sont remontées dans « A ».
+    Règle rétablie, et étendue aux morceaux sans marque :
+      * les mesures de tête sans aucun accord réel → section « intro »
+        (cachée en lecture, gardée dans Annotate/Analyse) ;
+      * avec une marque, ce qui précède la marque ET porte des accords → une
+        deuxième « intro », imprimée (chart.js écrit les intros à accords
+        depuis le 2026-09-18) ; la marque ouvre « A » ;
+      * la marque reste souveraine : une mesure muette À la marque ou après
+        n'est jamais cachée.
+
+    Ce que ça NE fait PAS :
+      * rien n'est retiré de la grille — `barGrid`, les indices de mesure et
+        les accords de chaque mesure sont intacts (les sections à la main et
+        les marques sont stockées en indices absolus) ;
+      * un chart à sections faites à la main ne passe pas par ici : si Louis
+        a mis « A » sur une mesure de tête vide (Grenade, mesure 0), elle
+        s'imprime toujours (« N.C. ») — c'est son découpage, pas la grille ;
+      * musx en retard sur la marque (Sam Smith : la marque tombe sur une
+        mesure où musx n'entend encore rien) reste un N.C. imprimé ;
+      * une intro instrumentale où musx n'entend aucun accord (batterie de
+        Billie Jean, basse de Stand By Me) devient un trou dans la bande de
+        forme, pas des mesures imprimées — l'audio, lui, n'est pas touché.
     """
-    return [{
-        "id": "S0", "label": "A", "tag": "", "reps": 1,
-        "spans": [[grid[0], grid[n_bars]]],
-        "barRanges": [[0, n_bars - 1]],
-        "bars": bars,
-        "barSpans": [[[grid[b], grid[b + 1]]] for b in range(n_bars)],
-    }]
+    def _sec(sid: str, label: str, b0: int, b1: int) -> dict:
+        return {
+            "id": sid, "label": label, "tag": "", "reps": 1,
+            "spans": [[grid[b0], grid[b1 + 1]]],
+            "barRanges": [[b0, b1]],
+            "bars": bars[b0:b1 + 1],
+            "barSpans": [[[grid[b], grid[b + 1]]] for b in range(b0, b1 + 1)],
+        }
+
+    # tête muette : nombre de mesures avant la première qui porte un accord
+    tete = next((b for b in range(n_bars)
+                 if any(c and not c.get("nc") for c in bars[b])), 0)
+    marque = bar1_bar if bar1_bar and 0 < bar1_bar < n_bars else 0
+    if marque:
+        tete = min(tete, marque)          # la marque est souveraine
+    debut_a = max(tete, marque)
+    out, i = [], 0
+    if tete > 0:
+        out.append(_sec(f"S{i}", "intro", 0, tete - 1)); i += 1
+    if debut_a > tete:
+        out.append(_sec(f"S{i}", "intro", tete, debut_a - 1)); i += 1
+    out.append(_sec(f"S{i}", "A", debut_a, n_bars - 1))
+    return out
 
 
 def _force_bar1_sections(segs: list[dict], bar1_bar: int) -> list[dict]:
@@ -730,7 +780,7 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
     musx_suggestions(probs, _plat_brut)
     cascade_suggestions(probs, _plat_brut)
     _rk, _rkn = _draft_key(bars)
-    yield "raw", _model(_one_section(bars, grid, n_bars),
+    yield "raw", _model(_one_section(bars, grid, n_bars, bar1_bar),
                         {"raw_chart": True}, _rk, _rkn, None,
                         pending=("sections", "key"))
 
@@ -760,7 +810,7 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
         # dès qu'il les écrit (route `/api/sections/…`), et c'était DÉJÀ la
         # loi : « la vérité terrain doit toujours être le chart brut, les
         # sections sont des modalités d'affichage par dessus » (2026-08-17).
-        sections, segs = _one_section(bars, grid, n_bars), []
+        sections, segs = _one_section(bars, grid, n_bars, bar1_bar), []
         logger.info("pipeline: sections=aucune — une seule section « A », "
                     "le découpage viendra de l'outil d'annotation")
     elif bar1_bar:

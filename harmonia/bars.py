@@ -308,12 +308,5 @@ def layout_bars(segments, beat_times, downbeats, triad: np.ndarray, *,
     grid = [round(_bar_time(bt_arr, off + b * bpb, step), 4)
             for b in range(n_bars + 1)]
 
-    # Drop leading N.C. from segments — they've been removed from bars by
-    # deduplication (line 237-239) but persisted in segments, creating a
-    # parasite N.C. at the chart's start (2026-09-30). The prompter view
-    # doesn't need silent lead-ins; that's the bars job.
-    while segments and segments[0][2] == "N":
-        segments = segments[1:]
-
     return BarLayout(bpb=bpb, off=off, n_bars=n_bars, bar1_bar=bar1_bar,
                      grid=grid, bars=bars, step=step, segments=segments)
