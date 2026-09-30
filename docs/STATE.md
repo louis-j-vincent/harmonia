@@ -211,6 +211,31 @@ de tours écrivent « ×3/2 » (dans l'ordre des passages). Couleur d'encre
 au-dessus des accords (place gardée aux petites suggestions). Les autres
 lectures d'un tour restent la petite lecture `var` de la case.
 
+**Reprises et petite lecture, sans chevauchement (2026-10-01, sur la capture
+`docs/plots/reprises_2026-09-30/maroon_5_this_love_epure.jpg`).** Trois
+défauts vus au rendu 390px, et le look qui les corrige :
+- **La petite lecture `var` se pose AU-DESSUS de l'accord, alignée sur son
+  bord gauche** (comme iReal), jamais sur l'exposant : elle était collée en
+  haut à droite du glyphe (`top:-7px;right:-4px`) et mordait « D° », « B♭ »,
+  « B° ». Elle prend la même police que la grille (Épurée : Georgia normal ;
+  Cellules : l'ancienne), en rouge accent, 12/13px (Épurée) ou 10/11px — la
+  place au-dessus existe (rangées de 56–72px pour un glyphe de ~27px).
+- **« ×N » monte au-dessus de la barre `:||`, dans sa colonne** (en haut à
+  droite, comme avant, mais plus au-dessus du dernier accord, là où se pose
+  maintenant la petite lecture). Les barres de reprise laissent donc de
+  l'air en haut et en bas de la mesure (Épurée : 13px ; Cellules : l'ouverture
+  reste pleine hauteur contre la barre noire, la fermeture descend sous ×N).
+- **« ||: » est un vrai signe de reprise en Épurée** : épaisse puis fine puis
+  deux points, miroir exact de « :|| », à la même hauteur. Il remplace la
+  double barre fine de début de section sur cette rangée (le trait fin de
+  1px continue au-dessus et au-dessous, dans l'écart de section).
+- **Un accord trop large pour la mesure d'une reprise rétrécit** (mesuré
+  après la mise en page, `transform:scale`, jamais moins de 70 %) au lieu de
+  passer sous « :|| » (« Fm/A♭ » en dernier accord de la mesure). Ne vaut
+  que pour les mesures qui portent un signe de reprise.
+- Le dernier accord du chart qui ferme une reprise ne porte pas en plus la
+  barre finale (le « :|| » est déjà une barre fine-épaisse).
+
 **Le curseur « Section merging » pilote aussi la boucle (2026-10-01, Louis :
 « mets-moi le curseur qui permet de choisir à quel point tu factorises »).**
 Un seul curseur, une seule question — à quel point deux passages peuvent
