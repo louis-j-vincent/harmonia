@@ -7,7 +7,7 @@
 import { api } from "../api.js";
 import { playTick } from "../audio.js";
 import { API, go, rebuildChrome } from "../router.js";
-import { LEVEL_CAPTION, MAJOR_COLL, closeVoicingCard } from "../screens/chart.js";
+import { LEVEL_CAPTION, MAJOR_COLL, closeVoicingCard, loadModel } from "../screens/chart.js";
 import { S } from "../state.js";
 import { CE_IV, FLAT, PREF, SERIF, SHARP, SZ, T, UI, applyTheme, closeOverlay, dispQ, el, glyph, handle, haptic, keyFill, kitButton, kitSegmented, learnLevel, mod, note, overlay, play, playMidis, renderVoicing, sev4, sheetBox, sheetCol, toast, voClose, voicingCards, withBass } from "../ui/kit.js";
 
@@ -60,6 +60,49 @@ export function openPrefsSheet(){
         ()=>S.level,
         v=>{ S.level=v; try{ localStorage.setItem("harmLearnLevel",String(v)); }catch(e){} }));
       body.appendChild(el("div",`font:italic 12px ${SERIF};color:${T.faint};margin-top:-8px;`,LEVEL_CAPTION[S.level]));
+    }
+    /* FUSION DES SECTIONS (Louis, 2026-09-30, sur Claustrophobic : « un
+       curseur sur lequel on peut jouer qui force à quel point tu merges les
+       sections ou tu les laisses avoir des bouts alternatifs »).
+       CE QUE C'EST : un réglage PAR MORCEAU (pas une préférence globale —
+       combien de fins un morceau mérite dépend du morceau), sauvé dans
+       state/human/chart_meta.json via POST /api/chart-meta {fusion}. Cinq
+       crans, 1 = le chart d'avant le curseur. Le serveur a précalculé les
+       cinq rendus (chart.sectionsFusion) : bouger le curseur relit le chart,
+       ne relance aucune analyse.
+       OÙ : ici, dans Aa, avec les autres FAÇONS DE LIRE le chart (même
+       raisonnement que « Voir comme un tab »). Alternative non retenue :
+       le panneau de l'outil de sections, à côté de « Valider ».
+       Montré seulement quand le curseur change quelque chose sur ce morceau
+       (fusionDispo), pour ne pas poser un contrôle mort. */
+    if(S.model && S.model.file && S.model.fusionDispo){
+      const FUS=["Keep every alternate ending","Default — an ending only when the chord really changes",
+                 "Merge near-identical endings","Merge related endings","One block ×N, no endings"];
+      const cur=(S.model.fusion==null)?1:S.model.fusion;
+      const fx=el("div","");
+      const top=el("div","display:flex;align-items:baseline;justify-content:space-between;gap:10px;");
+      top.appendChild(el("span",`font:600 13px ${UI};color:${T.ink};`,"Section merging"));
+      top.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,"this song"));
+      fx.appendChild(top);
+      const rg=el("input",`width:100%;height:${SZ.control}px;margin:0;accent-color:${T.accent};cursor:pointer;`);
+      rg.type="range"; rg.min="0"; rg.max="4"; rg.step="1"; rg.value=String(cur);
+      rg.setAttribute("aria-label","Section merging"); rg.dataset.role="fusion";
+      fx.appendChild(rg);
+      const ends=el("div",`display:flex;justify-content:space-between;font:500 11px ${UI};color:${T.faint};margin-top:-6px;`);
+      ends.appendChild(el("span","","alternate endings")); ends.appendChild(el("span","","one block"));
+      fx.appendChild(ends);
+      const cap=el("div",`font:italic 12px ${SERIF};color:${T.faint};margin-top:4px;`,FUS[cur]);
+      fx.appendChild(cap);
+      rg.oninput=()=>{ cap.textContent=FUS[+rg.value]; };
+      rg.onchange=async()=>{
+        const v=+rg.value, f=S.model.file;
+        try{
+          await api.post("/api/chart-meta/"+encodeURIComponent(f),{fusion:v});
+          const m=await api.get("/api/chart-model/"+encodeURIComponent(f));
+          closeOverlay(back); loadModel(m,{keepTool:true}); go("chart",{push:false});
+        }catch(e){ toast("Could not save section merging"); }
+      };
+      body.appendChild(fx);
     }
     // Louis, 2026-08-09 : taper une mesure y emmène le curseur et joue. « Chord
     // sheet » est l'ancien comportement (la feuille piano + voicings), gardé
