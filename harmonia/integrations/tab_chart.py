@@ -394,8 +394,92 @@ def concordance(chart: dict, brut: str) -> tuple[float, int]:
     return best, dec
 
 
+def score_des_paroles(voix, brut: str) -> float | None:
+    """À quel point le chant entendu colle aux paroles de ce tab (0 à 1).
+
+    Idée de Louis, 2026-10-01 : « on a un détecteur cheap de paroles qui prend
+    comme prior les paroles du tab ; celui-là devrait pouvoir donner un score
+    de à quel point les paroles entendues collent avec le prior ». L'aligneur
+    forcé rend déjà un score par mot ; on en prend la médiane.
+
+    CE QUE ÇA NE PEUT PAS FAIRE, et c'est mesuré : servir de seuil absolu. Sur
+    huit morceaux, le bon tab et un tab intrus se CHEVAUCHENT —
+
+        bon tab   min 0,130 · médiane 0,377 · max 0,694
+        intrus    min 0,041 · médiane 0,140 · max 0,332
+
+    le pire bon (Chain of Fools, un gospel très mélismatique où l'aligneur
+    peine même avec le bon texte) tombe SOUS le meilleur intrus (un tab court
+    plaqué sur un morceau long, qui trouve des correspondances fortuites). Le
+    score dépend donc autant de la difficulté du chant et de la longueur du
+    texte que de la justesse du tab.
+
+    CE QUE ÇA FAIT TRÈS BIEN : départager deux candidats SUR LE MÊME AUDIO. Là,
+    le bon l'emporte 8 fois sur 8, de ×1,1 à ×4,7. C'est un classement, pas une
+    note — comme le seuil de rappel et les accords de passage, le signal est
+    relatif à son morceau.
+
+    Rend None si la voix isolée manque ou si rien ne s'aligne. L'appel coûte
+    une dizaine de secondes : il n'a lieu qu'en cas d'ambiguïté réelle.
+    """
+    import statistics as st
+
+    from harmonia.integrations import paroles_align as PA
+    try:
+        mots = PA.mots_a_aligner(PA.lignes_de_paroles(brut))
+        if not mots:
+            return None
+        al = PA.aligner(voix, mots)
+    except Exception:                                        # noqa: BLE001
+        log.exception("score_des_paroles : alignement impossible")
+        return None
+    sc = [m["score"] for m in al if m.get("score") is not None]
+    return float(st.median(sc)) if sc else None
+
+
+def _cle_choix(titre: str, artiste: str) -> str:
+    import hashlib
+    return hashlib.sha1(f"{titre}|{artiste}".encode()).hexdigest()[:16]
+
+
+def choix_en_cache(titre: str, artiste: str) -> dict | None:
+    """Le tab déjà choisi pour ce morceau, ou None.
+
+    LE CHOIX NE CHANGE PAS D'UNE OUVERTURE À L'AUTRE, et il coûte cher : la
+    porte lit jusqu'à huit tabs sur le réseau et, en cas d'égalité sur les
+    accords, aligne le chant sur deux ou trois d'entre eux (10 à 20 s chacun).
+    Sans ce cache la page mettait 22 à 56 s à s'ouvrir — mesuré. On le garde
+    donc sur disque, et la page retombe à sa seconde habituelle.
+
+    Effacer `state/cache/tabs/` suffit à tout refaire décider.
+    """
+    from harmonia.settings import SETTINGS
+    f = SETTINGS.cache_dir / "tabs" / f"{_cle_choix(titre, artiste)}.json"
+    if not f.exists():
+        return None
+    try:
+        import json as _j
+        return _j.loads(f.read_text())
+    except Exception:                                        # noqa: BLE001
+        log.exception("choix_en_cache : %s illisible", f)
+        return None
+
+
+def _garder_choix(titre: str, artiste: str, d: dict) -> None:
+    from harmonia.settings import SETTINGS
+    try:
+        import json as _j
+        dossier = SETTINGS.cache_dir / "tabs"
+        dossier.mkdir(parents=True, exist_ok=True)
+        (dossier / f"{_cle_choix(titre, artiste)}.json").write_text(
+            _j.dumps(d, ensure_ascii=False))
+    except Exception:                                        # noqa: BLE001
+        log.exception("_garder_choix : écriture impossible")
+
+
 def tab_du_morceau(chart: dict, titre: str, artiste: str = "", *,
-                   accord_mini: float = ACCORD_MINI):
+                   accord_mini: float = ACCORD_MINI, voix=None,
+                   cache: bool = True):
     """Le meilleur tab qui soit VRAIMENT ce morceau, ou None.
 
     Louis, 2026-09-30 : « il faut que ça matche sur titre + artiste + accords
@@ -424,6 +508,29 @@ def tab_du_morceau(chart: dict, titre: str, artiste: str = "", *,
     rend None, et l'appelant ne propose pas de feuille. C'est la consigne.
     """
     from harmonia.integrations.tab_fetcher import fetch_tab_chords, search_tabs
+    if cache:
+        garde = choix_en_cache(titre, artiste)
+        if garde is not None:
+            if not garde.get("url"):
+                log.info("tab_du_morceau : %r de %r — aucun tab (en cache)",
+                         titre, artiste or "?")
+                return None
+            from harmonia.integrations.tab_fetcher import TabResult
+            # on rejoue le résultat TEL QUEL : reconstruire une poignée de
+            # champs cassait dès que la classe en gagnait un (vécu)
+            t = TabResult(**garde["tab"])
+            try:
+                brut = fetch_tab_chords(t).raw_content
+            except Exception:                                # noqa: BLE001
+                brut = None
+            if brut:
+                log.info("tab_du_morceau : %r de %r (en cache) — accords "
+                         "%.0f %%", t.song_name, t.artist_name,
+                         100 * garde.get("accords", 0))
+                return {"tab": t, "brut": brut,
+                        "accords": garde.get("accords", 0),
+                        "decalage": garde.get("decalage", 0),
+                        "paroles": garde.get("paroles")}
     try:
         res = search_tabs(titre, artiste, tab_types=("Chords",), max_results=8)
     except Exception:                                        # noqa: BLE001
@@ -432,8 +539,11 @@ def tab_du_morceau(chart: dict, titre: str, artiste: str = "", *,
     cands = [t for t in res if meme_identite(titre, artiste, t)]
     if not cands:
         log.info("tab_du_morceau : aucun tab dont l'identité soit %r de %r",
-                    titre, artiste or "?")
+                 titre, artiste or "?")
+        if cache:
+            _garder_choix(titre, artiste, {"url": None})
         return None
+    passent = []
     for t in cands:
         try:
             brut = fetch_tab_chords(t).raw_content
@@ -441,11 +551,55 @@ def tab_du_morceau(chart: dict, titre: str, artiste: str = "", *,
             continue
         part, dec = concordance(chart, brut)
         if part >= accord_mini:
-            log.info("tab_du_morceau : %r de %r — accords %.0f %% "
-                        "(transposition %+d)", t.song_name, t.artist_name,
-                        100 * part, dec)
-            return {"tab": t, "brut": brut, "accords": part, "decalage": dec}
-        log.info("tab_du_morceau : %r de %r ÉCARTÉ — accords %.0f %% "
-                    "sous le seuil de %.0f %%", t.song_name, t.artist_name,
-                    100 * part, 100 * accord_mini)
-    return None
+            passent.append({"tab": t, "brut": brut, "accords": part,
+                            "decalage": dec})
+        else:
+            log.info("tab_du_morceau : %r de %r ÉCARTÉ — accords %.0f %% "
+                     "sous le seuil de %.0f %%", t.song_name, t.artist_name,
+                     100 * part, 100 * accord_mini)
+    if not passent:
+        if cache:
+            _garder_choix(titre, artiste, {"url": None})
+        return None
+
+    # LE CHANT DÉPARTAGE, quand et seulement quand plusieurs tabs passent les
+    # deux premières portes. Le score d'alignement ne sait pas dire « celui-ci
+    # est bon » dans l'absolu (voir `score_des_paroles`), mais il sait dire
+    # lequel de deux candidats colle le mieux à CE chant-ci. Un alignement
+    # coûte une dizaine de secondes : sans ambiguïté, on ne le paie pas.
+    passent.sort(key=lambda c: -c["accords"])
+    # ON NE PAIE LA VOIX QUE SUR UNE VRAIE ÉGALITÉ. Un alignement coûte 10 à
+    # 20 s ; le tester sur les 5 à 7 candidats d'un morceau faisait grimper la
+    # page à 84–157 s, soit une page cassée. Deux bornes, mesurées sur ce
+    # symptôme : on ne départage que les candidats à MOINS DE 10 POINTS
+    # d'accords du meilleur, et au plus TROIS. Quand un tab domine nettement
+    # sur les accords, la voix n'a rien à arbitrer.
+    tetes = [c for c in passent
+             if c["accords"] >= passent[0]["accords"] - 0.10][:3]
+    if len(tetes) > 1 and voix is not None and Path(str(voix)).exists():
+        for c in tetes:
+            c["paroles"] = score_des_paroles(voix, c["brut"])
+        connus = [c for c in tetes if c.get("paroles") is not None]
+        if connus:
+            connus.sort(key=lambda c: -c["paroles"])
+            for c in connus:
+                log.info("tab_du_morceau : %r de %r — accords %.0f %%, "
+                         "paroles %.3f", c["tab"].song_name,
+                         c["tab"].artist_name, 100 * c["accords"], c["paroles"])
+            passent = connus + [c for c in passent if c not in connus]
+
+    best = passent[0]
+    log.info("tab_du_morceau : retenu %r de %r — accords %.0f %% "
+             "(transposition %+d)%s", best["tab"].song_name,
+             best["tab"].artist_name, 100 * best["accords"], best["decalage"],
+             ("" if best.get("paroles") is None
+              else ", paroles %.3f sur %d candidat(s)"
+              % (best["paroles"], len(passent))))
+    if cache:
+        import dataclasses
+        _garder_choix(titre, artiste, {
+            "url": best["tab"].tab_url,
+            "tab": dataclasses.asdict(best["tab"]),
+            "accords": best["accords"], "decalage": best["decalage"],
+            "paroles": best.get("paroles")})
+    return best

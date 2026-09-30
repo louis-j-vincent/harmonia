@@ -308,7 +308,11 @@ def tab_paroles(file):
     _meta = (_load_chart_meta() or {}).get(file) or {}
     _titre = _meta.get("title") or chart.get("title") or requete
     _artiste = _meta.get("artist") or chart.get("artist") or ""
-    _trouve = tab_du_morceau(chart, _titre, _artiste)
+    # la voix isolée sert d'arbitre quand plusieurs tabs passent les deux
+    # premières portes — elle ne coûte un alignement qu'en cas d'ambiguïté
+    _voix = SETTINGS.data_cache / "stems" / "htdemucs" / stem / "vocals.wav"
+    _trouve = tab_du_morceau(chart, _titre, _artiste,
+                             voix=_voix if _voix.exists() else None)
     if _trouve is None:
         return _dire(
             "Aucun tab ne correspond vraiment à ce morceau — même titre, même "
