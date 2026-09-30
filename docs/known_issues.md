@@ -5,6 +5,21 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## TODO — la fin alternative de B en 2 mini-cellules, pas un bracket (2026-10-01)
+
+Louis, après le repli de San Francisco Street (B a une vraie fin
+alternative, `Em7` au lieu de `A7`) : « on verra après pour ce double
+mini-cellules ». Idée : au lieu du bracket 1st/2nd-ending compressé sur
+UNE colonne (`_ireal_endings`/`endingBlocks` dans `chart.js`), dessiner le
+passage à fin alternative en DEUX mini-cellules — sa moitié commune, puis
+sa moitié divergente avec son vrai contenu — comme dans
+`tools/repli_propose.py --folded` (qui le fait déjà, page de diagnostic
+seulement, jamais branché sur l'app). Volontairement PAS fait le
+2026-09-25 : réécrire le rendu des 1st/2nd-endings dans `chart.js` touche
+des centaines de lignes de logique de rangée/padding déjà réglées à
+l'oreille sur plusieurs morceaux — un chantier à part, avec son propre
+avant/après, pas un ajout de fin de session.
+
 ## Lost Without U : « juste un A et un B » — A′/A″/B′ inventés par la cascade (2026-10-01, RÉSOLU en partie — 631c071)
 
 Page : `docs/plots/lost_without_u.html`. Le découpage validé n'a que A, B,
