@@ -297,10 +297,27 @@ def tab_paroles(file):
     if pose is None:
         return _dire("Aucun tab utilisable pour ce morceau.", 404)
 
-    res = search_tabs(requete, tab_types=("Chords",), max_results=6)
-    if not res:
-        return _dire("Aucun tab trouvé.", 404)
-    brut = fetch_tab_chords(res[0]).raw_content
+    # LE TAB DOIT ÊTRE VRAIMENT CE MORCEAU (Louis, 2026-09-30 : « il faut que
+    # ça matche sur titre + artiste + accords, à transpo près, sinon c'est pas
+    # la peine de proposer »). Cette route cherchait par TITRE SEUL, et servait
+    # donc parfois les paroles d'une autre chanson — mesuré : le mauvais
+    # artiste 8 fois sur 22. `tab_du_morceau` impose les trois critères et rend
+    # None plutôt que n'importe quoi.
+    from harmonia.integrations.tab_chart import tab_du_morceau
+    from harmonia.server.jobs import _load_chart_meta
+    _meta = (_load_chart_meta() or {}).get(file) or {}
+    _titre = _meta.get("title") or chart.get("title") or requete
+    _artiste = _meta.get("artist") or chart.get("artist") or ""
+    _trouve = tab_du_morceau(chart, _titre, _artiste)
+    if _trouve is None:
+        return _dire(
+            "Aucun tab ne correspond vraiment à ce morceau — même titre, même "
+            "artiste, et mêmes accords à transposition près. Mieux vaut ne "
+            "rien poser que poser les paroles d'une autre chanson.", 404)
+    brut = _trouve["brut"]
+    log.info("tab-paroles %s : tab %r de %r, accords %.0f %%", stem,
+             _trouve["tab"].song_name, _trouve["tab"].artist_name,
+             100 * _trouve["accords"])
 
     # LE TEXTE PEUT VENIR D'UNE API SOUS LICENCE (2026-09-24, choix de Louis).
     # Sans clé, ou si elle ne rend qu'un extrait tronqué, on garde celui du

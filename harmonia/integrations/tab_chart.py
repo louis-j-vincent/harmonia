@@ -331,3 +331,121 @@ def chart(source: dict, pose: dict, titre: str | None = None,
                            "posees": forme["cout"][2],
                            "forme": TS.mot(forme["sections"])}},
     }
+
+
+# ── LA PORTE À TROIS CRITÈRES ───────────────────────────────────────────────
+#: part du vocabulaire du tab qu'on doit retrouver dans le nôtre, à la
+#: meilleure transposition, pour croire que c'est le même morceau
+ACCORD_MINI = 0.50
+
+
+def _normal(x: str) -> str:
+    import re
+    return re.sub(r"[^a-z0-9]", "", (x or "").lower())
+
+
+def meme_identite(titre: str, artiste: str, t) -> bool:
+    """Le titre ET l'artiste de ce tab concordent-ils avec les nôtres ?"""
+    tt, ta = _normal(t.song_name), _normal(t.artist_name)
+    nt, na = _normal(titre), _normal(artiste)
+    if na and not (na in ta or ta in na):
+        return False
+    return bool(nt) and (nt in tt or tt in nt)
+
+
+def _vocab_tab(brut: str) -> set:
+    import re
+
+    from harmonia.integrations.tab_align import lire_accord
+    out = set()
+    for tok in re.findall(r"\[ch\](.*?)\[/ch\]", brut or ""):
+        a = lire_accord(tok.strip())
+        if a:
+            out.add((a["root"], a["q5"]))
+    return out
+
+
+def _vocab_chart(chart: dict) -> set:
+    out = set()
+    for sec in chart.get("sections") or []:
+        for b in sec.get("bars") or []:
+            for c in b:
+                t = lire_du_chart(c)
+                if t:
+                    out.add((t[0], t[1]))
+    return out
+
+
+def concordance(chart: dict, brut: str) -> tuple[float, int]:
+    """(part, transposition) — combien du vocabulaire du tab on retrouve.
+
+    On essaie les douze transpositions et on garde la meilleure : un tab écrit
+    au capo, ou dans une autre tonalité, reste le même morceau.
+    """
+    nous, leur = _vocab_chart(chart), _vocab_tab(brut)
+    if not nous or not leur:
+        return 0.0, 0
+    best, dec = 0.0, 0
+    for d in range(12):
+        t = {((r + d) % 12, q) for (r, q) in leur}
+        s = len(t & nous) / len(t)
+        if s > best:
+            best, dec = s, d
+    return best, dec
+
+
+def tab_du_morceau(chart: dict, titre: str, artiste: str = "", *,
+                   accord_mini: float = ACCORD_MINI):
+    """Le meilleur tab qui soit VRAIMENT ce morceau, ou None.
+
+    Louis, 2026-09-30 : « il faut que ça matche sur titre + artiste + accords
+    (à transpo près), sinon c'est pas la peine de proposer ».
+
+    LES TROIS CRITÈRES, ET LEUR ORDRE COMPTE. Mesuré sur les 22 morceaux à
+    sections faites main, la recherche par TITRE SEUL — ce que tout le code
+    faisait — prend le mauvais artiste 8 fois. Exemples relevés :
+
+        « Bora Bora » (Henri Salvador)  ->  « Electric Love » de BØRNS
+        « Bein Green »                  ->  « Tired Of Being Alone » d'Al Green
+        « The Walk » (Mayer Hawthorne)  ->  « The Walk » de Paramore
+
+    ET LES ACCORDS SEULS NE SUFFIRAIENT PAS : sur « The Lazy Song », le tab de
+    Bob Marley concorde avec nos accords à 1,00 quand celui de Bruno Mars — le
+    bon — est à 0,86. Deux chansons à trois accords se ressemblent
+    parfaitement. L'identité passe donc AVANT, et les accords ne font que
+    confirmer.
+
+    LE SEUIL, mesuré. Une fois l'identité imposée, les vrais tabs concordent à
+    1,00 (8 morceaux) ou entre 0,60 et 0,89 (9 morceaux) ; un seul tombe à 0,32
+    (Every Breath You Take, dont le tab décrit un autre arrangement). On coupe
+    donc à 0,50, entre les deux populations.
+
+    RIEN PLUTÔT QUE N'IMPORTE QUOI : sans tab qui passe les trois critères, on
+    rend None, et l'appelant ne propose pas de feuille. C'est la consigne.
+    """
+    from harmonia.integrations.tab_fetcher import fetch_tab_chords, search_tabs
+    try:
+        res = search_tabs(titre, artiste, tab_types=("Chords",), max_results=8)
+    except Exception:                                        # noqa: BLE001
+        log.exception("tab_du_morceau : recherche impossible pour %r", titre)
+        return None
+    cands = [t for t in res if meme_identite(titre, artiste, t)]
+    if not cands:
+        log.info("tab_du_morceau : aucun tab dont l'identité soit %r de %r",
+                    titre, artiste or "?")
+        return None
+    for t in cands:
+        try:
+            brut = fetch_tab_chords(t).raw_content
+        except Exception:                                    # noqa: BLE001
+            continue
+        part, dec = concordance(chart, brut)
+        if part >= accord_mini:
+            log.info("tab_du_morceau : %r de %r — accords %.0f %% "
+                        "(transposition %+d)", t.song_name, t.artist_name,
+                        100 * part, dec)
+            return {"tab": t, "brut": brut, "accords": part, "decalage": dec}
+        log.info("tab_du_morceau : %r de %r ÉCARTÉ — accords %.0f %% "
+                    "sous le seuil de %.0f %%", t.song_name, t.artist_name,
+                    100 * part, 100 * accord_mini)
+    return None

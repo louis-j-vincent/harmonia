@@ -125,18 +125,18 @@ def comparer(chart: dict, requete: str, artiste: str = "") -> dict | None:
     ou None si aucun tab exploitable. `manque` = ce que le tab a et pas nous ;
     `enplus` = l'inverse. Les deux vides = les boucles concordent.
     """
-    # l'ARTISTE fait partie de la requête : sans lui, UG rend une autre chanson
-    res = search_tabs(requete, artiste, tab_types=("Chords",), max_results=8)
-    res = [x for x in res if meme_morceau(requete, artiste, x)]
-    if not res:
-        logger.info("tab_boucles : aucun tab qui soit bien %r de %r",
-                    requete, artiste or "?")
+    # UNE SEULE PORTE POUR TOUT LE PROJET : `tab_chart.tab_du_morceau` impose
+    # titre + artiste + accords (à transposition près) et rend None plutôt
+    # qu'un tab approximatif. Cet outil avait sa propre version, plus faible ;
+    # la garder en double aurait garanti qu'elles divergent.
+    from harmonia.integrations.tab_chart import tab_du_morceau
+    trouve = tab_du_morceau(chart, requete, artiste)
+    if trouve is None:
         return None
     pose = poser(chart, requete)
     if pose is None:
         return None
-    t = res[0]
-    brut = fetch_tab_chords(t).raw_content
+    t, brut = trouve["tab"], trouve["brut"]
     leurs = boucles_du_tab(brut, int(pose.get("decalage") or 0))
     if not leurs:
         return None
@@ -161,6 +161,7 @@ def comparer(chart: dict, requete: str, artiste: str = "") -> dict | None:
                     "manque": [joli(x) for x in bw if x not in nos],
                     "enplus": [joli(x) for x in nos if x not in bw]})
     return {"note": float(getattr(t, "rating", 0) or 0),
+            "accords": trouve["accords"],
             "votes": int(getattr(t, "votes", 0) or 0),
             "tab": {"titre": t.song_name, "artiste": t.artist_name,
                     "url": t.tab_url},
