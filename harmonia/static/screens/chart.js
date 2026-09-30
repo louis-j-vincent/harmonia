@@ -715,7 +715,10 @@ export function chartDock(){
     loop.appendChild(el("div",`font:500 10px ${UI};opacity:.7;`,"loop"));
     loop.setAttribute("aria-label","Loop the four-bar phrase you are in");
     loop.onclick=()=>{ chartLoopToggle(); go("chart",{push:false}); };
-    row.appendChild(loop);
+    // A–B loop : seulement dans Practise (Louis, 2026-10-01, UX minimaliste).
+    // Read reste une page à lire ; la boucle de Practise est le même moteur.
+    // On garde l'ancien bouton si une boucle tourne déjà, pour pouvoir l'arrêter.
+    if(S._loopEngine) row.appendChild(loop);
     if(audible) dock.appendChild(row);
 
     if(!PREF.analyse && S.mode==="analyse") S.mode="read";

@@ -12,7 +12,7 @@ import { buildIReal, renderChart } from "../screens/chart.js";
 import { openBar1Sheet, openSectionTool } from "../screens/sections_editor.js";
 import { S } from "../state.js";
 import { buildCascade } from "./cascade.js";
-import { FAINT_ON_PETAL, INK_ON_PETAL, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, el, fifthsIndex, glyph, handle, haptic, keyTint, mod, note, overlay, petalEdge, petalFill, play, playedLabel, roleOf, sheetCol, sv, toast } from "../ui/kit.js";
+import { kitButton, FAINT_ON_PETAL, INK_ON_PETAL, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, el, fifthsIndex, glyph, handle, haptic, keyTint, mod, note, overlay, petalEdge, petalFill, play, playedLabel, roleOf, sheetCol, sv, toast } from "../ui/kit.js";
 
 // The single DOM host div (`<div id="app">`) — there is exactly one call
 // site, `window.APP.build(document.getElementById("app"))` in main.js, so
@@ -55,6 +55,10 @@ export function openAnnotateTools(){
     sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:10px;`,
       "on répare la grille, pas la musique"));
     const list=el("div","flex:1 1 auto;overflow-y:auto;"); list.className="ap-scroll";
+    /* UX MINIMALISTE (Louis, 2026-10-01) : quatre gestes courants visibles,
+       les outils de recherche (Souder, Matrice, les tabs) repliés sous
+       « Plus… ». Choisi sur maquettes. */
+    let into=list;
     const line=(title,note,onTap)=>{
       const r=el("button",`display:flex;align-items:center;gap:12px;width:100%;min-height:60px;`+
         `padding:10px 2px;border:0;border-top:1px solid ${T.line};background:transparent;`+
@@ -65,12 +69,29 @@ export function openAnnotateTools(){
       r.appendChild(tw);
       r.appendChild(el("div",`flex:0 0 auto;font:400 20px ${UI};color:${T.faint};`,"›"));
       r.onclick=()=>{ haptic(); close(); onTap(); };
-      list.appendChild(r);
+      into.appendChild(r);
     };
     line("Redessiner les sections","les lettres et leurs frontières, au doigt", openSectionTool);
     line("Caler la mesure 1","le vrai départ du morceau", openBar1Sheet);
-    line("Diviser le tempo par 2","le morceau tourne deux fois trop vite", ()=>applyTempoFactor(0.5));
-    line("Multiplier le tempo par 2","le morceau tourne deux fois trop lentement", ()=>applyTempoFactor(2));
+    // ÷2 et ×2 : une seule ligne, deux boutons.
+    const tr=el("div",`display:flex;align-items:center;gap:12px;width:100%;min-height:60px;padding:10px 2px;border-top:1px solid ${T.line};`);
+    const tw=el("div","flex:1;min-width:0;");
+    tw.appendChild(el("div",`font:600 14.5px ${UI};color:${T.ink};`,"Tempo"));
+    tw.appendChild(el("div",`font:500 12px ${UI};color:${T.faint};margin-top:2px;`,"deux fois trop vite ou trop lent"));
+    tr.appendChild(tw);
+    tr.appendChild(kitButton("÷2", ()=>{ haptic(); close(); applyTempoFactor(0.5); }, {small:true}));
+    tr.appendChild(kitButton("×2", ()=>{ haptic(); close(); applyTempoFactor(2); }, {small:true}));
+    list.appendChild(tr);
+    line("Supprimer ce morceau","il quitte la bibliothèque — ton travail est gardé",
+      ()=>{
+        const r=(S.library||[]).find(x=>x.file===m.file)
+                || {file:m.file, title:m.title||m.file};
+        deleteChart(r);
+      });
+    const plus=el("details",`border-top:1px solid ${T.line};`);
+    plus.appendChild(el("summary",`font:600 13px ${UI};color:${T.faint};cursor:pointer;min-height:${SZ.control}px;display:flex;align-items:center;padding:0 2px;`,"Plus…"));
+    list.appendChild(plus);
+    into=plus;
     line("Souder les sections","à l'oreille, deux passages à la fois",
       ()=>{ window.location="/soudure/"+encodeURIComponent(m.file); });
     line("Voir la matrice","où le morceau se répète, à l'œil",
@@ -113,12 +134,6 @@ export function openAnnotateTools(){
           toast(r.sections+" sections · "+(r.occam&&r.occam.forme||""));
           go("chart",{file:r.file});
         }).catch(()=>toast("tab injoignable"));
-      });
-    line("Supprimer ce morceau","il quitte la bibliothèque — ton travail est gardé",
-      ()=>{
-        const r=(S.library||[]).find(x=>x.file===m.file)
-                || {file:m.file, title:m.title||m.file};
-        deleteChart(r);
       });
     sheet.appendChild(list);
     const cancel=el("button",`flex:0 0 auto;width:100%;margin-top:10px;background:transparent;`+

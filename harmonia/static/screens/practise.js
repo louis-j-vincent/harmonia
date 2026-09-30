@@ -467,11 +467,8 @@ export function renderPrompter(){
                 RATES.forEach(([v])=>{ const d=Math.abs(v-r); if(d<bd){bd=d;best=v;} }); return best; },
           v=>{ S.playRate=v; applyPlayRate(); paintSub(); paint(); },
           {inline:true, height:SZ.control, font:13})));
-        body.appendChild(row("Mains", kitSegmented([[2,"Deux"],[1,"Une"]],
-          ()=>hands2,
-          v=>{ hands2=v; try{ localStorage.setItem("harmPrompterHands",String(v)); }catch(e){}
-               if(kbCard) kbCard._show(kbMidis()); paint(); },
-          {inline:true, height:SZ.control, font:13})));
+        // « Mains » a quitté cette feuille (Louis, 2026-10-01, UX minimaliste) :
+        // doublon exact du réglage de la carte clavier (bouton « setup »).
         body.appendChild(row("Piano", kitSegmented([["never","Jamais"],["tap","Au tap"],["follow","Suit"]],
           ()=>S.piano,
           v=>{ S.piano=v; S.coach=(v==="follow");
@@ -486,7 +483,13 @@ export function renderPrompter(){
         // depuis l'A–B du chart, la feuille lit `loop` et ne sait pas d'où
         // elle vient (le bug de 2026-08-08 : « l'outil de calage n'est plus
         // présent » après un armement depuis le chart).
+        // Le calage est un réglage fin : replié sous « Plus… » (2026-10-01).
         if(loop){
+          const plus=el("details","");
+          if(S._practisePlusOpen) plus.open=true;
+          plus.ontoggle=()=>{ S._practisePlusOpen=plus.open; };
+          plus.appendChild(el("summary",`font:600 13px ${UI};color:${T.faint};cursor:pointer;min-height:${SZ.control}px;display:flex;align-items:center;`,"Plus…"));
+          body.appendChild(plus);
           const val=el("span",`font:600 12px ${UI};color:${T.ink};min-width:104px;text-align:center;font-variant-numeric:tabular-nums;`,"");
           paintSeamVal(val);
           S._practiseSeamPaint=()=>paintSeamVal(val);
@@ -499,7 +502,7 @@ export function renderPrompter(){
           blk.appendChild(el("div",`font:italic 12px ${SERIF};color:${T.faint};margin-top:-4px;`,
             "la reprise sonne en retard ? touche « plus tôt »"));
           blk.appendChild(box);
-          body.appendChild(blk);
+          plus.appendChild(blk);
         }
       }
       paint();

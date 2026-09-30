@@ -7,7 +7,7 @@
 import { api } from "../api.js";
 import { playTick } from "../audio.js";
 import { API, go, rebuildChrome } from "../router.js";
-import { LEVEL_CAPTION, MAJOR_COLL, closeVoicingCard, loadModel } from "../screens/chart.js";
+import { LEVEL_CAPTION, MAJOR_COLL, loadModel } from "../screens/chart.js";
 import { S } from "../state.js";
 import { CE_IV, FLAT, PREF, SERIF, SHARP, SZ, T, UI, applyTheme, closeOverlay, dispQ, el, glyph, handle, haptic, keyFill, kitButton, kitSegmented, learnLevel, mod, note, overlay, play, playMidis, renderVoicing, sev4, sheetBox, sheetCol, toast, voClose, voicingCards, withBass } from "../ui/kit.js";
 
@@ -23,7 +23,7 @@ const root = document.getElementById("app");
   // Follow, Metronome, Coach — plus Share. One family of controls, all 44px.
 export function openPrefsSheet(){
     const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
-    sheet.appendChild(el("div",`flex:0 0 auto;font:600 9px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:12px;`,"Preferences"));
+    sheet.appendChild(el("div",`flex:0 0 auto;font:600 9px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:12px;`,"Réglages"));
     const body=el("div","flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;"); body.className="ap-scroll";
     function seg(label,opts,get,set){
       const row=el("div","display:flex;align-items:center;justify-content:space-between;gap:10px;");
@@ -32,15 +32,26 @@ export function openPrefsSheet(){
         {inline:true, height:SZ.control, font:13});
       row.appendChild(sg); return row;
     }
+    /* UX MINIMALISTE (Louis, 2026-10-01 : « y'a trop d'options qui s'affichent
+       partout »). Ne restent visibles que les réglages qui changent CE QU'ON
+       LIT : Thème, Grille, Accords, Regrouper les sections, Partager. Le reste
+       est replié sous « Plus… ». Piano et Clic ne vivent plus que dans les
+       Outils de Practise (ils y étaient déjà en double). Choisi sur maquettes. */
+    const plus=el("details",`border-top:1px solid ${T.line};padding-top:4px;`);
+    if(S._prefsPlusOpen) plus.open=true;
+    plus.ontoggle=()=>{ S._prefsPlusOpen=plus.open; };
+    plus.appendChild(el("summary",`font:600 13px ${UI};color:${T.faint};cursor:pointer;min-height:${SZ.control}px;display:flex;align-items:center;`,"Plus…"));
+    const more=el("div","display:flex;flex-direction:column;gap:14px;padding-top:6px;");
+    plus.appendChild(more);
     // Soudure a quitté cette feuille le 2026-08-14 : c'est un outil de
     // sections, pas une préférence, et il vit maintenant dans le ruban
     // Annotate à côté de Set bar 1 (voir buildRibbon).
-    body.appendChild(seg("Theme",[["light","Light"],["dark","Dark"]],()=>PREF.theme,v=>{ PREF.theme=v; try{localStorage.setItem("harmTheme",v);}catch(e){} applyTheme(); }));
-    body.appendChild(seg("Notation",[["normal","Normal"],["compact","Compact"]],()=>PREF.notation,v=>{ PREF.notation=v; try{localStorage.setItem("harmNotation",v);}catch(e){} }));
-    body.appendChild(seg("Grid",[["epure","Clean"],["treillis","Cells"]],()=>PREF.grille,v=>{ PREF.grille=v; try{localStorage.setItem("harmGrille",v);}catch(e){} }));
-    body.appendChild(seg("Key colours",[["on","On"],["off","Off"]],()=>PREF.cof?"on":"off",v=>{ PREF.cof=(v==="on"); try{localStorage.setItem("harmCof",PREF.cof?"1":"0");}catch(e){} }));
+    body.appendChild(seg("Thème",[["light","Clair"],["dark","Sombre"]],()=>PREF.theme,v=>{ PREF.theme=v; try{localStorage.setItem("harmTheme",v);}catch(e){} applyTheme(); }));
+    more.appendChild(seg("Notation",[["normal","Normale"],["compact","Serrée"]],()=>PREF.notation,v=>{ PREF.notation=v; try{localStorage.setItem("harmNotation",v);}catch(e){} }));
+    body.appendChild(seg("Grille",[["epure","Épurée"],["treillis","Cases"]],()=>PREF.grille,v=>{ PREF.grille=v; try{localStorage.setItem("harmGrille",v);}catch(e){} }));
+    more.appendChild(seg("Couleurs de tonalité",[["on","Oui"],["off","Non"]],()=>PREF.cof?"on":"off",v=>{ PREF.cof=(v==="on"); try{localStorage.setItem("harmCof",PREF.cof?"1":"0");}catch(e){} }));
     const pl=el("div","display:flex;align-items:center;justify-content:space-between;gap:10px;");
-    pl.appendChild(el("span",`font:600 13px ${UI};color:${T.ink};`,"Chart colour"));
+    pl.appendChild(el("span",`font:600 13px ${UI};color:${T.ink};`,"Papier"));
     const sw=el("div","display:flex;gap:8px;");
     [["#f7f3e9","Cream"],["#ffffff","White"],["#efe3cb","Sepia"],["#eef1ec","Cool"]].forEach(([col,nm])=>{
       const b=el("button",`width:${SZ.control}px;height:${SZ.control}px;border-radius:${SZ.radius}px;border:2px solid ${PREF.paper===col?T.accent:T.line};background:${col};cursor:pointer;`);
@@ -49,14 +60,14 @@ export function openPrefsSheet(){
       sw.appendChild(b);
     });
     pl.appendChild(sw);
-    body.appendChild(pl);
-    if(PREF.theme==="dark") body.appendChild(el("div",`font:italic 11.5px ${SERIF};color:${T.faint};`,"Chart colour applies to the light theme."));
+    more.appendChild(pl);
+    if(PREF.theme==="dark") more.appendChild(el("div",`font:italic 11.5px ${SERIF};color:${T.faint};`,"Le papier ne s'applique qu'au thème clair."));
     // reading level — was the Learn pill + the ladder row above the grid
-    body.appendChild(seg("Chords",[["advanced","Full detail"],["learn","Learn"]],
+    body.appendChild(seg("Accords",[["advanced","Complets"],["learn","Apprendre"]],
       ()=>S.learn?"learn":"advanced",
       v=>{ S.learn=(v==="learn"); try{ localStorage.setItem("harmLearn",S.learn?"1":"0"); }catch(e){} }));
     if(S.learn){
-      body.appendChild(seg("Level",[[1,"L1 triads"],[2,"L2 7ths"],[3,"L3 full"]],
+      body.appendChild(seg("Niveau",[[1,"Triades"],[2,"Septièmes"],[3,"Tout"]],
         ()=>S.level,
         v=>{ S.level=v; try{ localStorage.setItem("harmLearnLevel",String(v)); }catch(e){} }));
       body.appendChild(el("div",`font:italic 12px ${SERIF};color:${T.faint};margin-top:-8px;`,LEVEL_CAPTION[S.level]));
@@ -78,23 +89,23 @@ export function openPrefsSheet(){
     if(S.model && S.model.file && S.model.fusionDispo){
       // Le même curseur décide aussi si une section s'écrit par sa boucle
       // minimale ||: … :|| ×N (Louis, 2026-10-01) — docs/STATE.md.
-      const FUS=["Write everything out — no loops, every alternate ending",
-                 "Default — loop ×N and endings only when the harmony is the same",
-                 "Also merge near-identical passes (shown as small chords)",
-                 "Also merge related passes (shown as small chords)",
-                 "One block ×N — always loop, differences as small chords"];
+      const FUS=["Tout écrire — pas de reprises, chaque fin à part",
+                 "Par défaut — reprise ×N et fins seulement si l'harmonie est la même",
+                 "Fusionner aussi les passages presque identiques (en petits accords)",
+                 "Fusionner aussi les passages apparentés (en petits accords)",
+                 "Un seul bloc ×N — toujours en reprise, les écarts en petits accords"];
       const cur=(S.model.fusion==null)?1:S.model.fusion;
       const fx=el("div","");
       const top=el("div","display:flex;align-items:baseline;justify-content:space-between;gap:10px;");
-      top.appendChild(el("span",`font:600 13px ${UI};color:${T.ink};`,"Section merging"));
-      top.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,"this song"));
+      top.appendChild(el("span",`font:600 13px ${UI};color:${T.ink};`,"Regrouper les sections"));
+      top.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,"ce morceau"));
       fx.appendChild(top);
       const rg=el("input",`width:100%;height:${SZ.control}px;margin:0;accent-color:${T.accent};cursor:pointer;`);
       rg.type="range"; rg.min="0"; rg.max="4"; rg.step="1"; rg.value=String(cur);
-      rg.setAttribute("aria-label","Section merging"); rg.dataset.role="fusion";
+      rg.setAttribute("aria-label","Regrouper les sections"); rg.dataset.role="fusion";
       fx.appendChild(rg);
       const ends=el("div",`display:flex;justify-content:space-between;font:500 11px ${UI};color:${T.faint};margin-top:-6px;`);
-      ends.appendChild(el("span","","write it out")); ends.appendChild(el("span","","one block"));
+      ends.appendChild(el("span","","tout écrire")); ends.appendChild(el("span","","un bloc"));
       fx.appendChild(ends);
       const cap=el("div",`font:italic 12px ${SERIF};color:${T.faint};margin-top:4px;`,FUS[cur]);
       fx.appendChild(cap);
@@ -105,50 +116,38 @@ export function openPrefsSheet(){
           await api.post("/api/chart-meta/"+encodeURIComponent(f),{fusion:v});
           const m=await api.get("/api/chart-model/"+encodeURIComponent(f));
           closeOverlay(back); loadModel(m,{keepTool:true}); go("chart",{push:false});
-        }catch(e){ toast("Could not save section merging"); }
+        }catch(e){ toast("impossible d'enregistrer le regroupement"); }
       };
       body.appendChild(fx);
     }
     // Louis, 2026-08-09 : taper une mesure y emmène le curseur et joue. « Chord
     // sheet » est l'ancien comportement (la feuille piano + voicings), gardé
     // parce que c'est là qu'on édite un accord en Read.
-    body.appendChild(seg("Tap a bar",[["play","Play from there"],["sheet","Chord sheet"]],
+    more.appendChild(seg("Toucher une mesure",[["play","Joue"],["sheet","Fiche accord"]],
       ()=>S.tapSeek?"play":"sheet",
       v=>{ S.tapSeek=(v==="play");
            try{ localStorage.setItem("harmTapSeek",S.tapSeek?"1":"0"); }catch(e){} }));
     // playback companions — were the 9px uppercase toggles in the transport
-    body.appendChild(seg("Follow the playhead",[["on","On"],["off","Off"]],
+    more.appendChild(seg("Suivre la lecture",[["on","Oui"],["off","Non"]],
       ()=>S.follow?"on":"off", v=>{ S.follow=(v==="on"); }));
-    body.appendChild(seg("Click on chord changes",[["on","On"],["off","Off"]],
-      ()=>S.metronome?"on":"off",
-      v=>{ S.metronome=(v==="on"); try{ localStorage.setItem("harmMetronome",S.metronome?"1":"0"); }catch(e){} }));
-    // Accords au piano pendant la lecture (delta2 §6). "Follow" EST l'ancien
-    // Voicing coach — le clavier du bas qui suit le playhead; "On tap" fait
-    // monter la carte flottante sur l'accord touché pendant la lecture;
-    // "Never" — rien ne monte, la grille reste seule.
-    body.appendChild(seg("Piano chords",[["never","Never"],["tap","On tap"],["follow","Follow"]],
-      ()=>S.piano,
-      v=>{ S.piano=v; S.coach=(v==="follow");
-           try{ localStorage.setItem("harmPiano",v); localStorage.setItem("harmCoach",S.coach?"1":"0"); }catch(e){}
-           if(v!=="tap") closeVoicingCard();
-           if(S.coach && S.chordTimeIndex && S.chordTimeIndex.length && S._lastCoachIdx==null)
-             S._lastCoachIdx=S.chordTimeIndex[0].idx; }));
+    // « Clic sur les accords » et « Piano » : dans Practise › Outils seulement
+    // (même état S.metronome / S.piano, qui agit aussi ici en Read).
     // le style de voicing vivait dans le panneau coach du dock; le coach est
     // devenu immersif-seulement (aucun contrôle en plein écran), donc le
     // choix habite ici, avec les autres préférences de lecture. Pleine
     // largeur: cinq options ne tiennent pas en ligne à 390px.
     if(S.piano!=="never"){
       const vs=el("div","");
-      vs.appendChild(el("div",`font:600 13px ${UI};color:${T.ink};margin-bottom:8px;`,"Voicing style"));
+      vs.appendChild(el("div",`font:600 13px ${UI};color:${T.ink};margin-bottom:8px;`,"Style de voicing"));
       vs.appendChild(kitSegmented(
         [["close","Close"],["shell","Shell"],["rootless","Rootless"],["drop2","Drop-2"],["smooth","Smooth"]],
         ()=>S.coachStyle,
         v=>{ S.coachStyle=v; try{ localStorage.setItem("harmCoachStyle",v); }catch(e){}
              closeOverlay(back); rebuildChrome(); },
         {height:SZ.control, font:12}));
-      body.appendChild(vs);
+      more.appendChild(vs);
     }
-    body.appendChild(seg("Analyse tab",[["off","Hidden"],["on","Shown"]],()=>PREF.analyse?"on":"off",v=>{ PREF.analyse=(v==="on"); try{localStorage.setItem("harmAnalyse",PREF.analyse?"1":"0");}catch(e){} if(!PREF.analyse && S.mode==="analyse") S.mode="read"; }));
+    more.appendChild(seg("Onglet Analyse",[["off","Caché"],["on","Montré"]],()=>PREF.analyse?"on":"off",v=>{ PREF.analyse=(v==="on"); try{localStorage.setItem("harmAnalyse",PREF.analyse?"1":"0");}catch(e){} if(!PREF.analyse && S.mode==="analyse") S.mode="read"; }));
     // share — moved here from the old app-bar icon (§2). No `grow`: in this
     // flex COLUMN it re-bases the height to 0 and the button collapses.
     if(S.model && S.model.file){
@@ -170,13 +169,14 @@ export function openPrefsSheet(){
         closeOverlay(back);
         toast("la première fois, l'alignement du chant prend ~15 s");
       });
-      body.appendChild(tabRow);
-      const shareRow=kitButton("Share this chart", ()=>{ closeOverlay(back); openShareSheet(); });
+      more.appendChild(tabRow);
+      const shareRow=kitButton("Partager ce chart", ()=>{ closeOverlay(back); openShareSheet(); });
       shareRow.style.width="100%";
       body.appendChild(shareRow);
     }
+    body.appendChild(plus);
     sheet.appendChild(body);
-    const closeBtn=el("button",`flex:0 0 auto;width:100%;margin-top:12px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:12px;min-height:${SZ.control}px;cursor:pointer;`,"Close");
+    const closeBtn=el("button",`flex:0 0 auto;width:100%;margin-top:12px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:12px;min-height:${SZ.control}px;cursor:pointer;`,"Fermer");
     closeBtn.onclick=()=>closeOverlay(back);
     sheet.appendChild(closeBtn);
     back.appendChild(sheet); root.appendChild(back);
