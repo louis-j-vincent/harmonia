@@ -32,7 +32,8 @@ LES DEUX STRATÉGIES ne diffèrent QUE par ce qu'elles mettent dans les trous
     trous, toutes les occurrences gelées ;
   * `remplir_par_songformer` — ce que le modèle avait trouvé, au lieu de le
     jeter. C'est la seule des deux qui sache écrire « intro » et « outro » :
-    les lettres de l'autre ne peuvent venir que de Louis ou de l'alphabet.
+    les lettres de l'autre ne peuvent venir que de Louis ou de l'alphabet —
+    sauf la zone de tête, « intro » depuis le 2026-09-30.
 """
 from __future__ import annotations
 
@@ -981,8 +982,19 @@ def remplir_par_algo(chart: dict, occ: list[dict], audio_dir) -> list[dict]:
     et ne peut plus donner le nom d'une brique à un bloc qu'elle a fabriqué
     elle-même.
 
-    CE QUE ÇA NE RÉSOUT PAS : cet algorithme ne sait produire que des lettres.
-    Ni « intro » ni « outro » ne peuvent en sortir, quelle que soit la musique.
+    L'INTRO DE TÊTE (2026-09-30) : la zone libre avant la première section
+    posée sort en UN bloc « intro » (source "algo" — recalculé à chaque
+    Valider, jamais figé en contrainte), N.C. ou pas : une tête muette est
+    une intro que chart.js cache en lecture, une tête à accords s'imprime.
+
+    CE QUE ÇA NE RÉSOUT PAS : l'algorithme ne sait produire que des lettres ;
+    seule la tête reçoit un nom de rôle. Un trou au milieu garde une lettre
+    (même s'il est muet), la queue n'est jamais « outro ». Si Louis a posé sa
+    propre « intro » plus loin que la mesure 0, ce qui la précède garde une
+    lettre (pas de seconde intro). Une tête à la fois muette ET à accords
+    reste UNE intro imprimée avec ses N.C. de tête (la pipeline, elle, la
+    coupe en deux, `pipeline._one_section`). Si l'algo avait donné à un bloc
+    de tête la même lettre qu'un bloc plus loin, ce dernier garde sa lettre.
     """
     from harmonia.phrases4 import grouper_restes, merges4, nommer, phrases
     from harmonia.soudure import mot_sur_traits
@@ -1012,9 +1024,27 @@ def remplir_par_algo(chart: dict, occ: list[dict], audio_dir) -> list[dict]:
                                   geles=geles), mot, info["cible"])
     siennes = {L.upper() for L in par_jeton.values()}
     libres = [c for c in ALPHABET if c not in siennes]
+    # L'INTRO DE TÊTE (Louis, 2026-09-30 : « quand il manque une section avant
+    # un A, c'est une intro, pas un C »). Tout ce que l'algo a découpé AVANT
+    # la première section posée devient UN bloc « intro » — un seul, même si
+    # l'algo y voyait deux blocs, sinon deux intros de même longueur seraient
+    # repliées ensemble par `sections_pour_chart` (qui groupe sur (label,
+    # longueur)). Il ne consomme aucune lettre : le premier bloc neuf d'après
+    # prend toujours la première lettre libre. Pas de règle si rien n'est
+    # posé (pas de « première section »), ni si Louis a déjà posé une intro.
+    tete = min((o["m0"] for o in occ), default=0)
+    if any(str(o["label"]).lower() == "intro" for o in occ):
+        tete = 0
     renom, k, out = {}, 0, []
     for b in blocs:
         sien = par_jeton.get((b["j0"], b["j1"]))
+        if sien is None and bornes[b["j1"]] - 1 < tete:
+            if out and out[-1]["label"] == "intro":
+                out[-1]["m1"] = bornes[b["j1"]] - 1
+            else:
+                out.append({"m0": bornes[b["j0"]], "m1": bornes[b["j1"]] - 1,
+                            "label": "intro", "source": "algo", "mot": b["type"]})
+            continue
         if sien is not None:
             nom, source = sien, "brique"
         else:

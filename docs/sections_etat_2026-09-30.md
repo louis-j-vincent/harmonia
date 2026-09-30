@@ -400,3 +400,41 @@ Tout le reste identique à v5 (Lazy Song, She Will Be Loved, The Walk).
   ce n'est pas l'ordre où Louis les a tracés, mais c'est un ordre).
 - Les scores comparés ne sont pas à la même échelle quand les briques n'ont pas
   la même longueur (boucle de 4 contre brique de 9).
+
+## 13. « Il manque une section avant un A : c'est une intro, pas un C » (branché)
+
+Louis, 2026-09-30. Dans « Valider les sections », la zone libre de TÊTE
+(mesure 1 … début de la première section posée − 1) sort désormais en UN bloc
+« intro » au lieu d'une lettre neuve (`simulation.remplir_par_algo`). Périmètre
+convenu : la tête seulement — les trous du milieu gardent leurs lettres, pas
+de règle d'outro.
+
+- UN bloc, même si l'algo y voyait deux blocs : deux « intro » de même
+  longueur seraient repliées ensemble par `sections_pour_chart` (groupe sur
+  label + longueur).
+- L'intro ne prend pas de lettre : le premier bloc neuf après elle prend la
+  première lettre libre (B si Louis n'a que A).
+- Source « algo » : proposition recalculée à chaque Valider, jamais renvoyée
+  comme contrainte.
+- Tête muette (N.C.) : même règle ; chart.js la cache en lecture. Pas de double
+  intro possible avec celle de la pipeline (`_one_section`) : la sortie de
+  Valider remplace toutes les sections du chart.
+- Pas de règle si rien n'est posé, ni si Louis a déjà posé sa propre « intro ».
+
+**Mesuré** (lecture seule, 21 découpages validés lisibles sur 26 ; Louis est
+supposé tracer la 1re occurrence de chaque lettre SAUF l'intro, puis le vrai
+flux tourne ; script `scratchpad/intro_tete.py` de la session) :
+
+| cas | morceaux |
+|---|---|
+| intro rendue = la sienne, aux mêmes mesures (9) | Bora Bora 1-4, Urdlvw0Ssec 1-11, Chain Of Fools 1, Stand By Me 1-6, Sunny 1, Let It Be 1-4, Every Breath 1-8, Be My Baby 1-4, Yesterday 1-2 |
+| intro rendue sur des mesures qu'il a laissées sans section (2) | Lazy Song 1 (N.C.), Goodbye Yellow Brick Road 1-2 — l'app les nomme déjà « intro » (`comblerTrous`) |
+| intro trop courte (1) | Don't Know Why : 1-2 au lieu de 1-4 (une reprise de sa « queue » prend 3-4) |
+| intro RATÉE : une reprise d'une brique prend la mesure 1, il n'y a pas de zone libre (4) | San Francisco Street (B 1-4), She Will Be Loved (D 1-4), This Love (A 1-4), The Walk (A 1-4) |
+| pas d'intro chez lui, aucune rendue (5) | Lost Without U, My Cherie Amour, American Boy, Easy On Me, Claustrophobic |
+
+Aucune intro fausse. **Ce que ça ne résout pas** : quand l'intro joue la
+matière d'une section (les 4 ratées), la reprise la mange avant que la règle
+puisse s'appliquer — c'est « une intro ne se rejoue pas » vu de l'autre côté,
+et il faudrait qu'une reprise en mesure 1 cède la tête. Non fait (hors
+périmètre). Rapport d'or : 0 mesure changée (Valider n'est pas rejoué par lui).

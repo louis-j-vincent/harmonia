@@ -432,8 +432,11 @@ def sections_inferer(file):
     déjà en cache. Chiffres : docs/known_issues.md, 2026-09-19.
 
     CE QUE ÇA COÛTE, et il faut le dire : l'algo des quatre mots ne sait
-    produire QUE des lettres. « intro » et « outro » ne peuvent plus sortir
-    des trous — seul Louis peut les écrire (`simulation.remplir_par_algo`).
+    produire QUE des lettres. Seule exception (Louis, 2026-09-30 : « quand il
+    manque une section avant un A, c'est une intro, pas un C ») : la zone
+    libre AVANT la première section posée sort « intro ». Les trous du milieu
+    gardent des lettres, et « outro » ne sort jamais des trous
+    (`simulation.remplir_par_algo`).
 
     CE QUE ÇA REMPLACE, et pourquoi. L'ancienne version jetait son trait dans
     l'agglomération des quatre mots, qui redécoupait TOUT le morceau à partir

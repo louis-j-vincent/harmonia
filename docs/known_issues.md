@@ -5,6 +5,20 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## « Il manque une section avant un A : c'est une intro, pas un C » (2026-09-30, RÉSOLU en partie)
+
+« Valider les sections » nommait la zone libre de tête d'une lettre neuve
+(« C »). Désormais `simulation.remplir_par_algo` en fait UN bloc « intro »
+(la tête seulement ; trous du milieu inchangés ; pas d'outro). Sur 21
+découpages validés, Louis supposé ne pas tracer son intro : 9 intros rendues
+aux mesures exactes, 2 sur des mesures qu'il a laissées sans section (l'app
+les appelle déjà « intro »), 1 trop courte (Don't Know Why 1-2 au lieu de
+1-4), 0 fausse. **Reste ouvert** : 4 intros ratées (San Francisco Street,
+She Will Be Loved, This Love, The Walk) parce qu'une REPRISE d'une brique
+prend déjà la mesure 1 — l'intro joue la matière d'une section, et il n'y a
+plus de zone libre. Détail : `docs/sections_etat_2026-09-30.md` § 13. Actif
+au prochain redémarrage du serveur.
+
 ## Retrouver les occurrences d'une section donnée : les règles 1–5b de Louis branchées + candidats en suspens + option (c) (2026-09-30, RÉSOLU en partie — reste les jumeaux)
 
 Louis sur la page du matin : « le détecteur avec pics est bon », verdicts
@@ -485,6 +499,8 @@ ET UNE QUESTION LAISSÉE À LOUIS : par « Valider les sections », le trou de t
 n'est pas un trou — `remplir_par_algo` le remplit d'une LETTRE (mesuré : « B »
 sur les 4 premières mesures d'Easy On Me, une lettre qui ne se rejoue nulle
 part). Sa règle « trou en tête = intro » ne s'y applique donc pas encore.
+**Résolu le 2026-09-30** : la tête libre sort « intro » (voir l'entrée du
+2026-09-30 « Il manque une section avant un A » en haut).
 
 ## Sections sans modèle : la grille de 4 mesures, et un échange à arbitrer (2026-09-20)
 
