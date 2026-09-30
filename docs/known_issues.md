@@ -5,6 +5,23 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Lost Without U : « juste un A et un B » — A′/A″/B′ inventés par la cascade (2026-10-01, RÉSOLU en partie — 631c071)
+
+Page : `docs/plots/lost_without_u.html`. Le découpage validé n'a que A, B,
+outro ; `folding._ireal_cascade` imprimait A′ (mes. 34–37, raccord refusé
+pour un Gm7 de relance absent), A″ (mes. 58, un N.C.) et B′ (l'hôte de B
+était la mes. 25, un N.C. seul, et le vrai B plus long ne pouvait s'y
+fondre). Règles générales : une plage muette n'est jamais hôte et rejoint
+sa lettre sans allumer de case ; `meme_moment` = même harmonie ou un accord
+de passage près ; un fondu muet final ne compte pas contre un raccord.
+Effet ailleurs : San Francisco Street seulement (mes. 71 rejoint A).
+**Reste :** (1) l'« outro » 83–89 est l'étiquette de Louis ; c'est le
+dernier A avec une vraie cadence (G7sus4 → G7 → C tenu) + fondu. Renommée A
+elle sortirait A′ (2/5 mesures diffèrent) : Louis arbitre. (2) une plage
+muette absorbée s'affiche comme sa lettre dans la bande, pas comme un trou.
+(3) le A reste écrit en 8 mesures sans ×N (règle de boucle de 0031e9a :
+G7sus4 contre Gm7 d'un tour à l'autre).
+
 ## Boucle minimale : au défaut seulement si l'harmonie est la même, et le curseur (2026-10-01, FAIT)
 
 Louis : « ne la fais pas quand il y a vraiment un changement important ».
