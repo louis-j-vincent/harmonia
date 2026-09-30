@@ -63,6 +63,257 @@ BONUS_TRANSPOSE = 0.06
 #: PARTOUT — dix « reprises transposées », toutes fausses. Un motif court n'a
 #: pas assez de matière pour que sa transposition veuille dire quelque chose.
 MIN_MESURES_TRANSPOSE = 4
+#: UNE SECTION, C'EST UNE MINI-BOUCLE D'AU MOINS 4 MESURES jouée au moins
+#: 2 fois, modulo la dernière (Louis, 2026-08-16). La boucle cherchée dans une
+#: brique ne descend jamais sous ça, et une brique de moins de 2 × 4 mesures ne
+#: peut pas MONTRER une boucle : elle garde l'ancienne loi (voir plus bas).
+MIN_BOUCLE = 4
+#: RÈGLE 3 (2026-09-30) — un départ est une reprise quand son score a franchi
+#: au moins cette FRACTION du chemin entre le fond local de la courbe et une
+#: reprise parfaite (1,0). Mesuré sur les 20 découpages validés de Louis : les
+#: vraies reprises à 0,68–1,0 (Stand By Me, la plus basse : 0,70–0,77), le
+#: palier va de 0,5 à 0,6 sans perdre une mesure juste, 0,65 commence à en
+#: perdre. Ce qui passe au-dessus et qui est faux, ce sont des jumeaux
+#: harmoniques (mêmes accords ailleurs), qu'aucun seuil ne sépare.
+PROEMINENCE_MIN = 0.6
+#: un fond à moins de ça d'une reprise parfaite n'est plus un fond : le passage
+#: ENTIER ressemble à la brique (vamp, Chain of Fools, tout à 0,99). Sans ce
+#: plancher, (c − fond)/(1 − fond) divise du bruit par presque rien.
+ECART_FOND_MIN = 0.05
+
+
+def _chevauche(a: int, b: int, pris) -> bool:
+    return any(not (b < x or a > y) for x, y in pris)
+
+
+def _niveau_brique(S, b0: int, L: int) -> float:
+    """Ce que « la même mesure » veut dire DANS CETTE BRIQUE : à mi-chemin
+    entre 1 (identique) et la ressemblance médiane de ses mesures entre elles.
+    Relatif à la brique, pas une constante : sur une brique où tout se
+    ressemble il monte, sur une brique contrastée il descend."""
+    import numpy as np
+    vals = [S[b0 + i, b0 + j] for i in range(L) for j in range(i + 1, L)]
+    return (1.0 + float(np.median(vals))) / 2.0 if vals else 1.0
+
+
+def _periode(S, b0: int, L: int, tau: float, lo: int, hi: int):
+    """(l, T) — le plus petit décalage l de [lo, hi] auquel la brique se répète
+    elle-même, ou (None, None). Les mesures doivent coller à leur partenaire
+    l mesures plus loin (≥ tau) depuis le DÉBUT de la brique, sans trou, sur
+    une suite de T mesures ; il faut T ≥ 2 l (au moins deux passages) et ce qui
+    reste après la suite ne dépasse pas un passage — la dernière fois peut
+    avoir une autre fin (« modulo la dernière »)."""
+    for l in range(lo, hi + 1):
+        r = 0
+        while r < L - l and S[b0 + r, b0 + r + l] >= tau:
+            r += 1
+        T = l + r
+        if T >= 2 * l and L - T <= l:
+            return l, T
+    return None, None
+
+
+def boucle_minimale(S, b0: int, b1: int) -> dict:
+    """RÈGLE 2 de Louis (2026-09-30) : « Quand je donne une section, il faut
+    regarder si elle-même est une répétition d'une boucle minimale [...] C'est
+    la boucle minimale qui définit la section qui devra ensuite être
+    cherchée. »
+
+    Rend {"boucle": Lb, "suite": T, "sous_periode": p0, "tau": ...}. `Lb` est
+    le plus petit décalage de 4 mesures ou plus (jamais moins : une section
+    fait au moins 4 mesures) auquel la brique se rejoue elle-même depuis son
+    début — voir `_periode` —, ou la longueur de la brique si elle ne se
+    répète pas. `T` = combien de mesures la suite de boucles couvre ; ce qui
+    reste au-delà est la FIN de la brique (autre fin, ou passage incomplet).
+
+    `p0` est la vraie période harmonique DANS la boucle, qui peut descendre
+    sous 4 (deux accords qui alternent : p0 = 2 dans une boucle de 4). Un
+    départ décalé d'un multiple de p0 ressemble à la boucle aussi bien que le
+    bon : l'harmonie ne peut pas choisir la phase, et ces décalages ne doivent
+    pas servir de fond (voir `_fond`).
+
+    CE QUE ÇA NE RÉSOUT PAS : une brique dont la boucle interne varie à chaque
+    passage (autre accord en mesure 3 au 2e tour) n'est pas vue comme une
+    boucle — il faut que chaque mesure colle, sauf dans le dernier passage. Une
+    brique qui est un vamp (un seul accord, tout se ressemble) donne une boucle
+    de 4 et une sous-période de 1 : la phase est alors indécidable, et la
+    recherche s'abstient (aucun fond).
+    """
+    L = b1 - b0 + 1
+    tau = _niveau_brique(S, b0, L)
+    Lb, T = L, L
+    if L >= 2 * MIN_BOUCLE:
+        l, t = _periode(S, b0, L, tau, MIN_BOUCLE, L // 2)
+        if l is not None:
+            Lb, T = l, t
+    p0, _ = _periode(S, b0, min(L, 2 * Lb), tau, 1, Lb) if Lb < L else (None, None)
+    if p0 is None or Lb % p0:
+        p0 = Lb
+    return {"boucle": Lb, "suite": T, "sous_periode": p0, "tau": tau}
+
+
+def _fond(c, p: int, Lb: int, p0: int, interdit) -> float | None:
+    """RÈGLE 3 : le FOND local du départ p — la médiane de la courbe aux
+    départs décalés de 1 à Lb−1 mesures de chaque côté (ce que la brique donne
+    quand elle est mal calée sur une vraie reprise). On n'y met ni les voisins
+    à ±Lb (ce sont peut-être d'autres reprises, qui ne sont pas du fond), ni
+    les multiples de la sous-période p0 (ils collent aussi bien que p), ni —
+    RÈGLE 1 — les départs dont la fenêtre chevauche la brique (ses décalages
+    sur elle-même : ni des pics, ni du fond)."""
+    import numpy as np
+    vals = [c[q] for d in range(1, Lb) if d % p0 for q in (p - d, p + d)
+            if 0 <= q < len(c) and not interdit(q)]
+    return float(np.median(vals)) if vals else None
+
+
+def _passages(p: int, Lb: int, T: int, L: int) -> list[tuple[int, int]]:
+    """La brique posée en p, découpée comme elle l'est elle-même : T // Lb
+    boucles, puis sa fin (s'il en reste)."""
+    k = T // Lb
+    out = [(p + j * Lb, p + (j + 1) * Lb - 1) for j in range(k)]
+    if k * Lb < L:
+        out.append((p + k * Lb, p + L - 1))
+    return out
+
+
+def cherche_sur_matrices(S, V, b0: int, b1: int) -> tuple[list[tuple], dict]:
+    """Le cœur de `cherche_brique`, sur des matrices déjà calculées (la page
+    de diagnostic l'appelle directement). Rend (reprises, détail) ; chaque
+    reprise est `(m0, m1, score, rot)`, triées, la brique (ou ses passages)
+    comprise. `détail` porte la courbe, le fond et chaque pic jugé — tout ce
+    qu'il faut pour le dessiner. Voir `cherche_brique` pour la loi."""
+    import numpy as np
+
+    from harmonia.sections import similarity as VS
+    n = S.shape[0]
+    L = b1 - b0 + 1
+    b = boucle_minimale(S, b0, b1)
+    Lb, T, p0 = b["boucle"], b["suite"], b["sous_periode"]
+    detail = dict(b, mode="relatif", L=L, seuil=None, mediane=None, sigma=None,
+                  pics=[], courbe=[])
+
+    # RÈGLE 2 : la brique devient ses propres passages. Le premier vaut 1,0 ;
+    # les suivants, leur ressemblance au premier.
+    out = []
+    for a, z in _passages(b0, Lb, T, L):
+        m = z - a + 1
+        sc = 1.0 if a == b0 else float(np.mean([S[b0 + i, a + i] for i in range(m)]))
+        out.append((a, z, sc, 0))
+    queue = (out[-1][0], out[-1][1]) if T // Lb * Lb < L else None
+    pris = [(b0, b1)]
+
+    def interdit(q, lg):
+        return not (q + lg - 1 < b0 or q > b1)          # RÈGLE 1
+
+    c = np.asarray(VS._slide(S, b0, Lb, n))[:max(1, n - Lb + 1)]
+    detail["courbe"] = [round(float(x), 4) for x in c]
+
+    if L < 2 * MIN_BOUCLE:
+        # ANCIENNE LOI pour une brique trop courte pour montrer une boucle :
+        # seuil du morceau médiane + Z σ, borné — mais calculé HORS de la zone
+        # donnée (règle 1). Mesuré : la règle 3 sur une brique de 4 mesures
+        # dont les accords alternent (Let It Be « bridge », Lazy Song C) la
+        # recopiait sur tout le morceau (+52 et +48 mesures).
+        detail["mode"] = "ancien"
+        hors = np.array([c[q] for q in range(len(c)) if not interdit(q, Lb)])
+        if len(hors) < 3:
+            detail["raison"] = "trop_court"
+            return sorted(set(out)), detail
+        seuil = min(PLAFOND_REPRISE, max(PLANCHER_REPRISE,
+                                         float(np.median(hors) + Z_REPRISE * hors.std())))
+        detail.update(seuil=round(seuil, 3), mediane=round(float(np.median(hors)), 3),
+                      sigma=round(float(hors.std()), 3))
+
+        def moissonne(scores, seuil_k, rot):
+            for q in sorted(range(len(scores)), key=lambda x: -scores[x]):
+                if scores[q] < seuil_k:
+                    break
+                if _chevauche(q, q + L - 1, pris):
+                    continue
+                pris.append((q, q + L - 1))
+                out.append((q, q + L - 1, float(scores[q]), rot))
+        moissonne(c, seuil, 0)
+        if L >= MIN_MESURES_TRANSPOSE:
+            for k in range(1, 12):
+                Sk = V @ np.roll(V, k, axis=1).T
+                moissonne(np.asarray(VS._slide(Sk, b0, L, n))[:len(c)],
+                          min(PLAFOND_REPRISE, seuil + BONUS_TRANSPOSE), k)
+        return sorted(set(out)), detail
+
+    # RÈGLE 3 : chaque départ jugé contre SON fond local.
+    for q in range(len(c)):
+        if interdit(q, Lb):
+            continue
+        fond = _fond(c, q, Lb, p0, lambda x: interdit(x, Lb))
+        if fond is None:
+            continue
+        rho = (float(c[q]) - fond) / max(1.0 - fond, ECART_FOND_MIN)
+        ok = bool(c[q] >= PLANCHER_REPRISE and rho >= PROEMINENCE_MIN)
+        detail["pics"].append({"p": q, "c": round(float(c[q]), 4),
+                               "fond": round(fond, 4), "rho": round(rho, 3),
+                               "ok": ok, "pris": False})
+    cand = {x["p"]: x for x in detail["pics"] if x["ok"]}
+    # Parmi les départs qui passent, le plus de reprises sans recouvrement
+    # (à égalité : les mieux notées). Pas un glouton par hauteur : quand la
+    # boucle a une sous-période (deux accords qui alternent), le glouton
+    # prenait un départ décalé de 2 et perdait la reprise voisine (Lazy Song).
+    N = len(c)
+    best = [0.0] * (N + Lb + 1)
+    prend = [False] * (N + Lb + 1)
+    for i in range(N - 1, -1, -1):
+        best[i] = best[i + 1]
+        if i in cand and best[i + Lb] + 1.0 + cand[i]["c"] > best[i]:
+            best[i] = best[i + Lb] + 1.0 + cand[i]["c"]
+            prend[i] = True
+    i = 0
+    while i < N:
+        if prend[i]:
+            cand[i]["pris"] = True
+            pris.append((i, i + Lb - 1))
+            out.append((i, i + Lb - 1, cand[i]["c"], 0))
+            i += Lb
+        else:
+            i += 1
+
+    # LA FIN DE LA BRIQUE : juste après une suite de boucles retrouvée
+    # ailleurs, les mesures qui suivent peuvent rejouer la fin de la brique
+    # (San Francisco Street, mes. 54-57). On la prend si elle ressemble plus à
+    # la fin de la brique qu'à la boucle, et au moins au plancher.
+    if queue is not None:
+        t0, t1 = queue
+        t = t1 - t0 + 1
+        debuts = {a for a, _z, _s, _r in out}
+        for a, z, _s, _r in sorted(o for o in out if o[0] > b1 or o[1] < b0):
+            q = z + 1
+            if q in debuts or q + t - 1 >= n or _chevauche(q, q + t - 1, pris):
+                continue
+            st = float(np.mean([S[t0 + i, q + i] for i in range(t)]))
+            sl = float(np.mean([S[b0 + i, q + i] for i in range(t)]))
+            if st >= PLANCHER_REPRISE and st > sl:
+                pris.append((q, q + t - 1))
+                out.append((q, q + t - 1, st, 0))
+                debuts.add(q)
+
+    # LES TRANSPOSÉES : la brique ENTIÈRE tournée (plus de matière qu'une
+    # boucle de 4, qui tournée colle trop souvent), même règle 3, et elle doit
+    # battre la droite au même endroit de `BONUS_TRANSPOSE`. Une trouvaille est
+    # redécoupée en passages comme la brique.
+    c_brique = np.asarray(VS._slide(S, b0, L, n))[:max(1, n - L + 1)]
+    for k in range(1, 12):
+        Sk = V @ np.roll(V, k, axis=1).T
+        ck = np.asarray(VS._slide(Sk, b0, L, n))[:len(c_brique)]
+        for q in sorted(range(len(ck)), key=lambda x: -ck[x]):
+            if ck[q] < PLANCHER_REPRISE + BONUS_TRANSPOSE:
+                break
+            if _chevauche(q, q + L - 1, pris) or ck[q] < c_brique[q] + BONUS_TRANSPOSE:
+                continue
+            fond = _fond(ck, q, L, L, lambda x: interdit(x, L))
+            if fond is None or (ck[q] - fond) / max(1.0 - fond, ECART_FOND_MIN) < PROEMINENCE_MIN:
+                continue
+            pris.append((q, q + L - 1))
+            for a, z in _passages(q, Lb, T, L):
+                out.append((a, z, float(ck[q]), k))
+    return sorted(set(out)), detail
 
 
 def cherche_brique(chart: dict, b0: int, b1: int, audio_dir,
@@ -78,9 +329,54 @@ def cherche_brique(chart: dict, b0: int, b1: int, audio_dir,
     On fait glisser la brique le long de la matrice de ressemblance chord-tone
     (`sections.similarity`, la même que l'app utilise déjà pour répondre « où
     ce bloc se rejoue-t-il ? ») et on retient les pics sans recouvrement. La
-    brique elle-même est TOUJOURS rendue, en tête.
+    brique elle-même est TOUJOURS rendue — entière, ou découpée en ses
+    passages (règle 2 ci-dessous).
 
-    LE SEUIL EST RELATIF AU MORCEAU, et c'est tout l'enjeu. Un seuil absolu de
+    LES TROIS RÈGLES DE LOUIS (2026-09-30), après la page
+    `docs/plots/occurrences_brique_2026-09-30.html` — « le détecteur avec pics
+    est bon », il lui faut trois changements. Le cœur est
+    `cherche_sur_matrices` ; la page v2 le montre terme par terme
+    (`docs/plots/occurrences_brique_v2_2026-09-30.html`).
+
+      1. LA ZONE DONNÉE N'EST PAS UN PIC. Un départ dont la fenêtre CHEVAUCHE
+         la brique (même d'une mesure) n'est jamais une reprise, et il n'entre
+         pas non plus dans le fond ou le seuil contre lequel on juge les
+         autres : ses scores sont la brique comparée à elle-même, décalée.
+      2. LA BOUCLE MINIMALE (`boucle_minimale`). Une brique d'au moins 8
+         mesures qui est k fois une boucle plus courte (≥ 4 mesures, la
+         dernière fois pouvant finir autrement) est découpée en ses passages,
+         et c'est la BOUCLE qu'on cherche ailleurs. Sa fin (le dernier passage
+         différent) est reprise juste après une suite de boucles retrouvée.
+         San Francisco Street : 24 = 5 × 4 + une fin ; la reprise de 16
+         mesures, ratée à longueur fixe, est retrouvée en entier.
+      3. LA HAUTEUR DU PIC PAR RAPPORT AU RESTE. Un départ est une reprise si
+         son score a parcouru au moins `PROEMINENCE_MIN` du chemin entre son
+         FOND LOCAL (la médiane de la courbe aux départs décalés de 1 à Lb−1
+         mesures, voir `_fond`) et 1,0 — et reste au-dessus du plancher 0,85.
+         Plus de seuil global ni de plafond 0,999 (qui recalait Let It Be,
+         The Walk, Chain of Fools à 0,99). Stand By Me : ses reprises à 0,90
+         sur un fond à 0,65 passent ; un 0,97 sur un plateau à 0,95 non.
+         Parmi les départs qui passent : le plus de reprises sans
+         recouvrement, à égalité les mieux notées.
+
+    Une brique de MOINS DE 8 MESURES ne peut pas montrer une boucle de 4 jouée
+    deux fois : elle garde l'ancienne loi (seuil médiane + 1,5 σ du morceau,
+    ci-dessous), calculée hors de la zone donnée. La règle 3 sur une brique de
+    4 mesures dont les accords alternent la recopiait partout.
+
+    CE QUE LES TROIS RÈGLES NE RÉSOLVENT PAS : les JUMEAUX HARMONIQUES — une
+    autre section qui joue les mêmes accords sort comme une reprise (Let It Be :
+    le refrain partage la 2e moitié du couplet ; She Will Be Loved : la même
+    grille presque tout du long ; les intros qui jouent la boucle). Découper
+    en boucles de 4 les rend PLUS fréquents : une boucle de 4 est moins
+    spécifique qu'une brique de 8. Un VAMP (Chain of Fools, tout à 0,99)
+    n'a pas de fond : on s'abstient. La PHASE d'une boucle à sous-période
+    (deux accords qui alternent) est choisie par la couverture, pas par
+    l'oreille. Et une reprise plus LONGUE que la brique garde ses mesures en
+    trop libres.
+
+    L'ANCIENNE LOI — LE SEUIL RELATIF AU MORCEAU (2026-09-17, gardée pour les
+    briques de moins de 8 mesures), et c'était tout l'enjeu. Un seuil absolu de
     0,90 marchait sur Don't Want My Love et cassait Cry Me A River : Louis,
     2026-09-17, « j'ai annoté, l'outil n'a complètement pas respecté ce que
     j'avais écrit ». Mesuré, les deux distributions n'ont rien à voir :
@@ -166,47 +462,25 @@ def cherche_brique(chart: dict, b0: int, b1: int, audio_dir,
     triad = _musx.frame_posteriors(audio)[0]
     V = VS.harmonic_vectors(triad, grid)
     S = VS.ssm(triad, grid)
-    dom = np.asarray(VS._slide(S, b0, L, n))[:max(1, n - L + 1)]
-    if len(dom) < 3:
+    if n - L + 1 < 3:
         info["raison"] = "trop_court"
         return seule, info
-
-    seuil = min(PLAFOND_REPRISE,
-                max(PLANCHER_REPRISE,
-                    float(np.median(dom) + Z_REPRISE * dom.std())))
-    info.update(seuil=round(seuil, 3), mediane=round(float(np.median(dom)), 3),
-                sigma=round(float(dom.std()), 3))
-
-    pris, out = [(b0, b1)], list(seule)
-
-    def _moissonne(scores, seuil_k, rot):
-        """Les pics de `scores` qui ne recouvrent rien de déjà pris."""
-        for b in sorted(range(len(scores)), key=lambda x: -scores[x]):
-            if scores[b] < seuil_k:
-                break
-            if any(not (b + L <= c or d < b) for c, d in pris):
-                continue
-            pris.append((b, b + L - 1))
-            out.append((b, b + L - 1, float(scores[b]), rot))
-
-    # LES DROITES D'ABORD, toutes, avant de regarder une seule transposition.
-    _moissonne(dom, seuil, 0)
-    if L >= MIN_MESURES_TRANSPOSE:
-        seuil_rot = min(PLAFOND_REPRISE, seuil + BONUS_TRANSPOSE)
-        for k in range(1, 12):
-            Sk = V @ np.roll(V, k, axis=1).T
-            _moissonne(np.asarray(VS._slide(Sk, b0, L, n))[:len(dom)],
-                       seuil_rot, k)
-
-    info["n_reprises"] = len(out) - 1
+    out, d = cherche_sur_matrices(np.asarray(S), np.asarray(V), b0, b1)
+    info.update(seuil=d["seuil"], mediane=d["mediane"], sigma=d["sigma"],
+                boucle=d["boucle"], sous_periode=d["sous_periode"],
+                mode=d["mode"])
+    if d.get("raison"):
+        info["raison"] = d["raison"]
+        return seule, info
+    info["n_reprises"] = sum(1 for o in out if o[1] < b0 or o[0] > b1)
     if info["n_reprises"] == 0:
         info["raison"] = "sans_contraste"
     tournees = sum(1 for o in out if o[3])
-    logger.info("cherche_brique %s [%d-%d] « %s » : seuil %.3f (médiane %.3f, "
-                "σ %.3f) → %d occurrence(s), dont %d transposée(s)", stem,
-                b0 + 1, b1 + 1, label, seuil, info["mediane"], info["sigma"],
-                len(out), tournees)
-    return sorted(set(out)), info
+    logger.info("cherche_brique %s [%d-%d] « %s » : boucle %d/%d mesures, "
+                "loi %s → %d occurrence(s) dont %d hors de la brique, %d "
+                "transposée(s)", stem, b0 + 1, b1 + 1, label, d["boucle"], L,
+                d["mode"], len(out), info["n_reprises"], tournees)
+    return out, info
 
 
 def occurrences_de_tous(chart: dict, traits: list[dict],
@@ -242,7 +516,9 @@ def occurrences_de_tous(chart: dict, traits: list[dict],
             pris.append((x, y))
             out.append({"m0": x, "m1": y, "label": label,
                         "score": round(sc, 3), "rot": int(rot),
-                        "trace": (x == b0 and y == b1)})
+                        # ses passages (règle 2 : sa brique découpée en
+                        # boucles) restent SES traits
+                        "trace": (b0 <= x and y <= b1)})
     return sorted(out, key=lambda o: o["m0"]), ecartes, diagnostics
 
 

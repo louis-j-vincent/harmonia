@@ -128,3 +128,51 @@ revérifie pas une cellule de 4 qui serait une cellule de 2 (This Love B).
 `docs/known_issues.md` : le seuil qui bute au plafond 0,999, puis la longueur
 figée, puis les jumeaux harmoniques. Candidat 1 (plafond 0,97) prêt à
 arbitrer ; candidat 2 (longueur libre) : prémisse vraie, version à refaire.
+
+## 8. Verdicts de Louis sur la page du jour, et ses trois règles (branchées)
+
+**Verdicts (vérité terrain désormais)** :
+- **Stand By Me** : tout le morceau peut être considéré comme UNE section — les
+  « jumeaux » A/C ne sont pas de fausses trouvailles.
+- **The Walk** : B peut être considéré plus court — les 3 « en trop » de A
+  (l'intro, la 2e moitié des B) sont acceptables.
+- Sa conclusion : « le détecteur avec pics est bon », il lui faut trois changements.
+
+**Ses trois règles, mot pour mot** :
+1. « Interdire la recherche de pics dans la zone qui est donnée de base, ce ne
+   sont pas des pics valides. »
+2. « Quand je donne une section, il faut regarder si elle-même est une
+   répétition d'une boucle minimale, car je peux parfois surligner une section
+   alors que c'est plusieurs fois la section. C'est la boucle minimale qui
+   définit la section qui devra ensuite être cherchée (ça devrait fixer San
+   Francisco Street). »
+3. « Ce n'est pas la hauteur du pic qui dicte, mais la hauteur du pic par
+   rapport au reste, c'est clairement visible dans Stand By Me — trouve une
+   façon de normaliser les pics par rapport aux autres pics voisins, sachant
+   que ce sera plus simple une fois que tu auras identifié partout la boucle
+   minimale. »
+
+**Implémentation** (`harmonia/sections/simulation.py`, `cherche_sur_matrices`,
+appelée par `cherche_brique` — donc « Valider les sections » après
+redémarrage du serveur) :
+1. un départ dont la fenêtre CHEVAUCHE la brique (même d'une mesure) n'est ni
+   un pic, ni une valeur du fond/seuil qui juge les autres ;
+2. `boucle_minimale` : brique ≥ 8 mesures = k × boucle de ≥ 4 mesures si chaque
+   mesure colle à celle d'une boucle plus loin depuis le début (« coller » =
+   ≥ (1 + médiane des ressemblances internes de la brique)/2, relatif à la
+   brique), au moins 2 passages, le dernier pouvant finir autrement. La brique
+   devient ses passages (tous marqués « tracés »), on cherche la boucle, et la
+   fin de la brique est recherchée juste après chaque suite de boucles retrouvée ;
+3. fond local = médiane de la courbe aux départs décalés de 1 à L−1 mesures
+   (sans les multiples de la sous-période harmonique ni la zone donnée) ;
+   reprise si (score − fond)/(1 − fond) ≥ 0,6 et score ≥ 0,85 ; parmi les
+   départs qui passent, le plus de reprises sans recouvrement. Plus de seuil
+   global ni de plafond 0,999. Brique < 8 mesures : ancienne loi, calculée hors
+   zone donnée.
+
+**Résultat** (page `docs/plots/occurrences_brique_v2_2026-09-30.html`, 20
+découpages, en mesures) : justes 1270 → 1402, ratées 260 → 128, en trop
+278 → 408 (jumeaux harmoniques : Let It Be A, She Will Be Loved A/D, This Love A,
+X-yIEMduRXk B). San Francisco Street A 24 → 40/41, Stand By Me A 32 → 80/80,
+Let It Be A 8 → 32/32 (+24 en trop, le refrain), The Walk A 12 → 40/40.
+Chain of Fools : vamp, abstention (inchangé). Rapport d'or : 0 mesure changée.

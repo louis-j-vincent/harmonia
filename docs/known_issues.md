@@ -5,7 +5,34 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
-## Retrouver les occurrences d'une section donnée : le seuil bute au plafond, la longueur est figée (2026-09-30, OUVERT — arbitrage)
+## Retrouver les occurrences d'une section donnée : les trois règles de Louis branchées (2026-09-30 soir, RÉSOLU en partie — reste les jumeaux)
+
+Louis sur la page du matin : « le détecteur avec pics est bon », verdicts
+(Stand By Me = une seule section ; The Walk, B peut être plus court) et trois
+règles — pas de pic dans la zone donnée ; chercher la BOUCLE MINIMALE de la
+brique ; juger un pic par rapport à son fond local. Implémentées dans
+`simulation.cherche_sur_matrices` (chemin live de `cherche_brique`, actif au
+prochain redémarrage du serveur). Détail et justification :
+`docs/sections_etat_2026-09-30.md` § 8 ; page terme par terme :
+`docs/plots/occurrences_brique_v2_2026-09-30.html` (rejouable :
+`python -m tools.occurrences_brique_v2 --page`).
+
+Sur 20 découpages validés (mesures) : justes 1270 → 1402, ratées 260 → 128,
+en trop 278 → 408. Corrigés : San Francisco Street A (24 → 40/41, la reprise
+de 16 est retrouvée), Stand By Me A (32 → 80/80), Let It Be A (8 → 32/32),
+The Walk A (12 → 40/40). Rapport d'or : 0 mesure changée (60 cuits).
+
+CE QUI RESTE :
+1. **Jumeaux harmoniques, plus fréquents** : une boucle de 4 ressemble à plus
+   de choses qu'une brique de 8 — Let It Be A (+24, le refrain finit sur les
+   mêmes accords), She Will Be Loved A (+28) et D (+60, même grille presque
+   tout du long), This Love A (l'intro). Aucune règle sur la courbe ne les
+   sépare ; Louis tranche (comme Stand By Me ?).
+2. **Phase d'une boucle à deux accords** : The Walk B trouvé décalé de 2 mesures.
+3. **Vamp** (Chain of Fools, 0,99 partout) : abstention, comme avant.
+4. Stand By Me C : 15–22 refusé de justesse (proéminence 0,57).
+
+DIAGNOSTIC DU MATIN (conservé) :
 
 Louis : « une fois que l'annotateur a donné une première section, il faudrait
 pouvoir BIEN détecter les occurrences de cette section ». Simulé sur ses 20
