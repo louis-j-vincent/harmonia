@@ -211,6 +211,16 @@ de tours écrivent « ×3/2 » (dans l'ordre des passages). Couleur d'encre
 au-dessus des accords (place gardée aux petites suggestions). Les autres
 lectures d'un tour restent la petite lecture `var` de la case.
 
+**Le curseur « Section merging » pilote aussi la boucle (2026-10-01, Louis :
+« mets-moi le curseur qui permet de choisir à quel point tu factorises »).**
+Un seul curseur, une seule question — à quel point deux passages peuvent
+différer et s'écrire une fois. Crans : 0 « tout écrit » (aucune boucle,
+toutes les fins) ; 1 défaut (boucle ×N seulement si tous les tours ont la
+même harmonie, couleurs permises ; une fin seulement si l'accord change) ;
+2 / 3 (différences proches / apparentées tolérées, montrées en petite
+lecture) ; 4 « un bloc » (toujours la boucle, différences en petite
+lecture). Bornes affichées : « write it out » ↔ « one block ».
+
 ## Où est l'historique
 
 - `docs/refactor_2026-09/plan.md` — les décisions verrouillées du refactor.

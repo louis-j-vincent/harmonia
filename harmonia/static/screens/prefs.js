@@ -76,8 +76,13 @@ export function openPrefsSheet(){
        Montré seulement quand le curseur change quelque chose sur ce morceau
        (fusionDispo), pour ne pas poser un contrôle mort. */
     if(S.model && S.model.file && S.model.fusionDispo){
-      const FUS=["Keep every alternate ending","Default — an ending only when the chord really changes",
-                 "Merge near-identical endings","Merge related endings","One block ×N, no endings"];
+      // Le même curseur décide aussi si une section s'écrit par sa boucle
+      // minimale ||: … :|| ×N (Louis, 2026-10-01) — docs/STATE.md.
+      const FUS=["Write everything out — no loops, every alternate ending",
+                 "Default — loop ×N and endings only when the harmony is the same",
+                 "Also merge near-identical passes (shown as small chords)",
+                 "Also merge related passes (shown as small chords)",
+                 "One block ×N — always loop, differences as small chords"];
       const cur=(S.model.fusion==null)?1:S.model.fusion;
       const fx=el("div","");
       const top=el("div","display:flex;align-items:baseline;justify-content:space-between;gap:10px;");
@@ -89,7 +94,7 @@ export function openPrefsSheet(){
       rg.setAttribute("aria-label","Section merging"); rg.dataset.role="fusion";
       fx.appendChild(rg);
       const ends=el("div",`display:flex;justify-content:space-between;font:500 11px ${UI};color:${T.faint};margin-top:-6px;`);
-      ends.appendChild(el("span","","alternate endings")); ends.appendChild(el("span","","one block"));
+      ends.appendChild(el("span","","write it out")); ends.appendChild(el("span","","one block"));
       fx.appendChild(ends);
       const cap=el("div",`font:italic 12px ${SERIF};color:${T.faint};margin-top:4px;`,FUS[cur]);
       fx.appendChild(cap);
