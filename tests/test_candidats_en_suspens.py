@@ -121,9 +121,12 @@ def test_occurrences_de_tous_tranche_avec_les_autres_briques(monkeypatch):
     proposition, pas une contrainte)."""
     def faux(chart, b0, b1, audio_dir, label=""):
         if label == "A":
-            alts = [[(26, 29, 0.975, 0)], [(28, 31, 0.99, 0)]]
-            return ([(0, 3, 1.0, 0), (28, 31, 0.99, 0)],
-                    {"suspens": [{"label": None, "boucle": 4, "alternatives": alts}]})
+            # (c), 2026-09-30 : B ne mange 28–31 que s'il y est NETTEMENT plus
+            # haut (0,97 > 0,93 + 0,02)
+            alts = [[(26, 29, 0.92, 0)], [(28, 31, 0.93, 0)]]
+            return ([(0, 3, 1.0, 0), (28, 31, 0.93, 0)],
+                    {"suspens": [{"label": None, "boucle": 4, "alternatives": alts,
+                                  "tolerance": 0.02}]})
         return [(10, 17, 1.0, 0), (30, 37, 0.97, 0)], {}
     monkeypatch.setattr(sim, "cherche_brique", faux)
     chart = {"barGrid": list(range(61))}
@@ -133,3 +136,109 @@ def test_occurrences_de_tous_tranche_avec_les_autres_briques(monkeypatch):
     assert (28, 31, "A") not in plages
     assert (26, 29, "A") in plages and plages[(26, 29, "A")]["suspens"]
     assert (30, 37, "B") in plages
+
+
+# ── (c) : on ne mange un suspens que NETTEMENT (Louis, 2026-09-30) ──────────
+#
+# Sur la page v5, Sunny A (mes. 18–25) perdait 8 mesures justes : pendant que
+# son calage attendait, la boucle de C (mêmes accords, 0,984 contre 0,950)
+# prenait la zone. Louis a choisi l'option (c) : une autre section ne mange
+# une zone tenue par un calage en suspens que si son score y est plus haut que
+# celui du calage de PLUS que la tolérance du morceau (la même qui définit
+# l'égalité en 5b). Ses traits gagnent toujours. Et le résultat ne doit pas
+# dépendre de l'ordre des briques.
+
+def _T(a, b, lbl):
+    return {"mesure_debut": a + 1, "mesure_fin": b + 1, "label": lbl}
+
+
+def _sunny(monkeypatch, tol, trait_a, trait_c, c_score=0.984):
+    """A : un calage en suspens, 18 (0,950) ou 22 (0,874), tolérance `tol`.
+    C : deux reprises sûres de sa boucle de 4, 18–21 et 22–25."""
+    def faux(chart, b0, b1, audio_dir, label=""):
+        if label == "A":
+            alts = [[(18, 25, 0.950, 0)], [(22, 29, 0.874, 0)]]
+            return ([(b0, b1, 1.0, 0), (18, 25, 0.950, 0)],
+                    {"label": "A", "suspens": [{"label": None, "boucle": 8,
+                                                "alternatives": alts, "tolerance": tol}]})
+        return ([(b0, b1, 1.0, 0), (18, 21, c_score, 0), (22, 25, c_score, 0)],
+                {"label": "C"})
+    monkeypatch.setattr(sim, "cherche_brique", faux)
+    chart = {"barGrid": list(range(61))}
+    traits = [_T(*trait_a, "A"), _T(*trait_c, "C")]
+    occ, _, _ = sim.occurrences_de_tous(chart, traits, None)
+    occ_inv, _, _ = sim.occurrences_de_tous(chart, traits[::-1], None)
+    assert occ == occ_inv                        # l'ordre de la liste ne compte pas
+    return {(o["m0"], o["m1"], o["label"]) for o in occ}
+
+
+def test_c_sunny_un_peu_plus_haut_ne_mange_pas(monkeypatch):
+    """C à 0,984 contre A à 0,950 : écart 0,034, sous la tolérance du morceau
+    (0,10) — ce n'est pas NETTEMENT plus haut. A garde 18–25 ; les reprises
+    de C qui la recouvraient tombent."""
+    plages = _sunny(monkeypatch, 0.10, (0, 7), (40, 43))
+    assert (18, 25, "A") in plages
+    assert (18, 21, "C") not in plages and (22, 25, "C") not in plages
+
+
+def test_c_nettement_plus_haut_mange(monkeypatch):
+    """Même chose, tolérance 0,02 : 0,984 > 0,950 + 0,02, C prend 18–21 et
+    22–25 ; les deux calages de A sont mangés."""
+    plages = _sunny(monkeypatch, 0.02, (0, 7), (40, 43))
+    assert (18, 21, "C") in plages and (22, 25, "C") in plages
+    assert not any(lab == "A" and not (b < 18 or a > 29) for a, b, lab in plages)
+
+
+@pytest.mark.parametrize("tol, a_garde", [(0.10, True), (0.02, False)])
+def test_c_ne_depend_pas_de_l_ordre_des_briques(monkeypatch, tol, a_garde):
+    """Avant v5, A gardait 18–25 seulement parce qu'il était tracé AVANT C.
+    Ici on échange les places : le trait de C avant (0–3) ou après (40–43)
+    celui de A. La zone contestée a le même sort dans les deux cas (et chaque
+    appel vérifie aussi que l'ordre de la liste des traits ne compte pas)."""
+    zone = lambda pl: {x for x in pl if not (x[1] < 18 or x[0] > 29)}  # noqa: E731
+    avant = zone(_sunny(monkeypatch, tol, (30, 37), (0, 3)))
+    apres = zone(_sunny(monkeypatch, tol, (0, 7), (40, 43)))
+    assert avant == apres
+    assert ((18, 25, "A") in avant) is a_garde
+
+
+def test_c_un_trait_de_louis_mange_toujours(monkeypatch):
+    """Le trait C de Louis EST en 18–21 : il mange le calage 18 de A quel que
+    soit le score (la vérité terrain ne se discute pas). Le calage 22 de A
+    (0,874) est, lui, NETTEMENT battu par la reprise de C en 22–25 (0,984 >
+    0,874 + 0,10) : A n'a plus rien dans la zone."""
+    plages = _sunny(monkeypatch, 0.10, (0, 7), (18, 21))
+    assert (18, 21, "C") in plages and (22, 25, "C") in plages
+    assert (18, 25, "A") not in plages and (22, 29, "A") not in plages
+
+
+def test_c_une_reprise_retenue_revient_si_le_suspens_part_ailleurs(monkeypatch):
+    """C (0,96) touche seulement le calage 18 de A (0,95), pas nettement plus
+    haut : il est retenu. Mais A choisit 24 (score plus haut, rien d'autre ne
+    tranche) : 18–21 est libre, la reprise de C y revient."""
+    def faux(chart, b0, b1, audio_dir, label=""):
+        if label == "A":
+            alts = [[(18, 25, 0.95, 0)], [(24, 31, 0.97, 0)]]
+            return ([(b0, b1, 1.0, 0)],
+                    {"suspens": [{"label": None, "boucle": 8, "alternatives": alts,
+                                  "tolerance": 0.05}]})
+        return [(b0, b1, 1.0, 0), (18, 21, 0.96, 0)], {}
+    monkeypatch.setattr(sim, "cherche_brique", faux)
+    occ, _, _ = sim.occurrences_de_tous({"barGrid": list(range(61))},
+                                        [_T(0, 7, "A"), _T(40, 43, "C")], None)
+    plages = {(o["m0"], o["m1"], o["label"]) for o in occ}
+    assert (24, 31, "A") in plages
+    assert (18, 21, "C") in plages
+
+
+def test_c_la_tolerance_du_groupe_vient_de_la_regle_4(courbe):
+    """`cherche_brique` joint à chaque groupe en suspens la tolérance du
+    morceau qui a défini l'égalité (règle 5b)."""
+    sc = [0.55] * 33
+    sc[0] = 1.0
+    sc[20] = 0.99
+    sc[10], sc[11] = 0.975, 0.987
+    chart, audio = courbe(sc)
+    _occ, info = sim.cherche_brique(chart, 0, 7, audio, label="A")
+    g = info["suspens"][0]
+    assert g["tolerance"] > 0.012
