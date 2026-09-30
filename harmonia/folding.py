@@ -1244,7 +1244,195 @@ def facade_view(bars, grid, groups: dict, fold_report: dict | None) -> list:
     return view
 
 
-def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
+# ── LA BOUCLE MINIMALE, ÉCRITE UNE FOIS ─────────────────────────────────────
+# Louis, 2026-09-30 : (1) sur le D de Julia, « pas la peine d'écrire sur 3
+# lignes si on peut l'écrire sur une ligne […] tant pis si ça finit pas
+# pile » ; (2) « assure-toi qu'en conséquence les sections soient montrées par
+# leur boucle minimale, donc This Love par exemple la section A ne devrait
+# faire que 4 barres et non 8 ». Même critère que la règle 2 des briques
+# (`sections.simulation.boucle_minimale`) : chaque mesure colle à sa
+# partenaire une boucle plus loin, « coller » étant RELATIF au passage.
+
+#: la plus petite boucle cherchée, en mesures
+BOUCLE_MIN = 2
+#: une boucle plus courte que ça s'écrit doublée : une cellule de 2 mesures
+#: tient une rangée de 4 (arbitré sur Julia, « c'est parfait »)
+BOUCLE_RANGEE = 4
+#: la plus longue : au-delà ce n'est plus une mini-boucle mais la forme du
+#: morceau rejouée (la pipeline, sans sections, lisait des « boucles » de
+#: 26 à 34 mesures sur des morceaux entiers)
+BOUCLE_MAX = 8
+#: au-delà de cette part de lectures qui contredisent la cellule écrite, ce
+#: n'est pas UNE boucle (Fjufjv4rH0s B et Sunny C : même grille un
+#: demi-ton plus haut au 2e tour, 1/3 des cases) — on écrit le passage
+CONFLATION_MAX = 0.25
+
+
+def _muette(bar) -> bool:
+    return not bar or all(c.get("nc") for c in bar)
+
+
+def _suite(colle, L: int, l: int) -> int:
+    """Combien de mesures, depuis le début, suivent la boucle de `l`."""
+    r = 0
+    while r < L - l and colle(r, r + l):
+        r += 1
+    return l + r
+
+
+def _etiquette(bar) -> str:
+    noms = "C Db D Eb E F Gb G Ab A Bb B".split()
+    return " ".join("N.C." if c.get("nc") else noms[c["root"] % 12] + (c.get("q") or "")
+                    for c in bar or []) or "%"
+
+
+def boucle_minimale_ecrite(bars, vue, grid, occ, rep, S=None) -> dict | None:
+    """Le bloc écrit d'une lettre dont TOUS les passages ne sont qu'une
+    boucle plus courte jouée ≥ 2 fois — ou None (on écrit alors comme avant).
+
+    Rend {"bars", "barSpans", "boucle"} ; `boucle` = {cellule, rangee, tours,
+    tours_pleins, conflations}.
+
+    LE CRITÈRE (règle 2, `simulation.boucle_minimale`) : pour une boucle de
+    `l` mesures (la plus petite ≥ `BOUCLE_MIN` qui marche pour chaque
+    passage), chaque mesure colle à celle `l` mesures plus loin depuis le
+    DÉBUT du passage, sur une boucle puis au moins la moitié de la suivante, et ce qui reste après ne
+    dépasse pas une boucle — la dernière fois peut finir autrement ou
+    s'arrêter en route. « Coller » : avec la matrice chord-tone `S` (quand
+    l'audio est là), ≥ (1 + médiane des ressemblances internes du passage)/2,
+    relatif au passage comme pour les briques ; sans `S`, même accord à la
+    famille près (`_barsig_famille`). Un fondu muet en fin de passage est
+    ignoré (Julia : « c'est une section qui se finit plus tôt »). Un passage
+    qui ne tient qu'un accord n'est pas une boucle (phase indécidable, rien
+    à gagner) : on s'abstient.
+
+    L'ÉCRITURE : la cellule (doublée si elle fait moins de `BOUCLE_RANGEE`),
+    prise dans la façade `vue` du passage représentatif `rep`. La carte de
+    lecture allume la rangée r à chaque tour, dernier tour incomplet et fondu
+    compris.
+
+    L'HONNÊTETÉ : là où un tour joue autre chose que ce qui est écrit (une
+    cadence de dernier tour, A7 contre A7sus4…), lu sur le décodage BRUT
+    `bars` et pas sur la façade, la lecture minoritaire la plus jouée est
+    posée en `var` (« l'autre lecture de cette case », déjà rendue par
+    chart.js) et listée dans `boucle.conflations`. CE QUE ÇA NE RÉSOUT PAS :
+    une seule variante par case (comme `var` partout) ; une vraie fin de
+    dernier tour n'est pas un crochet 1./2. mais une petite lecture en
+    exposant — les crochets indexent des passages, pas des tours ; l'heure
+    de chaque ACCORD dans les tours suivants n'est pas recalculée (la case
+    allumée, elle, suit la carte `barSpans`).
+    """
+    import numpy as np
+    efficaces = []
+    for a, b in occ:
+        fin = b
+        while fin >= a and _muette(vue[fin]):
+            fin -= 1
+        efficaces.append((a, fin - a + 1))
+    Lmin = min(L for _a, L in efficaces)
+    if Lmin < 2 * BOUCLE_MIN:
+        return None
+    ra = rep[0]
+    reels = [_barsig_famille(vue[x]) for x in range(ra, rep[1] + 1)
+             if not _muette(vue[x])]
+    if not reels or all(_compat(reels[0], s) for s in reels[1:]):
+        return None                                   # un accord tenu
+
+    def colle_de(a, L):
+        if S is not None:
+            vals = [S[a + i, a + j] for i in range(L) for j in range(i + 1, L)]
+            tau = (1.0 + float(np.median(vals))) / 2.0 if vals else 1.0
+            return lambda i, j: S[a + i, a + j] >= tau
+        sig = [_barsig_famille(vue[a + i]) for i in range(L)]
+        return lambda i, j: _compat(sig[i], sig[j])
+
+    colles = [(L, colle_de(a, L)) for a, L in efficaces]
+    cellule = None
+    for l in range(BOUCLE_MIN, min(BOUCLE_MAX, Lmin // 2) + 1):
+        if any(_muette(vue[ra + i]) for i in range(l)):
+            continue
+        # au moins une boucle entière PUIS la moitié de la suivante qui colle,
+        # et au plus une demi-boucle qui finit autrement (This Love A : la 8e
+        # mesure cadence). Un dernier tour ENTIER différent est une autre
+        # phrase, pas une autre fin (San Francisco Street A : 4 mesures de
+        # turnaround après 5 tours) — on sous-replie.
+        if all(_suite(c, L, l) >= l + -(-l // 2)
+               and L - _suite(c, L, l) <= max(1, l // 2)
+               for L, c in colles):
+            cellule = l
+            break
+    if cellule is None:
+        return None
+    W = cellule * -(-BOUCLE_RANGEE // cellule) if cellule < BOUCLE_RANGEE else cellule
+    if any(L // W < 2 for _a, L in efficaces) or ra + W > len(vue):
+        return None
+    ecrit = [[dict(c) for c in vue[ra + r]] for r in range(W)]
+    carte: list[list[list[float]]] = [[] for _ in range(W)]
+    lectures_: list[list[int]] = [[] for _ in range(W)]
+    for a, b in occ:
+        for x in range(a, b + 1):
+            carte[(x - a) % W].append([grid[x], grid[min(len(grid) - 1, x + 1)]])
+            if not _muette(bars[x]):
+                lectures_[(x - a) % W].append(x)
+    conflations = []
+    n_lus = n_contre = 0
+    for r in range(W):
+        # la lecture MAJORITAIRE des tours s'écrit (The Walk B : la passe
+        # représentative disait Db-7 là où 6 tours sur 9 jouent A7)
+        groupes: list[tuple] = []
+        for x in lectures_[r]:
+            s_ = _barsig_famille(bars[x])
+            g = next((g for g in groupes if _compat(g[0], s_)), None)
+            if g is None:
+                groupes.append((s_, [x]))
+            else:
+                g[1].append(x)
+        if not groupes:
+            continue
+        n_lus += len(lectures_[r])
+        s_ecrit = _barsig_famille(ecrit[r]) if ecrit[r] else None
+        maj = max(groupes, key=lambda g: (len(g[1]), -g[1][0]))
+        if s_ecrit is None or not any(_compat(g[0], s_ecrit) and len(g[1]) == len(maj[1])
+                                      for g in groupes):
+            ecrit[r] = [dict(c) for c in vue[maj[1][0]]]
+            s_ecrit = _barsig_famille(ecrit[r])
+        autres = [g for g in groupes if not _compat(g[0], s_ecrit)]
+        if not autres:
+            continue
+        n_contre += sum(len(g[1]) for g in autres)
+        _k, xs = max(autres, key=lambda g: (len(g[1]), -g[1][0]))
+        minor = bars[xs[0]]
+        lus = {(rt, f) for c in ecrit[r] if not c.get("nc")
+               for rt, f in [(c["root"] % 12, famille_de(c.get("q")))]}
+        cand = next((c for c in minor if not c.get("nc")
+                     and (c["root"] % 12, famille_de(c.get("q"))) not in lus),
+                    next((c for c in minor if not c.get("nc")), None))
+        if cand is not None and ecrit[r]:
+            beat = cand.get("beat", 0)
+            cible = ecrit[r][0]
+            for c in ecrit[r]:
+                if c.get("beat", 0) <= beat:
+                    cible = c
+            cible["var"] = {"root": int(cand["root"]) % 12, "q": cand.get("q", ""),
+                            "bass": cand.get("bass", -1),
+                            "c": cand.get("c", 0.0), "n": len(xs)}
+        conflations.append({"rang": r, "ecrit": _etiquette(ecrit[r]),
+                            "autre": _etiquette(minor), "mesures": xs,
+                            "sur": len(lectures_[r])})
+    if n_lus and n_contre / n_lus > CONFLATION_MAX:
+        return None
+    Lrep = rep[1] - rep[0] + 1
+    return {"bars": ecrit, "barSpans": carte,
+            "boucle": {"cellule": cellule, "rangee": W,
+                       "tours": round(Lrep / W, 2),
+                       "tours_pleins": min(L // W for _a, L in efficaces),
+                       # un par passage (même ordre que barRanges) : la
+                       # marque ×N du chart dit ce que CHAQUE passage joue
+                       "tours_par_passe": [L // W for _a, L in efficaces],
+                       "conflations": conflations}}
+
+
+def minimal_fold(sections, bars, grid, fold_report, S=None) -> list[dict]:
     """One ChartModel section per LETTER — the validated minimal folding,
     rendered by the UNCHANGED app_shell (Louis: the folding logic is right,
     the old UI stays). Golden rule: chords written once.
@@ -1321,6 +1509,21 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
         # depend on it. Only which pass is WRITTEN changes.
         _rep = fold_report.get(L) or {}
         b0, b1 = max(ranges, key=lambda r: pass_rank(bars, r, _rep, ranges))
+        # LA BOUCLE MINIMALE (Louis, 2026-09-30, « This Love A ne devrait
+        # faire que 4 barres ») : même écriture que le chemin des sections
+        # à la main (`soudure.sections_pour_chart`).
+        _bcl = boucle_minimale_ecrite(bars, vue, grid, ranges, (b0, b1), S)
+        if _bcl:
+            _vus[L] = _vus.get(L, 0) + 1
+            out.append({
+                "id": f"L{L}" + ("" if _vus[L] == 1 else str(_vus[L])),
+                "label": L, "tag": "", "reps": len(ranges),
+                "spans": [[grid[c0], grid[min(len(grid) - 1, c1 + 1)]]
+                          for c0, c1 in ranges],
+                "barRanges": [[c0, c1] for c0, c1 in ranges],
+                **_bcl,
+            })
+            continue
         # Only a fold that was ACCEPTED may drive the display. Every refusal
         # in fold_letter_groups still records the period it was testing
         # ({"period": P, "reason": ...} at the "too few gated members",
@@ -1793,7 +1996,8 @@ def _ireal_cascade(out: list[dict], bars, grid, fold_report) -> list[dict]:
         for blk in blks:
             if blk is host:
                 continue
-            if _merge_coupe(host, blk, cell, P, grid):
+            if _merge_boucle(host, blk, grid) or \
+                    _merge_coupe(host, blk, cell, P, grid):
                 drop.add(id(blk))
                 continue
             rank += 1
@@ -1802,6 +2006,43 @@ def _ireal_cascade(out: list[dict], bars, grid, fold_report) -> list[dict]:
             logger.info("ireal: %s devient %s (même lettre, autre musique)",
                         label, blk["label"])
     return [b for b in out if id(b) not in drop]
+
+
+def _merge_boucle(host: dict, blk: dict, grid) -> bool:
+    """Une lettre écrite comme BOUCLE (`boucle_minimale_ecrite`) absorbe un
+    autre bloc de la même lettre qui ne fait que jouer sa cellule, quelle que
+    soit sa longueur — plus court, plus long, ou lui-même une boucle (San
+    Francisco Street : un A de 24 et un A de 16 mesures, la même cellule de
+    4 jouée 6 et 4 fois ; sans ceci le second sortait A′). Chaque mesure du
+    bloc allume la rangée de sa position modulo la cellule écrite.
+    """
+    bcl = host.get("boucle")
+    if not bcl or not blk.get("bars"):
+        return False
+    W = len(host["bars"])
+    cellule = [_barsig_famille(b) for b in host["bars"]]
+    for i, bar in enumerate(blk["bars"]):
+        if _muette(bar):
+            continue
+        if not _compat(_barsig_famille(bar), cellule[i % W]):
+            return False
+    for c0, c1 in blk["barRanges"]:
+        for x in range(c0, c1 + 1):
+            host["barSpans"][(x - c0) % W].append(
+                [grid[x], grid[min(len(grid) - 1, x + 1)]])
+    host["barRanges"] += [list(r) for r in blk["barRanges"]]
+    host["spans"] += [list(s) for s in blk["spans"]]
+    host["reps"] += blk["reps"]
+    autre = blk.get("boucle") or {}
+    bcl["tours_par_passe"] = bcl.get("tours_par_passe", []) + (
+        autre.get("tours_par_passe")
+        or [(c1 - c0 + 1) // W for c0, c1 in blk["barRanges"]])
+    bcl["conflations"] = bcl.get("conflations", []) + autre.get("conflations", [])
+    if autre:
+        bcl["tours_pleins"] = min(bcl["tours_pleins"], autre["tours_pleins"])
+    logger.info("boucle: %s mes. %s rejoint la boucle %s (×%d)", blk["label"],
+                blk["barRanges"], host["label"], host["reps"])
+    return True
 
 
 def _merge_coupe(host: dict, blk: dict, cell, P, grid) -> bool:

@@ -882,80 +882,34 @@ def _carte_de_lecture(occ, b0, b1, grid, n) -> list[list[list[float]]]:
     return rows
 
 
-#: Une section qui n'est qu'une petite boucle s'écrit sur UNE rangée de tant
-#: de mesures (la largeur d'une ligne du chart).
-BOUCLE_RANGEE = 4
-#: Les cellules essayées, en mesures : elles doivent diviser la rangée.
-BOUCLE_CELLULES = (2, 4)
-#: Au moins tant de rangées de boucle avant de replier — « pas la peine
-#: d'écrire sur 3 lignes si on peut l'écrire sur une ligne ». À 2 (huit
-#: mesures = une cellule de 4 jouée deux fois), 8 morceaux de la
-#: bibliothèque changeaient (Let It Be A, She Will Be Loved A, The Walk
-#: A…) : ce n'est pas ce que Louis a demandé, la question lui est posée.
-BOUCLE_MIN_RANGEES = 3
+_SSM_CACHE: dict = {}
 
 
-def boucle_ecrite(vue, occ, rep) -> dict | None:
-    """{rangee, cellule, tours} si TOUS les passages `occ` d'une lettre ne
-    sont qu'une petite boucle répétée — sinon None.
-
-    Louis, 2026-09-30, sur le D de Julia (`Ab^7 | Bb-7` ×7, puis un N.C.) :
-    « c'est une petite boucle de 2 barres qui se répète, pas la peine
-    d'écrire sur 3 lignes si on peut l'écrire sur une ligne […] et tant pis
-    si ça finit pas pile […] c'est une section qui se finit plus tôt. »
-
-    La cellule (2 ou 4 mesures) est lue au début du passage écrit `rep` ;
-    chaque mesure de chaque passage doit valoir la mesure de la cellule à sa
-    position (`folding._barsig_famille` : `Bb-` et `Bb-7` sont le même
-    moment), SAUF une suite de mesures muettes/tenues à la fin d'un passage
-    (le fondu : la section finit plus tôt). Le dernier tour peut être
-    incomplet — il s'arrête dans la cellule, c'est permis par construction.
-    Il faut au moins `BOUCLE_MIN_RANGEES` rangées de boucle, et une
-    cellule d'au moins deux accords différents : un accord TENU huit mesures
-    n'est pas « une petite boucle », et le replier toucherait des intros et
-    des vamps que Louis n'a pas demandé à changer.
-
-    La lecture à l'aveugle vient de la VUE (façade du re-repli) : les mesures
-    que la pile a rejetées montrent le consensus des autres passes, donc un
-    décodage bruité d'une mesure ne casse pas la boucle.
-
-    CE QUE ÇA NE RÉSOUT PAS : une boucle de 3 ou de 8 mesures ; une boucle
-    qui commence au milieu de la cellule ; une boucle suivie d'une vraie fin
-    (une cadence écrite) — elle garde son écriture entière (le A de Julia).
-    Et le « ×N » n'est pas dessiné par le chart aujourd'hui : il est porté
-    par le champ `boucle` de la section, la forme visuelle attend Louis.
-    """
-    from harmonia.folding import _barsig_famille, _compat
-
-    def muette(bar):
-        return not bar or all(c.get("nc") for c in bar)
-
-    b0 = rep[0]
-    for p in BOUCLE_CELLULES:
-        if BOUCLE_RANGEE % p or b0 + p > len(vue):
-            continue
-        cell = [_barsig_famille(vue[b0 + i]) for i in range(p)]
-        if any(muette(vue[b0 + i]) for i in range(p)):
-            continue
-        if all(_compat(cell[0], s) for s in cell[1:]):
-            continue                      # un accord tenu, pas une boucle
-        ok = True
-        for a, b in occ:
-            fin = b
-            while fin >= a and muette(vue[fin]):
-                fin -= 1                  # le fondu de fin : la section finit plus tôt
-            if fin - a + 1 < BOUCLE_MIN_RANGEES * BOUCLE_RANGEE:
-                ok = False
-                break
-            if not all(_compat(_barsig_famille(vue[x]), cell[(x - a) % p])
-                       for x in range(a, fin + 1)):
-                ok = False
-                break
-        if ok:
-            lg = rep[1] - rep[0] + 1
-            return {"rangee": BOUCLE_RANGEE, "cellule": p,
-                    "tours": round(lg / BOUCLE_RANGEE, 2)}
-    return None
+def ssm_du_chart(chart: dict, audio_dir=None):
+    """La matrice chord-tone mesure × mesure du chart (postérieures musx en
+    cache), ou None sans audio — `folding.boucle_minimale_ecrite` retombe
+    alors sur les accords décodés. Gardée pour le dernier chart vu : le
+    curseur de fusion appelle `sections_pour_chart` cinq fois de suite."""
+    from pathlib import Path
+    grid = chart.get("barGrid") or []
+    stem = Path(chart.get("audio_url") or "").stem
+    cle = (stem, len(grid), grid[1] if len(grid) > 1 else None)
+    if cle in _SSM_CACHE:
+        return _SSM_CACHE[cle]
+    S = None
+    try:
+        from harmonia import musx as _musx
+        from harmonia.sections.similarity import ssm
+        from harmonia.settings import SETTINGS
+        audio = (audio_dir or SETTINGS.audio_dir) / f"{stem}.m4a"
+        if stem and audio.exists() and len(grid) > 2:
+            S = ssm(_musx.frame_posteriors(audio)[0], grid)
+    except Exception:                                    # noqa: BLE001
+        log.exception("soudure: matrice chord-tone indisponible pour %s — "
+                      "boucles lues sur les accords décodés", stem)
+    _SSM_CACHE.clear()
+    _SSM_CACHE[cle] = S
+    return S
 
 
 def sections_pour_chart(chart: dict, secs: list[dict],
@@ -1003,6 +957,7 @@ def sections_pour_chart(chart: dict, secs: list[dict],
     # `bars` (brut) classe les passes ; `vue` s'écrit — comme minimal_fold.
     from harmonia.folding import facade_view
     vue = facade_view(bars, grid, groupes, fold_report)
+    S = ssm_du_chart(chart) if chart.get("audio_url") else None
 
     out, vus = [], {}
     for (lab, _lg), occ in sorted(groupes.items(), key=lambda kv: kv[1][0][0]):
@@ -1025,24 +980,18 @@ def sections_pour_chart(chart: dict, secs: list[dict],
         from harmonia.folding import pass_rank
         rep = (fold_report or {}).get(lab) or {}
         b0, b1 = max(occ, key=lambda r: pass_rank(bars, r, rep, occ))
-        # UNE PETITE BOUCLE S'ÉCRIT SUR UNE RANGÉE (Louis, 2026-09-30, le D
-        # de Julia) : la rangée r s'allume à chaque tour, dernier tour
-        # incomplet et fondu de fin compris — voir `boucle_ecrite`.
-        boucle = boucle_ecrite(vue, occ, (b0, b1))
-        if boucle:
-            lb = boucle["rangee"]
-            carte: list[list[list[float]]] = [[] for _ in range(lb)]
-            for a, b in occ:
-                for x in range(a, b + 1):
-                    carte[(x - a) % lb].append([grid[x], grid[min(x + 1, n)]])
+        # LA BOUCLE MINIMALE (Louis, 2026-09-30 : le D de Julia sur une
+        # ligne, puis « This Love A ne devrait faire que 4 barres ») — voir
+        # `folding.boucle_minimale_ecrite`, partagée avec `minimal_fold`.
+        from harmonia.folding import boucle_minimale_ecrite
+        bcl = boucle_minimale_ecrite(bars, vue, grid, occ, (b0, b1), S)
+        if bcl:
             out.append({
                 "id": "L" + lab + ("" if vus[lab] == 1 else str(vus[lab])),
                 "label": lab, "tag": "", "reps": len(occ),
                 "spans": [[grid[a], grid[min(b + 1, n)]] for a, b in occ],
                 "barRanges": [[a, b] for a, b in occ],
-                "bars": vue[b0:b0 + lb],
-                "barSpans": carte,
-                "boucle": boucle,
+                **bcl,
             })
             continue
         out.append({

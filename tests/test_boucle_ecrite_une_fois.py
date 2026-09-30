@@ -67,23 +67,34 @@ def test_julia_D_boucle_de_2_ecrite_sur_une_rangee():
     for r, fen in enumerate(d["barSpans"]):
         attendu = [[GRILLE[b], GRILLE[b + 1]] for b in range(56 + r, 71, 4)]
         assert fen == attendu, (r, fen)
-    assert d.get("boucle") == {"rangee": 4, "cellule": 2, "tours": 3.75}
+    b = d["boucle"]
+    assert (b["rangee"], b["cellule"], b["tours"], b["tours_pleins"]) == (4, 2, 3.75, 3)
+    assert b["conflations"] == []
 
 
-def test_une_cadence_a_la_fin_garde_la_section_entiere():
-    """Le A de Julia : C-7 Bb-7 ×3 puis Eb9 Eb7 — la fin est de la musique,
-    pas un fondu. Rien ne change : 8 mesures écrites."""
+def test_this_love_A_huit_mesures_est_une_boucle_de_4_avec_sa_cadence_en_var():
+    """Louis, 2026-09-30 : « This Love […] la section A ne devrait faire que
+    4 barres et non 8 ». Boucle de 4 jouée deux fois, le dernier tour finit
+    autrement : 4 mesures écrites, la cadence du 2e tour posée en `var` et
+    listée — jamais jetée en silence."""
     n = 24
-    motif = [(0, "-7"), (10, "-7")] * 3 + [(3, "9"), (3, "7")]
+    motif = [(0, "-7"), (5, "-7"), (10, ""), (3, "")] + [(0, "-7"), (5, "-7"), (10, ""), (7, "7")]
     contenu = {8 + i: [_c(r, q)] for i, (r, q) in enumerate(motif)}
+    contenu.update({b: [_c(2, "")] for b in range(8)})
+    contenu.update({b: [_c(4, "-7")] if b % 3 else [_c(9, "")] for b in range(16, 24)})
     secs = [{"label": "intro", "mesure_debut": 1, "mesure_fin": 8},
             {"label": "A", "mesure_debut": 9, "mesure_fin": 16},
             {"label": "B", "mesure_debut": 17, "mesure_fin": 24}]
     out = sections_pour_chart({"barGrid": GRILLE[:n + 1], "nBars": n, "bpb": 4},
                               secs, bars=_bars(n, contenu), fold_report={})
     a = _sec(out, "A")
-    assert len(a["bars"]) == 8
-    assert "boucle" not in a
+    assert [c["root"] for bar in a["bars"] for c in bar] == [0, 5, 10, 3]
+    assert a["boucle"]["cellule"] == 4 and a["boucle"]["tours_pleins"] == 2
+    assert a["bars"][3][0]["var"]["root"] == 7
+    assert [(x["rang"], x["mesures"]) for x in a["boucle"]["conflations"]] == [(3, [15])]
+    assert [len(r) for r in a["barSpans"]] == [2, 2, 2, 2]
+    # un accord tenu huit mesures n'est pas une boucle
+    assert len(_sec(out, "intro")["bars"]) == 8
 
 
 def test_une_section_courte_n_est_pas_touchee():

@@ -794,7 +794,12 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
     # 7c ── DISPLAY fold: repeated same-length sections written once ×N,
     # divergent tails as endings (the UI's 1./2. brackets)
     from harmonia.folding import minimal_fold
-    sections = minimal_fold(sections, bars, grid, fold_report)
+    from harmonia.sections.similarity import ssm as _ssm
+    # la matrice chord-tone : la boucle minimale d'une section se lit comme
+    # la règle 2 des briques (Louis, 2026-09-30) — voir
+    # `folding.boucle_minimale_ecrite`
+    sections = minimal_fold(sections, bars, grid, fold_report,
+                            S=_ssm(probs[0], grid))
 
     # 8 ── harmonic key analysis (harmonic_key.py: tonic track → mode →
     # colours → feedback). FAILS LOUDLY on any error — no silent fallback.
