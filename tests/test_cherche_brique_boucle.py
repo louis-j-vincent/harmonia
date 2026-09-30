@@ -287,13 +287,18 @@ def test_the_walk_la_boucle_reste_en_phase_meme_si_decalee_en_case_plus(chanson5
 def test_boucle_de_8_un_depart_decale_d_une_mesure_ne_bat_pas_le_bon(courbe):
     """La même chose avec une boucle de 8 (la fenêtre de voisinage est ±7) :
     les vraies reprises en 10 et 18 (0,99 ; 0,985), une traîne décalée d'une
-    mesure en 9, 17, 25 (0,975 ; 0,97 ; 0,965 — pas de trou pour la règle 4).
+    mesure en 9, 17, 25 (0,968 ; 0,963 ; 0,958 — pas de trou pour la règle 4).
     Décalé, on case 3 reprises ; en phase, 2. Chaque départ décalé a un voisin
-    plus haut à moins de 8 mesures : ce ne sont pas des départs."""
+    plus haut à moins de 8 mesures : ce ne sont pas des départs.
+
+    RÈGLE 5b (2026-09-30) : l'égalité est la tolérance du morceau (ici
+    2 × 0,01 = 0,02). La traîne était à 0,975/0,97/0,965 — 0,015 sous les
+    vraies, donc À ÉGALITÉ en 5b, et la couverture reprenait les 3 décalées.
+    Remise à 0,022 sous les vraies : hors tolérance, la règle 5 s'applique."""
     sc = [0.55] * 33
     sc[0] = 1.0
     sc[10], sc[18] = 0.99, 0.985
-    sc[9], sc[17], sc[25] = 0.975, 0.97, 0.965
+    sc[9], sc[17], sc[25] = 0.968, 0.963, 0.958
     chart, audio = courbe(sc)
     occ, info = sim.cherche_brique(chart, 0, 7, audio, label="A")
     assert info["boucle"] == 8

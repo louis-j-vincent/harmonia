@@ -470,6 +470,11 @@ def sections_inferer(file):
                     "; ".join(f"{t.get('label')}: {t['raison']}" for t in perdus))
     blocs = remplir_par_algo(chart, occ, AUDIO_DIR)
     tracees = {(o["m0"], o["m1"]) for o in occ if o["trace"]}
+    # Un candidat EN SUSPENS tranché par la cohérence du morceau (règle 5b,
+    # 2026-09-30) sort « ressemble » : une proposition, en pointillés, que
+    # l'écran ne renvoie PAS comme contrainte — elle est donc retranchée à
+    # chaque « Valider », avec les briques que Louis a ajoutées entre-temps.
+    devinees = {(o["m0"], o["m1"]) for o in occ if o.get("suspens")}
 
     # `rot` par plage, pour que le rendu puisse dire « A, monté d'un ton »
     rotations = {(o["m0"], o["m1"]): o.get("rot", 0) for o in occ}
@@ -477,7 +482,9 @@ def sections_inferer(file):
     out = []
     for b in blocs:
         if b["source"] == "brique":
-            source = "humain" if (b["m0"], b["m1"]) in tracees else "propage"
+            source = ("humain" if (b["m0"], b["m1"]) in tracees
+                      else "ressemble" if (b["m0"], b["m1"]) in devinees
+                      else "propage")
         else:
             source = "algo"
         out.append({"label": b["label"],

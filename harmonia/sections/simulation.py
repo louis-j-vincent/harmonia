@@ -91,6 +91,19 @@ BRUIT_PIC = 0.01
 #: ses voisins à moins d'une boucle. Interrupteur pour la page de comparaison
 #: v3/v4 (`tools/occurrences_brique_v4.py`) — pas un réglage, toujours vrai.
 REGLE5 = True
+#: RÈGLE 5b (Louis, 2026-09-30, sur la page v4 : « Oui pour la 5b très
+#: bien ») : deux départs voisins sont à égalité tant que leur écart reste
+#: sous la TOLÉRANCE DU MORCEAU de la règle 4 (0,04–0,07 mesuré), plus sous
+#: `BRUIT_PIC`. Interrupteur pour rejouer v4 dans la page v5 — toujours vrai.
+EGALITE_5B = True
+#: ... « mais alors il faut trancher par rapport à la cohérence globale du
+#: morceau, en cherchant d'autres sections et en gardant ces 2 candidats
+#: potentiels sans en acter un » : voir `resoudre_suspens`. Interrupteur pour
+#: la page v5 (faux = l'ancien choix, le plus de boucles puis le score).
+SUSPENS = True
+#: au-delà de ce nombre d'alternatives dans un groupe (un long plateau), on
+#: n'énumère plus : le groupe est tranché tout de suite au score, comme avant.
+SUSPENS_MAX_ALT = 16
 
 
 def _chevauche(a: int, b: int, pris) -> bool:
@@ -240,7 +253,7 @@ def reference_du_morceau(pics: list[dict]) -> dict | None:
     return ref
 
 
-def maxima_locaux(c, Lb: int, candidats) -> set[int]:
+def maxima_locaux(c, Lb: int, candidats, tol: float | None = None) -> set[int]:
     """RÈGLE 5 de Louis (2026-09-30 nuit, après `docs/plots/the_walk_decalage.html`) :
 
         « si on hésite entre un départ et celui de ses deux voisins, on prend
@@ -274,13 +287,146 @@ def maxima_locaux(c, Lb: int, candidats) -> set[int]:
     c'est lui qui reste. Sur un plateau (écarts ≤ 0,01), la phase reste
     choisie par la couverture : la règle ne tranche qu'entre des calages
     nettement différents. Et elle ne crée aucune reprise : elle ne fait
-    qu'en retirer."""
+    qu'en retirer.
+
+    RÈGLE 5b (2026-09-30) : `tol` remplace `BRUIT_PIC` comme seuil
+    d'égalité — `cherche_sur_matrices` y passe la tolérance du morceau de la
+    règle 4. À 0,01, Lazy Song A (bon départ 0,963, décalé de 2 à 0,991) et
+    She Will Be Loved A (0,977 contre 0,994) perdaient des mesures justes :
+    la règle tranchait sur du bruit. Les deux calages restent alors, et
+    c'est `resoudre_suspens` qui tranche."""
+    tol = BRUIT_PIC if tol is None else tol
     cands = sorted(candidats)
     out = set()
     for p in cands:
         voisins = [c[q] for q in cands if q != p and abs(q - p) < Lb]
-        if not voisins or c[p] >= max(voisins) - BRUIT_PIC:
+        if not voisins or c[p] >= max(voisins) - tol:
             out.add(p)
+    return out
+
+
+def _selections(comp: list[int], Lb: int, cap: int) -> list[list[int]]:
+    """Toutes les façons de caser le PLUS de boucles sans recouvrement parmi
+    les départs `comp` (triés), au plus `cap` + 1 (au-delà : trop pour
+    énumérer, l'appelant tranche au score)."""
+    n = len(comp)
+    nb = [0] * (n + 1)                  # nb[i] = le plus de boucles dans comp[i:]
+    for i in range(n - 1, -1, -1):
+        j = next((k for k in range(i + 1, n) if comp[k] >= comp[i] + Lb), n)
+        nb[i] = max(nb[i + 1], 1 + nb[j])
+    out: list[list[int]] = []
+
+    def rec(i, cur, reste):
+        if len(out) > cap:
+            return
+        if reste == 0:
+            out.append(list(cur))
+            return
+        if i >= n or nb[i] < reste:
+            return
+        j = next((k for k in range(i + 1, n) if comp[k] >= comp[i] + Lb), n)
+        if 1 + nb[j] >= reste:
+            cur.append(comp[i])
+            rec(j, cur, reste - 1)
+            cur.pop()
+        rec(i + 1, cur, reste)
+    rec(0, [], nb[0])
+    return out
+
+
+def _termes(alt, placees, label, n) -> dict:
+    """Ce qui juge une alternative, une fois les autres sections posées."""
+    def touche(o, p):
+        return not (o[1] < p["m0"] or p["m1"] < o[0])
+    viv = [o for o in alt if not any(touche(o, p) for p in placees)]
+    meme = [(p["m0"], p["m1"]) for p in placees if p["label"] == label] \
+        + [(o[0], o[1]) for o in viv]
+    fins, debuts = {z for _a, z in meme}, {a for a, _z in meme}
+    contacts = len({o[0] for o in viv if o[0] - 1 in fins}
+                   | {o[1] + 1 for o in viv if o[1] + 1 in debuts})
+    tous = [(p["m0"], p["m1"]) for p in placees] + [(o[0], o[1]) for o in viv]
+    trous = set()
+    for o in viv:
+        avant = max((z for _a, z in tous if z < o[0]), default=-1)
+        apres = min((a for a, _z in tous if a > o[1]), default=n)
+        for g0, g1 in ((avant + 1, o[0] - 1), (o[1] + 1, apres - 1)):
+            if 1 <= g1 - g0 + 1 < MIN_BOUCLE:
+                trous.add((g0, g1))
+    return {"vivantes": viv, "mangees": len(alt) - len(viv), "contacts": contacts,
+            "fragments": len(trous), "score": round(sum(o[2] for o in viv), 4)}
+
+
+def resoudre_suspens(groupes: list[dict], placees: list[dict], n: int) -> list[tuple]:
+    """Trancher les CANDIDATS EN SUSPENS par la cohérence globale du morceau.
+
+    Louis, 2026-09-30, sur la page v4 : « Oui pour la 5b très bien, mais
+    alors il faut trancher par rapport à la cohérence globale du morceau, en
+    cherchant d'autres sections et en gardant ces 2 candidats potentiels sans
+    en acter un. Puis on voit ce qui reste quand les autres sections ont
+    mangé ce qu'elles ont à manger. »
+
+    `groupes` : chacun `{"label", "boucle", "alternatives": [[(m0, m1, score,
+    rot), ...], ...]}` — des calages rivaux d'une même reprise, exclusifs,
+    qui casent le même nombre de boucles (voir `cherche_sur_matrices`).
+    `placees` : tout ce qui est déjà posé, `{"m0", "m1", "label"}` — les
+    traits de Louis et les reprises sûres de TOUTES ses briques. La liste est
+    complétée au fur et à mesure (un groupe tranché compte pour les suivants).
+
+    L'ordre des critères, chacun ne départageant que les ex æquo du
+    précédent :
+      1. `mangee` — les boucles de l'alternative déjà prises par une autre
+         section tombent ; la plus complète reste ;
+      2. `phase` — le plus de contacts avec les autres occurrences de la même
+         brique (une boucle qui commence juste après une autre, ou finit
+         juste avant) : même phase que ce qui est confirmé ;
+      3. `fragments` — le moins de trous orphelins (1 à 3 mesures libres)
+         laissés autour de ses boucles ;
+      4. `score` — seulement si tout le reste est à égalité.
+    Les groupes que le 1er critère tranche seul passent d'abord ; les
+    autres dans l'ordre des mesures. Chaque groupe reçoit `choix` (indice),
+    `raison` et `termes` (un dict par alternative), pour la page.
+
+    Rend `[(label, occurrence), ...]` — les boucles retenues, à poser.
+
+    CE QUE ÇA NE RÉSOUT PAS : les « autres sections » sont celles que Louis a
+    tracées et leurs reprises sûres — pas les blocs que l'algo des quatre mots
+    nommera ensuite dans les trous (il a besoin des occurrences pour
+    travailler). Le critère `fragments` n'en est qu'une approximation : il
+    évite de laisser à l'algo des bouts trop courts pour être une section.
+    Seuls des calages qui casent AUTANT de boucles sont mis en suspens ; un
+    calage à 2 boucles contre 1 est acté par la couverture, même si une autre
+    section mange ensuite l'une de ses 2 boucles.
+    """
+    placees = list(placees)
+    restants = sorted(groupes, key=lambda g: min(o[0] for a in g["alternatives"] for o in a))
+    out: list[tuple] = []
+    crit = (("mangee", lambda t: len(t["vivantes"])), ("phase", lambda t: t["contacts"]),
+            ("fragments", lambda t: -t["fragments"]), ("score", lambda t: t["score"]))
+    while restants:
+        evals = [(g, [_termes(a, placees, g["label"], n) for a in g["alternatives"]])
+                 for g in restants]
+
+        def tranche_seul(ts):
+            m = max(len(t["vivantes"]) for t in ts)
+            return sum(1 for t in ts if len(t["vivantes"]) == m) == 1
+        g, ts = next(((g, ts) for g, ts in evals if tranche_seul(ts)), evals[0])
+        restants.remove(g)
+        # chaque critère ne regarde que les ex æquo du précédent ; la raison
+        # est celui qui laisse une seule alternative
+        idx, raison = list(range(len(ts))), "score"
+        for nom, f in crit:
+            m = max(f(ts[k]) for k in idx)
+            idx = [k for k in idx if f(ts[k]) == m]
+            if len(idx) == 1:
+                raison = nom
+                break
+        k = idx[0]
+        g["choix"], g["raison"] = k, raison
+        g["termes"] = [{x: t[x] for x in ("mangees", "contacts", "fragments", "score")}
+                       | {"vivantes": [(o[0], o[1]) for o in t["vivantes"]]} for t in ts]
+        for o in ts[k]["vivantes"]:
+            placees.append({"m0": o[0], "m1": o[1], "label": g["label"]})
+            out.append((g["label"], o))
     return out
 
 
@@ -374,55 +520,98 @@ def cherche_sur_matrices(S, V, b0: int, b1: int) -> tuple[list[tuple], dict]:
     # RÈGLE 5 : seuls les maxima locaux (à ±Lb−1) restent candidats. APRÈS la
     # règle 4 (qui compte donc encore les calages décalés parmi « tous les
     # autres pics », comme en v3 : ne pas déplacer Let It Be), AVANT le choix.
+    tol_egal = BRUIT_PIC
+    if EGALITE_5B and detail["reference"]:
+        tol_egal = detail["reference"]["tolerance"]            # RÈGLE 5b
+    detail["egalite"] = round(tol_egal, 4)
     if REGLE5:
         passe3 = {x["p"] for x in detail["pics"] if x["ok"] or x.get("sous_reference")}
-        maxi = maxima_locaux(c, Lb, passe3)
+        maxi = maxima_locaux(c, Lb, passe3, tol=tol_egal)
         for x in detail["pics"]:
             x["maximum_local"] = x["p"] in maxi
             if x["ok"] and not x["maximum_local"]:
                 x["ok"] = False
                 x["pas_maximum"] = True
     cand = {x["p"]: x for x in detail["pics"] if x["ok"]}
-    # Parmi les départs qui passent, le plus de reprises sans recouvrement
-    # (à égalité : les mieux notées). Pas un glouton par hauteur : quand la
-    # boucle a une sous-période (deux accords qui alternent), le glouton
-    # prenait un départ décalé de 2 et perdait la reprise voisine (Lazy Song).
+    detail["suspens"] = []
     N = len(c)
-    best = [0.0] * (N + Lb + 1)
-    prend = [False] * (N + Lb + 1)
-    for i in range(N - 1, -1, -1):
-        best[i] = best[i + 1]
-        if i in cand and best[i + Lb] + 1.0 + cand[i]["c"] > best[i]:
-            best[i] = best[i + Lb] + 1.0 + cand[i]["c"]
-            prend[i] = True
-    i = 0
-    while i < N:
-        if prend[i]:
-            cand[i]["pris"] = True
-            pris.append((i, i + Lb - 1))
-            out.append((i, i + Lb - 1, cand[i]["c"], 0))
-            i += Lb
-        else:
-            i += 1
+
+    def pose(i):
+        cand[i]["pris"] = True
+        pris.append((i, i + Lb - 1))
+        out.append((i, i + Lb - 1, cand[i]["c"], 0))
+
+    if SUSPENS:
+        # Parmi les départs qui passent, le plus de reprises sans
+        # recouvrement — groupe par groupe (des départs à moins d'une boucle
+        # l'un de l'autre, de proche en proche). Un groupe qui n'a qu'UNE
+        # façon de caser le plus de boucles est posé ; s'il en a plusieurs,
+        # ce sont des calages rivaux à égalité : EN SUSPENS, aucun n'est
+        # acté ici (voir `resoudre_suspens`).
+        comps: list[list[int]] = []
+        for p in sorted(cand):
+            if comps and p - comps[-1][-1] < Lb:
+                comps[-1].append(p)
+            else:
+                comps.append([p])
+        for comp in comps:
+            sels = _selections(comp, Lb, SUSPENS_MAX_ALT)
+            if len(sels) > SUSPENS_MAX_ALT:
+                sels = [max(sels, key=lambda s: sum(cand[p]["c"] for p in s))]
+            if len(sels) == 1:
+                for p in sels[0]:
+                    pose(p)
+            else:
+                detail["suspens"].append({"label": None, "boucle": Lb, "departs": sels,
+                                          "alternatives": [[(p, p + Lb - 1, cand[p]["c"], 0)
+                                                            for p in s] for s in sels]})
+    else:
+        # l'ancien choix (v4) : le plus de reprises, à égalité les mieux notées
+        best = [0.0] * (N + Lb + 1)
+        prend = [False] * (N + Lb + 1)
+        for i in range(N - 1, -1, -1):
+            best[i] = best[i + 1]
+            if i in cand and best[i + Lb] + 1.0 + cand[i]["c"] > best[i]:
+                best[i] = best[i + Lb] + 1.0 + cand[i]["c"]
+                prend[i] = True
+        i = 0
+        while i < N:
+            if prend[i]:
+                pose(i)
+                i += Lb
+            else:
+                i += 1
 
     # LA FIN DE LA BRIQUE : juste après une suite de boucles retrouvée
     # ailleurs, les mesures qui suivent peuvent rejouer la fin de la brique
     # (San Francisco Street, mes. 54-57). On la prend si elle ressemble plus à
     # la fin de la brique qu'à la boucle, et au moins au plancher.
-    if queue is not None:
+    def fins(occs, pris_ici) -> list[tuple]:
+        if queue is None:
+            return []
         t0, t1 = queue
         t = t1 - t0 + 1
-        debuts = {a for a, _z, _s, _r in out}
-        for a, z, _s, _r in sorted(o for o in out if o[0] > b1 or o[1] < b0):
+        debuts = {a for a, _z, _s, _r in occs}
+        neuves = []
+        for a, z, _s, _r in sorted(o for o in occs if o[0] > b1 or o[1] < b0):
             q = z + 1
-            if q in debuts or q + t - 1 >= n or _chevauche(q, q + t - 1, pris):
+            if q in debuts or q + t - 1 >= n or _chevauche(q, q + t - 1, pris_ici):
                 continue
             st = float(np.mean([S[t0 + i, q + i] for i in range(t)]))
             sl = float(np.mean([S[b0 + i, q + i] for i in range(t)]))
             if st >= PLANCHER_REPRISE and st > sl:
-                pris.append((q, q + t - 1))
-                out.append((q, q + t - 1, st, 0))
+                pris_ici.append((q, q + t - 1))
+                neuves.append((q, q + t - 1, st, 0))
                 debuts.add(q)
+        return neuves
+    out.extend(fins(out, pris))
+    # chaque alternative en suspens reçoit SA fin ; puis toutes leurs mesures
+    # sont réservées : une transposée ne s'installe pas dans une zone en suspens
+    for g in detail["suspens"]:
+        for alt in g["alternatives"]:
+            alt.extend(fins(alt, list(pris)))
+        for alt in g["alternatives"]:
+            pris.extend((o[0], o[1]) for o in alt)
 
     # LES TRANSPOSÉES : la brique ENTIÈRE tournée (plus de matière qu'une
     # boucle de 4, qui tournée colle trop souvent), même règle 3, et elle doit
@@ -443,6 +632,14 @@ def cherche_sur_matrices(S, V, b0: int, b1: int) -> tuple[list[tuple], dict]:
             pris.append((q, q + L - 1))
             for a, z in _passages(q, Lb, T, L):
                 out.append((a, z, float(ck[q]), k))
+
+    # EN SUSPENS, tranché ICI avec ce que la brique sait seule (ses propres
+    # occurrences sûres) : `out` reste complet pour qui appelle la recherche
+    # d'une brique isolée. `occurrences_de_tous` retire ces choix et retranche
+    # une fois TOUTES les briques posées (le vrai « cohérence globale »).
+    if detail["suspens"]:
+        placees = [{"m0": a, "m1": z, "label": None} for a, z, _s, _r in out]
+        out.extend(o for _l, o in resoudre_suspens(detail["suspens"], placees, n))
     return sorted(set(out)), detail
 
 
@@ -506,6 +703,11 @@ def cherche_brique(chart: dict, b0: int, b1: int, audio_dir,
          phase des boucles), ni les transposées (glouton par hauteur sur la
          brique entière), ni l'ancienne loi des briques < 8 mesures (glouton
          par hauteur, qui prend déjà le plus haut d'abord).
+      5b. L'ÉGALITÉ = LA TOLÉRANCE DU MORCEAU (2026-09-30, « Oui pour la 5b »),
+         et deux calages rivaux qui casent autant de boucles restent EN
+         SUSPENS (`info["suspens"]`) : tranchés ici avec ce que la brique sait
+         seule, retranchés par `occurrences_de_tous` une fois toutes les
+         briques posées (`resoudre_suspens` : mangée, phase, fragments, score).
 
     Une brique de MOINS DE 8 MESURES ne peut pas montrer une boucle de 4 jouée
     deux fois : elle garde l'ancienne loi (seuil médiane + 1,5 σ du morceau,
@@ -616,7 +818,7 @@ def cherche_brique(chart: dict, b0: int, b1: int, audio_dir,
     out, d = cherche_sur_matrices(np.asarray(S), np.asarray(V), b0, b1)
     info.update(seuil=d["seuil"], mediane=d["mediane"], sigma=d["sigma"],
                 boucle=d["boucle"], sous_periode=d["sous_periode"],
-                mode=d["mode"])
+                mode=d["mode"], suspens=d.get("suspens") or [])
     if d.get("raison"):
         info["raison"] = d["raison"]
         return seule, info
@@ -655,9 +857,21 @@ def occurrences_de_tous(chart: dict, traits: list[dict],
     pris: list[tuple] = []
     out: list[dict] = []
     diagnostics: list[dict] = []
+    en_suspens: list[dict] = []
     for b0, b1, label in gardes:
         reprises, info = cherche_brique(chart, b0, b1, audio_dir, label=label)
         diagnostics.append(info)
+        # LES CANDIDATS EN SUSPENS (règle 5b, 2026-09-30) : `cherche_brique`
+        # les a tranchés avec ce que la brique sait seule ; on retire ce
+        # choix, et on les tranche plus bas, une fois TOUTES les briques
+        # posées (« on voit ce qui reste quand les autres sections ont mangé
+        # ce qu'elles ont à manger »).
+        for g in (info or {}).get("suspens") or []:
+            g = dict(g, label=label, choix_seul=g.get("choix"),
+                     raison_seul=g.get("raison"))
+            en_suspens.append(g)
+            alts = {o for alt in g["alternatives"] for o in alt}
+            reprises = [o for o in reprises if tuple(o) not in alts]
         # UN TRAIT DE LOUIS EST SOUVERAIN, AVANT OU APRÈS (2026-09-30, The
         # Walk) : les traits sont traités dans l'ordre des mesures, donc une
         # reprise de A pouvait recouvrir le trait B posé plus loin — et tous
@@ -673,6 +887,20 @@ def occurrences_de_tous(chart: dict, traits: list[dict],
                         # ses passages (règle 2 : sa brique découpée en
                         # boucles) restent SES traits
                         "trace": (b0 <= x and y <= b1)})
+    if en_suspens:
+        placees = [{"m0": o["m0"], "m1": o["m1"], "label": o["label"]} for o in out] \
+            + [{"m0": c, "m1": d, "label": lab} for c, d, lab in gardes]
+        for label, (x, y, sc, rot) in resoudre_suspens(en_suspens, placees, n):
+            if any(not (y < c or d < x) for c, d in pris):
+                continue
+            pris.append((x, y))
+            # `suspens` : une PROPOSITION tranchée par la cohérence du
+            # morceau, jamais une contrainte — la route la rend « ressemble »,
+            # et elle est donc retranchée à chaque « Valider ».
+            out.append({"m0": x, "m1": y, "label": label, "score": round(sc, 3),
+                        "rot": int(rot), "trace": False, "suspens": True})
+        for info in diagnostics:
+            info["suspens_global"] = [g for g in en_suspens if g["label"] == info.get("label")]
     return sorted(out, key=lambda o: o["m0"]), ecartes, diagnostics
 
 
