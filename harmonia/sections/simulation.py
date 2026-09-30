@@ -101,6 +101,13 @@ EGALITE_5B = True
 #: potentiels sans en acter un » : voir `resoudre_suspens`. Interrupteur pour
 #: la page v5 (faux = l'ancien choix, le plus de boucles puis le score).
 SUSPENS = True
+#: OPTION (c) (Louis, 2026-09-30, après la page v5 : Sunny A perdait 18–25
+#: au profit d'un jumeau de C) : une autre section ne mange une zone tenue par
+#: un calage en suspens que si son score y dépasse celui du calage de PLUS que
+#: la tolérance du morceau — celle qui a défini l'égalité (5b) ; pas de
+#: nouvelle constante. Voir `occurrences_de_tous`. Interrupteur pour la page
+#: v5 (faux = v5 : toute reprise sûre mange) — toujours vrai.
+MANGE_NETTEMENT = True
 #: au-delà de ce nombre d'alternatives dans un groupe (un long plateau), on
 #: n'énumère plus : le groupe est tranché tout de suite au score, comme avant.
 SUSPENS_MAX_ALT = 16
@@ -573,6 +580,7 @@ def cherche_sur_matrices(S, V, b0: int, b1: int) -> tuple[list[tuple], dict]:
                     pose(p)
             else:
                 detail["suspens"].append({"label": None, "boucle": Lb, "departs": sels,
+                                          "tolerance": detail["egalite"],
                                           "alternatives": [[(p, p + Lb - 1, cand[p]["c"], 0)
                                                             for p in s] for s in sels]})
     else:
@@ -853,6 +861,19 @@ def occurrences_de_tous(chart: dict, traits: list[dict],
     d'une brique précédente. Le premier arrivé garde sa place, ce qui est la
     seule règle qui ne trahisse pas son intention.
 
+    OPTION (c) (Louis, 2026-09-30, `MANGE_NETTEMENT`) : toutes les briques
+    sont cherchées AVANT de poser quoi que ce soit, et une reprise sûre ne
+    prend la zone d'un calage EN SUSPENS d'une autre brique que si son score
+    y dépasse celui de chaque calage recouvert de plus que la tolérance du
+    groupe (la tolérance du morceau de la règle 4, celle de la 5b). Sinon
+    elle est retenue, et revient seulement si le suspens est tranché
+    ailleurs. Les traits de Louis gagnent toujours. Le sort d'une zone en
+    suspens ne dépend donc pas de l'ordre des briques (Sunny A : 8 → 16
+    mesures justes). CE QUE ÇA NE RÉSOUT PAS : un jumeau EN SUSPENS plus haut
+    qu'une vraie reprise la bat (X-yIEMduRXk : C prend 27–35 dans le 2e A) ;
+    entre deux reprises SÛRES rivales, le premier trait dans les mesures
+    garde la priorité.
+
     Chaque occurrence porte `rot` : les demi-tons dont la brique a été
     transposée pour être reconnue là (0 = telle quelle).
 
@@ -868,7 +889,8 @@ def occurrences_de_tous(chart: dict, traits: list[dict],
     out: list[dict] = []
     diagnostics: list[dict] = []
     en_suspens: list[dict] = []
-    for b0, b1, label in gardes:
+    resultats = []
+    for i, (b0, b1, label) in enumerate(gardes):
         reprises, info = cherche_brique(chart, b0, b1, audio_dir, label=label)
         diagnostics.append(info)
         # LES CANDIDATS EN SUSPENS (règle 5b, 2026-09-30) : `cherche_brique`
@@ -877,11 +899,27 @@ def occurrences_de_tous(chart: dict, traits: list[dict],
         # posées (« on voit ce qui reste quand les autres sections ont mangé
         # ce qu'elles ont à manger »).
         for g in (info or {}).get("suspens") or []:
-            g = dict(g, label=label, choix_seul=g.get("choix"),
+            g = dict(g, label=label, brique=i, choix_seul=g.get("choix"),
                      raison_seul=g.get("raison"))
             en_suspens.append(g)
             alts = {o for alt in g["alternatives"] for o in alt}
             reprises = [o for o in reprises if tuple(o) not in alts]
+        resultats.append((b0, b1, label, reprises))
+
+    def touche(x, y, c, d):
+        return not (y < c or d < x)
+
+    # OPTION (c) (Louis, 2026-09-30) : les zones tenues par un calage en
+    # suspens, TOUTES connues avant qu'aucune reprise sûre ne soit posée —
+    # c'est ce qui rend la règle indépendante de l'ordre des briques. Un
+    # calage qui recouvre un trait de Louis ne tient rien : le trait le
+    # mangera de toute façon.
+    tenues = [(o[0], o[1], o[2], g.get("tolerance", BRUIT_PIC), g["brique"])
+              for g in en_suspens for alt in g["alternatives"] for o in alt
+              if not any(touche(o[0], o[1], c, d) for c, d, _l in gardes)] \
+        if MANGE_NETTEMENT else []
+    retenues: list[tuple] = []
+    for i, (b0, b1, label, reprises) in enumerate(resultats):
         # UN TRAIT DE LOUIS EST SOUVERAIN, AVANT OU APRÈS (2026-09-30, The
         # Walk) : les traits sont traités dans l'ordre des mesures, donc une
         # reprise de A pouvait recouvrir le trait B posé plus loin — et tous
@@ -889,19 +927,28 @@ def occurrences_de_tous(chart: dict, traits: list[dict],
         # reprise ne recouvre aucun AUTRE trait ; ses propres passages, si.
         autres = [(c, d) for c, d, _l in gardes if (c, d) != (b0, b1)]
         for x, y, sc, rot in reprises:
-            if any(not (y < c or d < x) for c, d in pris + autres):
+            if any(touche(x, y, c, d) for c, d in pris + autres):
+                continue
+            trace = b0 <= x and y <= b1
+            # (c) : une reprise sûre ne prend la zone d'un calage en suspens
+            # d'une AUTRE brique que si elle y est NETTEMENT plus haute que
+            # chacun des calages qu'elle recouvre. Sinon elle est retenue, et
+            # ne revient que si le suspens est finalement tranché ailleurs.
+            if not trace and any(touche(x, y, t0, t1) and sc <= ts + tol
+                                 for t0, t1, ts, tol, j in tenues if j != i):
+                retenues.append((i, x, y, sc, rot, label))
                 continue
             pris.append((x, y))
             out.append({"m0": x, "m1": y, "label": label,
                         "score": round(sc, 3), "rot": int(rot),
                         # ses passages (règle 2 : sa brique découpée en
                         # boucles) restent SES traits
-                        "trace": (b0 <= x and y <= b1)})
+                        "trace": trace})
     if en_suspens:
         placees = [{"m0": o["m0"], "m1": o["m1"], "label": o["label"]} for o in out] \
             + [{"m0": c, "m1": d, "label": lab} for c, d, lab in gardes]
         for label, (x, y, sc, rot) in resoudre_suspens(en_suspens, placees, n):
-            if any(not (y < c or d < x) for c, d in pris):
+            if any(touche(x, y, c, d) for c, d in pris):
                 continue
             pris.append((x, y))
             # `suspens` : une PROPOSITION tranchée par la cohérence du
@@ -911,7 +958,19 @@ def occurrences_de_tous(chart: dict, traits: list[dict],
                         "rot": int(rot), "trace": False, "suspens": True})
         for info in diagnostics:
             info["suspens_global"] = [g for g in en_suspens if g["label"] == info.get("label")]
-    return sorted(out, key=lambda o: o["m0"]), ecartes, diagnostics
+    # (c) : les reprises retenues dont la zone est restée libre (le suspens
+    # a choisi un autre calage) reviennent — dans le même ordre qu'au premier
+    # passage (celui des traits dans les mesures, pas celui où Louis les a
+    # tracés) : entre deux reprises SÛRES rivales, rien ne change. Au
+    # score, Sunny donnait 27–34 à un jumeau de D (0,959) plutôt qu'au B
+    # juste (0,935) que v5 posait.
+    for _i, x, y, sc, rot, label in sorted(retenues):
+        if any(touche(x, y, c, d) for c, d in pris):
+            continue
+        pris.append((x, y))
+        out.append({"m0": x, "m1": y, "label": label, "score": round(sc, 3),
+                    "rot": int(rot), "trace": False})
+    return sorted(out, key=lambda o: (o["m0"], o["m1"], o["label"])), ecartes, diagnostics
 
 
 def remplir_par_algo(chart: dict, occ: list[dict], audio_dir) -> list[dict]:

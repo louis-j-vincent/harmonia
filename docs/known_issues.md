@@ -5,7 +5,7 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
-## Retrouver les occurrences d'une section donnée : les règles 1–5b de Louis branchées + candidats en suspens (2026-09-30, RÉSOLU en partie — reste les jumeaux)
+## Retrouver les occurrences d'une section donnée : les règles 1–5b de Louis branchées + candidats en suspens + option (c) (2026-09-30, RÉSOLU en partie — reste les jumeaux)
 
 Louis sur la page du matin : « le détecteur avec pics est bon », verdicts
 (Stand By Me = une seule section ; The Walk, B peut être plus court) et trois
@@ -106,6 +106,21 @@ la boucle de C (mêmes accords, 0,984) ; avant, A gardait la zone seulement
 parce qu'il était tracé avant C. Rapport d'or : 60/60 identiques, 0 mesure
 changée. Serveur pas redémarré.
 
+**Louis a choisi (c), 2026-09-30 — branché.** Une autre section ne mange la
+zone d'un calage en suspens que si son score y dépasse celui du calage de PLUS
+que la tolérance du morceau (celle qui définit l'égalité en 5b, jointe à chaque
+groupe : pas de nouvelle constante). Sinon sa reprise est retenue, et ne revient
+que si le suspens est tranché ailleurs. Traits de Louis toujours gagnants. Les
+zones en suspens sont toutes connues avant qu'aucune reprise sûre ne soit posée
+→ indépendant de l'ordre des briques (testé en échangeant les places de A et C).
+Colonne « (c) » sur la page v5. v5 1244/206/81 → (c) 1248/202/79 : **Sunny A
+8 → 16 justes** (et C perd ses 8 en trop). **Nouveau coût, à arbitrer :
+X-yIEMduRXk A 20 → 16 justes, C +9 en trop** — un jumeau de C (27–35, 0,947)
+est en suspens dans le 2e A de Louis ; la reprise de A (27–30, 0,926) est plus
+BASSE, donc ne le mange plus. Reste non résolu : entre deux reprises SÛRES de
+briques différentes, le premier trait dans les mesures garde la priorité
+(inchangé depuis v1).
+
 CE QUI RESTE :
 1. **Jumeaux harmoniques au niveau des vraies reprises** : She Will Be Loved A
    (+28) et D (+60, même grille presque tout du long), This Love A (l'intro),
@@ -118,8 +133,9 @@ CE QUI RESTE :
    Be Loved A. Reste : quand deux calages casent autant de boucles et que rien
    ne les mange, la phase est décidée par le contact avec les autres
    occurrences, puis par le score — l'harmonie seule ne sait pas la phase
-   d'A–Bm–A–Bm. Et un suspens attend pendant que les JUMEAUX des autres
-   lettres se servent (Sunny).
+   d'A–Bm–A–Bm. Un suspens n'est plus mangé par un jumeau à peine plus haut
+   (option (c), Sunny réglé) — mais un jumeau EN SUSPENS garde la zone contre
+   une vraie reprise plus basse (X-yIEMduRXk C).
 3. **Vamp** (Chain of Fools, 0,99 partout) : abstention, comme avant.
 4. Stand By Me C : 15–22 refusé de justesse (proéminence 0,57).
 

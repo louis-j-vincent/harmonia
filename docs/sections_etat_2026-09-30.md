@@ -348,3 +348,55 @@ flux. Rapport d'or : 60/60 identiques, 0 mesure changée.
   mange ensuite l'une des 2.
 - Transposées, ancienne loi (< 8 mesures) et fin de brique des reprises sûres :
   inchangés.
+
+## 12. Louis a choisi (c), 2026-09-30 (branché)
+
+**Sa décision** (sur le coût Sunny A du § 11) : option (c) — une autre section
+ne prend la zone d'un calage en suspens que si son score y est NETTEMENT plus
+haut que celui du calage ; « nettement » = de plus que la tolérance du morceau
+de la règle 4, la même qui définit l'égalité en 5b. Ses traits gagnent
+toujours. Le résultat ne doit pas dépendre de l'ordre des briques.
+
+**Implémentation** (`harmonia/sections/simulation.py`, `MANGE_NETTEMENT`) :
+- chaque groupe en suspens porte sa `tolerance` (= `detail["egalite"]` de la
+  brique, la 5b) ; aucune constante nouvelle ;
+- `occurrences_de_tous` cherche TOUTES les briques d'abord, puis pose les
+  reprises sûres. Une reprise sûre d'une brique qui recouvre un calage en
+  suspens d'une AUTRE brique n'est posée que si son score dépasse celui de
+  chacun des calages recouverts de plus que leur tolérance ; sinon elle est
+  retenue. Un calage qui recouvre un trait de Louis ne protège rien (le trait
+  le mangera). Puis `resoudre_suspens` (inchangé) ; puis les reprises retenues
+  reviennent si leur zone est restée libre (le suspens a choisi un autre
+  calage), dans l'ordre des traits dans les mesures — comme au premier passage.
+  (Au score, Sunny donnait 26–33 à un jumeau de D, 0,959, au lieu du B juste,
+  0,935 : essayé, écarté.)
+- indépendance à l'ordre : toutes les zones en suspens sont connues avant la
+  première reprise sûre ; testé en échangeant les places des traits A et C
+  (`test_c_ne_depend_pas_de_l_ordre_des_briques`) et en inversant la liste.
+
+**Mesuré** (colonne et bande « (c) » ajoutées à la page v5,
+`docs/plots/occurrences_brique_v5_2026-09-30.html`, `python -m
+tools.occurrences_brique_v5 --page`) :
+
+| morceau, lettre | v5 j/r/t | (c) |
+|---|---|---|
+| Sunny A | 8/8/16 | **16/0/16** |
+| Sunny C | 8/16/8 | 8/16/0 |
+| X-yIEMduRXk A | 20/5/0 | **16/9/0** |
+| X-yIEMduRXk C | 9/0/0 | 9/0/9 |
+| X-yIEMduRXk D | 3/0/3 | 3/0/0 |
+| **total** | 1244/206/81 | 1248/202/79 |
+
+Tout le reste identique à v5 (Lazy Song, She Will Be Loved, The Walk).
+
+**Ce que ça ne résout pas** :
+- **X-yIEMduRXk** (à arbitrer) : la brique C (9 mesures) a deux calages en
+  suspens dans le 2e A de Louis, 23 (0,938) et 27 (0,947) ; les reprises de A
+  là (27–30 à 0,926, et la fin 31–35) sont plus BASSES, donc ne mangent plus
+  le suspens. C prend 27–35 (jumeau), A perd 4 mesures. C'est la règle telle
+  que dite : un jumeau en suspens plus haut qu'une vraie reprise la bat.
+- Entre deux reprises SÛRES de briques différentes, le premier trait dans les
+  mesures garde la priorité (inchangé ; `traits_propres` trie les traits, donc
+  ce n'est pas l'ordre où Louis les a tracés, mais c'est un ordre).
+- Les scores comparés ne sont pas à la même échelle quand les briques n'ont pas
+  la même longueur (boucle de 4 contre brique de 9).

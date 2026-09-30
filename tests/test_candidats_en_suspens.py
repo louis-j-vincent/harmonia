@@ -192,11 +192,11 @@ def test_c_nettement_plus_haut_mange(monkeypatch):
 @pytest.mark.parametrize("tol, a_garde", [(0.10, True), (0.02, False)])
 def test_c_ne_depend_pas_de_l_ordre_des_briques(monkeypatch, tol, a_garde):
     """Avant v5, A gardait 18–25 seulement parce qu'il était tracé AVANT C.
-    Ici on échange les places : le trait de C avant (0–3) ou après (40–43)
+    Ici on échange les places : le trait de C avant (0–3, A en 44–51) ou après (40–43, A en 0–7)
     celui de A. La zone contestée a le même sort dans les deux cas (et chaque
     appel vérifie aussi que l'ordre de la liste des traits ne compte pas)."""
     zone = lambda pl: {x for x in pl if not (x[1] < 18 or x[0] > 29)}  # noqa: E731
-    avant = zone(_sunny(monkeypatch, tol, (30, 37), (0, 3)))
+    avant = zone(_sunny(monkeypatch, tol, (44, 51), (0, 3)))
     apres = zone(_sunny(monkeypatch, tol, (0, 7), (40, 43)))
     assert avant == apres
     assert ((18, 25, "A") in avant) is a_garde

@@ -15,7 +15,10 @@ PREMIÈRE occurrence de chaque lettre (intro, outro compris), et
 `occurrences_de_tous` tourne sur le chart réel. Trois versions :
   * v4  : `EGALITE_5B = False`, `SUSPENS = False` (égalité à 0,01, choix au score) ;
   * 5b  : `EGALITE_5B = True`,  `SUSPENS = False` (la variante de la page v4) ;
-  * v5  : le code live (5b + suspens tranchés par la cohérence globale).
+  * v5  : 5b + suspens tranchés par la cohérence globale, `MANGE_NETTEMENT = False` ;
+  * (c) : le code live — v5 + option (c) de Louis (2026-09-30) : une autre
+          section ne mange un calage en suspens que NETTEMENT (de plus que la
+          tolérance du morceau). Colonne ajoutée à cette page.
 
 LECTURE SEULE. Ne modifie rien sous `state/`.
 
@@ -38,16 +41,17 @@ from tools.occurrences_brique_page import CSS, JS
 REPO = Path(__file__).resolve().parents[1]
 PAGE = REPO / "docs" / "plots" / "occurrences_brique_v5_2026-09-30.html"
 _esc = V2._esc
-VERSIONS = {"v4": (False, False), "5b": (True, False), "v5": (True, True)}
+VERSIONS = {"v4": (False, False, False), "5b": (True, False, False), "v5": (True, True, False),
+            "c": (True, True, True)}
 
 
-def _flux(chart, traits, egal, susp):
-    e0, s0 = SIM.EGALITE_5B, SIM.SUSPENS
-    SIM.EGALITE_5B, SIM.SUSPENS = egal, susp
+def _flux(chart, traits, egal, susp, net):
+    e0, s0, n0 = SIM.EGALITE_5B, SIM.SUSPENS, SIM.MANGE_NETTEMENT
+    SIM.EGALITE_5B, SIM.SUSPENS, SIM.MANGE_NETTEMENT = egal, susp, net
     try:
         occ, _e, diags = SIM.occurrences_de_tous(chart, traits, SETTINGS.audio_dir)
     finally:
-        SIM.EGALITE_5B, SIM.SUSPENS = e0, s0
+        SIM.EGALITE_5B, SIM.SUSPENS, SIM.MANGE_NETTEMENT = e0, s0, n0
     return occ, diags
 
 
@@ -68,11 +72,12 @@ def analyse(stem: str) -> dict | None:
         vues.add(lab)
         traits.append({"label": lab, "mesure_debut": s["b0"] + 1, "mesure_fin": s["b1"] + 1})
     res = {"stem": stem, "n": n, "secs": secs, "grid": chart["barGrid"], "traits": traits}
-    for nom, (e, s) in VERSIONS.items():
-        occ, diags = _flux(chart, traits, e, s)
+    for nom, (e, s, net) in VERSIONS.items():
+        occ, diags = _flux(chart, traits, e, s, net)
         res[nom] = occ
-        if nom == "v5":
-            res["groupes"] = [g for dg in diags for g in dg.get("suspens_global") or []]
+        if nom in ("v5", "c"):
+            res["groupes" if nom == "v5" else "groupes_c"] = [
+                g for dg in diags for g in dg.get("suspens_global") or []]
     fin_annot = max(s["b1"] for s in secs)
     lettres = []
     for t in traits:
@@ -116,10 +121,11 @@ def texte(res) -> str:
             for a, x in zip(alts, t))
             + f' → {alts[g["choix"]]} [{g["raison"]}] (seul : {alts[g["choix_seul"]]} [{g["raison_seul"]}])')
     for r in res["lettres"]:
-        a, b, c = r["v4"], r["5b"], r["v5"]
-        if a != b or b != c:
+        a, b, c, d = r["v4"], r["5b"], r["v5"], r["c"]
+        if a != b or b != c or c != d:
             out.append(f'   {r["label"]:6s} v4 {a["justes"]}/{a["ratees"]}/{a["trop"]}  '
-                       f'5b {b["justes"]}/{b["ratees"]}/{b["trop"]}  v5 {c["justes"]}/{c["ratees"]}/{c["trop"]}')
+                       f'5b {b["justes"]}/{b["ratees"]}/{b["trop"]}  v5 {c["justes"]}/{c["ratees"]}/{c["trop"]}'
+                       f'  (c) {d["justes"]}/{d["ratees"]}/{d["trop"]}')
     return "\n".join(out)
 
 
@@ -147,16 +153,21 @@ DIRES: dict[str, str] = {
         "(0,874), à égalité parce que la tolérance du morceau est large (0,10). Pendant qu'il attend, la boucle "
         "de C (4 mesures, mêmes accords, 0,984) prend 18–21 et 22–25 : A perd 8 mesures justes, C en a 8 en "
         "trop. A et C jouent les mêmes accords (v4 posait déjà des A sur tes C 50–57 et 66–73) ; avant, A "
-        "gardait 18–25 seulement parce que tu avais tracé A avant C.",
+        "gardait 18–25 seulement parce que tu avais tracé A avant C. <b>Avec ton option (c)</b> : 0,984 n'est pas "
+        "NETTEMENT au-dessus de 0,950 (écart 0,034, tolérance 0,10) — A garde 18–25 et retrouve ses 16 mesures "
+        "justes ; les 8 en trop de C disparaissent. B garde 26–33 comme en v5.",
     "X-yIEMduRXk":
         "Deux suspens de C (1/5 et 23/27), tous deux dans tes A. Ton trait A et ses reprises les mangent : "
-        "rien ne change.",
+        "rien ne change en v5. <b>Avec ton option (c), c'est le coût :</b> le 2e suspens de C (23 à 0,938 ou "
+        "27 à 0,947, dans ton 2e A) n'est plus mangé, parce que les reprises de A là sont plus BASSES (27–30 à "
+        "0,926). C prend 27–35 (un jumeau), A perd 4 mesures justes, C en a 9 en trop. À toi de trancher.",
 }
 TITRES = {
     "mayer_hawthorne_the_walk": "The Walk — Mayer Hawthorne",
     "bruno_mars_the_lazy_song_official_music_video": "The Lazy Song — Bruno Mars",
     "maroon_5_she_will_be_loved_official_music_video": "She Will Be Loved — Maroon 5",
     "bobby_hebb_sunny_official_audio": "Sunny — Bobby Hebb",
+    "X-yIEMduRXk": "X-yIEMduRXk",
 }
 PALETTE = ["#e07b39", "#3b82c4", "#4caf6e", "#b05bc9", "#d4b106", "#c94f5b", "#2aa5a0",
            "#7a6ff0", "#8d6e63", "#5f7d8c"]
@@ -183,7 +194,7 @@ def _bandes(res) -> str:
     bw = (W - padL - padR) / n
     x = lambda b: padL + b * bw                                         # noqa: E731
     rows = [("toi", [(s["b0"], s["b1"], OB._fam(s["label"]), "") for s in res["secs"]])]
-    for nom in ("v4", "v5"):
+    for nom in ("v4", "v5", "c"):
         rows.append((nom, [(o["m0"], o["m1"], o["label"],
                             "suspens" if o.get("suspens") else ("trace" if o.get("trace") else ""))
                            for o in res[nom]]))
@@ -191,7 +202,7 @@ def _bandes(res) -> str:
     o = [f'<svg viewBox="0 0 {W} {H}" class="plot" role="img">']
     for k, (nom, blocs) in enumerate(rows):
         yy = 10 + 26 * k
-        o.append(f'<text x="4" y="{yy + 13}" class="lab">{nom}</text>')
+        o.append(f'<text x="4" y="{yy + 13}" class="lab">{"(c)" if nom == "c" else nom}</text>')
         for m0, m1, lab, sorte in blocs:
             t0, t1 = grid[m0], grid[min(len(grid) - 1, m1 + 1)]
             c = col.get(lab, "#999")
@@ -246,13 +257,15 @@ def _table_groupes(res) -> str:
 def _chiffres(res) -> str:
     rows = []
     for r in res["lettres"]:
-        a, b, c = r["v4"], r["5b"], r["v5"]
+        a, b, c, d = r["v4"], r["5b"], r["v5"], r["c"]
         f = lambda n: f'{n["justes"]} / {n["ratees"]} / {n["trop"]}'   # noqa: E731
-        chg = "chg" if (a != b or b != c) else ""
+        chg = "chg" if (a != b or b != c or c != d) else ""
         rows.append(f'<tr class="{chg}"><td>{_esc(r["label"])}</td><td class="num">{len(r["verite"])}</td>'
-                    f'<td class="num">{f(a)}</td><td class="num">{f(b)}</td><td class="num">{f(c)}</td></tr>')
+                    f'<td class="num">{f(a)}</td><td class="num">{f(b)}</td><td class="num">{f(c)}</td>'
+                    f'<td class="num">{f(d)}</td></tr>')
     return ('<table class="mini"><tr><th>lettre</th><th class="num">ta vérité</th>'
-            '<th class="num">v4 j / r / t</th><th class="num">5b seule</th><th class="num">v5</th></tr>'
+            '<th class="num">v4 j / r / t</th><th class="num">5b seule</th><th class="num">v5</th>'
+            '<th class="num">(c)</th></tr>'
             + "".join(rows) + '</table><div class="sub">j = justes, r = ratées, t = en trop, en mesures.</div>')
 
 
@@ -261,7 +274,7 @@ def ecrire_page(tous: list[dict]) -> None:
     par = {r["stem"]: r for r in tous}
     detail = [s for s in TITRES if s in par] + sorted(
         s for s, r in par.items() if s not in TITRES and (r["groupes"] or any(
-            x["v4"] != x["v5"] for x in r["lettres"])))
+            x["v4"] != x["v5"] or x["v5"] != x["c"] for x in r["lettres"])))
     for stem in detail:
         r = par[stem]
         corps.append(f'<h2>{_esc(TITRES.get(stem, stem))}</h2>')
@@ -280,11 +293,11 @@ def ecrire_page(tous: list[dict]) -> None:
                 tot[k][0] += x[k]["justes"]
                 tot[k][1] += x[k]["ratees"]
                 tot[k][2] += x[k]["trop"]
-            if x["v4"] != x["v5"] or x["5b"] != x["v5"]:
+            if x["v4"] != x["v5"] or x["5b"] != x["v5"] or x["v5"] != x["c"]:
                 f = lambda n: f'{n["justes"]} / {n["ratees"]} / {n["trop"]}'   # noqa: E731
                 lignes.append(f'<tr><td>{_esc(r["stem"][:34])}</td><td>{_esc(x["label"])}</td>'
                               f'<td class="num">{f(x["v4"])}</td><td class="num">{f(x["5b"])}</td>'
-                              f'<td class="num">{f(x["v5"])}</td></tr>')
+                              f'<td class="num">{f(x["v5"])}</td><td class="num">{f(x["c"])}</td></tr>')
     n_g = sum(len(r["groupes"]) for r in tous)
     par_raison = {}
     for r in tous:
@@ -320,7 +333,12 @@ vrai « Valider » : sur chacun de tes découpages validés, tu es supposé avoi
 chaque lettre (intro et outro compris), toutes d'un coup. v4 = l'égalité à 0,01 et le choix au score ;
 « 5b seule » = la variante de la page v4 ; v5 = le code live.
 <br><b>En bref.</b> {n_g} calages en suspens sur le corpus ({rais}). Total justes / ratées / en trop :
-v4 {f(tot["v4"])} · 5b seule {f(tot["5b"])} · <b>v5 {f(tot["v5"])}</b>.</div>
+v4 {f(tot["v4"])} · 5b seule {f(tot["5b"])} · v5 {f(tot["v5"])} · <b>(c) {f(tot["c"])}</b>.</div>
+<div class="say"><b>Ajouté : ton option (c), 2026-09-30.</b> Une autre section ne prend la zone d'un calage
+en suspens que si son score y est plus haut que celui du calage de <b>plus que la tolérance du morceau</b>
+(celle qui définit l'égalité en 5b, pas de nouveau réglage). Sinon le calage garde la zone ; la reprise de
+l'autre section ne revient que si le suspens est finalement tranché ailleurs. Tes traits gagnent toujours.
+Le résultat ne dépend plus de l'ordre de tes briques. Colonne et bande « (c) » = le code live.</div>
 <div class="legend">Bandes : « toi » = tes sections ; « v4 », « v5 » = ce que rend Valider (plein = ton trait,
 pâle = reprise trouvée, <b>pointillé = calage en suspens tranché</b>) ; « suspens » = les calages rivaux (plein
 = retenu, vide = écarté). Même couleur = même lettre. <b>Clic sur un bloc = écouter.</b></div>
@@ -328,9 +346,9 @@ pâle = reprise trouvée, <b>pointillé = calage en suspens tranché</b>) ; « s
 {"".join(corps)}
 <h2>Tout le corpus : les lettres qui changent</h2>
 <div class="tablewrap"><table><tr><th>morceau</th><th>lettre</th><th class="num">v4 j / r / t</th>
-<th class="num">5b seule</th><th class="num">v5</th></tr>{"".join(lignes)}
+<th class="num">5b seule</th><th class="num">v5</th><th class="num">(c)</th></tr>{"".join(lignes)}
 <tr><td><b>total</b></td><td></td><td class="num">{f(tot["v4"])}</td><td class="num">{f(tot["5b"])}</td>
-<td class="num">{f(tot["v5"])}</td></tr></table></div>
+<td class="num">{f(tot["v5"])}</td><td class="num">{f(tot["c"])}</td></tr></table></div>
 <p class="sub">Généré par <code>python -m tools.occurrences_brique_v5 --page</code> ; v5 =
 <code>harmonia.sections.simulation.occurrences_de_tous</code> (live), v4 / 5b = le même avec
 <code>EGALITE_5B</code> / <code>SUSPENS</code> coupés.</p>
