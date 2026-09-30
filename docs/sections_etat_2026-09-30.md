@@ -275,3 +275,76 @@ phase d'A–Bm–A–Bm.
 égalité tant que leur écart est sous la tolérance du morceau de la règle 4
 (2 × max(1 − R, écart du groupe du haut, 0,01) ; 0,04–0,07 sur ces morceaux).
 The Walk réglé pareil, aucune perte : justes 1394, en trop 378.
+
+## 11. La 5b, et les candidats en suspens (branchés)
+
+**Décision de Louis, mot pour mot** : « Oui pour la 5b très bien, mais alors il
+faut trancher par rapport à la cohérence globale du morceau, en cherchant
+d'autres sections et en gardant ces 2 candidats potentiels sans en acter un.
+Puis on voit ce qui reste quand les autres sections ont mangé ce qu'elles ont à
+manger. »
+
+**Comment les autres sections arrivent** (lu dans le code, rien d'inventé) :
+Louis trace plusieurs briques sur le chart, puis UN clic « Valider les
+sections » envoie tous ses traits (`humain` + les reprises `propage` du tour
+d'avant) à `/api/sections/inferer` → `occurrences_de_tous` (une recherche par
+trait, dans l'ordre) → `remplir_par_algo` (quatre mots dans les trous). Le seul
+endroit où TOUTES les sections connues sont là est donc la fin de
+`occurrences_de_tous`, avant les quatre mots : c'est là que les suspens sont
+tranchés. Ajouter une brique = re-cliquer Valider = tout est retranché.
+
+**Implémentation** (`harmonia/sections/simulation.py`, commit 14cb9ad) :
+- `maxima_locaux(c, Lb, candidats, tol)` : `tol` = la tolérance du morceau de
+  la règle 4 (`EGALITE_5B`) ;
+- `cherche_sur_matrices` : les départs candidats sont groupés (à moins d'une
+  boucle de proche en proche) ; un groupe avec UNE façon de caser le plus de
+  boucles est posé ; avec plusieurs, c'est un groupe EN SUSPENS
+  (`detail["suspens"]`, alternatives exclusives, chacune avec sa fin de brique).
+  Les zones en suspens sont réservées (pas de transposée dedans). Pour qui
+  appelle une brique seule, le groupe est tranché avec ce que la brique sait ;
+- `occurrences_de_tous` retire ce choix local, pose toutes les reprises sûres
+  de toutes les briques, puis `resoudre_suspens` : (1) les boucles déjà prises
+  par une autre section tombent, la plus complète reste ; (2) le plus de
+  contacts avec les occurrences de la même brique (phase) ; (3) le moins de
+  bouts libres de 1–3 mesures ; (4) le score. Les groupes que (1) tranche
+  seul passent d'abord ;
+- la route rend le choix en source `ressemble` : pointillés, compté « par
+  ressemblance », PAS renvoyé comme contrainte au Valider suivant. Aucun
+  changement d'UI (l'écran connaît déjà cette source).
+
+**Mesuré** (page `docs/plots/occurrences_brique_v5_2026-09-30.html`,
+`python -m tools.occurrences_brique_v5 --page`), sur le VRAI flux : chaque
+découpage validé, 1re occurrence de chaque lettre tracée, toutes d'un coup.
+
+| morceau, lettre | v4 j/r/t | 5b seule | v5 |
+|---|---|---|---|
+| Lazy Song A | 40/8/4 | 48/0/4 | 48/0/4 |
+| She Will Be Loved A | 32/4/16 | 36/0/16 | 36/0/0 |
+| She Will Be Loved B | 8/16/8 | 8/16/8 | 24/0/24 |
+| She Will Be Loved C | 12/16/8 | 12/16/8 | 4/24/0 |
+| Sunny A | 16/0/16 | 16/0/16 | **8/8/16** |
+| Sunny C | 8/16/0 | 8/16/0 | 8/16/8 |
+| **total** | 1232/218/81 | 1244/206/81 | 1244/206/81 |
+
+The Walk inchangé (27/51 à 0,91 contre 0,996 : hors tolérance 0,049, la phase
+reste 29…49). 14 groupes en suspens sur le corpus (She Will Be Loved 10,
+X-yIEMduRXk 2, Sunny 1, The Walk 1), tous tranchés par « mangée » dans ce
+flux. Rapport d'or : 60/60 identiques, 0 mesure changée.
+
+**Ce que ça ne résout pas** :
+- **Sunny A** (à arbitrer) : un suspens attend pendant que les reprises SÛRES
+  des autres lettres se servent — y compris leurs jumeaux. La boucle de C (mêmes
+  accords, 0,984) prend 18–25, qu'A (0,950) gardait avant seulement parce qu'il
+  était tracé avant C. Options : (a) garder (la règle telle que dite) ; (b) seuls
+  les TRAITS de Louis et les reprises des briques tracées AVANT mangent un
+  suspens ; (c) un suspens n'est mangé que par une reprise plus haute que sa
+  meilleure alternative de plus que la tolérance du morceau.
+- Les « autres sections » sont les traits de Louis et leurs reprises sûres, pas
+  les blocs que les quatre mots nommeront ensuite (ils ont besoin des
+  occurrences pour tourner) ; le critère « bouts orphelins » n'en est qu'une
+  approximation.
+- Seuls des calages qui casent AUTANT de boucles sont suspendus ; 2 boucles
+  contre 1 est acté par la couverture (Lazy Song), même si une autre section
+  mange ensuite l'une des 2.
+- Transposées, ancienne loi (< 8 mesures) et fin de brique des reprises sûres :
+  inchangés.

@@ -5,7 +5,7 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
-## Retrouver les occurrences d'une section donnée : les quatre règles de Louis branchées (2026-09-30 soir, RÉSOLU en partie — reste les jumeaux)
+## Retrouver les occurrences d'une section donnée : les règles 1–5b de Louis branchées + candidats en suspens (2026-09-30, RÉSOLU en partie — reste les jumeaux)
 
 Louis sur la page du matin : « le détecteur avec pics est bon », verdicts
 (Stand By Me = une seule section ; The Walk, B peut être plus court) et trois
@@ -81,6 +81,31 @@ Loved D : −8 en trop. Total justes 1394 → 1382, en trop 380 → 370.
 règle 4 (0,04–0,07) au lieu de 0,01 — The Walk réglé pareil, aucune perte
 (justes 1394, en trop 378). Serveur pas redémarré.
 
+**5b arbitrée par Louis et branchée, + CANDIDATS EN SUSPENS (2026-09-30,
+commits 14cb9ad, 0ffa940)** — « Oui pour la 5b très bien, mais alors il faut
+trancher par rapport à la cohérence globale du morceau, en cherchant d'autres
+sections et en gardant ces 2 candidats potentiels sans en acter un ».
+`maxima_locaux(tol=)` reçoit la tolérance de la règle 4 ; deux calages rivaux
+qui casent AUTANT de boucles ne sont plus actés : `occurrences_de_tous` les
+retient, pose toutes les briques de Louis et leurs reprises sûres, puis
+`resoudre_suspens` tranche : mangée par une autre section > phase (collé aux
+autres occurrences de la brique) > bouts orphelins < 4 mesures > score. Le
+choix sort « ressemble » (pointillés, pas renvoyé comme contrainte, donc
+retranché à chaque « Valider »). Pas de changement d'UI. Page
+`docs/plots/occurrences_brique_v5_2026-09-30.html` (`python -m
+tools.occurrences_brique_v5 --page`) — elle rejoue le VRAI flux (1re
+occurrence de chaque lettre tracée, toutes d'un coup) : justes/ratées/en trop
+v4 1232/218/81 → v5 1244/206/81. Lazy Song A 40 → 48 (sans suspens : 58 + 62
+casent 2 boucles contre 1 pour 60) ; She Will Be Loved A+B+C justes 56 → 64,
+en trop 32 → 24 ; The Walk inchangé (phase gardée). 14 suspens sur le corpus,
+tous tranchés par « mangée » : dans ce flux, les critères phase / orphelins /
+score ne décident rien (ils décident quand la brique est seule). **Coût, à
+arbitrer par Louis : Sunny A −8** — son A 18–25 en suspens (18 à 0,950 contre
+22 à 0,874 : tolérance du morceau large, 0,10) est pris pendant l'attente par
+la boucle de C (mêmes accords, 0,984) ; avant, A gardait la zone seulement
+parce qu'il était tracé avant C. Rapport d'or : 60/60 identiques, 0 mesure
+changée. Serveur pas redémarré.
+
 CE QUI RESTE :
 1. **Jumeaux harmoniques au niveau des vraies reprises** : She Will Be Loved A
    (+28) et D (+60, même grille presque tout du long), This Love A (l'intro),
@@ -89,9 +114,12 @@ CE QUI RESTE :
    se calibre dessus (X-yIEMduRXk A).
 2. **Phase d'une boucle à deux accords** : The Walk B — v3 garde la bonne phase
    mais rate toujours les 2e et 3e passages de chaque B. La règle 5 règle The
-   Walk A, mais sur un plateau (écarts de 0,01–0,03) la phase reste décidée par
-   le bruit de la courbe (Lazy Song A, She Will Be Loved A) — l'harmonie seule
-   ne sait pas la phase d'A–Bm–A–Bm.
+   Walk A ; la 5b + les suspens (ci-dessus) rendent Lazy Song A et She Will
+   Be Loved A. Reste : quand deux calages casent autant de boucles et que rien
+   ne les mange, la phase est décidée par le contact avec les autres
+   occurrences, puis par le score — l'harmonie seule ne sait pas la phase
+   d'A–Bm–A–Bm. Et un suspens attend pendant que les JUMEAUX des autres
+   lettres se servent (Sunny).
 3. **Vamp** (Chain of Fools, 0,99 partout) : abstention, comme avant.
 4. Stand By Me C : 15–22 refusé de justesse (proéminence 0,57).
 
