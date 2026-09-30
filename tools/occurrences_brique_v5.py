@@ -290,7 +290,9 @@ def ecrire_page(tous: list[dict]) -> None:
     for r in tous:
         for g in r["groupes"]:
             par_raison[g["raison"]] = par_raison.get(g["raison"], 0) + 1
-    rais = ", ".join(f"{v} par « {k} »" for k, v in sorted(par_raison.items(), key=lambda kv: -kv[1]))
+    noms = {"tout_mange": "tout mangé", "mangee": "mangé", "phase": "phase", "fragments": "bouts orphelins",
+            "score": "score"}
+    rais = ", ".join(f"{v} par « {noms[k]} »" for k, v in sorted(par_raison.items(), key=lambda kv: -kv[1]))
     f = lambda t: f"{t[0]} / {t[1]} / {t[2]}"   # noqa: E731
     page = f"""<!doctype html>
 <html lang="fr"><head><meta charset="utf-8">
