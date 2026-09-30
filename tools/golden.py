@@ -363,6 +363,9 @@ def main(argv=None) -> int:
             for k, r in report.items():
                 if r["status"] != "ok":
                     continue
+                ancien = eng["charts"] / f"{k}.json"
+                if ancien.exists():
+                    shutil.copy2(ancien, a.backup / ancien.name)
                 shutil.move(str(a.out / f"{k}.json"), str(eng["charts"] / f"{k}.json"))
                 moved += 1
             print(f"{moved} chart(s) publié(s) dans {eng['charts']}")
