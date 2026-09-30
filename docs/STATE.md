@@ -197,6 +197,20 @@ régressé sans trace ; toute décision de LOOK s'écrit ici AVANT d'être codé
   2026-09-17, commit 817d5ab) : cellules bordées, barre noire continue à
   gauche, badge dans le gap.
 
+**Les reprises `||: … :|| ×N` (2026-09-30, Louis : « parfait » à l'option
+(c)).** Une section écrite par sa boucle minimale (champ `boucle` de la
+section, `folding.boucle_minimale_ecrite`) porte, dans les DEUX styles : à
+gauche de sa première mesure deux points de reprise (après la barre
+d'ouverture, qui devient la reprise « ||: ») ; à droite de sa dernière mesure
+écrite, deux points + une double barre fine-épaisse d'encre (« :|| ») ; et
+« ×N » en petit, encre discrète, en haut à droite de cette mesure — N = les
+tours ENTIERS (un dernier tour incomplet reste audible et suivi par la tête
+de lecture, il ne compte pas). Des passages qui ne jouent pas le même nombre
+de tours écrivent « ×3/2 » (dans l'ordre des passages). Couleur d'encre
+(`T.ink`), jamais le rouge (réservé à la tête de lecture) ; rien n'est posé
+au-dessus des accords (place gardée aux petites suggestions). Les autres
+lectures d'un tour restent la petite lecture `var` de la case.
+
 ## Où est l'historique
 
 - `docs/refactor_2026-09/plan.md` — les décisions verrouillées du refactor.
