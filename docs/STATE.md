@@ -218,7 +218,7 @@ défauts vus au rendu 390px, et le look qui les corrige :
   bord gauche** (comme iReal), jamais sur l'exposant : elle était collée en
   haut à droite du glyphe (`top:-7px;right:-4px`) et mordait « D° », « B♭ »,
   « B° ». Elle prend la même police que la grille (Épurée : Georgia normal ;
-  Cellules : l'ancienne), en rouge accent, 12/13px (Épurée) ou 10/11px — la
+  Cellules : l'ancienne), en rouge accent, 12/13px — la
   place au-dessus existe (rangées de 56–72px pour un glyphe de ~27px).
 - **« ×N » monte au-dessus de la barre `:||`, dans sa colonne** (en haut à
   droite, comme avant, mais plus au-dessus du dernier accord, là où se pose

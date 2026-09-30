@@ -1752,6 +1752,7 @@ export function buildIReal(){
       // droite : deux points + une barre fine puis épaisse ; ×N en haut à
       // droite, discret.
       if(b.repOpen || b.repClose){
+        cell.dataset.rep="1";
         const hMid = `calc(${rowPT}px + (100% - ${rowPT}px) / 2)`;
         const dots = side => {
           [-5, 3].forEach(dy=>cell.appendChild(el("div",
@@ -1760,20 +1761,37 @@ export function buildIReal(){
         };
         // les accords s'écartent des signes (vu au rendu 390px : les points
         // mordaient « Cm » et « Fm/A♭ » sur This Love)
-        if(b.repOpen) cell.style.paddingLeft=`${narrow?11:14}px`;
+        if(b.repOpen) cell.style.paddingLeft=`${narrow?14:17}px`;
         if(b.repClose) cell.style.paddingRight=`${narrow?15:18}px`;
+        // 2026-10-01 (docs/STATE.md « Reprises et petite lecture ») : les
+        // barres de reprise laissent de l'air en haut (où monte ×N) et en bas.
+        const INS=13;
+        const bar=(side,x,w,top,bot)=>cell.appendChild(el("div",
+          `position:absolute;${side}:${x}px;top:${top}px;bottom:${bot}px;width:${w}px;background:${T.ink};z-index:3;pointer-events:none;`));
         if(b.repOpen){
-          if(!EP) cell.appendChild(el("div",`position:absolute;left:0;top:${rowPT}px;bottom:0;width:3px;background:${T.ink};z-index:3;pointer-events:none;`));
-          dots(`left:${EP?3:6}px`);
+          if(EP){
+            // « ||: » en vrai : épaisse (par-dessus le trait fin de 1px, qui
+            // continue au-dessus et au-dessous), fine, deux points — le
+            // miroir de « :|| ». La double barre de section cède la place.
+            cell.style.borderLeft=`1px solid ${T.rule}`;
+            bar("left",-1,3,rowPT+INS,INS);
+            bar("left",4,1,rowPT+INS,INS);
+            dots("left:8px");
+          } else {
+            cell.appendChild(el("div",`position:absolute;left:0;top:${rowPT}px;bottom:0;width:3px;background:${T.ink};z-index:3;pointer-events:none;`));
+            dots("left:6px");
+          }
         }
         if(b.repClose){
-          const top=`top:${rowPT+(EP?6:0)}px;bottom:${EP?6:0}px`;
-          cell.appendChild(el("div",`position:absolute;right:0;${top};width:3px;background:${T.ink};z-index:3;pointer-events:none;`));
-          cell.appendChild(el("div",`position:absolute;right:5px;${top};width:1px;background:${T.ink};z-index:3;pointer-events:none;`));
+          const t=rowPT+INS, bt=EP?INS:0;
+          bar("right",0,3,t,bt);
+          bar("right",5,1,t,bt);
           dots("right:9px");
+          // ×N au-dessus de la barre « :|| », dans sa colonne — la place
+          // au-dessus du dernier accord est à la petite lecture.
           if(b.repN) cell.appendChild(el("div",
-            `position:absolute;right:${narrow?12:14}px;top:${rowPT+(narrow?2:3)}px;`+
-            `font:700 ${narrow?10:11}px ${UI};line-height:1;color:${T.faint};z-index:3;pointer-events:none;`,
+            `position:absolute;right:1px;top:${rowPT+1}px;`+
+            `font:700 ${narrow?10:11}px ${UI};line-height:1;color:${T.faint};z-index:3;pointer-events:none;white-space:nowrap;`,
             b.repN));
         }
       }
@@ -1866,9 +1884,15 @@ export function buildIReal(){
           return;
         }
         const dq=dispQ(ch.q);
-        item.appendChild(pedale
+        // Le glyphe vit dans un porteur `data-gl` : la petite lecture s'y
+        // accroche (au-dessus, bord gauche), et le rétrécissement des mesures
+        // de reprise (fitRepCells, plus bas) le mesure et l'échelonne d'un bloc.
+        const gw=el("span","position:relative;display:inline-block;line-height:1;transform-origin:left center;");
+        if(!pendu) gw.dataset.gl="1";
+        gw.appendChild(pedale
           ? pedalGlyph(ch.bass,size,chordColor(ch))
           : G(ch.root,dq,size,chordDepth(ch),chordColor(ch),bassHidden?-1:ch.bass,b.chords.length===1));
+        item.appendChild(gw);
         // LA VARIANTE, en petit au-dessus — comme iRealb (Louis, 2026-08-17 :
         // « indiquer le moins commun comme une variation, en petit en haut de
         // l'accord comme on fait sur irealb »). Elle n'apparaît que sur un
@@ -1883,11 +1907,14 @@ export function buildIReal(){
         // que l'accord principal, en plus petit, pour hériter gratuitement de
         // son orthographe correcte selon le ton (`noteEl`/`setSpelling`,
         // 2026-09-16) au lieu de la réinventer ici.
+        // 2026-10-01 (docs/STATE.md « Reprises et petite lecture ») : AU-DESSUS
+        // du glyphe, alignée sur son bord gauche, jamais sur l'exposant — elle
+        // était en top:-7px;right:-4px et mordait « D° », « B♭ », « B° ».
         if(ch.var) {
-          const vw=el("span","position:absolute;top:-7px;right:-4px;opacity:.85;pointer-events:none;line-height:1;");
-          vw.appendChild(glyph(ch.var.root,dispQ(ch.var.q),narrow?9:10,"exact",T.accent,
+          const vw=el("span","position:absolute;left:0;bottom:calc(100% + 2px);opacity:.9;pointer-events:none;line-height:1;white-space:nowrap;");
+          vw.appendChild(G(ch.var.root,dispQ(ch.var.q),narrow?12:13,"exact",T.accent,
             (ch.var.bass==null?-1:ch.var.bass)));
-          item.appendChild(vw);
+          gw.appendChild(vw);
         }
         if(S.learn&&(dq!==ch.q||bassHidden)) item.appendChild(el("span",`font:600 8px ${UI};color:${T.amber};`,"simpler"));
         // LA RANGÉE DE MARQUE (T4, 2026-08-19). Une seule rangée sous le
@@ -1986,7 +2013,9 @@ export function buildIReal(){
         ph=el("div","position:absolute;inset:0;pointer-events:none;display:none;");
         ph.appendChild(el("div",`position:absolute;top:${rowPT+5}px;bottom:5px;left:4px;right:5px;border-radius:14px;background:rgba(138,43,43,.10);z-index:0;animation:epPop .24s cubic-bezier(.3,1.45,.6,1);`));
         ph.appendChild(el("div",`position:absolute;right:-2px;top:0;bottom:0;width:3px;border-radius:2px;background:${T.accent};box-shadow:0 0 6px rgba(138,43,43,.45);z-index:3;animation:epBar .24s ease-out;`));
-      } else ph=el("div",`position:absolute;right:0;top:0;bottom:0;width:3px;background:${T.accent};display:none;`);
+      } else ph=el("div",`position:absolute;right:0;top:0;bottom:0;width:3px;background:${T.accent};display:none;${b.repClose?"z-index:4;":""}`);
+      // (sur une mesure « :|| » du treillis, la barre rouge passe DEVANT la
+      //  barre épaisse d'encre — sinon la tête de lecture y disparaît)
       cell.appendChild(ph);
       const sel=el("div","position:absolute;inset:0;pointer-events:none;display:none;");
       cell.appendChild(sel);
@@ -2010,7 +2039,9 @@ export function buildIReal(){
     closeRow();
     // EP: la barre finale, d'encre (fine + épaisse) — le rouge est réservé à
     // la tête de lecture.
-    if(EP && S._cells.length){
+    // (sauf si la dernière mesure ferme déjà une reprise : « :|| » EST une
+    // barre fine-épaisse, la doubler en faisait trois traits)
+    if(EP && S._cells.length && !bars[S._cells[S._cells.length-1].bar].repClose){
       const last=S._cells[S._cells.length-1].el;
       last.appendChild(el("div",`position:absolute;right:-1px;top:0;bottom:0;width:3px;background:${T.ink};z-index:2;pointer-events:none;`));
       last.appendChild(el("div",`position:absolute;right:5px;top:0;bottom:0;width:1px;background:${T.ink};z-index:2;pointer-events:none;`));
@@ -2027,6 +2058,23 @@ export function buildIReal(){
     if(sectToolOn()) attachSectionDrag(grid);
     paintSectionTool();
     setPlayhead(S.playBar, S.playRep, S.playTime);
+    // UN ACCORD TROP LARGE DANS UNE MESURE DE REPRISE RÉTRÉCIT (2026-10-01,
+    // docs/STATE.md) : « Fm/A♭ » en dernier accord passait sous « :|| ».
+    // Mesuré une fois la grille posée (le cadre est attaché juste après ce
+    // retour) ; chaque glyphe s'arrête avant le suivant, le dernier avant le
+    // retrait droit de la cellule. Plancher 70 %. Ne touche QUE les mesures
+    // qui portent un signe de reprise.
+    requestAnimationFrame(()=>grid.querySelectorAll("[data-rep]").forEach(cell=>{
+      const cr=cell.getBoundingClientRect(); if(!cr.width) return;
+      const lim=cr.right-(parseFloat(getComputedStyle(cell).paddingRight)||0);
+      const gl=[...cell.querySelectorAll("[data-gl]")];
+      gl.forEach(g=>{ g.style.transform=""; });
+      const rs=gl.map(g=>g.getBoundingClientRect());
+      gl.forEach((g,i)=>{
+        const r=rs[i], stop=(i+1<gl.length)?rs[i+1].left-3:lim;
+        if(r.width && r.right>stop) g.style.transform=`scale(${Math.max(.7,(stop-r.left)/r.width).toFixed(3)})`;
+      });
+    }));
     return frame;
   }
 
