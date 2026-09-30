@@ -1347,8 +1347,26 @@ export function chordColor(ch){
   // « les mêmes accords que dans le chart ») — doubt is carried by confColor's
   // tint alone; the depth ladder no longer strips shaky chords to the family.
 export function chordDepth(ch){ return "exact"; }
+// Les deux animations de la tête de lecture épurée, posées une fois.
+function epureCss(){
+    if(document.getElementById("ep-css")) return;
+    const st=document.createElement("style"); st.id="ep-css";
+    st.textContent="@keyframes epPop{from{opacity:0;transform:scale(.86)}to{opacity:1;transform:none}}"+
+      "@keyframes epBar{from{opacity:0;transform:scaleY(.4)}to{opacity:1;transform:none}}";
+    document.head.appendChild(st);
+  }
 export function buildIReal(){
-    const frame=el("div",`position:relative;background:${T.paper};border:1px solid ${T.line};border-radius:8px;overflow:hidden;`);
+    // LA GRILLE ÉPURÉE (Louis, 2026-09-30, sur capture) : barres de mesure
+    // verticales seules, aucun trait horizontal, aucun cadre. Le look voulu
+    // est écrit dans docs/STATE.md « Le dessin de la grille » — le lire avant
+    // de toucher à une ligne marquée `EP`. `PREF.grille==="treillis"` rend le
+    // treillis d'avant, octet pour octet.
+    const EP = PREF.grille!=="treillis";
+    if(EP) epureCss();
+    const frame=el("div",EP
+      ? `position:relative;background:${T.paper};`
+      : `position:relative;background:${T.paper};border:1px solid ${T.line};border-radius:8px;overflow:hidden;`);
+    frame.dataset.grille=EP?"epure":"treillis";
     const grid=el("div","display:grid;grid-template-columns:repeat(4,minmax(0,1fr));");
     // A phone is 390px: four bars of "D♭maj7" at desktop size do not fit, and
     // a grid item's default min-width:auto silently widens the column instead
@@ -1377,13 +1395,16 @@ export function buildIReal(){
     // gap de fin). Les tailles de glyphe (SZ1/SZ2/SZ3) ne bougent PAS: elles
     // ont déjà été arbitrées contre iRealB, et les grossir a re-créé le
     // chevauchement des barres denses.
-    const BARH=imm?(narrow?58:66):(narrow?56:64);
+    // EP: sans trait horizontal, c'est l'air qui sépare les rangées (+8px).
+    const BARH=(imm?(narrow?58:66):(narrow?56:64)) + (EP?8:0);
     // §3: une rangée qui ne porte QUE des mesures de fin est courte — une
     // mesure ne doit pas coûter la hauteur de quatre. C'est une hauteur par
     // RANGÉE, jamais par cellule: les fillers de gauche (§2) et de droite
     // prennent la même, sinon le treillis casse.
     const BARH_ENDING=Math.round(BARH*0.78);
-    const secGap = narrow?16:18;
+    // EP: l'écart de section est un padding DANS la rangée (le badge s'y
+    // pose), pas une marge — sinon les barres verticales se coupent.
+    const secGap = EP ? (narrow?22:24) : (narrow?16:18);
     S._cells=[];
     let rowCells=[];
     const bars=S.bars.map(b=>({sec:b.sec, secId:b.secId, secFirst:b.secFirst, reps:b.reps, beats:b.beats,
@@ -1433,7 +1454,7 @@ export function buildIReal(){
     // est du papier nu, sans bordure et sans bordure basse. C'est l'écart
     // assumé au §2 du handoff, qui demandait un quadrillage complet: le
     // quadrillage rendait le trou lisible, la boîte le rend juste.
-    let rowH=BARH, rowMT=0, rowBare=false;
+    let rowH=BARH, rowMT=0, rowPT=0, rowBare=false;
     // §3/§4/§5: une fin est un BLOC de mesures consécutives portant la même
     // étiquette (`b.ending`). Sa longueur décide trois choses — la largeur du
     // crochet (§4), la hauteur courte de sa rangée (§3), et si les deux fins
@@ -1476,13 +1497,20 @@ export function buildIReal(){
     // suivie d'une rangée collée n'en veut pas, la border-top de la suivante
     // dessine déjà le trait et deux traits collés font 2px.
     const filler=c=>{
-      const f=el("div",`min-height:${rowH}px;${rowMT?`margin-top:${rowMT}px;`:""}`);
+      const f=el("div",`min-height:${rowH+rowPT}px;${rowMT?`margin-top:${rowMT}px;`:""}`);
+      if(EP){
+        // EP: la marge gauche du morceau ne se coupe jamais; dans une rangée
+        // de fins nue, les autres colonnes vides restent du papier nu.
+        if(rowBare){ f.dataset.bare="1"; if(c===0) f.style.borderLeft=`1px solid ${T.rule}`; return f; }
+        f.style.cssText+=`border-left:1px solid ${T.rule};${c===3?`border-right:1px solid ${T.rule};`:""}`;
+        return f;
+      }
       if(rowBare){ f.dataset.bare="1"; return f; }   // papier nu, aucune encre
       f.style.cssText+=`${c>0?`border-left:1px solid ${T.rule};`:""}${row>0?`border-top:1px solid ${T.rule};`:""}`;
       return f;
     };
     const fillRow=()=>{ while(col!==0&&col<4){ const f=filler(col); grid.appendChild(f); rowCells.push(f); col++; } };
-    const closeRow=()=>{ fillRow(); rowCells.forEach(c=>{ if(!c.dataset.bare) c.style.borderBottom=`1px solid ${T.rule}`; }); };
+    const closeRow=()=>{ fillRow(); if(!EP) rowCells.forEach(c=>{ if(!c.dataset.bare) c.style.borderBottom=`1px solid ${T.rule}`; }); };
     bars.forEach((b,bi)=>{
       // Louis, 2026-08-08: the chord-less leading intro does not print AT ALL
       // in Read — the form rail above still carries it. Analyse/Annotate keep
@@ -1553,6 +1581,8 @@ export function buildIReal(){
         // C'est ce qui a retiré son dernier emploi à l'ancien `endingGap`.
         rowMT = b.secFirst ? secGap : 0;
         rowH  = rowBare ? BARH_ENDING : BARH;
+        rowPT = 0;
+        if(EP){ rowPT=rowMT; rowMT=0; }
       }
       if(rowBroke){ while(col<skipToCol){ const f=filler(col); grid.appendChild(f); rowCells.push(f); col++; } }
       if(firstEndingHead) endingAnchorCol=col;
@@ -1608,7 +1638,13 @@ export function buildIReal(){
       // collée; à gauche en colonne 1 c'est la barre noire du chart qui
       // ferme; à droite il n'y a plus de voisin bordé pour le faire, donc
       // la dernière mesure de la fin porte sa propre bordure droite.
-      const bareEdge = rowBare
+      const bareEdge = EP
+        ? (rowBare
+            ? `border-left:1px solid ${T.rule};${endingRun(bi,col)<=1?`border-right:1px solid ${T.rule};`:""}`
+            : (b.secFirst && col===0
+                ? `border-left:4px double ${T.rule};`
+                : `border-left:1px solid ${T.rule};`) + (col===3?`border-right:1px solid ${T.rule};`:""))
+        : rowBare
         ? `${col>0?`border-left:1px solid ${T.rule};`:""}border-bottom:1px solid ${T.rule};`+
           `${endingRun(bi,col)<=1?`border-right:1px solid ${T.rule};`:""}`
         : `${col>0?`border-left:1px solid ${T.rule};`:""}${row>0?`border-top:1px solid ${T.rule};`:""}`;
@@ -1616,13 +1652,13 @@ export function buildIReal(){
       // le chiffre `1.` se posait SUR l'accord (vu au rendu, colonne 1 d'une
       // fin partie en colonne 1). Il vaut pour TOUTES les mesures de la fin,
       // pas seulement sa tête, sinon la rangée perd sa ligne de base.
-      const endingPadTop = b.ending ? `padding-top:${narrow?9:11}px;` : "";
+      const endingPadTop = (b.ending||rowPT) ? `padding-top:${rowPT+(b.ending?(narrow?9:11):0)}px;` : "";
       // LE CHANGEMENT DE CHIFFRAGE PREND SA PLACE (2026-09-18). iReal pose le
       // `2/4` DANS la mesure, à gauche, et pousse l'accord — pas par-dessus.
       // Sans ce retrait les deux chiffres se posaient sur le glyphe.
       const marqueChiffrage = !!b.beats && b.beats!==lastBeats;
       const meterPadLeft = marqueChiffrage ? `padding-left:${narrow?11:13}px;` : "";
-      const cell=el("div",`position:relative;min-width:0;min-height:${rowH}px;${layoutCss}${endingPadTop}${meterPadLeft}${rowMT?`margin-top:${rowMT}px;`:""}${gridStart!=null?`grid-column-start:${gridStart};`:""}${bareEdge}`);
+      const cell=el("div",`position:relative;min-width:0;min-height:${rowH+rowPT}px;${layoutCss}${endingPadTop}${meterPadLeft}${rowMT?`margin-top:${rowMT}px;`:""}${gridStart!=null?`grid-column-start:${gridStart};`:""}${bareEdge}`);
       // Scale halo: a coloured underline strip per CHORD, not per bar (2026-07-21
       // fix — see chordKey's own comment above for the "A7 hidden inside bar5"
       // bug this replaces). Never on `background` — setPlayhead() stomps that
@@ -1680,7 +1716,7 @@ export function buildIReal(){
         // §6: secGap est descendu à 16/18 — le badge doit tenir DANS le gap
         // sans mordre la bordure de sa rangée, donc il se pose au ras de
         // celle-ci (top:-(secGap-1)) au lieu de flotter à -(secGap-3).
-        cell.appendChild(el("div",`position:absolute;left:0;top:-${secGap-1}px;font:800 ${narrow?9:11}px ${UI};line-height:1;color:${T.accent};border:1.5px solid ${T.accent};border-radius:4px;padding:1px 4px;background:${T.paper};z-index:2;`,b.sec));
+        cell.appendChild(el("div",`position:absolute;left:${EP?(narrow?4:6):0}px;top:${EP?4:-(secGap-1)}px;font:800 ${narrow?9:11}px ${UI};line-height:1;color:${T.accent};border:1.5px solid ${T.accent};border-radius:4px;padding:1px 4px;background:${T.paper};z-index:2;`,b.sec));
         // (la barre noire d'ouverture de section a disparu d'ici: Louis en
         // veut UNE, continue sur toute la hauteur du chart — elle est posée
         // une seule fois sur le cadre, tout en bas de cette fonction.)
@@ -1702,7 +1738,7 @@ export function buildIReal(){
         // le crochet entier rentre sous le bord haut de la cellule, chiffre
         // à droite du tick — l'écriture classique d'une volta.
         const span=Math.max(1,endingRun(bi,col));
-        const y = 1;
+        const y = 1 + rowPT;
         cell.appendChild(el("div",`position:absolute;left:2px;top:${y}px;height:2px;width:calc(${span*100}% - 6px);background:${T.accent};z-index:3;pointer-events:none;`));
         cell.appendChild(el("div",`position:absolute;left:2px;top:${y}px;width:2px;height:${narrow?13:15}px;background:${T.accent};z-index:3;pointer-events:none;`));
         cell.appendChild(el("div",
@@ -1752,7 +1788,11 @@ export function buildIReal(){
         const pendu = pedale && S.mode!=="annotate";
         const place = pendu
           ? `position:absolute;left:calc(${q4/bpbQ*100}% + 1px);top:calc(50% + ${Math.round(size*0.16)}px);z-index:2;`
-          : `position:relative;z-index:1;${tight?"":`grid-column:${q4+1};grid-row:1;justify-self:start;`}`;
+          : `position:relative;z-index:1;${tight?"":(EP && b.chords.length===1 && q4===0
+              // EP: un accord seul sur le temps 1 se centre dans sa mesure
+              // (la capture) — ça ne ment sur aucun temps.
+              ? "grid-column:1/-1;grid-row:1;justify-self:center;"
+              : `grid-column:${q4+1};grid-row:1;justify-self:start;`)}`;
         const item=el(S.mode==="annotate"?"button":"div",`${place}min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;background:none;border:none;cursor:${ch.nc&&S.mode!=="annotate"?"default":"pointer"};padding:0 ${tight||pendu?0:2}px;${S.mode==="annotate"?"min-height:44px;min-width:44px;":""}${ch.carry?"opacity:.72;":""}`);
 
         // No-chord (N.C.) cell: music-x-lab detected silence/no harmony here.
@@ -1881,7 +1921,17 @@ export function buildIReal(){
           cell.appendChild(el("div",`position:relative;z-index:1;font:700 ${narrow?22:28}px ${SERIF};color:${T.faint};opacity:.5;grid-column:1/-1;justify-self:center;`,"%"));
         }
       }
-      const ph=el("div",`position:absolute;right:0;top:0;bottom:0;width:3px;background:${T.accent};display:none;`); cell.appendChild(ph);
+      // EP: sans cellule, la mesure jouée = une pastille teintée qui « pop »
+      // derrière les accords + la barre de mesure de droite qui s'allume.
+      // Le conteneur n'a PAS de z-index : la pastille (0) passe sous les
+      // glyphes (1), la barre (3) par-dessus le trait gris du voisin.
+      let ph;
+      if(EP){
+        ph=el("div","position:absolute;inset:0;pointer-events:none;display:none;");
+        ph.appendChild(el("div",`position:absolute;top:${rowPT+5}px;bottom:5px;left:4px;right:5px;border-radius:14px;background:rgba(138,43,43,.10);z-index:0;animation:epPop .24s cubic-bezier(.3,1.45,.6,1);`));
+        ph.appendChild(el("div",`position:absolute;right:-2px;top:0;bottom:0;width:3px;border-radius:2px;background:${T.accent};box-shadow:0 0 6px rgba(138,43,43,.45);z-index:3;animation:epBar .24s ease-out;`));
+      } else ph=el("div",`position:absolute;right:0;top:0;bottom:0;width:3px;background:${T.accent};display:none;`);
+      cell.appendChild(ph);
       const sel=el("div","position:absolute;inset:0;pointer-events:none;display:none;");
       cell.appendChild(sel);
       cell.dataset.bar=String(bi);
@@ -1894,7 +1944,7 @@ export function buildIReal(){
       // feuille ouverte.
       if(S.mode!=="annotate" && !sectToolOn()) cell.onclick=()=>{ if(tapSeeks()) seekToBar(bi); };
       else if(S.mode==="annotate" && !sectToolOn() && roomToAdd) cell.onclick=()=>openBarExpanded(bi);
-      S._cells.push({el:cell, bar:bi, idxs:b.chords.map(x=>x.idx), ph, sel});
+      S._cells.push({el:cell, bar:bi, idxs:b.chords.map(x=>x.idx), ph, sel, epure:EP});
       grid.appendChild(cell);
       rowCells.push(cell);
       col++;
@@ -1902,6 +1952,13 @@ export function buildIReal(){
     // fermer la toute dernière rangée du chart — exactement les mêmes règles
     // que partout ailleurs, via le même `closeRow` (rowH/rowMT compris, §3).
     closeRow();
+    // EP: la barre finale, d'encre (fine + épaisse) — le rouge est réservé à
+    // la tête de lecture.
+    if(EP && S._cells.length){
+      const last=S._cells[S._cells.length-1].el;
+      last.appendChild(el("div",`position:absolute;right:-1px;top:0;bottom:0;width:3px;background:${T.ink};z-index:2;pointer-events:none;`));
+      last.appendChild(el("div",`position:absolute;right:5px;top:0;bottom:0;width:1px;background:${T.ink};z-index:2;pointer-events:none;`));
+    }
     frame.appendChild(grid);
     // LA BARRE NOIRE, TOUT DU LONG (Louis, 2026-09-17). C'était un trait par
     // SECTION, posé dans la cellule `secFirst` et haut d'une seule rangée:
@@ -1909,7 +1966,7 @@ export function buildIReal(){
     // seule barre sur le cadre, du haut au bas de la grille — la marge
     // gauche du morceau, pas une marque de section. Posée APRÈS la grille
     // pour passer devant les bandes de tonalité, comme les badges.
-    frame.appendChild(el("div",
+    if(!EP) frame.appendChild(el("div",
       `position:absolute;left:0;top:0;bottom:0;width:2px;background:${T.ink};z-index:2;pointer-events:none;`));
     if(sectToolOn()) attachSectionDrag(grid);
     paintSectionTool();

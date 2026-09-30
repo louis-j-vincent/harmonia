@@ -37,6 +37,7 @@ export function openPrefsSheet(){
     // Annotate à côté de Set bar 1 (voir buildRibbon).
     body.appendChild(seg("Theme",[["light","Light"],["dark","Dark"]],()=>PREF.theme,v=>{ PREF.theme=v; try{localStorage.setItem("harmTheme",v);}catch(e){} applyTheme(); }));
     body.appendChild(seg("Notation",[["normal","Normal"],["compact","Compact"]],()=>PREF.notation,v=>{ PREF.notation=v; try{localStorage.setItem("harmNotation",v);}catch(e){} }));
+    body.appendChild(seg("Grid",[["epure","Clean"],["treillis","Cells"]],()=>PREF.grille,v=>{ PREF.grille=v; try{localStorage.setItem("harmGrille",v);}catch(e){} }));
     body.appendChild(seg("Key colours",[["on","On"],["off","Off"]],()=>PREF.cof?"on":"off",v=>{ PREF.cof=(v==="on"); try{localStorage.setItem("harmCof",PREF.cof?"1":"0");}catch(e){} }));
     const pl=el("div","display:flex;align-items:center;justify-content:space-between;gap:10px;");
     pl.appendChild(el("span",`font:600 13px ${UI};color:${T.ink};`,"Chart colour"));

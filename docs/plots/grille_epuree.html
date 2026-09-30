@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Grille épurée</title>
+<style>
+:root{--bg:#efe9dc;--paper:#f7f3e9;--ink:#1c1c1c;--faint:#8a8371;--accent:#8a2b2b;--rule:#b9b09a}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#151210;--paper:#211c17;--ink:#f2ebde;--faint:#a99f8c;--rule:#5b5344}}
+:root[data-theme="dark"]{--bg:#151210;--paper:#211c17;--ink:#f2ebde;--faint:#a99f8c;--rule:#5b5344}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Georgia,serif}
+main{max-width:1100px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:26px;margin:0 0 4px} h2{font-size:19px;margin:34px 0 6px}
+p{margin:6px 0} .faint{color:var(--faint);font-size:13.5px}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+.pair figure{margin:0} .pair img{width:100%;height:auto;border:1px solid var(--rule);border-radius:6px;display:block}
+figcaption{font:600 12px system-ui,sans-serif;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin:0 0 5px}
+figcaption b{color:var(--accent)}
+.ref{max-width:320px} .ref img{width:100%;border-radius:10px;border:1px solid var(--rule)}
+ul{margin:6px 0 0 18px;padding:0} li{margin:3px 0}
+a{color:var(--accent)}
+details{margin-top:10px} summary{cursor:pointer;color:var(--faint);font-size:13.5px}
+</style></head><body><main>
+<h1>Grille épurée</h1>
+<p>Nouveau style de grille, <b>par défaut</b> : des barres de mesure verticales, rien d'horizontal. L'ancien (« Cells ») reste dans <b>Aa → Grid</b>.</p>
+<p class="faint">La capture de Louis est l'ancienne page statique de juillet (<a href="inferred_bye_bye_blackbird.html">inferred_bye_bye_blackbird.html</a>) — ce style n'existait plus dans l'app. Bye Bye Blackbird n'est pas dans la bibliothèque : Autumn Leaves (iReal) le remplace.</p>
+
+<h2>La référence</h2>
+<div class="ref"><img src="grille_epuree/reference_blackbird.jpg" alt="Capture iPhone de Louis, Bye Bye Blackbird"></div>
+
+<h2>Ce qui change</h2>
+<ul>
+<li>Plus de cadre, plus de traits horizontaux : seules les barres de mesure, continues sur toute la hauteur.</li>
+<li>Début de section : double barre fine ║ sur sa première rangée, et la lettre dans le haut de la rangée.</li>
+<li>Un accord seul sur le temps 1 est centré dans sa mesure.</li>
+<li>Rangées un peu plus hautes (+8 px) : c'est l'air qui sépare les lignes.</li>
+<li>Mesure jouée : une pastille teintée arrondie qui « pop », et la barre de droite qui s'allume en rouge.</li>
+<li>Fin du morceau : barre finale d'encre (fine + épaisse).</li>
+</ul>
+
+<h2>Autumn Leaves — iPhone 390 px</h2>
+<p class="faint">Standard iReal, 3 sections, mesures à 2 accords.</p>
+<div class="pair">
+<figure><figcaption>Avant · cells</figcaption><img src="grille_epuree/autumn_avant_m.jpg" alt=""></figure>
+<figure><figcaption><b>Après · épurée</b></figcaption><img src="grille_epuree/autumn_apres_m.jpg" alt=""></figure>
+</div>
+
+<h2>The Lazy Song — fins alternées + intro cachée</h2>
+<p class="faint">Quatre fins (A, A alt 1‑3) empilées ; l'intro muette ne s'affiche pas. Tête de lecture sur « A alt 1 ».</p>
+<div class="pair">
+<figure><figcaption>Avant · cells</figcaption><img src="grille_epuree/lazy_avant_m.jpg" alt=""></figure>
+<figure><figcaption><b>Après · épurée</b></figcaption><img src="grille_epuree/lazy_apres_m.jpg" alt=""></figure>
+</div>
+
+<h2>Stand By Me — intro cachée, tête de lecture</h2>
+<div class="pair">
+<figure><figcaption>Avant · cells</figcaption><img src="grille_epuree/standbyme_avant_m.jpg" alt=""></figure>
+<figure><figcaption><b>Après · épurée</b></figcaption><img src="grille_epuree/standbyme_apres_m.jpg" alt=""></figure>
+</div>
+
+<details><summary>Les mêmes sur ordinateur (1100 px)</summary>
+<h2>Autumn Leaves</h2>
+<div class="pair"><figure><figcaption>Avant</figcaption><img src="grille_epuree/autumn_avant_d.jpg" alt=""></figure><figure><figcaption><b>Après</b></figcaption><img src="grille_epuree/autumn_apres_d.jpg" alt=""></figure></div>
+<h2>The Lazy Song</h2>
+<div class="pair"><figure><figcaption>Avant</figcaption><img src="grille_epuree/lazy_avant_d.jpg" alt=""></figure><figure><figcaption><b>Après</b></figcaption><img src="grille_epuree/lazy_apres_d.jpg" alt=""></figure></div>
+<h2>Stand By Me</h2>
+<div class="pair"><figure><figcaption>Avant</figcaption><img src="grille_epuree/standbyme_avant_d.jpg" alt=""></figure><figure><figcaption><b>Après</b></figcaption><img src="grille_epuree/standbyme_apres_d.jpg" alt=""></figure></div>
+</details>
+
+<h2>À trancher</h2>
+<ul>
+<li>Épurée par défaut : oui ?</li>
+<li>Accord seul centré dans sa mesure (comme la capture) ou calé à gauche comme avant ?</li>
+<li>+8 px par rangée : on voit moins de sections par écran. Garder ?</li>
+</ul>
+<p class="faint">Ouvrir dans l'app : <a href="/?open=ireal_autumn_leaves">Autumn Leaves</a> · <a href="/?open=min_bruno_mars_the_lazy_song_official_music_video">The Lazy Song</a> · <a href="/?open=min_ben_e_king_stand_by_me_audio">Stand By Me</a></p>
+</main></body></html>

@@ -31,6 +31,10 @@ export const PREF={
     notation:(()=>{ try{return localStorage.getItem("harmNotation")||"normal";}catch(e){return "normal";} })(),
     cof:(()=>{ try{return localStorage.getItem("harmCof")!=="0";}catch(e){return true;} })(),
     paper:(()=>{ try{return localStorage.getItem("harmPaper")||"#f7f3e9";}catch(e){return "#f7f3e9";} })(),
+    // Style de grille (2026-09-30, voir docs/STATE.md « Le dessin de la
+    // grille ») : "epure" = barres verticales seules (défaut), "treillis" =
+    // les cellules bordées d'avant.
+    grille:(()=>{ try{return localStorage.getItem("harmGrille")==="treillis"?"treillis":"epure";}catch(e){return "epure";} })(),
   };
 export function applyTheme(){
     Object.assign(T, PREF.theme==="dark"?DARK:LIGHT);

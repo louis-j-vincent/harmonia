@@ -966,7 +966,7 @@ export function setPlayhead(bi, rep, t){
     S.playTime = bi>=0 ? t : null;
     if(S._cells){
       S._cells.forEach(c=>{ c.el.style.background=""; c.ph.style.display="none"; });
-      if(bi>=0) S._cells.forEach(c=>{ if(c.bar===bi){ c.el.style.background="rgba(138,43,43,.09)"; c.ph.style.display="block"; } });
+      if(bi>=0) S._cells.forEach(c=>{ if(c.bar===bi){ if(!c.epure) c.el.style.background="rgba(138,43,43,.09)"; c.ph.style.display="block"; } });
     }
     if(S._dockWhere) S._dockWhere.textContent = bi>=0 ? ("bar "+(bi+1)+((rep!=null&&rep>0)?" · ×"+(rep+1):"")) : "";
     paintFormRail(S.playTime);
