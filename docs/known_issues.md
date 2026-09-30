@@ -5,6 +5,53 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Retrouver les occurrences d'une section donnée : le seuil bute au plafond, la longueur est figée (2026-09-30, OUVERT — arbitrage)
+
+Louis : « une fois que l'annotateur a donné une première section, il faudrait
+pouvoir BIEN détecter les occurrences de cette section ». Simulé sur ses 20
+découpages validés (première occurrence de chaque lettre = la brique),
+`simulation.cherche_brique` tel qu'en prod. Page, terme par terme :
+`docs/plots/occurrences_brique_2026-09-30.html` (rejouable :
+`python -m tools.occurrences_brique --page`). État des lieux :
+`docs/sections_etat_2026-09-30.md`.
+
+CE QUI RATE, par ordre d'importance :
+
+1. **Le seuil bute au plafond 0,999.** Quand médiane + 1,5 σ dépasse 1 (la
+   brique revient souvent), le seuil devient 0,999 et recale des reprises à
+   0,989–0,998. Let It Be A (0/3 trouvées), The Walk A et B, Chain of Fools :
+   15 occurrences perdues sur 4 morceaux, toutes au sommet de leur courbe.
+2. **La longueur est figée à celle de la brique.** San Francisco Street A
+   (24 mes.) contre sa reprise de 16 : moyenne 0,84 < 0,85, ratée alors que ses
+   16 mesures collent à 0,97–1,0 (calées sur la 2e boucle de la brique). Même
+   défaut sur 8 autres occurrences courtes/longues et 2 fins alternatives
+   (She Will Be Loved C).
+3. **Jumeaux harmoniques** (presque toutes les fausses trouvailles) : Stand By
+   Me A/C, Yesterday B dans A, She Will Be Loved C dans B, l'intro de This Love
+   et d'Every Breath, Sunny C = A transposé. Aucun seuil ne les séparera — il
+   faut un autre canal que les accords (déjà prouvé sur Stand By Me le 09-20).
+
+CONTRE LE CADRAGE DE DÉPART : les décalages d'UNE mesure n'apparaissent pas
+(zéro en prod), et les reprises transposées sont déjà trouvées (Sunny,
+Fjufjv4rH0s, T64BgKEL-Sw). Deux décalages de 4 mesures (boucle interne : Lazy
+Song, The Walk).
+
+CANDIDATS (dans l'outil, RIEN n'est branché) :
+  * **candidat 1 — plafond 0,97** (brique ≥ 8 mesures) : +10 occurrences
+    justes (Let It Be ×3, The Walk ×5, Chain ×2), +5 décalées de 4 (Chain,
+    boucle), +3 en trop (The Walk : l'intro et la 2e moitié des B jouent la
+    boucle). Plateau de 0,96 à 0,985. Sous 8 mesures, 0,97 inonde (Lazy Song C
+    +5, une brique d'1 mesure +6) — d'où la borne.
+  * **candidat 2 — passages plus courts + fin alternative** : la prémisse
+    tient (le contenu colle mesure à mesure à ≥ 0,96 sur les occurrences de
+    mauvaise longueur) mais cette version rattrape peu (SF : 12 mesures sur 16)
+    et ajoute des fragments jumeaux. Il lui manque de chercher la reprise sur
+    TOUTES les phases de la brique, pas seulement son début.
+
+QUESTION OUVERTE pour Louis : les 3 derniers « A » d'Every Breath You Take
+(mes. 89–111) n'ont que 4 mesures sur 8 en commun avec le premier (la boucle
+de fin) — A, ou A′ (sous-replier) ?
+
 ## Le chart commençait par « N.C. » ou « % » (2026-09-30, RÉSOLU en partie — e2d26cb)
 
 Louis : « on commence toujours une mesure trop tôt j'ai l'impression, à
