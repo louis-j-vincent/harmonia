@@ -9,7 +9,7 @@ sprint 10) :
     → disposition en mesures (harmonia.bars.layout_bars)
     → clé provisoire + suggestions musx
     → **yield "raw"** — le chart brut, une section, jouable
-    → sections (harmonia.sections.detect_sections)
+    → sections : la forme du brut (`_one_section`), pas de détecteur
     → repli d'occurrences (harmonia.folding.fold_letter_groups)
     → repli d'affichage (harmonia.folding.minimal_fold)
     → analyse harmonique (harmonia.harmonic_key.analyze_harmony)
@@ -103,7 +103,7 @@ def _one_section(bars: list, grid: list, n_bars: int,
     """Le chart BRUT : une section « A », précédée de son intro s'il en a une.
 
     C'est la forme que `analyze_steps` rend au premier yield ("raw") et, tant
-    que `SETTINGS.sections == "aucune"`, au chart final — la seule définition,
+    au chart final (aucun détecteur automatique) — la seule définition,
     appelée depuis ce seul point, pour qu'aucune deuxième copie ne puisse
     diverger.
 
@@ -113,9 +113,9 @@ def _one_section(bars: list, grid: list, n_bars: int,
     posée à la main ou par `harmonia.debut` — arrive souvent une à sept
     mesures plus tard. Ces mesures de tête ne portent que des N.C. ou rien
     (13 charts sur 46 imprimaient « N.C. » ou « % » en premier). Jusqu'au
-    2026-09-19, `_force_bar1_sections` les rangeait dans une section
-    « intro », que chart.js cache en lecture quand elle n'a aucun accord (un
-    trou dans la bande de forme) ; la sortie de SongFormer (bbb0ab0) a fait
+    2026-09-19, le chemin SongFormer (supprimé le 2026-09-30) les rangeait
+    dans une section « intro », que chart.js cache en lecture quand elle
+    n'a aucun accord (un trou dans la bande de forme) ; la sortie de SongFormer (bbb0ab0) a fait
     passer le chart à UNE section et ces mesures sont remontées dans « A ».
     Règle rétablie, et étendue aux morceaux sans marque :
       * les mesures de tête sans aucun accord réel → section « intro »
@@ -161,56 +161,6 @@ def _one_section(bars: list, grid: list, n_bars: int,
     if debut_a > tete:
         out.append(_sec(f"S{i}", "intro", tete, debut_a - 1)); i += 1
     out.append(_sec(f"S{i}", "A", debut_a, n_bars - 1))
-    return out
-
-
-def _force_bar1_sections(segs: list[dict], bar1_bar: int) -> list[dict]:
-    """The user's bar-1 mark is a HARD section boundary (Set bar 1 tool).
-
-    Louis, 2026-08-08, on Sam Smith: after realigning, « la section A
-    commence quand même en décalé » — the mark moved the bar PHASE but
-    detect_sections still placed the first letter boundary wherever it
-    liked. So: everything before the marked bar becomes one 'intro'
-    section (chords and all); a segment straddling the mark is cut at it;
-    letters re-assign in order of first appearance after the mark, so the
-    marked bar always READS as A. Named sections keep their names.
-    """
-    out = []
-    for sg in segs:
-        if sg["b1"] < bar1_bar:
-            continue
-        s = dict(sg)
-        if s["b0"] < bar1_bar:
-            s["b0"] = bar1_bar
-        out.append(s)
-    # After the mark NOTHING may be called intro — the intro is by definition
-    # what precedes bar 1. An intro-named tail MERGES FORWARD into the section
-    # that follows it: the mark is the start of A, so the bars between the
-    # mark and the detector's own first boundary belong to that first section.
-    # (2026-08-09, D-major chart report: the voice entered ONE bar after the
-    # mark; the previous rule — rename the tail to a letter — minted a 1-bar
-    # "A" and pushed the real 8-bar structure to B/C/D. Renaming was the
-    # Sam Smith fix; merging solves both charts.)
-    merged: list[dict] = []
-    for s in out:
-        if merged and str(merged[-1].get("label") or "").lower().startswith("intro"):
-            merged[-1] = {**s, "b0": merged[-1]["b0"]}
-        else:
-            merged.append(s)
-    if merged and str(merged[-1].get("label") or "").lower().startswith("intro"):
-        merged[-1]["label"] = "A"    # the whole post-mark region: it IS the form
-    out = merged
-    # letters re-assign in first-appearance order so the marked bar reads as
-    # A; other named sections (outro, bridge…) keep their names.
-    mapping: dict[str, str] = {}
-    for s in out:
-        lab = str(s.get("label") or "")
-        if len(lab) == 1 and lab.isalpha() and lab.isupper():
-            if lab not in mapping:
-                mapping[lab] = chr(ord("A") + len(mapping))
-            s["label"] = mapping[lab]
-    if bar1_bar > 0:
-        out.insert(0, {"b0": 0, "b1": bar1_bar - 1, "label": "intro"})
     return out
 
 
@@ -569,8 +519,8 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
 
     ``phase`` (UI refresh 2026-08-08, §5) : le même canal porte la phase que
     l'écran de chargement affiche — "listening" (battues) → "decoding" (les
-    posteriors musx, l'attente longue) → "sections" (detect_sections, émis ici
-    juste avant l'appel) ; "raw" et "done" sont posés par server._run_job aux
+    posteriors musx, l'attente longue) → "sections" (le raffinement, émis juste
+    après le yield brut) ; "raw" et "done" sont posés par server._run_job aux
     deux yields, avec le modèle brut.
 
     Un appelant qui ne veut QUE le chart brut arrête simplement de consommer
@@ -726,7 +676,7 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
     segments = lay.segments
     bpb, n_bars, bar1_bar, grid, bars = \
         lay.bpb, lay.n_bars, lay.bar1_bar, lay.grid, lay.bars
-    # Captured HERE — before detect_sections and before folding's template
+    # Captured HERE — before folding's template
     # re-decode rewrites bar chords — for the scrolling-prompter view.
     prompter = {"chords": prompter_chords(segments, triad)}
 
@@ -792,60 +742,22 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
     # screen's second segment.
     report(5, phase="sections")
     from harmonia.nnls_features import extract_bothchroma as _ebc
-    # `_arr`/`_times` no longer feed detection itself (songformer only
-    # needs the audio file) — they still feed `fold_letter_groups` below,
-    # which stacks occurrences on the raw NNLS substrate.
+    # `_arr`/`_times` feed `fold_letter_groups` below, which stacks
+    # occurrences on the raw NNLS substrate.
     _arr, _times = _ebc(audio_path)
-    sections = []
-    if SETTINGS.sections == "aucune":
-        # PAS DE DÉCOUPAGE AUTOMATIQUE (Louis, 2026-09-19). Le chart sort avec
-        # une seule section « A », exactement la forme du brut ; les sections
-        # viennent de l'outil d'annotation. Voir `SETTINGS.sections` pour la
-        # mesure qui a fait tomber SongFormer.
-        #
-        # CE QUE ÇA NE COÛTE PAS, et c'est ce qui rend la coupe sûre : une
-        # seule lettre, donc `fold_letter_groups` n'a rien à empiler et le
-        # re-décodage sur postérieures moyennées ne se fait pas ici. Il n'est
-        # pas perdu — `harmonia.refold` le refait depuis les sections de Louis
-        # dès qu'il les écrit (route `/api/sections/…`), et c'était DÉJÀ la
-        # loi : « la vérité terrain doit toujours être le chart brut, les
-        # sections sont des modalités d'affichage par dessus » (2026-08-17).
-        sections, segs = _one_section(bars, grid, n_bars, bar1_bar), []
-        logger.info("pipeline: sections=aucune — une seule section « A », "
-                    "le découpage viendra de l'outil d'annotation")
-    elif bar1_bar:
-        from harmonia.sections import detect_sections
-        # Louis, 2026-08-08 (Sam Smith report): the mark is the SOURCE OF
-        # TRUTH for the start of A — so don't trim boundaries computed on
-        # the old origin, RE-RUN the detection on the post-mark region
-        # only, its 2-bar blocks anchored on the mark. Everything before
-        # the mark is the intro by definition; _force_bar1_sections then
-        # guarantees the marked bar reads as a letter (never "intro").
-        # form_start=0: songformer skips its own intro search on this
-        # slice, since the mark already says where the form starts —
-        # without it, treating this as mid-song re-created a spurious
-        # post-mark intro (2026-08-09: 1-bar A on the D-major chart).
-        sub = list(detect_sections(grid[bar1_bar:], audio_path,
-                                   form_start=0))
-        segs = _force_bar1_sections(
-            [{**sg, "b0": sg["b0"] + bar1_bar, "b1": sg["b1"] + bar1_bar}
-             for sg in sub], bar1_bar)
-        logger.info("pipeline: bar1 mark at bar %d — sections re-detected "
-                    "from the mark (%d sections incl. intro)",
-                    bar1_bar, len(segs))
-    else:
-        from harmonia.sections import detect_sections
-        segs = list(detect_sections(grid, audio_path))
-    for si, sg in enumerate(segs):          # vide quand sections=aucune
-        b0, b1 = sg["b0"], sg["b1"]
-        sections.append({
-            "id": f"S{si}", "label": sg["label"], "tag": "", "reps": 1,
-            "spans": [[grid[b0], grid[b1 + 1]]],
-            "barRanges": [[b0, b1]],
-            "bars": bars[b0:b1 + 1],
-            "barSpans": [[[grid[b], grid[b + 1]]]
-                         for b in range(b0, b1 + 1)],
-        })
+    # PAS DE DÉCOUPAGE AUTOMATIQUE (Louis, 2026-09-19). Le chart sort avec la
+    # forme du brut (`_one_section` : une section « A », précédée de son
+    # intro) ; les sections viennent de l'outil d'annotation. SongFormer, le
+    # dernier détecteur automatique, est supprimé depuis le 2026-09-30
+    # (`git log -- harmonia/sections/songformer.py`).
+    #
+    # CE QUE ÇA NE COÛTE PAS : une seule lettre, donc `fold_letter_groups`
+    # n'a rien à empiler et le re-décodage sur postérieures moyennées ne se
+    # fait pas ici. Il n'est pas perdu — `harmonia.refold` le refait depuis
+    # les sections de Louis dès qu'il les écrit (route `/api/sections/…`) :
+    # « la vérité terrain doit toujours être le chart brut, les sections sont
+    # des modalités d'affichage par dessus » (2026-08-17).
+    sections = _one_section(bars, grid, n_bars, bar1_bar)
     # 7b ── REPLI phase 1 (Louis, 2026-07-31): detect each section's
     # internal loop, stack same-position bars across all occurrences of a
     # letter, average their musx posteriors, decode the template a second

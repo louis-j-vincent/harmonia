@@ -104,6 +104,7 @@ rec_1787242791735 sans audio : perdus). Sauvegarde d'avant :
 encore un cache SongFormer que la pipeline n'utilise plus (16 morceaux
 « froids » à tort) ; la baseline gelée date du 17/09, d'avant la sortie de
 SongFormer — elle diffère de 554 mesures pour cette seule raison.
+**Ancienne façon supprimée (2026-09-30)** : branche SongFormer, `_force_bar1_sections`, `SETTINGS.sections` et `sections/songformer.py` retirés ; `tools.golden` n'exige plus de cache SongFormer ; suppression = 0 mesure changée (60/60 identiques), baseline re-gelée sur la prod (ancienne : `state/cache/golden/baseline_20260917`).
 
 ## Un accord fantôme peut apparaître sur la 2e occurrence d'une lettre repliée (2026-09-24, OUVERT — non confirmé en prod)
 

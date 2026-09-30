@@ -142,7 +142,7 @@ def test_un_trait_dans_la_SECONDE_MOITIE_du_morceau_survit(tmp_path, monkeypatch
     chiffres plausibles et faux.
 
     Le test vaut aussi pour la loi de la route, amendée le 2026-09-19 (SongFormer
-    retiré, voir `SETTINGS.sections`) : ses deux traits doivent ressortir AUX
+    retiré, voir docs/known_issues.md 2026-09-19) : ses deux traits doivent ressortir AUX
     MESURES TRACÉES et SOUS LEUR NOM, les trous être remplis par l'agglomération
     des quatre mots, et le morceau être couvert de bout en bout.
 

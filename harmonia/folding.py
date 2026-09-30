@@ -152,7 +152,7 @@ CV_MAX = 0.51            # Louis's validated metric (2026-08-01): CV =
 #: ENTENDU (2026-09-18, six morceaux analysés puis vérifiés à l'oreille par
 #: Louis — `docs/plots/sections_6morceaux.html`).
 #:
-#: songformer nomme un passage par son RÔLE (couplet/refrain/instrumental),
+#: songformer (supprimé 2026-09-30) nommait un passage par son RÔLE (couplet/refrain/instrumental),
 #: pas par sa musique : sur Fallin', qui est UNE boucle E-…B- du début à la
 #: fin, il rend huit lettres. Rien en aval ne lui répond « harmoniquement,
 #: c'est le même passage » — d'où cette fonction.

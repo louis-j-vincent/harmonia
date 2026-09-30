@@ -10,8 +10,8 @@ sections, Soudure et `/ssm` ; il ne doit jamais en exister une seconde.
 D'OÙ VIENT CE MODULE (refactor sprint 9, 2026-09-14). Le dispatcher à quatre
 détecteurs (`harmonia_min/sections.py`), le détecteur harmonique
 (`harmonic_sections.py`) et le détecteur voix (`voice_sections.py`) sont
-supprimés — songformer est désormais le seul détecteur de sections
-(`harmonia/sections/songformer.py`). Mais trois consommateurs GARDÉS
+supprimés (songformer, qui les a remplacés, l'est aussi depuis le
+2026-09-30). Mais trois consommateurs GARDÉS
 empruntaient leurs briques de CALCUL, jamais leur décision de découpage :
 l'outil sections (finger-swipe + « find repeats »,
 `harmonia/section_tool.py`), Soudure (`harmonia/soudure.py`) et la

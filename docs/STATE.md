@@ -20,14 +20,14 @@ Chaque ligne est un fichier, en une phrase.
 
 | Fichier | Rôle |
 |---|---|
-| `settings.py` | Le SEUL endroit qui lit les variables d'environnement (port, dossier et appareil du modèle musx). Tout le reste (quel détecteur de sections, quelle loi de fusion…) est une CONSTANTE ici, pas un réglage. |
+| `settings.py` | Le SEUL endroit qui lit les variables d'environnement (port, dossier et appareil du modèle musx). Tout le reste (quelle loi de fusion, quel repli…) est une CONSTANTE ici, pas un réglage. |
 | `cache.py` | Une seule façon de nommer un fichier de cache par morceau (beats, accords musx, chroma, sections). |
 | `pipeline.py` | Le chef d'orchestre : audio → temps → accords → mesures → sections → repli → tonalité → chart. |
 | `beats.py` | Les temps de la chanson (modèle Beat This!). |
 | `musx.py` | Les probabilités d'accord, image par image (modèle musx, un ensemble ISMIR 2019). |
 | `nnls_features.py` | Le chroma (quelle note sonne quand) qui nourrit `musx.py`. |
 | `bars.py` | Découpe les temps en mesures. |
-| `sections/` | Où sont les frontières de section (SongFormer, un modèle qui écoute le SON, pas les accords) et la ressemblance mesure-à-mesure que Soudure et l'outil sections réutilisent. |
+| `sections/` | Pas de détecteur automatique (le chart sort en une section « A » + son intro, `pipeline._one_section` ; SongFormer supprimé le 2026-09-30) : la ressemblance mesure-à-mesure chord-tone que Soudure et l'outil sections réutilisent, et la recherche des reprises d'une brique tracée à la main. |
 | `folding.py`, `refold.py` | Le repli : une section jouée plusieurs fois s'écrit UNE fois, en empilant les probabilités des répétitions. |
 | `harmonic_key.py` | La tonalité et les couleurs de la grille. |
 | `span_rescore.py` | Les accords alternatifs proposés dans l'écran Annotate. |
@@ -136,7 +136,7 @@ autre session entre les deux.
 Voir `docs/known_issues.md` (court, à jour) pour la liste complète et les
 détails. En résumé : un test hérité qui documente un changement de
 comportement pas encore mis à jour, la recherche UG bloquée par un anti-bot,
-deux morceaux de la bibliothèque sans cache SongFormer, et la suite de la
+deux morceaux de la bibliothèque sans audio, et la suite de la
 recherche sur la qualité des sections (repoussée après la fin du refactor,
 décision de Louis).
 

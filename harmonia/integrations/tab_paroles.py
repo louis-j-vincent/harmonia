@@ -552,7 +552,7 @@ def accords_replies(chart: dict) -> list[dict]:
     occurrence. Une barre qui porte plusieurs accords voit sa fenêtre
     découpée dans les MÊMES proportions que dans la barre écrite.
 
-    CE QUE ÇA NE RÉSOUT PAS : si `SETTINGS.sections == "aucune"` et que Louis
+    CE QUE ÇA NE RÉSOUT PAS : si Louis
     n'a rien annoté, le chart n'a qu'une section « A » d'une occurrence — il
     n'y a alors rien à uniformiser, et cette fonction rend l'équivalent du
     décodage à plat. L'uniformisation vient de SES sections, pas d'ici.

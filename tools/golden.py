@@ -7,7 +7,7 @@ sprint 15, `state/human/marks/<stem>.json` pour le moteur `harmonia` — voir
 `jobs.bar1_for`), puis, quand un découpage de sections validé à la main
 existe (`sections/<stem>.json` du moteur, `validated: true`), le repli est
 refait sur CE découpage (`refold` + `sections_pour_chart`), les mesures non
-couvertes recevant l'étiquette du détecteur (`_completer`).
+couvertes recevant l'étiquette du chart brut (`_completer`).
 
 Ce n'est PAS une porte qui bloque : c'est un rapport que Louis arbitre
 (2026-09-14 : « a different chart doesn't mean you did bad work, you will have
@@ -15,7 +15,7 @@ to tell me what the differences are and I'll arbitrate »). Zéro mesure changé
 = rien à arbitrer ; sinon `tools.avant_apres` fait la page AVANT/APRÈS.
 
 Ce que ce script ne fait JAMAIS : calculer un cache froid. Battues, posteriors
-musx, chroma NNLS et sections songformer doivent déjà être sur le disque pour
+musx et chroma NNLS doivent déjà être sur le disque pour
 chaque morceau, sinon le morceau est marqué « froid » et sauté. Un chart d'or
 qui dépendrait d'un modèle relancé ne serait pas comparable d'un sprint à
 l'autre (et musx sur MPS n'est pas bit-à-bit reproductible).
@@ -58,7 +58,6 @@ from tools.avant_apres import diff_song
 
 REPO = SETTINGS.repo
 AUDIO = SETTINGS.audio_dir
-DATA_CACHE = SETTINGS.data_cache
 #: Le seul champ qui varie d'un run à l'autre sans que le chart change :
 #: la latence choisie par la recherche de `musx.redecode` est chronométrée.
 #: Champs ignorés par la comparaison. Vide depuis le 2026-09-15 : le seul
@@ -72,10 +71,8 @@ log = logging.getLogger("golden")
 def charger_moteur(nom: str) -> dict:
     """Les choses dont le rapport a besoin d'un moteur, et rien d'autre.
 
-    `marks`/`new_cache` datent du sprint 15 : `harmonia` lit sa marque
-    « Set bar 1 » dans `state/human/marks/` (la source de vérité, voir
-    `jobs.bar1_for`) et vérifie ses caches via `harmonia.cache` (clé neuve +
-    repli historique).
+    `marks` date du sprint 15 : `harmonia` lit sa marque « Set bar 1 » dans
+    `state/human/marks/` (la source de vérité, voir `jobs.bar1_for`).
 
     Sprint 22 (2026-09-16) : il n'y a PLUS qu'un moteur. La branche
     `harmonia_min` est retirée plutôt que gardée morte — le paquet est
@@ -99,48 +96,28 @@ def charger_moteur(nom: str) -> dict:
         return {"analyze": analyze, "refold": refold,
                 "sections_pour_chart": sections_pour_chart,
                 "charts": s.charts_dir, "sections": s.sections_dir,
-                "beats": s.beats_dir, "songformer": s.songformer_dir,
-                "marks": s.marks_dir, "new_cache": True}
+                "marks": s.marks_dir}
     raise SystemExit(f"moteur inconnu : {nom}")
 
 
 def caches_manquants(eng: dict, stem: str, audio: Path) -> list[str]:
+    """Les caches absents pour ce morceau — battues, postérieures musx, NNLS.
+
+    Passe par `harmonia.cache` (clé neuve `<stem>__<taille>`, repli sur la clé
+    historique) pour tester EXACTEMENT ce que le serveur voit. Plus de cache
+    SongFormer exigé depuis que le détecteur est supprimé (2026-09-30, voir le
+    commit qui le retire ; retiré de la prod le 2026-09-19).
+    """
     if not audio.exists():
         return ["audio"]
-    if eng["new_cache"]:
-        # Passe par `harmonia.cache` — clé neuve `<stem>__<taille>`, repli sur
-        # la clé historique — pour tester EXACTEMENT ce que le serveur voit,
-        # pas une supposition de chemin réécrite ici en double.
-        from harmonia import cache as _cache
-        m = []
-        if not _cache.exists("beats", audio):
-            m.append("beats")
-        if not _cache.exists("musx_probs", audio):
-            m.append("musx")
-        if not _cache.exists("nnls", audio):
-            m.append("nnls")
-        sf = _cache.load_json("songformer", audio)
-        ok = bool(sf) and sf.get("taille") == audio.stat().st_size \
-            and "segments" in sf
-        if not ok:
-            m.append("songformer")
-        return m
+    from harmonia import cache as _cache
     m = []
-    if not (eng["beats"] / f"{stem}.json").exists():
+    if not _cache.exists("beats", audio):
         m.append("beats")
-    if not (DATA_CACHE / "musx_probs" / f"{stem}.npz").exists():
+    if not _cache.exists("musx_probs", audio):
         m.append("musx")
-    if not (DATA_CACHE / "nnls_infer" / f"{stem}.npz").exists():
+    if not _cache.exists("nnls", audio):
         m.append("nnls")
-    sf = eng["songformer"] / f"{audio.name}.json"
-    ok = False
-    try:
-        d = json.loads(sf.read_text(encoding="utf-8"))
-        ok = d.get("taille") == audio.stat().st_size and "segments" in d
-    except (OSError, ValueError):
-        ok = False
-    if not ok:
-        m.append("songformer")
     return m
 
 

@@ -176,9 +176,7 @@ def layout_bars(segments, beat_times, downbeats, triad: np.ndarray, *,
         # Snapped to the nearest tracked beat; the PHASE is taken (k mod bpb)
         # so the music before the mark stays as leading bars — nothing is
         # cut — and the marked bar itself becomes a HARD section boundary
-        # further down (_force_bar1_sections), so the first section really
-        # starts on the mark (same-night report on Sam Smith: the phase moved
-        # but A still began elsewhere).
+        # further down (`pipeline._one_section`: « A » starts on the mark).
         _bar1_k = int(np.abs(bt_arr - float(bar1_time)).argmin())
         off = _bar1_k % bpb
         logger.info("bars: bar1 override at %.3fs -> beat %d, phase %d",

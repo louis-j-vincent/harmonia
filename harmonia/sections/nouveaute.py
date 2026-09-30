@@ -9,7 +9,7 @@ D'OÙ ÇA VIENT. Le code est repris de `8d5137b:harmonia_min/sections.py`,
 supprimé le 2026-09-14 avec le reste du dispatcher à quatre détecteurs
 (`_blur` l.69, `_novelty` l.80, `tile_threshold` l.153, `tiling_runs` l.169).
 On le repêche parce que depuis le 2026-09-19 il n'y a plus AUCUN détecteur
-automatique (`SETTINGS.sections = "aucune"` — SongFormer coûtait 2,7 Go de
+automatique (SongFormer, supprimé le 2026-09-30, coûtait 2,7 Go de
 poids et plus de 16 Go de RAM pour nommer des sections) : le chart sort avec
 une seule section « A » et Louis trace ses briques à la main. Ce module ne
 prétend pas remplacer son trait — il propose des coupures POUR LES TROUS,

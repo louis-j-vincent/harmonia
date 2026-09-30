@@ -14,7 +14,7 @@ mesure 1 ne changeait rien à la bande : le treillis ne bougeait pas.
 
 Ce que ce test épingle : la marque de Louis est l'ancre du treillis de
 bi-mesures, comme elle est déjà l'ancre de la phase des barres et des
-frontières de sections (`pipeline._force_bar1_sections`). Les mesures d'avant
+frontières de sections (`pipeline._one_section`). Les mesures d'avant
 la marque forment leur propre tête de bande, la mesure orpheline étant
 absorbée par le PREMIER jeton (l'intro), jamais par la structure qui suit.
 

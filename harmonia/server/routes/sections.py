@@ -429,7 +429,7 @@ def sections_inferer(file):
     9,5 Go de swap, quand beatthis et musx coûtent 5 s et moins de 2 Go sur le
     même fichier. Cette route ne dépend donc plus d'aucun modèle : la matrice
     chord-tone des reprises est du produit scalaire sur des postérieures musx
-    déjà en cache. Voir `SETTINGS.sections` pour les chiffres.
+    déjà en cache. Chiffres : docs/known_issues.md, 2026-09-19.
 
     CE QUE ÇA COÛTE, et il faut le dire : l'algo des quatre mots ne sait
     produire QUE des lettres. « intro » et « outro » ne peuvent plus sortir

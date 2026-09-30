@@ -29,7 +29,7 @@ class Settings:
     #: État split (décision 10, sprint 15) : `state/human/` est suivi par
     #: git (petit JSON écrit à la main ou par un geste de Louis — sections,
     #: annotations, marques, titres) ; `state/cache/` ne l'est pas
-    #: (régénérable — charts, battues, sections songformer, rapports). Un
+    #: (régénérable — charts, battues, rapports). Un
     #: chart perdu par un fichier gitignored (2026-08-12) est l'incident qui
     #: a motivé la séparation ; voir `.gitignore`.
     state_dir: Path = REPO / "state"
@@ -77,33 +77,18 @@ class Settings:
     paroles_source: str = _env("HARMONIA_PAROLES_SOURCE", "musixmatch")
 
     # ── Choix d'algorithme : des constantes, pas des réglages ──────────────
-    #: AUCUNE DÉTECTION AUTOMATIQUE DE SECTIONS (Louis, 2026-09-19 : « on vire
-    #: s'il prend autant de temps »). SongFormer était le seul détecteur depuis
-    #: le 2026-08-18 ; il enchâsse deux modèles de fondation audio (MuQ +
-    #: MusicFM, 2,7 Go de poids) et reçoit le morceau ENTIER d'un coup — sa
-    #: fenêtre vaut 420 s dans sa config, donc sa mémoire grimpe avec le CARRÉ
-    #: de la durée. Mesuré le 2026-09-19 sur la machine de Louis (16 Go) :
-    #:
-    #:     141 s   60 s de calcul,  3,7 Go          passe
-    #:     326 s   JAMAIS FINI (tué à 3 min), swap 0 → 9,5 Go, 3 % de CPU
-    #:
-    #: À comparer, sur le MÊME morceau de 326 s : beatthis 5,1 s / 0,8 Go,
-    #: musx 5,5 s / 1,6 Go. Tout le coût de l'analyse était dans le seul étage
-    #: qui nomme les sections. Voir docs/known_issues.md, 2026-09-19.
-    #:
-    #: "aucune" → `pipeline.analyze_steps` rend UNE section « A » sur tout le
-    #: morceau (la forme du chart brut) et les sections viennent de l'outil
-    #: d'annotation : Louis pose une brique, `sections.simulation` en cherche
-    #: les reprises sur la matrice chord-tone, et `refold` refait l'empilement
-    #: des accords depuis SES sections. "songformer" rebranche le modèle.
-    sections: str = "aucune"          # "aucune" | "songformer"
+    #: PAS DE DÉTECTION AUTOMATIQUE DE SECTIONS : le chart sort avec la forme
+    #: du brut (`pipeline._one_section`) et les sections viennent de l'outil
+    #: d'annotation. SongFormer (retiré 2026-09-19 : mémoire ~ carré de la
+    #: durée, un morceau de 326 s ne finissait jamais) et son interrupteur
+    #: `sections` sont supprimés le 2026-09-30 — voir docs/known_issues.md.
     merge: str = "mean"               # postérieures moyennées (2026-08-19)
     quarter_bar: bool = True          # tout temps peut porter un accord (2026-08-07)
     fold_loop: str = "occurrence"     # l'occurrence entière se replie (2026-08-08)
     fold_gate: str = "letter"         # veto de cohérence par lettre entière
     fold_transpose: bool = False      # pas de transposition avant l'empilement
     #: FUSIONNER LES LETTRES QUI SONT LE MÊME PASSAGE — loi depuis le
-    #: 2026-09-18. songformer nomme par le RÔLE (couplet/refrain/instrumental),
+    #: 2026-09-18. songformer (supprimé) nommait par le RÔLE (couplet/refrain/instrumental),
     #: pas par la musique : sur Fallin', qui est une seule boucle E-…B- du
     #: début à la fin, il rend huit lettres. La comparaison se fait sur les
     #: ACCORDS DÉCODÉS (voir `folding.MERGE_LETTERS_ACCORDS` pour ce qui a été
