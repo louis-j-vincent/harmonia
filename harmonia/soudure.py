@@ -984,7 +984,8 @@ def sections_pour_chart(chart: dict, secs: list[dict],
         # ligne, puis « This Love A ne devrait faire que 4 barres ») — voir
         # `folding.boucle_minimale_ecrite`, partagée avec `minimal_fold`.
         from harmonia.folding import boucle_minimale_ecrite
-        bcl = boucle_minimale_ecrite(bars, vue, grid, occ, (b0, b1), S)
+        bcl = boucle_minimale_ecrite(bars, vue, grid, occ, (b0, b1), S,
+                                     fusion=fusion)
         if bcl:
             out.append({
                 "id": "L" + lab + ("" if vus[lab] == 1 else str(vus[lab])),

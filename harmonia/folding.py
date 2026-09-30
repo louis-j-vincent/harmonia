@@ -1286,7 +1286,46 @@ def _etiquette(bar) -> str:
                     for c in bar or []) or "%"
 
 
-def boucle_minimale_ecrite(bars, vue, grid, occ, rep, S=None) -> dict | None:
+def _familles_par_temps(bar) -> tuple | None:
+    """Ce qu'une mesure joue HARMONIQUEMENT, temps par temps : à chaque temps,
+    (N.C. ?, {(fondamentale, famille)} de ses lectures). Une mesure vide
+    (accord tenu) vaut None, un joker.
+
+    C'est la mesure de différence de la factorisation par boucle (Louis,
+    2026-09-30 : « ne la fais pas quand il y a vraiment un changement
+    important »). La famille (`famille_de` : maj / min / dim / aug) absorbe
+    les COULEURS — 7 contre 9, maj contre maj7, sus contre dominante (sus =
+    famille majeure) ; `lectures` absorbe Bb/C ≡ C7sus4 et ignore la basse
+    d'un renversement. Ce qui reste est un vrai changement : une autre
+    fondamentale, une autre famille, ou un accord de plus sur un temps."""
+    if not bar:
+        return None
+    fin = max(4, max(int(c.get("beat") or 0) for c in bar) + 1)
+    out = []
+    for k in range(fin):
+        cur = bar[0]
+        for c in bar:
+            if (c.get("beat") or 0) <= k:
+                cur = c
+        out.append((bool(cur.get("nc")), frozenset(
+            (r, famille_de(q)) for r, q in lectures(cur)) if not cur.get("nc") else frozenset()))
+    return tuple(out)
+
+
+def meme_harmonie(a, b) -> bool:
+    """Deux mesures jouent la même harmonie (couleurs mises à part) —
+    voir `_familles_par_temps`."""
+    fa, fb = _familles_par_temps(a), _familles_par_temps(b)
+    if fa is None or fb is None:
+        return True
+    n = max(len(fa), len(fb))
+    fa = fa + (fa[-1],) * (n - len(fa))
+    fb = fb + (fb[-1],) * (n - len(fb))
+    return all(x[0] == y[0] and (x[0] or bool(x[1] & y[1])) for x, y in zip(fa, fb))
+
+
+def boucle_minimale_ecrite(bars, vue, grid, occ, rep, S=None,
+                           fusion: int | None = None) -> dict | None:
     """Le bloc écrit d'une lettre dont TOUS les passages ne sont qu'une
     boucle plus courte jouée ≥ 2 fois — ou None (on écrit alors comme avant).
 
@@ -1321,8 +1360,22 @@ def boucle_minimale_ecrite(bars, vue, grid, occ, rep, S=None) -> dict | None:
     exposant — les crochets indexent des passages, pas des tours ; l'heure
     de chaque ACCORD dans les tours suivants n'est pas recalculée (la case
     allumée, elle, suit la carte `barSpans`).
+
+    LE CURSEUR « Section merging » (`fusion`, Louis, 2026-09-30 : « mets-moi
+    le curseur qui permet de choisir à quel point tu factorises fort ou pas
+    par la plus petite boucle ») — le même que celui des fins, une seule
+    question : à quel point deux passages peuvent différer et s'écrire une
+    fois. 0 : jamais de boucle. 1 (défaut) : boucle seulement si tous les
+    tours jouent la même harmonie (`meme_harmonie` : couleurs permises) —
+    sinon le passage s'écrit en entier (This Love : les deuxièmes moitiés
+    sont vraiment autres). 2 / 3 : un tour qui diffère est toléré si ses
+    notes ressemblent à ≥ 0,90 / 0,70 à la case écrite (`_FUSION_SEUIL`), et
+    montré en `var`. 4 : toujours, les différences en `var`.
     """
     import numpy as np
+    niveau = FUSION_DEFAUT if fusion is None else fusion
+    if niveau <= 0:
+        return None
     efficaces = []
     for a, b in occ:
         fin = b
@@ -1333,9 +1386,8 @@ def boucle_minimale_ecrite(bars, vue, grid, occ, rep, S=None) -> dict | None:
     if Lmin < 2 * BOUCLE_MIN:
         return None
     ra = rep[0]
-    reels = [_barsig_famille(vue[x]) for x in range(ra, rep[1] + 1)
-             if not _muette(vue[x])]
-    if not reels or all(_compat(reels[0], s) for s in reels[1:]):
+    reels = [vue[x] for x in range(ra, rep[1] + 1) if not _muette(vue[x])]
+    if not reels or all(meme_harmonie(reels[0], x) for x in reels[1:]):
         return None                                   # un accord tenu
 
     def colle_de(a, L):
@@ -1343,8 +1395,7 @@ def boucle_minimale_ecrite(bars, vue, grid, occ, rep, S=None) -> dict | None:
             vals = [S[a + i, a + j] for i in range(L) for j in range(i + 1, L)]
             tau = (1.0 + float(np.median(vals))) / 2.0 if vals else 1.0
             return lambda i, j: S[a + i, a + j] >= tau
-        sig = [_barsig_famille(vue[a + i]) for i in range(L)]
-        return lambda i, j: _compat(sig[i], sig[j])
+        return lambda i, j: meme_harmonie(vue[a + i], vue[a + j])
 
     colles = [(L, colle_de(a, L)) for a, L in efficaces]
     cellule = None
@@ -1381,24 +1432,29 @@ def boucle_minimale_ecrite(bars, vue, grid, occ, rep, S=None) -> dict | None:
         # représentative disait Db-7 là où 6 tours sur 9 jouent A7)
         groupes: list[tuple] = []
         for x in lectures_[r]:
-            s_ = _barsig_famille(bars[x])
-            g = next((g for g in groupes if _compat(g[0], s_)), None)
+            g = next((g for g in groupes if meme_harmonie(g[0], bars[x])), None)
             if g is None:
-                groupes.append((s_, [x]))
+                groupes.append((bars[x], [x]))
             else:
                 g[1].append(x)
         if not groupes:
             continue
         n_lus += len(lectures_[r])
-        s_ecrit = _barsig_famille(ecrit[r]) if ecrit[r] else None
         maj = max(groupes, key=lambda g: (len(g[1]), -g[1][0]))
-        if s_ecrit is None or not any(_compat(g[0], s_ecrit) and len(g[1]) == len(maj[1])
-                                      for g in groupes):
+        if not ecrit[r] or not any(meme_harmonie(g[0], ecrit[r]) and len(g[1]) == len(maj[1])
+                                   for g in groupes):
             ecrit[r] = [dict(c) for c in vue[maj[1][0]]]
-            s_ecrit = _barsig_famille(ecrit[r])
-        autres = [g for g in groupes if not _compat(g[0], s_ecrit)]
+        autres = [g for g in groupes if not meme_harmonie(g[0], ecrit[r])]
         if not autres:
             continue
+        # LE CURSEUR : au défaut, un tour qui change VRAIMENT d'harmonie
+        # interdit la boucle — le passage s'écrit en entier, jamais caché en
+        # petite suggestion ; aux crans 2/3, seulement s'il ressemble assez
+        seuil = _FUSION_SEUIL.get(niveau)
+        if niveau <= FUSION_DEFAUT or (
+                seuil is not None and any(_ressemblance_queues([ecrit[r]], [bars[g[1][0]]]) < seuil
+                                          for g in autres)):
+            return None
         n_contre += sum(len(g[1]) for g in autres)
         _k, xs = max(autres, key=lambda g: (len(g[1]), -g[1][0]))
         minor = bars[xs[0]]
@@ -2020,11 +2076,10 @@ def _merge_boucle(host: dict, blk: dict, grid) -> bool:
     if not bcl or not blk.get("bars"):
         return False
     W = len(host["bars"])
-    cellule = [_barsig_famille(b) for b in host["bars"]]
     for i, bar in enumerate(blk["bars"]):
         if _muette(bar):
             continue
-        if not _compat(_barsig_famille(bar), cellule[i % W]):
+        if not meme_harmonie(bar, host["bars"][i % W]):
             return False
     for c0, c1 in blk["barRanges"]:
         for x in range(c0, c1 + 1):

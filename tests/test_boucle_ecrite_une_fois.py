@@ -72,29 +72,52 @@ def test_julia_D_boucle_de_2_ecrite_sur_une_rangee():
     assert b["conflations"] == []
 
 
-def test_this_love_A_huit_mesures_est_une_boucle_de_4_avec_sa_cadence_en_var():
-    """Louis, 2026-09-30 : « This Love […] la section A ne devrait faire que
-    4 barres et non 8 ». Boucle de 4 jouée deux fois, le dernier tour finit
-    autrement : 4 mesures écrites, la cadence du 2e tour posée en `var` et
-    listée — jamais jetée en silence."""
-    n = 24
-    motif = [(0, "-7"), (5, "-7"), (10, ""), (3, "")] + [(0, "-7"), (5, "-7"), (10, ""), (7, "7")]
+def _this_love(n=24, fin=(7, "7")):
+    motif = [(0, "-7"), (5, "-7"), (10, ""), (3, "")] + [(0, "-7"), (5, "-7"), (10, ""), fin]
     contenu = {8 + i: [_c(r, q)] for i, (r, q) in enumerate(motif)}
     contenu.update({b: [_c(2, "")] for b in range(8)})
     contenu.update({b: [_c(4, "-7")] if b % 3 else [_c(9, "")] for b in range(16, 24)})
     secs = [{"label": "intro", "mesure_debut": 1, "mesure_fin": 8},
             {"label": "A", "mesure_debut": 9, "mesure_fin": 16},
             {"label": "B", "mesure_debut": 17, "mesure_fin": 24}]
-    out = sections_pour_chart({"barGrid": GRILLE[:n + 1], "nBars": n, "bpb": 4},
-                              secs, bars=_bars(n, contenu), fold_report={})
+    return secs, _bars(n, contenu), {"barGrid": GRILLE[:n + 1], "nBars": n, "bpb": 4}
+
+
+def test_un_vrai_changement_d_harmonie_garde_la_section_entiere():
+    """Louis, 2026-09-30, sur This Love : « tu m'as viré des deuxièmes
+    parties de sections qui étaient vraiment différentes en les mettant comme
+    accords suggérés ». Au défaut, Eb au 1er tour contre G7 au 2e = une autre
+    fondamentale : la section s'écrit en entier, sans boucle."""
+    secs, bars, chart = _this_love()
+    out = sections_pour_chart(chart, secs, bars=bars, fold_report={})
+    a = _sec(out, "A")
+    assert len(a["bars"]) == 8 and "boucle" not in a
+    # un accord tenu huit mesures n'est pas une boucle
+    assert len(_sec(out, "intro")["bars"]) == 8
+
+
+def test_une_simple_couleur_se_factorise_au_defaut():
+    """Eb contre Eb7 : même fondamentale, même famille — une couleur. La
+    boucle s'écrit (4 mesures ×2)."""
+    secs, bars, chart = _this_love(fin=(3, "7"))
+    a = _sec(sections_pour_chart(chart, secs, bars=bars, fold_report={}), "A")
+    assert len(a["bars"]) == 4 and a["boucle"]["tours_pleins"] == 2
+
+
+def test_le_curseur_au_maximum_factorise_et_montre_la_difference_en_var():
+    secs, bars, chart = _this_love()
+    out = sections_pour_chart(chart, secs, bars=bars, fold_report={}, fusion=4)
     a = _sec(out, "A")
     assert [c["root"] for bar in a["bars"] for c in bar] == [0, 5, 10, 3]
-    assert a["boucle"]["cellule"] == 4 and a["boucle"]["tours_pleins"] == 2
     assert a["bars"][3][0]["var"]["root"] == 7
     assert [(x["rang"], x["mesures"]) for x in a["boucle"]["conflations"]] == [(3, [15])]
     assert [len(r) for r in a["barSpans"]] == [2, 2, 2, 2]
-    # un accord tenu huit mesures n'est pas une boucle
-    assert len(_sec(out, "intro")["bars"]) == 8
+
+
+def test_le_curseur_a_zero_n_ecrit_jamais_de_boucle():
+    secs, bars, chart = _this_love(fin=(3, "7"))
+    a = _sec(sections_pour_chart(chart, secs, bars=bars, fold_report={}, fusion=0), "A")
+    assert len(a["bars"]) == 8 and "boucle" not in a
 
 
 def test_une_section_courte_n_est_pas_touchee():
