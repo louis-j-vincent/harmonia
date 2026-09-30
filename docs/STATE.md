@@ -175,6 +175,22 @@ régressé sans trace ; toute décision de LOOK s'écrit ici AVANT d'être codé
     une rangée de fins nue garde ses seuls traits verticaux ;
   - la place au-dessus des accords reste libre pour les petites suggestions
     d'accords à la iReal (rien de neuf n'y est dessiné).
+  - **la typographie des accords de la capture (Louis, 2026-09-30 : « même
+    dans la police d'écriture des accords et les symboles des extensions »).**
+    Recopiée de la page de juillet (CSS `.chord .root/.qual/sup/.acc` et
+    `typesetQuality()`), dans `glyphEpure()` (`ui/kit.js`) :
+    Georgia italique **graisse normale** (400, pas 600) ; fondamentale 27px,
+    qualité 17px, exposant = 0,62 × la qualité ; ♭/♯ de la fondamentale à
+    0,6em, remontés de 0,12em, collés de −0,1em ; deux accords dans la mesure
+    → 19/12px. Symboles : `m` petit en ligne puis l'exposant (Gm⁷), △ pour
+    maj7 (F△⁷), ø et ° en ligne, `6`, `7`, `9`, `13`, `alt` en exposant
+    (D⁷ᵃˡᵗ), `sus4` en ligne, basse slash `/A` à la taille de la qualité.
+    Écart assumé à la page de juillet : `7sus4` s'écrit ⁷sus4 (exposant
+    d'abord), pas sus4⁷. Sur ordinateur les tailles montent de ×1,18 (même
+    rapport). Ne vaut que pour **Clean + notation Normal** ; l'écriture
+    Compact garde `glyphTight`, et « Cells » garde l'ancienne police (600,
+    exposants à 0,44). Les couleurs de certitude, N.C., la pédale et les
+    petites suggestions au-dessus de l'accord ne changent pas.
 - **Cellules (`treillis`).** Le treillis d'avant, inchangé (§1–§8 du
   2026-09-17, commit 817d5ab) : cellules bordées, barre noire continue à
   gauche, badge dans le gap.
