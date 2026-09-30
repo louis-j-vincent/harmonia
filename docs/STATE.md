@@ -140,6 +140,45 @@ deux morceaux de la bibliothèque sans audio, et la suite de la
 recherche sur la qualité des sections (repoussée après la fin du refactor,
 décision de Louis).
 
+## Le dessin de la grille (journal des décisions d'affichage)
+
+L'écran chart (`harmonia/static/screens/chart.js`, `buildIReal()`) a déjà
+régressé sans trace ; toute décision de LOOK s'écrit ici AVANT d'être codée.
+
+**Deux styles de grille, au choix dans la feuille « Aa » → « Grid »**
+(préférence `PREF.grille`, `localStorage["harmGrille"]`, comme le thème) :
+
+- **Épurée (`epure`, par défaut depuis le 2026-09-30).** Demandée par Louis
+  sur capture (« pas de cellules visibles qui séparent chaque barre, juste
+  des lignes verticales sans lignes horizontales »). La capture est l'ancienne
+  page statique de juillet (`docs/plots/inferred_bye_bye_blackbird.html`,
+  classe `.measure`). Ce qu'on reprend :
+  - aucun trait horizontal, aucun cadre arrondi : seules des barres de mesure
+    verticales fines (`T.rule`, 1px), continues d'une rangée à l'autre, y
+    compris à travers l'écart entre deux sections (l'écart est un
+    `padding-top` de la rangée, pas une marge, sinon le trait se coupe) ;
+  - un trait à droite de la 4e colonne, et la double barre fine (║, 4px
+    `double`) à gauche de la première rangée de chaque section — elle
+    remplace la barre noire continue du treillis ;
+  - l'étiquette de section (A, B…) posée DANS le haut de sa rangée, en haut à
+    gauche, pas dans un gap au-dessus ;
+  - des rangées un peu plus hautes (+8px) : sans trait horizontal, c'est l'air
+    qui sépare les rangées ;
+  - un accord seul sur le temps 1 est centré dans sa mesure (comme la
+    capture) ; dès deux accords, la grille des temps reste la règle ;
+  - la fin du morceau porte une barre finale d'encre (fine + épaisse), pas
+    rouge — le rouge est réservé à la tête de lecture ;
+  - la mesure jouée : une pastille teintée arrondie derrière les accords, qui
+    « pop » à chaque changement de mesure, et la barre de mesure de droite qui
+    s'allume en rouge (3px) — c'est la barre qui avance ;
+  - les crochets de fins (1./2., « A alt ») restent des dessins par-dessus ;
+    une rangée de fins nue garde ses seuls traits verticaux ;
+  - la place au-dessus des accords reste libre pour les petites suggestions
+    d'accords à la iReal (rien de neuf n'y est dessiné).
+- **Cellules (`treillis`).** Le treillis d'avant, inchangé (§1–§8 du
+  2026-09-17, commit 817d5ab) : cellules bordées, barre noire continue à
+  gauche, badge dans le gap.
+
 ## Où est l'historique
 
 - `docs/refactor_2026-09/plan.md` — les décisions verrouillées du refactor.
