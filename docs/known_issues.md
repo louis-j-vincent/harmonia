@@ -5,6 +5,56 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Le chart commençait par « N.C. » ou « % » (2026-09-30, RÉSOLU en partie — e2d26cb)
+
+Louis : « on commence toujours une mesure trop tôt j'ai l'impression, à
+chaque fois le chart commence par un % ou un N.C. ». Mesuré (46 charts
+chauds, rendu Read émulé) : **13/46 imprimaient « N.C. » ou « % » en
+premier ; 6/46 après.** Page : `/plots/premiere_mesure.html`.
+
+**Cause (7 des 13).** La grille part de la 1re battue du traqueur ; la
+musique ou la marque « mesure 1 » arrive 1 à 7 mesures plus tard. Ces
+mesures muettes allaient dans une « intro » (`_force_bar1_sections`) que
+chart.js cache en Read — jusqu'à bbb0ab0 (2026-09-19, SongFormer retiré) :
+le chart est devenu UNE section « A » qui les contenait. `pipeline._one_section`
+rétablit l'intro (tête sans accord → intro cachée ; avant la marque avec
+accords → intro imprimée ; la marque ouvre A). Rien ne sort de la grille.
+Effet visible en plus : les rangées de 4 retombent sur les phrases (Billie
+Jean : les Bm reviennent en début de ligne).
+
+**1787a03 annulé.** Il retirait le N de tête de `prompter.chords` : aucun
+effet sur le chart auto, mais sur les morceaux découpés à la main
+(`accords_par_mesure` lit cette liste) le N.C. vrai d'une intro devenait une
+mesure vide, donc un « % ». Son histoire de « dédoublonnage désynchronisé »
+ne correspondait à aucun chart affiché.
+
+**Ce qui reste (6), aucun n'est la grille :**
+- marque de Louis suivie de mesures où musx n'entend aucun accord — Hot N
+  Cold (4), Uw5OLnN7UvM (3), Sam Smith (1) : la marque reste souveraine,
+  ces mesures vides s'impriment « % » (chart.js imprime « % » pour une mesure
+  vide même après un N.C. ou en tout début — contraire à la docstring de
+  `bars.py` « a bar left empty renders blank » ; arbitrage cosmétique à
+  demander à Louis : vide, ou « N.C. » ?) ;
+- Grenade : ses sections à la main ouvrent A à la mesure 0, une mesure AVANT
+  sa marque (4,86 s) — tout le découpage est peut-être décalé d'une mesure ;
+- Be My Baby : intro batterie, « N.C. N.C. » est la vraie notation ;
+- Stand By Me : A commence où musx n'entend pas encore la basse (connu).
+
+**Fragilité vue au passage** : la métadonnée du chart auto (`var`, `sug`…)
+est recollée par `accords_par_mesure` dans le repli des sections à la main ;
+changer les sections AUTO a changé 6 mesures de Stand By Me (A pos. 3 :
+N.C. → A F♯m — plus juste, mais par un canal qui ne devrait pas exister).
+
+**Incident** : la session de 1787a03 avait effacé `state/cache/charts/min_*.json`
+(bibliothèque vide). Recuite le 2026-09-30 avec le code corrigé (60 charts ;
+191P7nIeECo, PWgvGjAhvIw, h_D3VFfhvs4 recopiés de sauvegardes faute
+d'audio/grille ; 8oCqn3mN2C8 refusé par le traqueur (2 temps/mesure) et
+rec_1787242791735 sans audio : perdus). Sauvegarde d'avant :
+`state/cache/charts.bak_20260930_premiere_mesure/`. `tools.golden` exige
+encore un cache SongFormer que la pipeline n'utilise plus (16 morceaux
+« froids » à tort) ; la baseline gelée date du 17/09, d'avant la sortie de
+SongFormer — elle diffère de 554 mesures pour cette seule raison.
+
 ## Un accord fantôme peut apparaître sur la 2e occurrence d'une lettre repliée (2026-09-24, OUVERT — non confirmé en prod)
 
 San Francisco Street, pont (lettre F) : les DEUX occurrences (mes.74-81 et
