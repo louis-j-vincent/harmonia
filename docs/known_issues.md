@@ -5,7 +5,22 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
-## Sections écrites par leur boucle minimale + reprises ||: :|| ×N (2026-09-30, FAIT, à arbitrer)
+## Boucle minimale : au défaut seulement si l'harmonie est la même, et le curseur (2026-10-01, FAIT)
+
+Louis : « ne la fais pas quand il y a vraiment un changement important ».
+`folding.meme_harmonie` (temps par temps, fondamentale + famille ; couleurs,
+Bb/C ≡ C7sus4 et renversements ignorés). Curseur « Section merging » (Aa,
+par morceau) : 0 rien, 1 défaut (boucle si tous les tours ont la même
+harmonie, sinon section écrite en entier), 2/3 différences proches en petite
+lecture, 4 toujours. Au défaut : This Love intro/A/B/bridge redeviennent 8
+écrites ; en boucle restent Let It Be A, The Walk intro/A, She Will Be Loved
+A, Lazy Song D, Every Breath C, X-yIEMduRXk B, San Francisco Street
+intro/A′, Be My Baby A, Julia C. Captures (crans 0/1/4) :
+`docs/plots/boucle_curseur_2026-10-01/`. **Reste ouvert** : une différence
+cantonnée à la fin d'une boucle n'est pas écrite en crochet 1./2. de tour —
+la section s'écrit en entier (les crochets indexent des passages).
+
+## Sections écrites par leur boucle minimale + reprises ||: :|| ×N (2026-09-30, remplacé au défaut par l'entrée du dessus)
 
 Louis : « This Love […] la section A ne devrait faire que 4 barres ».
 `folding.boucle_minimale_ecrite` (pipeline + sections à la main), reprises
