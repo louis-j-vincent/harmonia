@@ -103,6 +103,25 @@ export function openPrefsSheet(){
     // share — moved here from the old app-bar icon (§2). No `grow`: in this
     // flex COLUMN it re-bases the height to 0 and the button collapses.
     if(S.model && S.model.file){
+      /* VOIR COMME UN TAB (Louis, 2026-09-30). Elle vivait dans le menu
+         « Outils » d'Annotate — dont le sous-titre est « on répare la grille,
+         pas la musique ». Or c'est une FAÇON DE REGARDER le morceau, pas une
+         réparation : elle rejoint donc les autres (Light/Dark, Clean/Cells,
+         Read/Analyse/…) dans ce hub, où Louis l'a cherchée.
+
+         ON PRÉVIENT AVANT D'OUVRIR. La page aligne le chant sur les paroles ;
+         la toute première fois pour un morceau, ce calcul prend 10 à 13 s
+         (mesuré), ensuite c'est ~1,2 s car l'alignement est mis en cache. Sans
+         ce mot, l'onglet reste blanc et la fonction a l'air cassée — c'est
+         exactement ce qui s'est passé. `window.open` est appelé DANS le geste
+         de l'utilisateur, sinon iOS bloque l'ouverture. */
+      const tabRow=kitButton("Voir comme un tab", ()=>{
+        const f=S.model&&S.model.file; if(!f) return;
+        window.open("/tab-paroles/"+encodeURIComponent(f), "_blank");
+        closeOverlay(back);
+        toast("la première fois, l'alignement du chant prend ~15 s");
+      });
+      body.appendChild(tabRow);
       const shareRow=kitButton("Share this chart", ()=>{ closeOverlay(back); openShareSheet(); });
       shareRow.style.width="100%";
       body.appendChild(shareRow);

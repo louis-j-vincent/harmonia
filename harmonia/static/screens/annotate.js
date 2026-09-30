@@ -114,13 +114,6 @@ export function openAnnotateTools(){
           go("chart",{file:r.file});
         }).catch(()=>toast("tab injoignable"));
       });
-    /* VOIR LE MORCEAU COMME UN TAB (Louis, 2026-09-24). Les accords qu'on a
-       écrits, posés sur les paroles, à la syllabe : c'est la page
-       /tab-paroles/<file>, bâtie sur notre grille de mesures et sur
-       l'alignement forcé du chant. Elle s'ouvre dans un onglet parce qu'on la
-       lit en jouant, à côté du chart, pas à sa place. */
-    line("Voir comme un tab","nos accords posés sur les paroles, à la syllabe",
-      ()=>{ window.open("/tab-paroles/"+encodeURIComponent(m.file), "_blank"); });
     line("Supprimer ce morceau","il quitte la bibliothèque — ton travail est gardé",
       ()=>{
         const r=(S.library||[]).find(x=>x.file===m.file)

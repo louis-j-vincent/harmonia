@@ -135,7 +135,8 @@ def irealb_import():
         try:
             from harmonia.server.jobs import META_PATH, _load_chart_meta
             meta = _load_chart_meta()
-            meta[stem] = {"artist": artist[:120], "title": model["title"][:200]}
+            meta[stem] = {**(meta.get(stem) or {}),       # garde `fusion`
+                          "artist": artist[:120], "title": model["title"][:200]}
             META_PATH.parent.mkdir(parents=True, exist_ok=True)
             META_PATH.write_text(json.dumps(meta, ensure_ascii=False, indent=1))
         except OSError as exc:                            # noqa: BLE001
@@ -363,7 +364,12 @@ def tab_paroles(file):
     # LE DÉCOUPAGE VIENT DE NOTRE GRILLE (2026-09-24), plus des lignes du tab :
     # une ligne = deux mesures, et l'accord de la barre ouvre la ligne. Voir
     # `tab_paroles.feuille_barres` pour le cas qui l'a imposé.
-    feuille, par_barres = [], False
+    # `par_mots` DOIT être défini ici, pas seulement sur son chemin. Il ne
+    # l'était pas, et `par_barres or par_mots` (plus bas) ne plantait donc que
+    # lorsque `par_barres` était FAUX — le court-circuit du `or` masquait le
+    # NameError sur les morceaux qui marchent. Résultat : la page rendait 500
+    # exactement sur les morceaux dont `feuille_barres` ne tire rien.
+    feuille, par_barres, par_mots = [], False, False
     if align:
         # la structure humaine du tab — strophes et noms de sections — voyage
         # avec le texte, sinon la feuille est une suite de lignes indistinctes
@@ -373,7 +379,7 @@ def tab_paroles(file):
         source, par_barres = "mesures", bool(feuille)
     if align and not feuille:
         feuille = TP.feuille_calee(chart, brut, align)
-        source = "nos instants"
+        source, par_mots = "nos instants", bool(feuille)
     if not feuille:
         # Repli ASSUMÉ et DIT : sans voix isolée il n'y a pas d'alignement, et
         # les colonnes du tabbeur restent la seule information de placement.
