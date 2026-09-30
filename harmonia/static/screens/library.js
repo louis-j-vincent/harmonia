@@ -7,6 +7,7 @@
 import { api } from "../api.js";
 import { FOLDERS_KEY, folderCount, fusionnerDossiersServeur, loadFolders,
          ranger, saveFolders } from "../folders.js";
+import { chercherPartout } from "../recherche.js";
 import { go, screenWrap } from "../router.js";
 import { HTTPS_HOST, micDispo } from "../screens/analyse.js";
 import { openChart } from "../screens/chart.js";
@@ -206,9 +207,7 @@ export function paintChartList(){
     const body=S._chartBody; if(!body) return;
     clear(body);
     const F=S.folders, open=S.openFolder||null;
-    const q=(S.chartFilter||"").trim().toLowerCase();
-    const match=c=>{ if(!q) return true;
-      const n=chartName(c); return (n.artist+" "+n.title).toLowerCase().indexOf(q)>=0; };
+    const q=(S.chartFilter||"").trim();
 
     function sectionHead(label, action, onAction){
       const h=el("div","display:flex;align-items:center;justify-content:space-between;margin:2px 4px 9px;");
@@ -223,6 +222,21 @@ export function paintChartList(){
       return h;
     }
 
+    // Recherche GLOBALE (2026-10-01, docs/STATE.md « La bibliothèque ») : dès
+    // qu'il y a du texte, on cherche dans tous les dossiers, où qu'on soit ;
+    // chaque résultat dit en petit gris où il vit. Vider le champ ramène au
+    // dossier ouvert — `S.openFolder` n'est jamais touché ici.
+    if(q){
+      const res=chercherPartout(S.library, F.of, q, chartName);
+      const n=res.length;
+      body.appendChild(sectionHead(n ? (n+" chart"+(n>1?"s":"")+" · tous les dossiers")
+                                     : "Tous les dossiers"));
+      if(n) body.appendChild(chartRows(res.map(r=>r.chart), res.map(r=>r.dossier)));
+      else body.appendChild(el("div",
+        `font:italic 13px/1.6 ${SERIF};color:${T.faint};padding:0 4px 4px;`,
+        "rien ne correspond à « "+q+" »"));
+      return;
+    }
     if(!open){
       body.appendChild(sectionHead("Dossiers","Nouveau",()=>promptNewFolder()));
       const list=el("div","display:flex;flex-direction:column;gap:8px;");
@@ -246,9 +260,9 @@ export function paintChartList(){
         "aucun dossier — « Nouveau » pour ranger tes charts"));
       body.appendChild(list);
       body.appendChild(sectionHead("Hors dossier"));
-      body.appendChild(chartRows(S.library.filter(c=>!F.of[c.file] && match(c))));
+      body.appendChild(chartRows(S.library.filter(c=>!F.of[c.file])));
     } else {
-      body.appendChild(chartRows(S.library.filter(c=>F.of[c.file]===open && match(c))));
+      body.appendChild(chartRows(S.library.filter(c=>F.of[c.file]===open)));
     }
   }
 
@@ -265,9 +279,9 @@ export function folderMark(accent){
       `background:${col};border-radius:2px 2px 0 0;`));
     return d;
   }
-export function chartRows(items){
+export function chartRows(items, dossiers){
     const list=el("div","display:flex;flex-direction:column;gap:8px;");
-    items.forEach(c=>{
+    items.forEach((c,i)=>{
       const row=el("div",
         `min-height:64px;border-radius:14px;background:${T.card};border:1px solid ${T.line};`+
         `display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;`);
@@ -275,6 +289,11 @@ export function chartRows(items){
       tx.appendChild(nameEl(c,16));
       tx.appendChild(el("div",`font:500 12.5px ${UI};color:${T.faint};margin-top:3px;`,
         note(c.key.tonic)+" "+c.key.mode+" · "+c.bars+" bars"+(c.hasAudio?"":" · no audio")));
+      // en recherche globale : le dossier où vit le chart, discret
+      if(dossiers && dossiers[i]) tx.appendChild(el("div",
+        `font:italic 12px ${SERIF};color:${T.faint};margin-top:2px;`+
+        `white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`,
+        "▸ "+dossiers[i]));
       row.appendChild(tx);
       if(S.libraryEdit){
         row.appendChild(kitButton("Ranger", e=>{ e.stopPropagation(); openMoveSheet(c); }, {small:true}));
