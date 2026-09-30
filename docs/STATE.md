@@ -246,6 +246,25 @@ même harmonie, couleurs permises ; une fin seulement si l'accord change) ;
 lecture) ; 4 « un bloc » (toujours la boucle, différences en petite
 lecture). Bornes affichées : « write it out » ↔ « one block ».
 
+## La bibliothèque « Mes charts » (journal des décisions d'affichage)
+
+**La recherche est globale (2026-10-01, Louis : « quand je cherche un chart,
+il faut déjà que je sois dans le bon dossier, c'est relou »).** Dès que le
+champ « Filtrer mes charts » contient du texte, la liste cherche dans TOUS
+les charts — tous les dossiers et les hors-dossier — quel que soit le
+dossier ouvert. Correspondance sur artiste + titre, sans accents ni
+majuscules (« beyonce » trouve « Beyoncé »), chaque mot tapé doit se
+trouver quelque part. Liste plate, classée par qualité : titre qui commence
+par la requête, puis un mot du titre qui commence par elle, puis l'artiste,
+puis n'importe où ; à égalité, ordre alphabétique. Chaque résultat porte en
+petit gris, sous la tonalité, le dossier où il vit (« Old charts », ou
+« Hors dossier » ; un nom contenant « / » s'affiche « A › B »). Les dossiers
+eux-mêmes sont masqués pendant la recherche. Vider le champ ramène au
+dossier où on était (le dossier ouvert ne change pas). L'alternative non
+retenue : résultats groupés par dossier. Code : `harmonia/static/recherche.js`
+(pur, testé par `tests/test_recherche_globale.py`), appelé depuis
+`paintChartList()` dans `screens/library.js`.
+
 ## Où est l'historique
 
 - `docs/refactor_2026-09/plan.md` — les décisions verrouillées du refactor.
