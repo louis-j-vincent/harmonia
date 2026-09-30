@@ -251,6 +251,66 @@ export function glyph(root,q,size,depth,color,bass,inlineBass){
     }
     return w;
   }
+  // LA TYPOGRAPHIE ÉPURÉE (Louis, 2026-09-30, sur la capture de la page de
+  // juillet — docs/STATE.md « Le dessin de la grille »). Portage de
+  // `typesetQuality()` / `chordHTML()` et du CSS `.chord .root{27px}`
+  // `.qual{17px}` `sup{.62em}` `.acc{.6em;margin-left:-.1em;vertical-align:.12em}`
+  // de docs/plots/inferred_bye_bye_blackbird.html. Tout est EN LIGNE dans un
+  // inline-block : c'est ce qui laisse le <sup> monter (dans un flex il
+  // perdrait son vertical-align).
+export function epureAlter(s){
+    if(!s) return "";
+    return s.replace("69","6/9").replace(/([b#])(\d+)/g,(m,a,d)=>(a==="b"?"♭":"♯")+d).replace(/\^/g,"△");
+  }
+export function epureQuality(q){
+    // → [en ligne, exposant, suffixe en ligne après l'exposant]
+    if(!q) return ["","",""];
+    let base="",rest=q;
+    if(rest.startsWith("-^")){base="m";rest="△"+rest.slice(2);}
+    else if(rest.startsWith("-7b5")){base="ø";rest=rest.slice(4);}
+    else if(rest.startsWith("-")){base="m";rest=rest.slice(1);}
+    else if(rest.startsWith("h")){base="ø";rest=rest.slice(1);}
+    else if(rest.startsWith("o")){base="°";rest=rest.slice(1);}
+    else if(rest.startsWith("^")){base="";rest="△"+rest.slice(1);}
+    else if(rest.startsWith("+")){base="+";rest=rest.slice(1);}
+    else if(rest.startsWith("sus")){base="sus"+(rest.slice(3)||"4");rest="";}
+    else if(rest.startsWith("5")){base="5";rest=rest.slice(1);}
+    if(rest.includes("sus")){
+      // écart assumé à juillet (qui écrivait sus4⁷) : tout monte en
+      // exposant, ⁷ˢᵘˢ⁴ / ⁹ˢᵘˢ comme iReal — en ligne, `D9sus4` à deux accords
+      // par mesure débordait sur la mesure voisine (Virtual Insanity, 390px).
+      const i=rest.indexOf("sus"), pre=epureAlter(rest.slice(0,i));
+      if(pre) return [base, pre+rest.slice(i), ""];
+      return [base, "", "sus"+(rest.slice(i+3)||"4")];
+    }
+    return [base, epureAlter(rest), ""];
+  }
+function epureAcc(parent,s){
+    // ♭/♯ en `.acc` de juillet, le reste en texte
+    s.split(/([♭♯])/).forEach(t=>{ if(!t) return;
+      if(t==="♭"||t==="♯") parent.appendChild(el("span","font-size:.6em;margin-left:-.1em;vertical-align:.12em;",t));
+      else parent.appendChild(document.createTextNode(t)); });
+  }
+export function glyphEpure(root,q,size,depth,color,bass){
+    let tail=q||"";
+    if(depth==="family") tail=(isHalfDim(tail)||isDim(tail))?"o":(tail.startsWith("-")?"-":(tail.startsWith("+")?"+":""));
+    else if(depth==="seventh") tail=seventhOf(tail);
+    const qs=Math.round(size*17/27);
+    const w=el("span",`display:inline-block;font-family:${SERIF};font-style:italic;font-weight:400;line-height:1;white-space:nowrap;color:${color};`);
+    const r=el("span",`font-size:${size}px;`); epureAcc(r,note(root)); w.appendChild(r);
+    const [base,sup,after]=epureQuality(tail);
+    if(base||sup||after){
+      const qu=el("span",`font-size:${qs}px;`);
+      if(base) epureAcc(qu,base);
+      if(sup) qu.appendChild(el("sup","font-size:.62em;",sup));
+      if(after) qu.appendChild(document.createTextNode(after));
+      w.appendChild(qu);
+    }
+    if(bass!=null && bass>=0 && mod(bass,12)!==mod(root,12)){
+      const b=el("span",`font-size:${qs}px;`); epureAcc(b,"/"+note(bass)); w.appendChild(b);
+    }
+    return w;
+  }
 export const fifthsIndex=pc=>mod(pc*7,12);
 export const keyHue=pc=>fifthsIndex(pc)/12*360;
 export const keyFill=pc=>`hsl(${keyHue(pc)} 42% 62%)`;

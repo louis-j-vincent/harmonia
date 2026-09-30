@@ -12,7 +12,7 @@ import { candList, openAnnotateTools, openBarExpanded, openEditor } from "../scr
 import { openChordSheet, openPrefsSheet, openRotor, transposeTo } from "../screens/prefs.js";
 import { attachSectionDrag, buildSectionTool, closeSectionTool, paintSectionTool, sectToolOn, setPlayhead, spanTime } from "../screens/sections_editor.js";
 import { S } from "../state.js";
-import { PREF, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, ctlSkin, dispQ, el, fmt, fnColor, glyph, pedalGlyph, handle, haptic, keyFill, keyHue, kitIcon, kitLegend, kitSegmented, learnLevel, lensLabelColor, mod, note, overlay, play, playGlyph, playMidis, playedLabel, qClass, renderHand, setSpelling, songTitle, splitHands, tightGap, tightSize, toast, vlTrack, voClose, voicingByStyle, withBass } from "../ui/kit.js";
+import { PREF, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, ctlSkin, dispQ, el, fmt, fnColor, glyph, glyphEpure, pedalGlyph, handle, haptic, keyFill, keyHue, kitIcon, kitLegend, kitSegmented, learnLevel, lensLabelColor, mod, note, overlay, play, playGlyph, playMidis, playedLabel, qClass, renderHand, setSpelling, songTitle, splitHands, tightGap, tightSize, toast, vlTrack, voClose, voicingByStyle, withBass } from "../ui/kit.js";
 
 // The single DOM host div (`<div id="app">`) — there is exactly one call
 // site, `window.APP.build(document.getElementById("app"))` in main.js, so
@@ -1388,7 +1388,12 @@ export function buildIReal(){
     // PAS (les grossir aussi re-created le chevauchement des barres denses
     // en notation normale — vu au premier passage de vérification).
     const imm = S.screen==="chart" && S.chartChrome===false;
-    const SZ1=narrow?26:32, SZ2=narrow?22:28, SZ3=narrow?15:19;
+    // EPT : la typographie de la capture (Clean + notation Normal) — 27/19px
+    // comme la page de juillet (.root 27px, 19px dès deux accords), ×1,18
+    // sur ordinateur. Compact garde glyphTight, Cells l'ancienne police.
+    const EPT = EP && PREF.notation!=="compact";
+    const SZ1=EPT?(narrow?27:32):(narrow?26:32), SZ2=EPT?(narrow?19:22):(narrow?22:28), SZ3=EPT?(narrow?15:18):(narrow?15:19);
+    const G = EPT ? (r,q,sz,d,c,b)=>glyphEpure(r,q,sz,d,c,b) : glyph;
     // Densité (§6, 2026-09-17): la grille respirait trop pour un téléphone —
     // 2,5 sections à l'écran là où iRealB en montre 4. On descend les TROIS
     // constantes d'espacement (hauteur de rangée immersive, gap de section,
@@ -1703,7 +1708,7 @@ export function buildIReal(){
       if(marqueChiffrage){
         // Centré en hauteur dans la cellule, comme un chiffrage de portée —
         // et sous le crochet de reprise quand la mesure ouvre une fin.
-        const d=el("div",`position:absolute;left:1px;top:calc(50% + ${b.ending?(narrow?5:6):0}px);transform:translateY(-50%);z-index:2;pointer-events:none;display:flex;flex-direction:column;align-items:center;line-height:.9;font:700 ${narrow?8.5:10}px ${UI};color:${T.faint};`);
+        const d=el("div",`position:absolute;left:1px;top:calc(50% + ${(b.ending?(narrow?5:6):0)+Math.round(rowPT/2)}px);transform:translateY(-50%);z-index:2;pointer-events:none;display:flex;flex-direction:column;align-items:center;line-height:.9;font:700 ${narrow?8.5:10}px ${UI};color:${T.faint};`);
         d.appendChild(el("span","",String(b.beats)));
         d.appendChild(el("span","","4"));
         cell.appendChild(d);
@@ -1787,7 +1792,7 @@ export function buildIReal(){
         // Pas en Annotate : là, la cible de 44px prime sur la densité.
         const pendu = pedale && S.mode!=="annotate";
         const place = pendu
-          ? `position:absolute;left:calc(${q4/bpbQ*100}% + 1px);top:calc(50% + ${Math.round(size*0.16)}px);z-index:2;`
+          ? `position:absolute;left:calc(${q4/bpbQ*100}% + 1px);top:calc(50% + ${Math.round(size*(EPT?0.34:0.16))+Math.round(rowPT/2)}px);z-index:2;`
           : `position:relative;z-index:1;${tight?"":(EP && b.chords.length===1 && q4===0
               // EP: un accord seul sur le temps 1 se centre dans sa mesure
               // (la capture) — ça ne ment sur aucun temps.
@@ -1812,7 +1817,7 @@ export function buildIReal(){
         const dq=dispQ(ch.q);
         item.appendChild(pedale
           ? pedalGlyph(ch.bass,size,chordColor(ch))
-          : glyph(ch.root,dq,size,chordDepth(ch),chordColor(ch),bassHidden?-1:ch.bass,b.chords.length===1));
+          : G(ch.root,dq,size,chordDepth(ch),chordColor(ch),bassHidden?-1:ch.bass,b.chords.length===1));
         // LA VARIANTE, en petit au-dessus — comme iRealb (Louis, 2026-08-17 :
         // « indiquer le moins commun comme une variation, en petit en haut de
         // l'accord comme on fait sur irealb »). Elle n'apparaît que sur un
@@ -1915,7 +1920,7 @@ export function buildIReal(){
       if(!b.chords.length){
         if(atRowStart && lastCh){
           const item=el("div","position:relative;z-index:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;grid-column:1/-1;justify-self:center;");
-          item.appendChild(glyph(lastCh.root,dispQ(lastCh.q),SZ1,chordDepth(lastCh),chordColor(lastCh),(S.learn&&S.level<3)?-1:lastCh.bass,true));
+          item.appendChild(G(lastCh.root,dispQ(lastCh.q),SZ1,chordDepth(lastCh),chordColor(lastCh),(S.learn&&S.level<3)?-1:lastCh.bass,true));
           cell.appendChild(item);
         } else {
           cell.appendChild(el("div",`position:relative;z-index:1;font:700 ${narrow?22:28}px ${SERIF};color:${T.faint};opacity:.5;grid-column:1/-1;justify-self:center;`,"%"));

@@ -185,8 +185,10 @@ régressé sans trace ; toute décision de LOOK s'écrit ici AVANT d'être codé
     → 19/12px. Symboles : `m` petit en ligne puis l'exposant (Gm⁷), △ pour
     maj7 (F△⁷), ø et ° en ligne, `6`, `7`, `9`, `13`, `alt` en exposant
     (D⁷ᵃˡᵗ), `sus4` en ligne, basse slash `/A` à la taille de la qualité.
-    Écart assumé à la page de juillet : `7sus4` s'écrit ⁷sus4 (exposant
-    d'abord), pas sus4⁷. Sur ordinateur les tailles montent de ×1,18 (même
+    Écart assumé à la page de juillet : `7sus4`/`9sus` montent en entier
+    en exposant (⁷ˢᵘˢ⁴, comme iReal), pas sus4⁷ — en ligne, `D9sus4` à deux
+    accords débordait sur la mesure voisine (vu au rendu 390px) ; un `sus4`
+    seul reste en ligne. Sur ordinateur les tailles montent de ×1,18 (même
     rapport). Ne vaut que pour **Clean + notation Normal** ; l'écriture
     Compact garde `glyphTight`, et « Cells » garde l'ancienne police (600,
     exposants à 0,44). Les couleurs de certitude, N.C., la pédale et les
