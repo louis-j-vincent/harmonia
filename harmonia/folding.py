@@ -2035,8 +2035,13 @@ def _ireal_cascade(out: list[dict], bars, grid, fold_report) -> list[dict]:
     for label, blks in by_label.items():
         if len(blks) < 2:
             continue
-        # l'hôte = le plus joué (à égalité, le premier dans le morceau)
-        host = max(blks, key=lambda b: (b["reps"], -out.index(b)))
+        # l'hôte = le plus joué (à égalité, le premier dans le morceau) —
+        # JAMAIS une plage muette (Louis, 2026-09-30, Lost Without U : la
+        # mesure 24, un N.C. seul étiqueté B, était l'hôte de B à égalité de
+        # passages ; le vrai B de 4 mesures ne pouvait pas s'y fondre et
+        # sortait B′ — « y'a juste un A et un B »).
+        sonores = [b for b in blks if not _bloc_muet(b)] or blks
+        host = max(sonores, key=lambda b: (b["reps"], -out.index(b)))
         rep = (fold_report or {}).get(label) or {}
         # un repli REFUSÉ ne sert pas de cellule (sa `period` est celle qu'il
         # testait, pas celle qu'il a validée) — on passe alors au test préfixe
@@ -2047,12 +2052,12 @@ def _ireal_cascade(out: list[dict], bars, grid, fold_report) -> list[dict]:
         # (le cas Fallin', un seul `B-7` au lieu de `B-` cassait le
         # raccord). `_ireal_endings`, juste au-dessus, cherche l'inverse
         # (une VRAIE fin change d'accord) et garde `_barsig` exact.
-        cell = [_barsig_famille(b) for b in host["bars"][:P]] if P else None
+        cell = list(host["bars"][:P]) if P else None
         rank = 0
         for blk in blks:
             if blk is host:
                 continue
-            if _merge_boucle(host, blk, grid) or \
+            if _merge_muet(host, blk) or _merge_boucle(host, blk, grid) or \
                     _merge_coupe(host, blk, cell, P, grid):
                 drop.add(id(blk))
                 continue
@@ -2062,6 +2067,61 @@ def _ireal_cascade(out: list[dict], bars, grid, fold_report) -> list[dict]:
             logger.info("ireal: %s devient %s (même lettre, autre musique)",
                         label, blk["label"])
     return [b for b in out if id(b) not in drop]
+
+
+def _bloc_muet(blk: dict) -> bool:
+    """Un bloc dont toutes les mesures sont N.C. — une plage muette."""
+    return all(_muette(b) for b in blk.get("bars") or [[]])
+
+
+def _accord_de_passage(a, b) -> bool:
+    """Deux mesures sont LE MÊME MOMENT à un accord de passage près : même
+    premier accord (à la famille près), et chaque accord de la mesure qui en
+    a le moins se retrouve dans l'autre. `F^7` contre `F^7 G-7` (Lost
+    Without U, mesure 36 contre la boucle A : la relance G-7 que ce passage
+    ne joue pas). Une autre fondamentale sur le temps fort n'en est jamais
+    un."""
+    fa = [frozenset((r, famille_de(q)) for r, q in lectures(c))
+          for c in a or [] if not c.get("nc")]
+    fb = [frozenset((r, famille_de(q)) for r, q in lectures(c))
+          for c in b or [] if not c.get("nc")]
+    if not fa or not fb or len(fa) == len(fb) or not (fa[0] & fb[0]):
+        return False
+    court, long_ = (fa, fb) if len(fa) < len(fb) else (fb, fa)
+    return all(any(x & y for y in long_) for x in court)
+
+
+def meme_moment(a, b) -> bool:
+    """Le test de RACCORD d'un passage à la cellule de sa lettre (règle 3 et
+    `_merge_boucle`) : même harmonie (`meme_harmonie`, `_compat` à la
+    famille près) ou même mesure à un accord de passage près."""
+    return (meme_harmonie(a, b)
+            or _compat(_barsig_famille(a), _barsig_famille(b))
+            or _accord_de_passage(a, b))
+
+
+def _merge_muet(host: dict, blk: dict) -> bool:
+    """Une plage MUETTE (que des N.C.) étiquetée d'une lettre rejoint le bloc
+    de cette lettre au lieu de prendre un prime (Lost Without U : la mesure
+    24, un B d'une mesure en N.C. ; la mesure 57, un A d'une mesure en N.C.
+    — les deux « trous » du morceau). Elle reste dans la forme (`barRanges`,
+    `spans` : la bande la montre à sa place) mais n'allume aucune case — il
+    n'y a rien à lire pendant un silence. CE QUE ÇA NE RÉSOUT PAS : la
+    bande de forme la dessine comme la lettre, pas comme un trou (le trou de
+    Read, `S._muettes` dans chart.js, ne vise qu'une section entière muette).
+    """
+    if not _bloc_muet(blk) or _bloc_muet(host):
+        return False
+    host["barRanges"] += [list(r) for r in blk["barRanges"]]
+    host["spans"] += [list(s) for s in blk["spans"]]
+    host["reps"] += blk["reps"]
+    bcl = host.get("boucle")
+    if bcl is not None:
+        bcl["tours_par_passe"] = bcl.get("tours_par_passe", []) + \
+            [0] * len(blk["barRanges"])
+    logger.info("ireal: plage muette mes. %s rejoint %s", blk["barRanges"],
+                host["label"])
+    return True
 
 
 def _merge_boucle(host: dict, blk: dict, grid) -> bool:
@@ -2079,7 +2139,7 @@ def _merge_boucle(host: dict, blk: dict, grid) -> bool:
     for i, bar in enumerate(blk["bars"]):
         if _muette(bar):
             continue
-        if not meme_harmonie(bar, host["bars"][i % W]):
+        if not meme_moment(bar, host["bars"][i % W]):
             return False
     for c0, c1 in blk["barRanges"]:
         for x in range(c0, c1 + 1):
@@ -2143,12 +2203,18 @@ def _merge_coupe(host: dict, blk: dict, cell, P, grid) -> bool:
         # test le plus simple et le plus sûr : le bloc court est-il le DÉBUT
         # du bloc long ? Un passage qui commence pareil et s'arrête plus tôt
         # est un passage coupé, que le repli des accords ait abouti ou non.
-        cell, P = [_barsig_famille(b) for b in host["bars"]], len(host["bars"])
-    sig = [_barsig_famille(bar) for bar in blk["bars"]]
-    L = len(sig)
+        cell, P = list(host["bars"]), len(host["bars"])
+    # `meme_moment` : famille, ou un accord de passage en plus ou en moins
+    # (Lost Without U, 2026-09-30). Un fondu muet en fin de passage ne
+    # compte pas contre le raccord, comme dans `_merge_boucle` — mais il
+    # faut au moins une mesure qui joue.
+    L = len(blk["bars"])
+    sonnent = [i for i in range(L) if not _muette(blk["bars"][i])]
+    if not sonnent or sonnent[-1] != len(sonnent) - 1:
+        sonnent = list(range(L))          # un N.C. AU MILIEU reste un N.C.
     offset = next((off for off in range(P)
-                   if all(_compat(sig[i], cell[(off + i) % P])
-                          for i in range(L))),
+                   if all(meme_moment(blk["bars"][i], cell[(off + i) % P])
+                          for i in sonnent)),
                   None)
     if offset is None:
         return False
