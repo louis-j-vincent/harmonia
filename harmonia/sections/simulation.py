@@ -974,6 +974,81 @@ def occurrences_de_tous(chart: dict, traits: list[dict],
     return sorted(out, key=lambda o: (o["m0"], o["m1"], o["label"])), ecartes, diagnostics
 
 
+#: « B + queue » (Louis, 2026-09-30, Julia) : la partie partagée doit faire
+#: au moins ça en bi-mesures, et contenir au moins 2 lettres distinctes — le
+#: garde-fou mesuré le 2026-09-17 (`docs/regle_prefixe_2026-09-17.md`) : sans
+#: lui, `aaaa` ⊂ `aaaab` cassait Let It Be (−17 pts) et Yesterday (−19).
+PREFIXE_MIN_MOTS = 4
+PREFIXE_MIN_LETTRES = 2
+
+
+def _prefixe_et_queue(blocs: list[dict], par_jeton: dict) -> list[dict]:
+    """Un bloc libre qui JOUE un autre bloc puis continue = cet autre bloc +
+    une queue.
+
+    Louis, 2026-09-30, sur Julia : « On détecte une section C qui est
+    clairement un B avec une queue ». Les quatre mots donnaient `cdada` au B
+    et `cdadaa` au « C » : `grouper_restes` groupe sur le mot EXACT et
+    `nommer` n'accorde le prime qu'à longueur égale, donc deux mots dont l'un
+    prolonge l'autre prenaient deux lettres.
+
+    LA RÈGLE : un bloc libre dont le mot commence par le mot ENTIER d'un
+    autre bloc (libre ou brique de Louis), si cette partie partagée fait
+    ≥ `PREFIXE_MIN_MOTS` bi-mesures avec ≥ `PREFIXE_MIN_LETTRES` lettres
+    distinctes, et si ce qui dépasse est plus court qu'elle, est coupé en
+    deux : la tête prend la lettre de l'autre bloc (même longueur, donc
+    repliée avec lui par `sections_pour_chart`), le reste sort « queue »,
+    écrit à part. Sous-replier, jamais sur-replier : la queue n'est pas
+    cachée dans le B, elle est écrite comme ce qu'elle est.
+
+    Le plus long préfixe gagne. Des queues de mots différents sortent
+    « queue », « queue 2 »… : deux queues de même longueur mais d'accords
+    différents ne doivent pas être repliées ensemble.
+
+    CE QUE ÇA NE RÉSOUT PAS : une matière partagée DÉCALÉE (le bloc commence
+    par une mesure de plus, puis joue B) — le cas de Don't Want My Love, le
+    2026-09-17 ; une tête ajoutée AVANT B (une anacrouse, une intro de
+    section) ; une ressemblance approximative (les mots sont des classes
+    exactes de bi-mesures). Et « queue » n'est jamais une 1re/2e fin : si la
+    queue remplace la fin de B au lieu de la prolonger, les mots diffèrent
+    avant la fin et la règle ne se déclenche pas.
+    """
+    def cle(b):
+        return (b["j0"], b["j1"])
+
+    types = []                                   # (mot, bloc-témoin)
+    for b in blocs:
+        if not any(t == b["type"] for t, _ in types):
+            types.append((b["type"], b))
+    out, queues = [], {}
+    for b in blocs:
+        t = b["type"]
+        pref = None
+        if cle(b) not in par_jeton:
+            for u, y in types:
+                if (len(u) < len(t) and t.startswith(u)
+                        and len(u) >= PREFIXE_MIN_MOTS
+                        and len(set(u)) >= PREFIXE_MIN_LETTRES
+                        and len(t) - len(u) < len(u)
+                        and (pref is None or len(u) > len(pref[0]))):
+                    pref = (u, y)
+        if pref is None:
+            out.append(b)
+            continue
+        u, y = pref
+        coupe = b["j0"] + len(u)
+        tete = {"j0": b["j0"], "j1": coupe, "type": u, "label": y["label"],
+                "prime": False, "queue": False}
+        if cle(y) in par_jeton:
+            tete["nom_fixe"] = par_jeton[cle(y)]
+        reste = t[len(u):]
+        if reste not in queues:
+            queues[reste] = "queue" + ("" if not queues else f" {len(queues) + 1}")
+        out += [tete, {"j0": coupe, "j1": b["j1"], "type": reste, "label": None,
+                       "prime": False, "queue": True, "nom_fixe": queues[reste]}]
+    return out
+
+
 def remplir_par_algo(chart: dict, occ: list[dict], audio_dir) -> list[dict]:
     """Les trous, remplis par l'algorithme des quatre mots.
 
@@ -1022,6 +1097,7 @@ def remplir_par_algo(chart: dict, occ: list[dict], audio_dir) -> list[dict]:
     steps = merges4(mot, cible=info["cible"], depart=depart, geles=geles)
     blocs = grouper_restes(nommer(steps[-1]["jetons"], info["cible"],
                                   geles=geles), mot, info["cible"])
+    blocs = _prefixe_et_queue(blocs, par_jeton)
     siennes = {L.upper() for L in par_jeton.values()}
     libres = [c for c in ALPHABET if c not in siennes]
     # L'INTRO DE TÊTE (Louis, 2026-09-30 : « quand il manque une section avant
@@ -1047,6 +1123,10 @@ def remplir_par_algo(chart: dict, occ: list[dict], audio_dir) -> list[dict]:
             continue
         if sien is not None:
             nom, source = sien, "brique"
+        elif b.get("nom_fixe"):
+            # « B + queue » (voir `_prefixe_et_queue`) : la queue, ou la tête
+            # quand son préfixe est une brique de Louis
+            nom, source = b["nom_fixe"], "algo"
         else:
             if b["label"] not in renom:
                 renom[b["label"]] = libres[k % len(libres)] if libres else b["label"]
