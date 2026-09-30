@@ -5,6 +5,27 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Julia : « C = B avec une queue », « D = petite boucle sur 3 lignes » (2026-09-30, RÉSOLU en partie)
+
+Page : `docs/plots/julia_sections.html`. (1) Le « C » (12 mes.) était B
+(10) + 2 mesures : les quatre mots donnaient `cdada` / `cdadaa`, et une
+lettre n'était partagée qu'à mot IDENTIQUE (prime seulement à longueur
+égale). **Fait** : `simulation._prefixe_et_queue` — un bloc libre qui
+commence par le mot entier d'un autre bloc (≥ 4 bi-mesures, ≥ 2 lettres
+distinctes, queue plus courte) devient cette lettre + « queue ». 21
+découpages validés × 2 protocoles : 0 bloc changé. (2) `soudure.
+sections_pour_chart` n'écrivait jamais la boucle interne d'un passage.
+**Fait** : `soudure.boucle_ecrite` — si tous les passages d'une lettre
+suivent une cellule de 2 ou 4 mesures (famille d'accord), fondu N.C. de fin
+et dernier tour incomplet tolérés, sur ≥ 3 rangées → une rangée de 4,
+`barSpans` allume chaque tour, champ `boucle` {rangee, cellule, tours}.
+Rapport d'or : 5 mesures changées, San Francisco Street A′ seul (13 mes. →
+1 rangée, A7/A7sus4 confondus en A7sus4). **Reste ouvert** : pas de marque
+×N dessinée (question à Louis, maquette sur la page) ; seuil 2 rangées
+(8 mesures = 4 × 2) non branché, il toucherait 8 morceaux ; préfixe décalé
+ou tête ajoutée avant B non traités ; Julia doit être re-validée (bouton)
+après redémarrage de :7772 pour voir le correctif.
+
 ## Fins alternatives : Bb/C ≡ C7sus4, et le curseur « Section merging » (2026-09-30, RÉSOLU en partie)
 
 Louis, sur Claustrophobic (mCwI0YA4mIY) : un A avec Bb/C et un A avec
