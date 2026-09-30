@@ -414,12 +414,22 @@ def resoudre_suspens(groupes: list[dict], placees: list[dict], n: int) -> list[t
         # chaque critère ne regarde que les ex æquo du précédent ; la raison
         # est celui qui laisse une seule alternative
         idx, raison = list(range(len(ts))), "score"
-        for nom, f in crit:
-            m = max(f(ts[k]) for k in idx)
-            idx = [k for k in idx if f(ts[k]) == m]
-            if len(idx) == 1:
-                raison = nom
-                break
+        m = max(len(t["vivantes"]) for t in ts)
+        hauts = [k for k in idx if len(ts[k]["vivantes"]) == m]
+        if m == 0:
+            # tout est mangé : rien à poser, la zone appartient aux autres
+            idx, raison = hauts, "tout_mange"
+        elif len({tuple(ts[k]["vivantes"]) for k in hauts}) == 1 and \
+                any(t["mangees"] for t in ts):
+            # ce qui les distinguait a été mangé : il reste les mêmes boucles
+            idx, raison = hauts, "mangee"
+        else:
+            for nom, f in crit:
+                m = max(f(ts[k]) for k in idx)
+                idx = [k for k in idx if f(ts[k]) == m]
+                if len(idx) == 1:
+                    raison = nom
+                    break
         k = idx[0]
         g["choix"], g["raison"] = k, raison
         g["termes"] = [{x: t[x] for x in ("mangees", "contacts", "fragments", "score")}

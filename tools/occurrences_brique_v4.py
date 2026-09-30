@@ -46,7 +46,7 @@ def _analyse_5b(stem: str):
         box["r"] = ref0(pics)
         return box["r"]
 
-    def mx(c, Lb, cands):
+    def mx(c, Lb, cands, tol=None):
         r, b = box.get("r"), SIM.BRUIT_PIC
         SIM.BRUIT_PIC = r["tolerance"] if r else b
         try:
@@ -61,7 +61,18 @@ def _analyse_5b(stem: str):
 
 
 def analyse(stem: str):
-    """Le même morceau : règle 5 coupée (v3), live (v4), variante 5b."""
+    """Le même morceau : règle 5 coupée (v3), v4, variante 5b. Depuis la v5
+    (5b + suspens branchés, `tools/occurrences_brique_v5.py`), « v4 » est
+    rejouée interrupteurs coupés."""
+    e0, s0 = SIM.EGALITE_5B, SIM.SUSPENS
+    SIM.EGALITE_5B = SIM.SUSPENS = False
+    try:
+        return _analyse(stem)
+    finally:
+        SIM.EGALITE_5B, SIM.SUSPENS = e0, s0
+
+
+def _analyse(stem: str):
     try:
         SIM.REGLE5 = False
         r3 = V2.analyse_morceau(stem)
