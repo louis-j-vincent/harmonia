@@ -350,6 +350,32 @@ export function buildSectionTool(){
     card.addEventListener("click",ev=>{
       if(Date.now()-(S._sectGridUp||0)<450){ ev.stopPropagation(); ev.preventDefault(); }
     },true);
+    const sg=st.sugg;
+    const sgShown=sg && !st.sel && st.pendingStart==null;
+    if(sgShown && sg.items.length){
+      // PROPOSITIONS (Louis, 2026-10-01) : les autres passages de la section
+      // qu'il vient de tracer, en pâle sur la grille. Rien n'est gardé tant
+      // qu'il n'a pas touché ou dit « Garder ».
+      const nT=st.marks.filter(x=>x.label===sg.label).reduce(
+        (n,x)=>n+(x.occurrences||[]).filter(estDeLui).length,0);
+      const nP=sg.items.length;
+      // Deux lignes courtes : le compte, puis les deux boutons côte à côte
+      // (la carte colle en haut — chaque ligne de plus mange la grille).
+      const bn=el("div","margin-bottom:6px;");
+      bn.setAttribute("data-sect-sugg","1");
+      bn.appendChild(el("div",`font:600 12.5px ${UI};color:${T.ink};margin-bottom:5px;`,
+        `${sg.label} : ${nT} tracé${nT>1?"s":""} · ${nP} proposé${nP>1?"s":""}`));
+      const br=el("div","display:flex;gap:6px;");
+      br.appendChild(kitButton(nP>1?`Garder les ${nP}`:"Garder",
+        ()=>confirmerReprises(sg.items.slice()), {state:"on", height:44, grow:true}));
+      br.appendChild(kitButton("Ignorer",
+        ()=>{ clearSugg(); haptic(5); go("chart"); }, {height:44, grow:true}));
+      bn.appendChild(br);
+      card.appendChild(bn);
+    } else if(sgShown && sg.slow && sg.loading){
+      card.appendChild(el("div",`font:italic 11.5px ${SERIF};color:${T.faint};margin-bottom:6px;`,
+        `${sg.label} : je cherche où elle revient…`));
+    } else
     card.appendChild(el("div",`font:italic 11.5px ${SERIF};color:${T.faint};margin-bottom:6px;`,
       st.sel ? `mesures ${st.sel.b0+1}–${st.sel.b1+1}`
              : (st.pendingStart!=null
@@ -369,6 +395,7 @@ export function buildSectionTool(){
       // Re-toucher la lettre armée la DÉSARME : c'est le geste par lequel on
       // rend le tap à la lecture (Louis, 2026-08-10).
       c.onclick=()=>{ haptic();
+        clearSugg();                      // changer de lettre ignore les propositions
         st.label=on?null:lb; st.pendingStart=null;
         if(on){ st.sel=null; st.note="aucune lettre : le tap déplace la lecture"; }
         else st.note="";
@@ -468,7 +495,7 @@ export function sectionRuns(){
 export function sectTapMark(b){
     const st=S.sectTool; if(!st) return;
     if(st.pendingStart==null){
-      st.pendingStart=b; st.sel=null;
+      st.pendingStart=b; st.sel=null; clearSugg();
       st.note="";   // l'étape « 2/2 » du bandeau le dit déjà (un seul indice)
     } else {
       const debut=st.pendingStart;
@@ -515,7 +542,111 @@ export function commitSectionSelection(){
     st.note="« "+mk.label+" » posée sur les mesures "+(b0+1)+"–"+(b1+1)+
             " — continue, puis « Valider les sections »";
     saveSectionMarks();                  // brouillon, jamais la vérité
+    proposerReprises(mk.label, b0, b1);  // lecture seule : rien n'est gardé sans lui
     return true;
+  }
+
+  /* LES PROPOSITIONS : où le bloc qu'il vient de tracer REVIENT dans le morceau.
+     /api/section-repeats est en lecture seule (il ne touche à aucun fichier) ;
+     ce que Valider a cessé d'appeler en 2026-08 parce qu'il ne nommait que
+     CETTE section, laissant le reste anonyme — ici c'est exactement la
+     question posée (« où se rejoue-t-elle ? ») et le reste n'est pas en jeu.
+
+     Les mesures sont celles de la CHANSON, 0-indexées, bornes incluses : elles
+     s'affichent telles quelles. `rot` = de combien de demi-tons la reprise est
+     transposée (« found-transposed »), et n'ajuste pas les bornes. Une cellule
+     plus courte que la sélection (cell_bars < L) rend des reprises de la
+     longueur de la CELLULE : on recolle les voisines pour retrouver la
+     longueur tracée, sinon une proposition ne durerait que la moitié du bloc.
+
+     Il n'y a rien à régler ici : le seuil est celui du serveur. Une erreur ne
+     dit rien (pas de toast) — il pose simplement ses sections à la main. */
+function clearSugg(){
+    const st=S.sectTool; if(!st) return;
+    st._suggTok=(st._suggTok||0)+1;       // une réponse en vol devient périmée
+    st.sugg=null;
+  }
+function suggAt(song){
+    const st=S.sectTool;
+    return st&&st.sugg ? (st.sugg.items||[]).find(x=>song>=x.b0&&song<=x.b1)||null : null;
+  }
+async function proposerReprises(label, b0, b1){
+    const st=S.sectTool, m=S.model; if(!st||!m) return;
+    clearSugg(); const tok=st._suggTok;
+    st.sugg={label, items:[], loading:true, slow:false};
+    setTimeout(()=>{
+      if(S.sectTool===st && st._suggTok===tok && st.sugg && st.sugg.loading){
+        st.sugg.slow=true; go("chart"); }
+    }, 300);
+    const pris=new Set();
+    st.marks.forEach(mk=>(mk.occurrences||[]).filter(estDeLui).forEach(o=>{
+      for(let b=o.b0;b<=o.b1;b++) pris.add(b); }));
+    try{
+      const r=await api.post("/api/section-repeats/"+m.file,
+                             {b0, b1, claimed:[...pris]});
+      if(S.sectTool!==st || st._suggTok!==tok) return;       // périmée
+      const L=b1-b0+1, cell=Math.max(1,r.cell_bars|0||L);
+      const trouvees=(r.occurrences||[]).filter(o=>String(o.source).startsWith("found"))
+        .sort((a,b)=>a.b0-b.b0);
+      let items=[];
+      if(cell<L){
+        const need=Math.round(L/cell);
+        for(let i=0;i<trouvees.length;){
+          let k=1;
+          while(k<need && i+k<trouvees.length && trouvees[i+k].b0===trouvees[i].b0+k*cell) k++;
+          items.push({b0:trouvees[i].b0, b1:trouvees[i+k-1].b1, rot:trouvees[i].rot|0});
+          i+=k;
+        }
+      } else items=trouvees.map(o=>({b0:o.b0, b1:o.b1, rot:o.rot|0}));
+      const libre=it=>{ for(let b=it.b0;b<=it.b1;b++) if(pris.has(b)) return false; return true; };
+      items=items.filter(libre);
+      st.sugg=items.length?{label, items, loading:false, slow:false}:null;
+      go("chart");
+      if(items.length) montrerPremiere(items[0]);
+    }catch(e){
+      if(S.sectTool===st && st._suggTok===tok){ st.sugg=null; go("chart"); }
+    }
+  }
+/* Ramène la première proposition sous la carte collante : sans ça les pâles
+   sont à deux écrans de là et rien n'indique qu'elles existent (la carte
+   occupe ~la moitié de l'écran sur un téléphone). Ne bouge pas si elle est déjà tout en haut de ce qui se voit. */
+function montrerPremiere(it){
+    setTimeout(()=>{
+      const c=document.querySelector(`[data-bar="${it.b0}"]`), bn=document.querySelector("[data-sect-sugg]");
+      if(!c||!bn) return;
+      let w=bn; while(w && getComputedStyle(w).position!=="sticky") w=w.parentElement;
+      const haut=(w||bn).getBoundingClientRect().bottom, r=c.getBoundingClientRect();
+      if(r.top<haut+4 || r.top>haut+120)
+{
+        let sc=c.parentElement;     // le conteneur qui défile (pas forcément la fenêtre)
+        while(sc && !(/(auto|scroll)/.test(getComputedStyle(sc).overflowY) && sc.scrollHeight>sc.clientHeight)) sc=sc.parentElement;
+        (sc||window).scrollBy({top:r.top-haut-24, behavior:"smooth"});
+      }
+    }, 60);
+  }
+/* Garder une ou toutes les propositions : chacune devient une occurrence
+   posée À LA MAIN (même état, même forme, même Défaire que si le doigt l'avait
+   tracée). Un seul Défaire pour tout un « Garder les N » ; l'entrée retient les
+   propositions pour qu'elles reviennent en pâle quand on la défait. */
+function confirmerReprises(items){
+    const st=S.sectTool; if(!st || !st.sugg || !items.length) return;
+    const label=st.sugg.label;
+    pushSectUndo();
+    st.undo[st.undo.length-1].sugg=JSON.parse(JSON.stringify(st.sugg));
+    items.forEach(it=>{
+      st.marks.forEach(mk=>{
+        mk.occurrences=(mk.occurrences||[]).filter(o=>o.b1<it.b0 || o.b0>it.b1); });
+      let mk=st.marks.find(x=>x.label===label);
+      if(!mk){ mk={label, occurrences:[]}; st.marks.push(mk); }
+      mk.occurrences.push({b0:it.b0, b1:it.b1, rot:0, source:"humain"});
+      mk.occurrences.sort((a,b)=>a.b0-b.b0);
+    });
+    st.marks=st.marks.filter(x=>(x.occurrences||[]).length);
+    st.sugg.items=st.sugg.items.filter(x=>!items.includes(x));
+    if(!st.sugg.items.length) clearSugg();
+    st.note=items.length>1 ? items.length+" reprises de « "+label+" » gardées"
+                           : "reprise de « "+label+" » gardée (mesures "+(items[0].b0+1)+"–"+(items[0].b1+1)+")";
+    saveSectionMarks(); haptic(5); go("chart");
   }
 
   /* VALIDER — le trait de Louis est figé, l'algo des quatre mots nomme TOUT
@@ -551,7 +682,7 @@ function estDeLui(o){ return SIENNES.has(o && o.source); }
 export async function validateSectionSelection(){
     const st=S.sectTool, m=S.model;
     if(!st) return;
-    pushSectUndo();
+    pushSectUndo(); clearSugg();
     st.busy=true; st.note=""; go("chart");
     const humain=[];
     st.marks.forEach(mk=>(mk.occurrences||[]).forEach(o=>{
@@ -748,12 +879,14 @@ export function undoSectionEdit(){
     if(!(st.undo||[]).length) return;
     const prev=st.undo.pop();
     st.marks=prev; st.sel=null;
+    clearSugg(); if(prev.sugg) st.sugg=prev.sugg;   // défaire une confirmation rend les pâles
     st.note="dernier geste défait";
     /* Une section posée en deux touches (début, fin) : Défaire n'enlève que la
        fin — le début reste en attente (« touche la fin »), comme avant le
        second appui. Un trait glissé n'a pas de début séparé : il s'efface
        entièrement. Un second Défaire annule alors le début. */
-    if(prev.debut!=null && st.label){ st.pendingStart=prev.debut; st.note=""; }
+    if(prev.sugg){ st.note="reprise(s) retirée(s) — elles redeviennent des propositions"; }
+    else if(prev.debut!=null && st.label){ st.pendingStart=prev.debut; st.note=""; }
     /* Un trait GLISSÉ (UX #30) : début et fin viennent du même geste, il n'y a
        pas d'étape intermédiaire à retrouver — Défaire l'efface d'un coup, et
        le dit. */
@@ -762,7 +895,7 @@ export function undoSectionEdit(){
   }
 export function resetSectionMarks(){
     const st=S.sectTool; if(!st) return;
-    pushSectUndo();
+    pushSectUndo(); clearSugg();
     st.marks=[]; st.sel=null; st.note=""; go("chart"); saveSectionMarks();
   }
 
@@ -878,7 +1011,9 @@ export function attachSectionDrag(grid){
         // une sélection depuis un élément détaché donnait une sélection
         // fantôme, et sur un outil fermé un TypeError non capturé.
         if(!S.sectTool || !grid.isConnected){ anchor=null; return; }
+        if(suggAt(anchor)) return;     // sur une proposition : un tap, pas un trait
         armed=true;
+        clearSugg();
         grid.style.touchAction="none";
         S.sectTool.sel={b0:anchor,b1:anchor};
         paintSectionTool(); haptic(8);
@@ -926,6 +1061,10 @@ export function attachSectionDrag(grid){
       // marquer le début d'une section ; quand je désélectionne […] là je
       // peux déplacer le playhead. » La LETTRE ARMÉE décide.
       const st=S.sectTool;
+      if(st && st.pendingStart==null && song!=null){
+        const it=suggAt(song);
+        if(it){ confirmerReprises([it]); return; }   // tap sur du pâle = garder
+      }
       if(st && st.label && song!=null){ sectTapMark(song); return; }
       // Lettre désarmée : le tap déplace le curseur — sans condition, et
       // sans regarder le réglage global « Tap sur une mesure » : ici c'est
@@ -947,12 +1086,19 @@ export function paintSectionTool(){
     if(!S._cells || !sectToolOn()) return;
     const st=S.sectTool;
     S._cells.forEach(c=>{
-      let tint=null, edge=null, dashed=false, tag=null, tagOcc=null;
+      let tint=null, edge=null, dashed=false, tag=null, tagOcc=null, pale=false;
       const sb=songBarsOfCell(c.bar);
       const inRange=(o)=>sb.some(x=>x>=o.b0&&x<=o.b1);
+      // propositions : teinte très pâle, tirets, « A ? » creux sur la 1re mesure
+      if(st.sugg) st.sugg.items.forEach(o=>{
+        if(inRange(o)){
+          pale=true; edge=sectColor(st.sugg.label); tint=edge+"0c"; dashed=true;
+          tag=(sb.indexOf(o.b0)>=0)?st.sugg.label+" ?"+(o.rot?" ↗":""):null; tagOcc=null;
+        }
+      });
       st.marks.forEach(mk=>mk.occurrences.forEach(o=>{
         if(inRange(o)){
-          edge=sectColor(mk.label); tint=edge+"1f";
+          pale=false; edge=sectColor(mk.label); tint=edge+"1f";
           // Plein = il l'a dit ; pointillé = la machine l'a deviné. Le test
           // portait sur une source `"selection"` que plus personne n'écrit
           // depuis que la validation passe par le serveur : TOUT sortait en
@@ -962,11 +1108,11 @@ export function paintSectionTool(){
         }
       }));
       if(st.pendingStart!=null && sb.indexOf(st.pendingStart)>=0){
-        edge=sectColor(st.label||"A"); tint=edge+"22"; dashed=true;
+        pale=false; edge=sectColor(st.label||"A"); tint=edge+"22"; dashed=true;
         tag=(st.label||"")+" ▸";  tagOcc=null;
       }
       if(st.sel && inRange(st.sel)){
-        edge=sectColor(st.label); tint=edge+"33"; dashed=false;
+        pale=false; edge=sectColor(st.label); tint=edge+"33"; dashed=false;
         tag=(sb.indexOf(st.sel.b0)>=0)?st.label:null;
       }
       clear(c.sel);
@@ -974,12 +1120,16 @@ export function paintSectionTool(){
       if(!tint) return;
       c.sel.style.background=tint;
       c.sel.style.boxShadow="none";
-      c.sel.style.border=`${dashed?"1.5px dashed":"2px solid"} ${edge}`;
+      c.sel.style.border=`${dashed?"1.5px dashed":"2px solid"} ${pale?edge+"99":edge}`;
       c.sel.style.borderRadius="4px";
       if(tag && !tagOcc){
-        c.sel.appendChild(el("span",
-          `position:absolute;top:2px;right:3px;font:800 9px ${UI};color:#fff;`+
-          `background:${edge};border-radius:3px;padding:1px 4px;`, tag));
+        const sty=pale
+          ? `color:${edge};background:${T.card};border:1px dashed ${edge};padding:0 4px;`
+          : `color:#fff;background:${edge};padding:1px 4px;`;
+        const tg=el("span",
+          `position:absolute;top:2px;right:3px;font:800 9px ${UI};border-radius:3px;`+sty, tag);
+        if(pale) tg.setAttribute("data-sect-pale","1");
+        c.sel.appendChild(tg);
       } else if(tag && tagOcc){
         // Le badge est le SEUL endroit qui enlève une occurrence : le tap sur
         // la mesure est rendu à la lecture. Il est cliquable, donc la couche

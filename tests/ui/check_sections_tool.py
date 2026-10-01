@@ -92,7 +92,7 @@ def run(p, name):
     small = pg.evaluate("[...document.querySelectorAll('[data-sect-run]')].map(b=>{const r=b.getBoundingClientRect();return [b.innerText,r.width,r.height]}).filter(x=>x[1]<44||x[2]<44)")
     check(not small, tag + f"segment chips >= 44 px (small: {small})")
     pg.screenshot(path=f"{PRE}_{name}_open.png")
-    check(not [u for u in posts if "/section-marks/" not in u], tag + f"only draft posts intercepted ({set(posts)})")
+    check(not [u for u in posts if "/section-marks/" not in u and "/section-repeats/" not in u], tag + f"only draft posts (+ the read-only repeats search) intercepted ({set(posts)})")
     check(not errs, tag + f"no console errors {errs[:3]}")
     b.close()
 

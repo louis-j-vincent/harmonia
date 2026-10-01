@@ -5,6 +5,21 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Outil des sections : les autres passages arrivent en pâle (2026-10-01)
+
+Après le 2e tap (ou un trait glissé), `/api/section-repeats` (lecture seule)
+propose les autres passages du bloc en pointillés pâles « A ? » ; un tap les
+garde, « Garder les N » les garde tous, Défaire en défait un à la fois. Mesures
+de la chanson, telles que rendues par le serveur. Test :
+`tests/ui/check_section_suggestions.py`. **Ne résout pas :** (1) le seuil est
+celui du serveur, aucun réglage ici ; (2) sur Chasing Pavements les 5 reprises
+trouvées sont toutes « found-transposed » (rot 1 ou 2 demi-tons) et aucune
+n'est à l'identique — à écouter avant de s'y fier, non retouché ; (3) les
+mesures déjà posées par l'algo (pas par Louis) ne sont pas réclamées : garder
+une proposition les écrase ; (4) sur un chart replié, une proposition peut
+tomber sur un passage non écrit (non affiché) ; (5) la carte collante occupe la
+moitié de l'écran du téléphone, la grille visible reste petite.
+
 ## « Même accord » = la mesure de ressemblance v2, au seuil du curseur (2026-10-01, BRANCHÉ 6271b31)
 
 `roles.meme_lecture(grain="famille")` = `chord_similarity.v2 ≥ seuil du cran`.
