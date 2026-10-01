@@ -69,6 +69,39 @@ export function nameEl(c, size){
 export { FOLDERS_KEY, folderCount, fusionnerDossiersServeur, loadFolders,
          ranger, saveFolders } from "../folders.js";
 
+// ── « Reprendre » dit aussi OÙ on s'était arrêté (UX #39, audit A1) ───────
+// La position vit dans l'élément <audio> (audio.js, qu'on ne touche pas) : on
+// l'écoute depuis le document, en CAPTURE — les évènements média ne remontent
+// pas, mais ils descendent. Une écriture au plus toutes les 2 s en lecture,
+// plus une à chaque pause. Rien n'est envoyé au serveur : c'est par appareil.
+export const POS_KEY="harmPos:";
+export function lirePosition(file){
+    try{ const p=JSON.parse(localStorage.getItem(POS_KEY+file)||"null");
+         return p && p.bar>1 ? p : null; }catch(e){ return null; }
+  }
+export function barreA(t){
+    const ix=(S.barTimeIndex||[]).find(x=>t>=x.t0 && t<x.t1);
+    return ix ? ix.bi : (S.playBar>=0 ? S.playBar : -1);
+  }
+let _posLast=0;
+export function noterPosition(a, force){
+    try{
+      const f=S.model && S.model.file; if(!f || !a) return;
+      const now=Date.now(); if(!force && now-_posLast<2000) return;
+      _posLast=now;
+      const t=a.currentTime||0;
+      if(a.ended || (a.duration && t>a.duration-1)){ localStorage.removeItem(POS_KEY+f); return; }
+      const bi=barreA(t); if(t<1 || bi<0) return;
+      localStorage.setItem(POS_KEY+f, JSON.stringify({t:Math.round(t*10)/10, bar:bi+1}));
+    }catch(e){}
+  }
+if(typeof document!=="undefined" && !window.__harmPosInstalle){
+    window.__harmPosInstalle=true;
+    document.addEventListener("timeupdate",e=>{ if(e.target && e.target.tagName==="AUDIO" && !e.target.paused) noterPosition(e.target,false); },true);
+    document.addEventListener("pause",e=>{ if(e.target && e.target.tagName==="AUDIO") noterPosition(e.target,true); },true);
+    document.addEventListener("ended",e=>{ if(e.target && e.target.tagName==="AUDIO") noterPosition(e.target,true); },true);
+  }
+
 export function renderLibrary(){
     resetSpelling();
     S.folders=loadFolders();
@@ -107,6 +140,11 @@ export function renderLibrary(){
       ct.appendChild(el("div",
         `font:700 11px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.accent};`,"Reprendre"));
       const nm=nameEl(last,16); nm.style.marginTop="3px"; ct.appendChild(nm);
+      const pos=lirePosition(last.file);
+      if(pos){
+        const ou=el("div",`font:500 12.5px ${UI};color:${T.faint};margin-top:3px;`,"mesure "+pos.bar);
+        ou.dataset.reprise="mesure"; ct.appendChild(ou);
+      }
       cont.appendChild(ct);
       cont.appendChild(el("span",`flex:0 0 auto;font:400 24px ${UI};color:${T.rule};`,"›"));
       cont.onclick=()=>openChart(last.file);
