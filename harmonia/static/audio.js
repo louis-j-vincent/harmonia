@@ -643,11 +643,48 @@ export function playMetroClick(){
     try{
       if(!metroCtx) metroCtx=new (window.AudioContext||window.webkitAudioContext)();
       if(metroCtx.state==="suspended") metroCtx.resume();
-      const t=metroCtx.currentTime, o=metroCtx.createOscillator(), g=metroCtx.createGain();
-      o.type="square";
-      o.frequency.setValueAtTime(2200,t); o.frequency.exponentialRampToValueAtTime(900,t+0.012);
-      g.gain.setValueAtTime(0.08,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.025);
-      o.connect(g); g.connect(metroCtx.destination); o.start(t); o.stop(t+0.03);
+      metroTickAt(metroCtx.currentTime,false);
     }catch(e){}
+  }
+  // Un tic planifié à l'instant `t` de l'horloge WebAudio ; `accent` = plus aigu
+  // et plus fort (le premier temps de la mesure, dans le décompte).
+function metroTickAt(t,accent){
+    const o=metroCtx.createOscillator(), g=metroCtx.createGain();
+    o.type="square";
+    o.frequency.setValueAtTime(accent?3200:2200,t); o.frequency.exponentialRampToValueAtTime(accent?1300:900,t+0.012);
+    g.gain.setValueAtTime(accent?0.13:0.08,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.025);
+    o.connect(g); g.connect(metroCtx.destination); o.start(t); o.stop(t+0.03);
+    return o;
+  }
+  // ── DÉCOMPTE (UX #37, 2026-10-01) : `beats` tics espacés de `ivS` secondes
+  // (le premier de chaque mesure de `bpb` temps est accentué), puis `onDone` au
+  // moment du temps suivant — c'est là que la lecture démarre. Les tics sont
+  // planifiés sur l'horloge WebAudio (précis, aucune boucle rAF) ; seul le
+  // départ de la lecture passe par un `setTimeout`, comme loopSchedule, calé un
+  // poil en avance pour la latence de play(). Rien ne joue encore dans
+  // l'élément audio pendant ce temps : pas de conflit de session iOS, et le
+  // contexte est suspendu avant `onDone` si le « tic à chaque accord » est
+  // éteint (même précaution que togglePlay pour tickCtx).
+export function countInStart(beats,ivS,bpb,onDone){
+    countInCancel();
+    const ci={timer:null,nodes:[]}; S._countIn=ci;
+    try{
+      if(!metroCtx) metroCtx=new (window.AudioContext||window.webkitAudioContext)();
+      if(metroCtx.state==="suspended") metroCtx.resume();
+      const t0=metroCtx.currentTime+0.06;
+      for(let k=0;k<beats;k++) ci.nodes.push(metroTickAt(t0+k*ivS,k%Math.max(1,bpb)===0));
+    }catch(e){}
+    ci.timer=setTimeout(()=>{
+      if(S._countIn!==ci) return; S._countIn=null;
+      try{ if(!S.metronome && metroCtx && metroCtx.state==="running") metroCtx.suspend(); }catch(e){}
+      onDone();
+    }, Math.max(0,(0.06+beats*ivS-0.04)*1000));
+    return ci;
+  }
+export function countInCancel(){
+    const ci=S._countIn; if(!ci) return false;
+    S._countIn=null; clearTimeout(ci.timer);
+    ci.nodes.forEach(o=>{ try{ o.stop(); }catch(e){} });
+    return true;
   }
 

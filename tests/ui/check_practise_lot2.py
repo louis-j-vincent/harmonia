@@ -3,6 +3,7 @@
 #34 speeds 0,5 0,6 0,75 0,9 1 (comma; audio.playbackRate follows).
 #35 tapping « mesure N · v× » opens « Aller à la mesure… » and seeks the audio to that bar.
 #36 help line under Piano + 🎹 button toggling the keyboard card.
+#37 « Tic à chaque accord » rename + count-in (2 bars of ticks, then audio starts; default Non; tap cancels).
 #33 drag on the bar band chooses loop A/B (engine a,b; audio stays inside; tap still seeks)."""
 import sys
 from playwright.sync_api import sync_playwright
@@ -18,6 +19,8 @@ with sync_playwright() as p:
     b = getattr(p, name).launch()
     ctx = b.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
     ctx.add_init_script("localStorage.setItem('harmPianoOffByDefault','1')")
+    ctx.add_init_script("""(()=>{ window.__sq=[]; const st=OscillatorNode.prototype.start;
+      OscillatorNode.prototype.start=function(t){ if(this.type==='square') window.__sq.push([t, performance.now()]); return st.apply(this,arguments); }; })()""")
     pg = ctx.new_page(); errs = []
     pg.on("pageerror", lambda e: errs.append(str(e)))
     pg.route("**/api/**", lambda r: r.fulfill(status=200, body="{}", content_type="application/json") if r.request.method == "POST" else r.continue_())
@@ -62,6 +65,54 @@ with sync_playwright() as p:
     t1 = SE(pg,'S.audio.currentTime'); lp = eng()
     check(abs(t1 - last[3]) < 0.6 and t0 > 90 and lp is None, tag + f"plain tap on the last segment still seeks to its start ({t0:.1f}s -> {t1:.1f}s, segment starts {last[3]:.1f}s), no loop armed")
     pg.screenshot(path=f"/tmp/lot2_drag_{name}.png")
+    # ---- #37 count-in
+    pg.locator('button[aria-label="Réglages"]').first.tap(); pg.wait_for_timeout(500)
+    sh = pg.locator("[data-overlay]").inner_text()
+    check("Tic à chaque accord" in sh and "Clic sur les accords" not in sh, tag + "setting renamed « Tic à chaque accord »")
+    check("Décompte" in sh and "2 mesures" in sh, tag + "« Décompte : Non / 2 mesures » offered")
+    check(SE(pg,'S.countIn') is False or SE(pg,'S.countIn') == False, tag + "default is Non")
+    pg.screenshot(path=f"/tmp/lot2_countin_sheet_{name}.png")
+    pg.reload(); pg.wait_for_selector("[data-bar]", timeout=20000, state="attached"); pg.wait_for_timeout(1200)
+    pg.evaluate("async()=>{const {go}=await import('/static/router.js'); go('prompter');}"); pg.wait_for_timeout(1200)
+    g = SE(pg,'S.model.barGrid'); bpb = SE(pg,'S.model.bpb') or 4
+    play = lambda: pg.locator('button[title^="Lecture / pause"]')
+    def audio(): return SE(pg,'S.audio.currentTime')
+    def run_play(tag2, secs, cancel_at=None):
+        SE(pg,'(S.audio.pause(), S.playing=false, S.audio.currentTime=11.7)'); pg.evaluate("window.__sq.length=0"); pg.wait_for_timeout(300)
+        play().tap(); trace = []
+        for i in range(int(secs*4)):
+            pg.wait_for_timeout(250)
+            trace.append((i*0.25+0.25, audio(), SE(pg,'S.playing'), SE(pg,'S.audio.paused')))
+            if cancel_at is not None and abs(trace[-1][0]-cancel_at) < 0.13: play().tap()
+        return trace
+    # default Non: plays immediately, no ticks
+    tr = run_play("off", 2.5)
+    check(tr[-1][1] > 11.7 + 1.0 and not tr[-1][3], tag + f"default Non: audio starts at once ({tr[-1][1]:.2f}s)")
+    check(pg.evaluate("window.__sq.length") == 0, tag + "default Non: no count-in tick")
+    SE(pg,'(S.audio.pause(), S.playing=false)')
+    # turn it on through the sheet
+    pg.locator('button[aria-label="Réglages"]').first.tap(); pg.wait_for_timeout(500)
+    pg.locator("[data-overlay]").get_by_role("button", name="2 mesures", exact=True).tap(); pg.wait_for_timeout(300)
+    check(SE(pg,'S.countIn') is True and pg.evaluate("localStorage.getItem('harmCountIn')") == "1", tag + "Décompte 2 mesures saved")
+    pg.evaluate("document.querySelector('[data-overlay]')&&document.querySelector('[data-overlay]').remove()")
+    bi = next(i for i in range(len(g)-1) if g[i+1] > 11.7 + 0.18)   # bar under the playhead (+lead)
+    bar = g[bi+1] - g[bi]; D = 2 * bar
+    tr = run_play("on", D + 3.5)
+    start = 11.7
+    moved = next((t for t, a, pl, pa in tr if a > start + 0.3), None)
+    sq = pg.evaluate("window.__sq")
+    ts = [x[0] for x in sq]; gaps = [b - a for a, b in zip(ts, ts[1:])]
+    check(len(sq) == 2 * bpb, tag + f"{len(sq)} ticks = 2 bars x {bpb} beats")
+    check(gaps and all(abs(x - bar/bpb) < 0.02 for x in gaps), tag + f"tick spacing {sum(gaps)/max(1,len(gaps)):.3f}s = beat {bar/bpb:.3f}s")
+    check(all(abs(a - start) < 0.05 for t, a, pl, pa in tr if t < D - 0.6), tag + "audio does NOT move during the count-in")
+    check(moved is not None and abs(moved - D) < 0.9, tag + f"audio starts after ~2 bars (moved at t={moved}, 2 bars = {D:.2f}s)")
+    check(tr[-1][1] > start + 1.5 and tr[-1][2], tag + f"then plays normally ({tr[-1][1]:.2f}s, playing={tr[-1][2]})")
+    pg.screenshot(path=f"/tmp/lot2_countin_{name}.png")
+    SE(pg,'(S.audio.pause(), S.playing=false)')
+    # tap during the count-in cancels it
+    tr = run_play("cancel", D + 2.0, cancel_at=1.0)
+    check(all(abs(a - start) < 0.05 for t, a, pl, pa in tr), tag + "second tap during the count-in cancels: audio never starts")
+    pg.evaluate("localStorage.removeItem('harmCountIn')")
     # ---- #36 piano button + help
     card = lambda: pg.evaluate("()=>!![...document.querySelectorAll('div')].find(d=>d.textContent.startsWith('piano : gauche'))")
     pb = pg.locator('[data-role=piano-toggle]')

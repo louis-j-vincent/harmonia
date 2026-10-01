@@ -4,7 +4,7 @@
 // only the module boundary is new.
 
 
-import { PLAYHEAD_LEAD_S, applyPlayRate, ensureLoopEls, loopEngineDispose, loopEngineSeek, loopEngineStart, loopEngineToggle, loopEpsS, loopEpsSet, nowTime, seekFrac, startTick, togglePlay, totalDur } from "../audio.js";
+import { PLAYHEAD_LEAD_S, applyPlayRate, countInCancel, countInStart, ensureLoopEls, loopEngineDispose, loopEngineSeek, loopEngineStart, loopEngineToggle, loopEpsS, loopEpsSet, nowTime, seekFrac, startTick, togglePlay, totalDur } from "../audio.js";
 import { appBar, go, screenWrap } from "../router.js";
 import { buildFormRail, lensBand, paintFormRail } from "../screens/chart.js";
 import { openPrefsSheet } from "../screens/prefs.js";
@@ -207,6 +207,7 @@ export function renderPrompter(){
     const w=screenWrap();
     const m=S.model;
     if(!m){ setTimeout(()=>go("library",{push:false}),0); return w; }
+    if(S.countIn===undefined){ try{ S.countIn=localStorage.getItem("harmCountIn")==="1"; }catch(e){ S.countIn=false; } }
     // T5 (2026-08-19) : la vitesse se LIT dans le sous-titre et se règle dans
     // la feuille — la rangée « SPEED » qui la portait a quitté l'écran.
     // Les vitesses (PLAY_RATES, rateLabel) viennent de kit.js : une seule liste
@@ -490,7 +491,24 @@ export function renderPrompter(){
     const bigPlay=el("button",`flex:0 0 auto;width:64px;height:64px;border-radius:50%;border:none;background:${T.accent};color:#fff;font:600 26px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 12px 28px -10px ${T.accent}aa;`);
     playGlyph(bigPlay, S.playing, 22);
     bigPlay.title="Lecture / pause (espace)";
-    bigPlay.onclick=()=>{ if(S._loopEngine) loopEngineToggle(); else togglePlay(); };
+    /* DÉCOMPTE (UX #37) : « Décompte : Non / 2 mesures » (Réglages, défaut Non).
+       Au départ depuis l'arrêt, deux mesures de tics (premier temps accentué,
+       au tempo de la mesure où l'on est, vitesse comprise) PUIS la lecture ;
+       retaper pendant le décompte l'annule. Même chemin pour le bouton et la
+       barre d'espace. Pause = immédiate, jamais de décompte. */
+    const startNow=()=>{ if(S._loopEngine) loopEngineToggle(); else togglePlay(); };
+    function playPress(){
+      if(countInCancel()){ playGlyph(bigPlay,false,22); return; }
+      if(!S.playing && S.countIn && grid.length>1){
+        const bi=Math.max(0,Math.min(barAt(nowTime()+PLAYHEAD_LEAD_S),grid.length-2));
+        const bpb=Math.max(1,m.bpb||4), iv=(grid[bi+1]-grid[bi])/bpb/(S.playRate||1);
+        playGlyph(bigPlay,true,22);   // le bouton passe en « pause » : on peut annuler
+        countInStart(2*bpb,iv,bpb,startNow);
+        return;
+      }
+      startNow();
+    }
+    bigPlay.onclick=playPress;
     const fwd4=el("button",jumpStyle,"4››"); fwd4.title="Avancer de quatre mesures (flèche droite)";
     fwd4.onclick=()=>jumpBars(4);
     // Longueur de la boucle (UX #5, 2026-10-01) : 1 / 2 / 4 / 8 mesures, une
@@ -615,9 +633,13 @@ export function renderPrompter(){
             "Jamais : pas de clavier. Au tap : le clavier s'affiche, et sur le chart un accord touché s'ouvre au piano. "+
             "Suit : le clavier montre l'accord qui joue, aussi sur le chart."));
           host.appendChild(pianoBox);
-          host.appendChild(row("Clic sur les accords", kitSegmented([["on","Oui"],["off","Non"]],
+          host.appendChild(row("Tic à chaque accord", kitSegmented([["on","Oui"],["off","Non"]],
             ()=>S.metronome?"on":"off",
             v=>{ S.metronome=(v==="on"); try{ localStorage.setItem("harmMetronome",S.metronome?"1":"0"); }catch(e){} paint(); },
+            {inline:true, height:SZ.control, font:13})));
+          host.appendChild(row("Décompte", kitSegmented([["off","Non"],["on","2 mesures"]],
+            ()=>S.countIn?"on":"off",
+            v=>{ S.countIn=(v==="on"); try{ localStorage.setItem("harmCountIn",S.countIn?"1":"0"); }catch(e){} paint(); },
             {inline:true, height:SZ.control, font:13})));
           // Le calage de seam n'existe que pendant une boucle — armée ici ou
           // depuis l'A–B du chart, la feuille lit `loop` et ne sait pas d'où
@@ -735,7 +757,7 @@ export function renderPrompter(){
     // than the 60/s full-DOM loop that starved iOS's audio engine (see the
     // startTick note); if the stall ever reappears, gate this on desktop.
     if(S._prompterRaf) cancelAnimationFrame(S._prompterRaf);
-    const frame=()=>{ if(S.screen!=="prompter"){ S._prompterRaf=null; wakeLock(false); loopEngineDispose(true); return; } sync(false); S._prompterRaf=requestAnimationFrame(frame); };
+    const frame=()=>{ if(S.screen!=="prompter"){ S._prompterRaf=null; wakeLock(false); countInCancel(); loopEngineDispose(true); return; } sync(false); S._prompterRaf=requestAnimationFrame(frame); };
     S._prompterRaf=requestAnimationFrame(frame);
     // Aucun défilement vertical dans Practise, jamais (acceptation T5). Si le
     // compte n'y est pas sur un écran court, c'est le REEL qui rétrécit
@@ -793,13 +815,13 @@ export function renderPrompter(){
     });
     w.addEventListener("pointercancel",()=>{ swY=null; });
     // desktop keys: space = play/pause, ←/→ = four bars (bound once, screen-gated)
-    S._prompterJump=jumpBars;
+    S._prompterJump=jumpBars; S._prompterPress=playPress;
     if(!_promptKeysBound){ _promptKeysBound=true;
       document.addEventListener("keydown",e=>{
         if(S.screen!=="prompter") return;
         const tag=(e.target&&e.target.tagName)||"";
         if(tag==="INPUT"||tag==="TEXTAREA") return;
-        if(e.code==="Space"){ e.preventDefault(); if(S._loopEngine) loopEngineToggle(); else togglePlay(); }
+        if(e.code==="Space"){ e.preventDefault(); if(S._prompterPress) S._prompterPress(); else if(S._loopEngine) loopEngineToggle(); else togglePlay(); }
         else if(e.key==="ArrowLeft"){ e.preventDefault(); if(S._prompterJump) S._prompterJump(-4); }
         else if(e.key==="ArrowRight"){ e.preventDefault(); if(S._prompterJump) S._prompterJump(4); }
       });

@@ -50,8 +50,8 @@ with sync_playwright() as p:
     pg.get_by_role("button", name="Réglages").tap(); pg.wait_for_timeout(500)
     t = sheet_text()
     check(t.lstrip().lower().startswith("réglages"), tag + "practise sheet is titled « Réglages »")
-    pos = {k: t.find(k) for k in ("Vitesse", "Piano", "Clic sur les accords", "Thème")}
-    check(all(v >= 0 for v in pos.values()) and pos["Vitesse"] < pos["Piano"] < pos["Clic sur les accords"] < pos["Thème"],
+    pos = {k: t.find(k) for k in ("Vitesse", "Piano", "Tic à chaque accord", "Thème")}
+    check(all(v >= 0 for v in pos.values()) and pos["Vitesse"] < pos["Piano"] < pos["Tic à chaque accord"] < pos["Thème"],
           tag + f"practise: play settings first, then reading settings {pos}")
     check(summ().count() == 1 and summ().inner_text().strip().startswith("▸"), tag + "practise: « Plus… » ▸ closed")
     check(pg.get_by_text("Calage de la boucle").count() == 0, tag + "no calage without a loop")
