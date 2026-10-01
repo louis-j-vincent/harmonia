@@ -359,15 +359,18 @@ export function paintLoading(){
     L.title.textContent=j.title||"ton morceau";
 
     if(j.error){
-      L.sub.textContent="quelque chose a échoué";
+      // Un fichier refusé pour sa taille / sa durée n'est pas une panne : on
+      // le dit comme une limite (vérif. lot 2, 2026-10-01).
+      const limite=/limite/i.test(String(j.error||""));
+      L.sub.textContent=limite?"fichier refusé":"quelque chose a échoué";
       clear(L.body);
       const card=el("div",
         `margin:18px 4px;background:${T.card};border:1px solid ${T.line};`+
         `border-radius:${SZ.radiusLg}px;padding:20px;`);
-      card.appendChild(el("div",`font:600 15px ${UI};color:${T.accent};margin-bottom:6px;`,"Ça n’a pas marché"));
+      card.appendChild(el("div",`font:600 15px ${UI};color:${T.accent};margin-bottom:6px;`,limite?"Trop long pour l’import":"Ça n’a pas marché"));
       // STAGES names the step that broke — the one thing the old five-line
       // screen still had to offer.
-      card.appendChild(el("div",`font:italic 13px ${SERIF};color:${T.faint};margin-bottom:8px;`,
+      if(!limite) card.appendChild(el("div",`font:italic 13px ${SERIF};color:${T.faint};margin-bottom:8px;`,
         "échec pendant : "+(STAGES[Math.max(0,Math.min(STAGES.length-1,(j.stage||1)-1))].k)));
       card.appendChild(el("div",`font:500 13px/1.5 ${UI};color:${T.faint};`, j.error));
       L.body.appendChild(card);

@@ -109,7 +109,7 @@ export async function runSearch(q){
     q=(q||"").trim(); if(!q) return;
     // les collages restent des raccourcis (flux historiques, gardés): un lien
     // YouTube part direct en analyse, un irealb:// s'importe direct
-    if(/youtu\.?be/.test(q)){ startAnalysis(q, "your link"); return; }
+    if(/youtu\.?be/.test(q)){ startAnalysis(q, "ton lien YouTube"); return; }
     if(/^irealb:\/\//i.test(q)){ importIrealChart({irealb_url:q}); return; }
     noterRecente(q);
     S.searchQuery=q; S.searching=true; S.searchPage=0; S.searchMore=false; paintResults();
