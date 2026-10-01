@@ -45,6 +45,86 @@ _jobs: dict[str, dict] = {}
 _JOBS_LOCK = threading.Lock()
 
 
+# ── Combien de temps ça va prendre (UX #42, audit F4) ───────────────────────
+# L'écran de chargement dit « environ 1 min » d'après des durées MESURÉES, pas
+# devinées : chaque job qui atteint le chart brut ajoute une ligne à
+# `state/cache/job_timings.jsonl` (régénérable, hors git) et l'estimation est
+# la médiane des 40 dernières. Tant que l'historique est vide, des constantes
+# mesurées le 2026-10-01 (voir `_REPLI`) tiennent la place.
+TIMINGS_PATH = SETTINGS.cache_dir / "job_timings.jsonl"
+#: secondes pour obtenir l'audio (YouTube : téléchargement ; fichier : ~0) et
+#: secondes de calcul jusqu'au chart brut. Mesuré le 2026-10-01, process neuf
+#: (modèles chargés dans le job), 4 morceaux jamais vus :
+#:   170 s d'audio -> 9,7 s · 200 -> 9,1 · 300 -> 12,6 · 360 -> 15,3
+#: soit ≈ 5 s + 0,03 s par seconde d'audio. Le téléchargement YouTube n'est pas
+#: remesuré ici : 1 à 18 s selon le réseau (docs/blog/27), 8 s en médiane
+#: prudente — c'est ce que l'historique corrigera.
+_REPLI = {"youtube": {"resolve_s": 8.0}, "fichier": {"resolve_s": 2.0},
+          "raw_per_s": 0.03, "raw_fixed_s": 5.0}
+
+
+def _kind(url: str) -> str:
+    return "youtube" if re.search(r"youtu\.?be", url or "") else "fichier"
+
+
+def _timings(kind: str) -> list[dict]:
+    try:
+        lines = TIMINGS_PATH.read_text(encoding="utf-8").splitlines()[-40:]
+    except OSError:
+        return []
+    rows = []
+    for ln in lines:
+        try:
+            r = json.loads(ln)
+        except ValueError:
+            continue
+        if r.get("kind") == kind and r.get("dur_s") and r.get("raw_s") is not None:
+            rows.append(r)
+    return rows
+
+
+def _median(xs: list[float]) -> float:
+    xs = sorted(xs)
+    n = len(xs)
+    return xs[n // 2] if n % 2 else (xs[n // 2 - 1] + xs[n // 2]) / 2
+
+
+def estimate_wait(kind: str, dur_s: float | None = None,
+                  resolve_s: float | None = None) -> float:
+    """Secondes (depuis la création du job) jusqu'au chart brut jouable.
+
+    `resolve_s` : si l'audio est déjà obtenu, le temps RÉEL que ça a pris
+    (remplace la médiane). `dur_s` : durée du morceau, connue après ffprobe ;
+    sans elle on prend la médiane des durées totales.
+    """
+    rows = _timings(kind)
+    if len(rows) >= 3:
+        res = resolve_s if resolve_s is not None else \
+            _median([r.get("resolve_s") or 0.0 for r in rows])
+        if dur_s is None:
+            return _median([(r.get("resolve_s") or 0.0) + r["raw_s"]
+                            for r in rows])
+        rate = _median([r["raw_s"] / r["dur_s"] for r in rows])
+        return res + rate * dur_s
+    res = resolve_s if resolve_s is not None else _REPLI[kind]["resolve_s"]
+    d = dur_s if dur_s is not None else 240.0
+    return res + _REPLI["raw_fixed_s"] + _REPLI["raw_per_s"] * d
+
+
+def _note_timing(job: dict, kind: str, raw_s: float) -> None:
+    """Une ligne par job arrivé au chart brut — jamais bloquant."""
+    try:
+        TIMINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with TIMINGS_PATH.open("a", encoding="utf-8") as f:
+            f.write(json.dumps({"t": round(time.time()), "kind": kind,
+                                "dur_s": round(job.get("duration_s") or 0, 1),
+                                "resolve_s": round(job.get("resolve_s") or 0, 1),
+                                "head_s": job.get("head_s"),
+                                "raw_s": round(raw_s, 1)}) + "\n")
+    except OSError as exc:
+        log.warning("job_timings: écriture impossible : %s", exc)
+
+
 def _load_chart_meta() -> dict:
     try:
         return json.loads(META_PATH.read_text(encoding="utf-8"))
@@ -192,7 +272,9 @@ def _run_job(job_id: str, url: str, bar1_time=None, tempo_factor=None):
             ["ffprobe", "-v", "error", "-show_entries", "format=duration",
              "-of", "csv=p=0", str(audio_path)]).strip())
         with _JOBS_LOCK:
-            job.update(stage=1, duration_s=dur)
+            resolve = time.time() - job.get("created", time.time())
+            job.update(stage=1, duration_s=dur, resolve_s=round(resolve, 1),
+                       eta_s=round(estimate_wait(_kind(url), dur, resolve), 1))
         file_key = f"min_{audio_path.stem}"
         CHARTS_DIR.mkdir(parents=True, exist_ok=True)
         dest = CHARTS_DIR / f"{file_key}.json"
@@ -269,6 +351,7 @@ def _run_job(job_id: str, url: str, bar1_time=None, tempo_factor=None):
                                raw_s=round(time.time() - t0, 2),
                                phase="raw", raw_model=model,
                                n_bars=model["nBars"], n_chords=n_chords)
+                _note_timing(job, _kind(url), time.time() - t0)
                 log.info("job %s: CHART BRUT en %.1f s → %s (%d mesures) ; "
                          "raffinement en cours",
                          job_id, time.time() - t0, file_key, model["nBars"])
@@ -306,7 +389,8 @@ def start_job(url: str, *, title: str = "", bar1_time=None,
     job_id = uuid.uuid4().hex[:12]
     with _JOBS_LOCK:
         _jobs[job_id] = {"status": "running", "stage": 0, "created": time.time(),
-                         "title": title}
+                         "title": title,
+                         "eta_s": round(estimate_wait(_kind(url)), 1)}
     threading.Thread(target=_run_job, args=(job_id, url),
                      kwargs={"bar1_time": bar1_time,
                              "tempo_factor": tempo_factor}, daemon=True).start()

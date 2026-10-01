@@ -226,12 +226,25 @@ export async function applyRefinement(file, j){
   // up with the chart that opened after it.
 export const PHASE_COPY={
     listening:["j’écoute le morceau",          "je cherche le tempo"],
-    decoding: ["je lis l’harmonie",           "c’est la partie longue — environ une minute pour un nouveau morceau"],
+    decoding: ["je lis l’harmonie",           "c’est la partie longue"],
     head:     ["déjà les premières mesures",  "les premières mesures pendant que le reste se calcule"],
     raw:      ["le chart, mesure par mesure","pas encore de lettres — tu peux déjà jouer"],
     sections: ["je cherche les sections",     "je regroupe les reprises en A, B, C…"],
     done:     ["prêt",                         ""]
   };
+/* « Il reste environ… » (UX #42, audit F4). `eta_s` est l'estimation du serveur
+   (médiane des durées mesurées sur les derniers morceaux, proportionnelle à la
+   durée de celui-ci) ; `elapsed_s` vient du MÊME serveur, donc pas de décalage
+   d'horloge avec le téléphone. On arrondit exprès : jamais de « 47 s » — une
+   précision qu'on n'a pas. Rend "" quand on ne sait pas. */
+export function resteApprox(j){
+    if(!j || !(j.eta_s>0) || j.elapsed_s==null) return "";
+    const r=j.eta_s-j.elapsed_s;
+    if(r<=8) return j.elapsed_s>j.eta_s*1.5 ? "un peu plus long que d’habitude…" : "quelques secondes encore";
+    if(r<=50) return "moins d’une minute";
+    const m=Math.max(1,Math.round(r/60));
+    return "environ "+m+" min";
+  }
 export function renderLoading(){
     const w=screenWrap();
 
@@ -268,7 +281,7 @@ export function renderLoading(){
       `flex:0 0 auto;padding:14px 14px calc(14px + env(safe-area-inset-bottom));background:${T.paper};`);
     w.appendChild(foot);
 
-    S._load={title, sub, s1f, s2f, meta, body, foot, shown:null, shownBars:0};
+    S._load={title, sub, s1f, s2f, meta, body, foot, shown:null, shownBars:0, eta:null};
     paintLoading();
     return w;
   }
@@ -377,9 +390,12 @@ export function paintLoading(){
         wrap.appendChild(el("div",`font:600 15px ${UI};color:${T.ink};`, copy[0]));
         wrap.appendChild(el("div",
           `font:italic 13.5px/1.6 ${SERIF};color:${T.faint};max-width:280px;`, copy[1]));
+        L.eta=el("div",`font:600 13px ${UI};color:${T.ink};`);
+        L.eta.dataset.eta="reste"; wrap.appendChild(L.eta);
         L.body.appendChild(wrap);
         L.shown="wait";
       }
+      if(L.eta) L.eta.textContent=resteApprox(j);
       clear(L.foot);
       L.foot.appendChild(choixDossier());
       return;

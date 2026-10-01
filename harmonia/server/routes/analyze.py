@@ -171,7 +171,10 @@ def api_job(job_id):
     job = _jobs.get(job_id)
     if job is None:
         return jsonify({"status": "error", "error": "unknown job"}), 404
-    return jsonify(job)
+    # `elapsed_s` : l'écran en tire « il reste environ… » sans comparer deux
+    # horloges (celle du serveur et celle du téléphone).
+    return jsonify({**job, "elapsed_s": round(time.time() - job["created"], 1)
+                    if job.get("created") else None})
 
 
 def _ffmpeg(src: Path, dest: Path, args: list[str], *, timeout: int) -> bool:

@@ -19,9 +19,15 @@ def run(name, launcher, **ctx):
     pg = b.new_context(viewport={"width": 390, "height": 844}, **ctx).new_page()
     errs = []; pg.on("pageerror", lambda e: errs.append(str(e)))
     posts = []
+    job = {"status": "running", "stage": 1, "phase": "listening", "eta_s": 70, "elapsed_s": 5}
     def route(r):
+        u = r.request.url
         if r.request.method == "POST":
-            posts.append(r.request.url); r.fulfill(status=200, body="{}", content_type="application/json")
+            posts.append(u)
+            body = '{"job_id":"jx"}' if "/api/analyze" in u else "{}"
+            r.fulfill(status=200, body=body, content_type="application/json")
+        elif "/api/job/jx" in u:
+            r.fulfill(status=200, body=json.dumps(job), content_type="application/json")
         else: r.continue_()
     pg.route("**/api/**", route)
     pg.goto("http://localhost:7772/"); pg.wait_for_timeout(1500)
@@ -60,7 +66,7 @@ def run(name, launcher, **ctx):
     check(r[0]["t"] >= r[0]["tw"] and r[0]["a"] < r[0]["aw"], f"artiste long: le titre tient en entier, l'artiste tronque {r[0]}")
     check(r[1]["t"] < r[1]["tw"] and r[1]["a"] <= r[1]["aw"], f"titre trop long: il tronque en dernier {r[1]}")
     check(r[2]["t"] >= r[2]["tw"] and r[2]["a"] >= r[2]["aw"], f"assez de place: rien ne tronque {r[2]}")
-    pg.screenshot(path=f"{PRE}_{name}_titre.png")
+    pg.screenshot(path=f"{PRE}_{name}_titre.png"); pg.evaluate("document.getElementById('t40').remove()")
 
     # ---- #41 : « ＋ Nouveau dossier » est un vrai bouton
     pg.evaluate("async()=>{const {go}=await import('/static/router.js');go('charts')}"); pg.wait_for_timeout(800)
@@ -71,6 +77,19 @@ def run(name, launcher, **ctx):
     pg.screenshot(path=f"{PRE}_{name}_dossier.png")
     nb.click(); pg.wait_for_timeout(300)
     check(pg.locator("input[placeholder=Standards]").count() == 1, "le bouton ouvre la feuille de nom")
+
+    # ---- #42 : l'écran de chargement donne une durée approximative
+    pg.goto("http://localhost:7772/"); pg.wait_for_timeout(1200)
+    pg.locator("input[type=text]").first.fill("https://youtu.be/abcdefghijk"); pg.keyboard.press("Enter"); pg.wait_for_timeout(2500)
+    eta = pg.locator("[data-eta=reste]")
+    check(eta.count() == 1 and eta.inner_text() == "environ 1 min", f"eta_s 70 / écoulé 5 -> « environ 1 min » ({eta.inner_text() if eta.count() else None})")
+    check("environ une minute" not in pg.inner_text("body"), "plus de « environ une minute » codé en dur")
+    pg.screenshot(path=f"{PRE}_{name}_attente.png")
+    cas = [(200, 20, "environ 3 min"), (70, 40, "moins d’une minute"), (70, 66, "quelques secondes encore"), (70, 140, "un peu plus long que d’habitude…")]
+    for e_, t_, want in cas:
+        job.update(eta_s=e_, elapsed_s=t_); pg.wait_for_timeout(1700)
+        got = pg.locator("[data-eta=reste]").inner_text()
+        check(got == want, f"eta {e_} écoulé {t_} -> « {want} » (reçu « {got} »)")
     b.close()
 
 with sync_playwright() as p:
