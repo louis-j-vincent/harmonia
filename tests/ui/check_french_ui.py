@@ -41,12 +41,14 @@ with sync_playwright() as p:
     idx = pg.evaluate("""async()=>{const {S}=await import('/static/state.js'); return S.chords.findIndex(c=>!c.nc&&!c.confirmed&&c.sug&&c.sug.length)}""")
     pg.evaluate("""async(i)=>{const A=await import('/static/screens/annotate.js'); A.openEditor(i)}""", idx); pg.wait_for_timeout(500)
     txt = english("éditeur")
-    check(all(w in txt for w in ("Roue", "Propositions", "À la main")), "editor tabs are Roue / Extensions / Propositions / À la main")
+    check(all(w in txt for w in ("Propositions", "À la main", "Plus…")), "editor tabs are Propositions / À la main, Roue and Extensions under « Plus… »")
     keep = pg.get_by_role("button", name=re.compile(r"^Garder "))
     check(keep.count() == 1, "« Garder <accord> » is there")
     check(keep.count() == 1 and keep.evaluate("e=>getComputedStyle(e).pointerEvents") != "none", "« Garder » is active as soon as the editor opens")
     pg.screenshot(path=PRE + "_editor.png")
     for tab in ("Propositions", "À la main", "Extensions"):
+        if tab == "Extensions":   # sous « Plus… » depuis b4bb343
+            pg.locator("summary", has_text="Plus…").last.click(); pg.wait_for_timeout(250)
         pg.get_by_role("button", name=tab, exact=True).click(); pg.wait_for_timeout(350); english("onglet " + tab)
     pg.screenshot(path=PRE + "_editor_hand.png")
     pg.evaluate("async()=>{const {S}=await import('/static/state.js'); S._closeEditor()}"); pg.wait_for_timeout(400)

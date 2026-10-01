@@ -178,7 +178,10 @@ export function openAnnotateTools(){
         deleteChart(r);
       });
     const plus=el("details",`border-top:1px solid ${T.line};`);
-    plus.appendChild(el("summary",`font:600 13px ${UI};color:${T.faint};cursor:pointer;min-height:${SZ.control}px;display:flex;align-items:center;padding:0 2px;`,"Plus…"));
+    const sum=el("summary",`font:600 13px ${UI};color:${T.faint};cursor:pointer;min-height:${SZ.control}px;display:flex;align-items:center;gap:6px;padding:0 2px;list-style:none;`);
+    const chev=el("span",`display:inline-block;width:16px;font:700 16px ${UI};line-height:1;`,"▸");
+    sum.appendChild(chev); sum.appendChild(el("span","","Plus…")); plus.appendChild(sum);
+    plus.ontoggle=()=>{ chev.textContent=plus.open?"▾":"▸"; };   // même chevron que kitPlusFold
     list.appendChild(plus);
     into=plus;
     line("Souder les sections","à l'oreille, deux passages à la fois",
@@ -326,7 +329,10 @@ export function openEditor(idx,opts){
     const tabs=el("div",`flex:0 0 auto;display:inline-flex;background:${T.line};border-radius:10px;padding:3px;gap:2px;`);
     tabs.appendChild(tabBtn("guide","Propositions")); tabs.appendChild(tabBtn("hand","À la main"));
     const plus=el("details",`flex:0 0 auto;margin:6px 0 10px;`);
-    plus.appendChild(el("summary",`font:600 12.5px ${UI};color:${T.faint};cursor:pointer;min-height:36px;display:flex;align-items:center;`,"Plus…"));
+    const sum=el("summary",`font:600 12.5px ${UI};color:${T.faint};cursor:pointer;min-height:${SZ.control}px;display:flex;align-items:center;gap:6px;list-style:none;`);
+    const chev=el("span",`display:inline-block;width:16px;font:700 16px ${UI};line-height:1;`,"▸");
+    sum.appendChild(chev); sum.appendChild(el("span","","Plus…")); plus.appendChild(sum);
+    plus.addEventListener("toggle",()=>{ chev.textContent=plus.open?"▾":"▸"; });   // même chevron que kitPlusFold
     const plusRow=el("div",`display:inline-flex;background:${T.line};border-radius:10px;padding:3px;gap:2px;margin:2px 0 4px;`);
     plusRow.appendChild(tabBtn("compass","Roue")); plusRow.appendChild(tabBtn("cascade","Extensions"));
     plus.appendChild(plusRow);
