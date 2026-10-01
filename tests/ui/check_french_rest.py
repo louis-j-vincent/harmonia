@@ -36,7 +36,7 @@ with sync_playwright() as p:
     # Practise
     pg.locator("button:text-is(\"S'entraîner\")").first.click(); pg.wait_for_timeout(1200)
     english("Practise"); shot("practise")
-    pg.get_by_role("button", name="Outils").first.click(); pg.wait_for_timeout(500)
+    pg.get_by_role("button", name="Réglages").first.click(); pg.wait_for_timeout(500)
     english("Practise · Outils"); shot("practise_outils")
     pg.get_by_role("button", name="Fermer").first.click(); pg.wait_for_timeout(400)
     pg.evaluate("async()=>{const {S}=await import('/static/state.js'); S.piano='tap'; const {go}=await import('/static/router.js'); go('prompter',{push:false})}")

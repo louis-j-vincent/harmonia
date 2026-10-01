@@ -9,7 +9,7 @@ import { playTick } from "../audio.js";
 import { API, go, rebuildChrome } from "../router.js";
 import { LEVEL_CAPTION, MAJOR_COLL, loadModel } from "../screens/chart.js";
 import { S } from "../state.js";
-import { CE_IV, FLAT, PREF, SERIF, SHARP, SZ, T, UI, applyTheme, closeOverlay, dispQ, el, glyph, handle, haptic, keyFill, kitButton, kitSegmented, learnLevel, mod, note, overlay, play, playMidis, renderVoicing, sev4, sheetBox, sheetCol, toast, voClose, voicingCards, withBass } from "../ui/kit.js";
+import { CE_IV, FLAT, PREF, SERIF, SHARP, SZ, T, UI, applyTheme, closeOverlay, dispQ, el, glyph, handle, haptic, keyFill, kitButton, kitPlusFold, kitSegmented, learnLevel, mod, note, overlay, play, playMidis, renderVoicing, sev4, sheetBox, sheetCol, toast, voClose, voicingCards, withBass } from "../ui/kit.js";
 
 // The single DOM host div (`<div id="app">`) — there is exactly one call
 // site, `window.APP.build(document.getElementById("app"))` in main.js, so
@@ -21,7 +21,20 @@ const root = document.getElementById("app");
   // UI refresh 2026-08-08 (§2): this sheet is now the home of everything the
   // old chart chrome carried as sub-44px toggles — Learn + its level ladder,
   // Follow, Metronome, Coach — plus Share. One family of controls, all 44px.
-export function openPrefsSheet(){
+  /* UNE SEULE FEUILLE « Réglages » POUR TOUS LES MODES (UX #6, 2026-10-01).
+     Avant : Aa ouvrait « Réglages » dans le chart, et S'entraîner avait sa propre
+     feuille « Outils » (vitesse, piano, clic, calage). Maintenant les deux écrans
+     ouvrent CETTE feuille, avec le même repli « Plus… » (chevron visible) ; seul
+     le haut change selon le contexte :
+       - chart  : les réglages de LECTURE (thème, grille, accords, regrouper…) ;
+       - S'entraîner : `opts.play` (fourni par practise.js, qui possède la boucle
+         et le rythme de lecture) pose EN PREMIER les réglages de JEU — vitesse,
+         piano, clic — et range le calage de boucle dans le « Plus… » commun,
+         puis viennent les mêmes réglages de lecture.
+     `opts.play({host, more, close})` : `host` = bloc du haut, `more` = contenu du
+     « Plus… », `close()` ferme la feuille. Aucun réglage nouveau ni perdu. */
+export function openPrefsSheet(opts){
+    opts = opts || {};
     const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
     sheet.appendChild(el("div",`flex:0 0 auto;font:600 9px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:12px;`,"Réglages"));
     const body=el("div","flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;"); body.className="ap-scroll";
@@ -37,12 +50,12 @@ export function openPrefsSheet(){
        LIT : Thème, Grille, Accords, Regrouper les sections, Partager. Le reste
        est replié sous « Plus… ». Piano et Clic ne vivent plus que dans les
        Outils de Practise (ils y étaient déjà en double). Choisi sur maquettes. */
-    const plus=el("details",`border-top:1px solid ${T.line};padding-top:4px;`);
-    if(S._prefsPlusOpen) plus.open=true;
-    plus.ontoggle=()=>{ S._prefsPlusOpen=plus.open; };
-    plus.appendChild(el("summary",`font:600 13px ${UI};color:${T.faint};cursor:pointer;min-height:${SZ.control}px;display:flex;align-items:center;`,"Plus…"));
-    const more=el("div","display:flex;flex-direction:column;gap:14px;padding-top:6px;");
-    plus.appendChild(more);
+    const {plus, more}=kitPlusFold(S._prefsPlusOpen, o=>{ S._prefsPlusOpen=o; });
+    if(opts.play){
+      const host=el("div","display:flex;flex-direction:column;gap:14px;");
+      body.appendChild(host);
+      opts.play({host, more, close:()=>closeOverlay(back)});
+    }
     // Soudure a quitté cette feuille le 2026-08-14 : c'est un outil de
     // sections, pas une préférence, et il vit maintenant dans le ruban
     // Annotate à côté de Set bar 1 (voir buildRibbon).
@@ -115,7 +128,7 @@ export function openPrefsSheet(){
         try{
           await api.post("/api/chart-meta/"+encodeURIComponent(f),{fusion:v});
           const m=await api.get("/api/chart-model/"+encodeURIComponent(f));
-          closeOverlay(back); loadModel(m,{keepTool:true}); go("chart",{push:false});
+          closeOverlay(back); loadModel(m,{keepTool:true}); go(opts.play?"prompter":"chart",{push:false});
         }catch(e){ toast("impossible d'enregistrer le regroupement"); }
       };
       body.appendChild(fx);
@@ -123,7 +136,10 @@ export function openPrefsSheet(){
     // Louis, 2026-08-09 : taper une mesure y emmène le curseur et joue. « Chord
     // sheet » est l'ancien comportement (la feuille piano + voicings), gardé
     // parce que c'est là qu'on édite un accord en Read.
-    more.appendChild(seg("Toucher une mesure",[["play","Joue"],["sheet","Fiche accord"]],
+    // UX #8 (2026-10-01) : l'ancienne étiquette « Toucher une mesure : Joue / Fiche
+    // accord » mentait — « Joue » ne jouait pas, il place le curseur (à l'arrêt rien
+    // ne démarre). Ne vaut qu'en Lire : en Corriger un tap sur un accord l'édite.
+    more.appendChild(seg("Taper une mesure"+(S.mode==="annotate"?" (inactif en Corriger)":" en Lire"),[["play","Va à la mesure"],["sheet","Ouvre l'accord"]],
       ()=>S.tapSeek?"play":"sheet",
       v=>{ S.tapSeek=(v==="play");
            try{ localStorage.setItem("harmTapSeek",S.tapSeek?"1":"0"); }catch(e){} }));

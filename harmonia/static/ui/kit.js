@@ -392,6 +392,24 @@ export function kitButton(label, onClick, opts){
     return b;
   }
 
+  /* LE REPLI « Plus… » (UX #6, 2026-10-01) : un <details> dont le résumé
+     porte un chevron VISIBLE (▸ fermé / ▾ ouvert — le triangle natif disparaît
+     dès que le résumé est en flex). `opts.pad`: padding-top du contenu.
+     Renvoie {plus, more} : poser `plus` dans la feuille, ranger dans `more`. */
+export function kitPlusFold(isOpen, onToggle, opts){
+    opts = opts || {};
+    const plus=el("details",`border-top:1px solid ${T.line};padding-top:4px;`);
+    plus.open=!!isOpen;
+    const sum=el("summary",`font:600 13px ${UI};color:${T.faint};cursor:pointer;min-height:${SZ.control}px;display:flex;align-items:center;gap:6px;list-style:none;`);
+    const chev=el("span",`display:inline-block;width:16px;font:700 16px ${UI};line-height:1;`,plus.open?"▾":"▸");
+    sum.appendChild(chev); sum.appendChild(el("span","","Plus…"));
+    plus.appendChild(sum);
+    plus.ontoggle=()=>{ chev.textContent=plus.open?"▾":"▸"; if(onToggle) onToggle(plus.open); };
+    const more=el("div",`display:flex;flex-direction:column;gap:14px;padding-top:${opts.pad==null?6:opts.pad}px;`);
+    plus.appendChild(more);
+    return {plus, more};
+  }
+
   /* A round icon button — back, prefs. Never smaller than 44. */
 export function kitIcon(glyphChar, onClick, aria, opts){
     opts = opts || {};

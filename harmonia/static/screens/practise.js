@@ -7,6 +7,7 @@
 import { PLAYHEAD_LEAD_S, applyPlayRate, ensureLoopEls, loopEngineDispose, loopEngineSeek, loopEngineStart, loopEngineToggle, loopEpsS, loopEpsSet, nowTime, seekFrac, startTick, togglePlay, totalDur } from "../audio.js";
 import { appBar, go, screenWrap } from "../router.js";
 import { buildFormRail, lensBand, paintFormRail } from "../screens/chart.js";
+import { openPrefsSheet } from "../screens/prefs.js";
 import { S } from "../state.js";
 import { NOTES, PREF, SERIF, SZ, T, UI, assignCost, clear, closeOverlay, ctlSkin, dispQ, el, glyph, handle, haptic, kitButton, kitIcon, kitSegmented, learnLevel, meanOf, mod, note, overlay, play, playGlyph, renderHand, renderKeys, renderVoicing, roleOf, rootHue, sheetBox, sheetCol, splitHands, vlCandidates, voClose, voicingByStyle, withBass } from "../ui/kit.js";
 
@@ -211,7 +212,7 @@ export function renderPrompter(){
     const RATES=[[0.5,"0.5×"],[0.75,"0.75×"],[1,"1×"]];
     const rateLbl=()=>{ const r=S.playRate||1; let best="1×", bd=9;
       RATES.forEach(([v,l])=>{ const d=Math.abs(v-r); if(d<bd){ bd=d; best=l; } }); return best; };
-    const dots=kitIcon("···", ()=>openPractiseTools(), "Outils",
+    const dots=kitIcon("···", ()=>openPractiseTools(), "Réglages",
       {style:`border:1px solid ${T.accent};color:${T.accent};`});
     const topBar=appBar(m.title, "mesure 1 · "+rateLbl(), "chart", dots);
     const paintSub=()=>{ if(topBar._sub)
@@ -470,75 +471,65 @@ export function renderPrompter(){
     const paintSeamVal=hostVal=>{ const ms=Math.round(loopEpsS*1000);
       hostVal.textContent = ms===0 ? "sur la barre" : Math.abs(ms)+" ms "+(ms>0?"en avance":"en retard"); };
     reelInner.appendChild(ctrl);   // le transport, sous le reel
-    /* Ce qui a quitté l'écran de Practise et vit ici (T5) : la vitesse, le
-       calage de la boucle, le métronome et le clavier. L'écran ne garde que ce
-       qu'on touche en jouant — transport, reel, bande de forme. */
+    /* Ce qui a quitté l'écran de Practise (T5) : la vitesse, le calage de la
+       boucle, le métronome et le clavier. UX #6 (2026-10-01) : ils n'ont plus
+       leur feuille « Outils » à eux — « ··· » ouvre la feuille « Réglages » du
+       chart (prefs.js), avec ces réglages de JEU posés en premier ; le calage
+       de la boucle vit dans le « Plus… » commun. Cette fonction ne fournit que
+       ce qui dépend de l'écran (la boucle `loop`, `paintSub`). */
     function openPractiseTools(){
-      const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
-      const close=()=>{ S._practiseSeamPaint=null; closeOverlay(back); };
-      sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,"Outils"));
-      sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:12px;`,
-        "on règle comment on joue, pas ce qu'on joue"));
-      const body=el("div","flex:1 1 auto;overflow-y:auto;display:flex;flex-direction:column;gap:14px;");
-      body.className="ap-scroll";
-      sheet.appendChild(body);
-      const row=(label,ctl)=>{
-        const r=el("div","display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;");
-        r.appendChild(el("div",`font:600 13px ${UI};color:${T.ink};`,label));
-        r.appendChild(ctl); return r;
-      };
-      function paint(){
-        clear(body);
-        body.appendChild(row("Vitesse", kitSegmented(RATES,
-          ()=>{ const r=S.playRate||1; let best=1,bd=9;
-                RATES.forEach(([v])=>{ const d=Math.abs(v-r); if(d<bd){bd=d;best=v;} }); return best; },
-          v=>{ S.playRate=v; applyPlayRate(); paintSub(); paint(); },
-          {inline:true, height:SZ.control, font:13})));
-        // « Mains » a quitté cette feuille (Louis, 2026-10-01, UX minimaliste) :
-        // doublon exact du réglage de la carte clavier (bouton « setup »).
-        body.appendChild(row("Piano", kitSegmented([["never","Jamais"],["tap","Au tap"],["follow","Suit"]],
-          ()=>S.piano,
-          v=>{ S.piano=v; S.coach=(v==="follow");
-               try{ localStorage.setItem("harmPiano",v); localStorage.setItem("harmCoach",S.coach?"1":"0"); }catch(e){}
-               close(); go("prompter",{push:false}); },   // la carte apparaît/disparaît
-          {inline:true, height:SZ.control, font:13})));
-        body.appendChild(row("Clic sur les accords", kitSegmented([["on","Oui"],["off","Non"]],
-          ()=>S.metronome?"on":"off",
-          v=>{ S.metronome=(v==="on"); try{ localStorage.setItem("harmMetronome",S.metronome?"1":"0"); }catch(e){} paint(); },
-          {inline:true, height:SZ.control, font:13})));
-        // Le calage de seam n'existe que pendant une boucle — armée ici ou
-        // depuis l'A–B du chart, la feuille lit `loop` et ne sait pas d'où
-        // elle vient (le bug de 2026-08-08 : « l'outil de calage n'est plus
-        // présent » après un armement depuis le chart).
-        // Le calage est un réglage fin : replié sous « Plus… » (2026-10-01).
-        if(loop){
-          const plus=el("details","");
-          if(S._practisePlusOpen) plus.open=true;
-          plus.ontoggle=()=>{ S._practisePlusOpen=plus.open; };
-          plus.appendChild(el("summary",`font:600 13px ${UI};color:${T.faint};cursor:pointer;min-height:${SZ.control}px;display:flex;align-items:center;`,"Plus…"));
-          body.appendChild(plus);
-          const val=el("span",`font:600 12px ${UI};color:${T.ink};min-width:104px;text-align:center;font-variant-numeric:tabular-nums;`,"");
-          paintSeamVal(val);
-          S._practiseSeamPaint=()=>paintSeamVal(val);
-          const box=el("div","display:flex;align-items:center;gap:8px;");
-          box.appendChild(kitButton("plus tôt", ()=>{ haptic(); loopEpsSet(Math.round(loopEpsS*1000)+4); paintSeamVal(val); }, {small:true}));
-          box.appendChild(val);
-          box.appendChild(kitButton("plus tard", ()=>{ haptic(); loopEpsSet(Math.round(loopEpsS*1000)-4); paintSeamVal(val); }, {small:true}));
-          const blk=el("div","display:flex;flex-direction:column;gap:8px;");
-          blk.appendChild(el("div",`font:600 13px ${UI};color:${T.ink};`,"Calage de la boucle"));
-          blk.appendChild(el("div",`font:italic 12px ${SERIF};color:${T.faint};margin-top:-4px;`,
-            "la reprise sonne en retard ? touche « plus tôt »"));
-          blk.appendChild(box);
-          plus.appendChild(blk);
+      openPrefsSheet({play:({host, more, close:closeSheet})=>{
+        const close=()=>{ S._practiseSeamPaint=null; closeSheet(); };
+        const row=(label,ctl)=>{
+          const r=el("div","display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;");
+          r.appendChild(el("div",`font:600 13px ${UI};color:${T.ink};`,label));
+          r.appendChild(ctl); return r;
+        };
+        let calage=null;
+        function paint(){
+          clear(host);
+          host.appendChild(row("Vitesse", kitSegmented(RATES,
+            ()=>{ const r=S.playRate||1; let best=1,bd=9;
+                  RATES.forEach(([v])=>{ const d=Math.abs(v-r); if(d<bd){bd=d;best=v;} }); return best; },
+            v=>{ S.playRate=v; applyPlayRate(); paintSub(); paint(); },
+            {inline:true, height:SZ.control, font:13})));
+          // « Mains » a quitté cette feuille (Louis, 2026-10-01, UX minimaliste) :
+          // doublon exact du réglage de la carte clavier (bouton « setup »).
+          host.appendChild(row("Piano", kitSegmented([["never","Jamais"],["tap","Au tap"],["follow","Suit"]],
+            ()=>S.piano,
+            v=>{ S.piano=v; S.coach=(v==="follow");
+                 try{ localStorage.setItem("harmPiano",v); localStorage.setItem("harmCoach",S.coach?"1":"0"); }catch(e){}
+                 close(); go("prompter",{push:false}); },   // la carte apparaît/disparaît
+            {inline:true, height:SZ.control, font:13})));
+          host.appendChild(row("Clic sur les accords", kitSegmented([["on","Oui"],["off","Non"]],
+            ()=>S.metronome?"on":"off",
+            v=>{ S.metronome=(v==="on"); try{ localStorage.setItem("harmMetronome",S.metronome?"1":"0"); }catch(e){} paint(); },
+            {inline:true, height:SZ.control, font:13})));
+          // Le calage de seam n'existe que pendant une boucle — armée ici ou
+          // depuis l'A–B du chart, la feuille lit `loop` et ne sait pas d'où
+          // elle vient (le bug de 2026-08-08 : « l'outil de calage n'est plus
+          // présent » après un armement depuis le chart). Réglage fin : en tête
+          // du « Plus… » commun.
+          if(calage){ calage.remove(); calage=null; }
+          if(loop){
+            const val=el("span",`font:600 12px ${UI};color:${T.ink};min-width:104px;text-align:center;font-variant-numeric:tabular-nums;`,"");
+            paintSeamVal(val);
+            S._practiseSeamPaint=()=>paintSeamVal(val);
+            const box=el("div","display:flex;align-items:center;gap:8px;");
+            box.appendChild(kitButton("plus tôt", ()=>{ haptic(); loopEpsSet(Math.round(loopEpsS*1000)+4); paintSeamVal(val); }, {small:true}));
+            box.appendChild(val);
+            box.appendChild(kitButton("plus tard", ()=>{ haptic(); loopEpsSet(Math.round(loopEpsS*1000)-4); paintSeamVal(val); }, {small:true}));
+            calage=el("div","display:flex;flex-direction:column;gap:8px;");
+            calage.dataset.role="calage";
+            calage.appendChild(el("div",`font:600 13px ${UI};color:${T.ink};`,"Calage de la boucle"));
+            calage.appendChild(el("div",`font:italic 12px ${SERIF};color:${T.faint};margin-top:-4px;`,
+              "la reprise sonne en retard ? touche « plus tôt »"));
+            calage.appendChild(box);
+            more.insertBefore(calage, more.firstChild);
+          }
         }
-      }
-      paint();
-      const cancel=el("button",`flex:0 0 auto;width:100%;margin-top:12px;background:transparent;border:none;`+
-        `color:${T.faint};font:600 13px ${UI};padding:8px;min-height:${SZ.control}px;cursor:pointer;`,"Fermer");
-      cancel.onclick=close;
-      sheet.appendChild(cancel);
-      back.onclick=e=>{ if(e.target===back) close(); };
-      back.appendChild(sheet); root.appendChild(back);
+        paint();
+      }});
     }
     if(loop) paintLoop();   // adopted from the chart's A–B — paint on arrival
     function layout(){
