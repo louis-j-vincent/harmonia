@@ -38,6 +38,7 @@ def save_annotations(file):
             "annotator": doc.get("annotator", ""),
             "chords": doc.get("chords", []),
             "merges": doc.get("merges", []),
+            "removed": doc.get("removed", []),
         })
     except (OSError, TypeError, ValueError) as exc:
         # Never fail silently: the shell swallows errors, so the log is the

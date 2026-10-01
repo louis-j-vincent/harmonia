@@ -26,6 +26,12 @@ What this does NOT solve:
   and applying it to one only would desync the repeats. A user who wants
   two folded passes to differ cannot express that here.
 * Last-write-wins, no merge of concurrent writers, no undo history.
+* ``removed`` (2026-10-01, « Recoller » d'une mesure coupée) : une liste de
+  ``{bar, beat}`` dont l'accord DISPARAÎT du chart servi, l'accord d'avant
+  reprenant sa durée. C'est le seul moyen de défaire une coupure sur un accord
+  que le modèle avait lui-même détecté (un accord ajouté à la main, lui, n'a
+  qu'à quitter ``chords``). Comme ``(bar, beat)`` n'est pas unique, la
+  suppression vaut pour TOUTES les copies repliées, comme un verrou.
 * ``merges`` are stored and echoed back opaquely; nothing interprets them.
 """
 
@@ -59,7 +65,8 @@ def _key(bar, beat) -> tuple:
 
 def empty_doc(file_key: str) -> dict:
     return {"schema": SCHEMA, "chart": Path(file_key).stem, "annotator": "",
-            "modified": None, "chords": [], "merges": []}
+            "modified": None, "chords": [], "merges": [],
+            "removed": []}
 
 
 def load_annotation(file_key: str) -> dict:
@@ -69,6 +76,7 @@ def load_annotation(file_key: str) -> dict:
         return empty_doc(file_key)
     doc.setdefault("chords", [])
     doc.setdefault("merges", [])
+    doc.setdefault("removed", [])
     return doc
 
 
@@ -87,6 +95,7 @@ def save_annotation(file_key: str, doc: dict) -> dict:
     out.setdefault("annotator", "")
     out.setdefault("chords", [])
     out.setdefault("merges", [])
+    out.setdefault("removed", [])
     payload = json.dumps(out, indent=2)  # raises before any file is opened
 
     ANNOT_DIR.mkdir(parents=True, exist_ok=True)
@@ -139,10 +148,27 @@ def _synthesize(template: dict, fix: dict) -> dict:
     ch.pop("sug", None)
     ch["n_obs"] = 1
     ch["folded"] = False
+    ch["added"] = True  # posé à la main : « Recoller » le retire sans marqueur
     _apply(ch, fix)
     if fix.get("bass", -1) is None or int(fix.get("bass", -1)) < 0:
         ch["bass"] = -1  # a synthesized chord inherits no slash from its host
     return ch
+
+
+def _remove_chords(model: dict, gone: set) -> None:
+    """Retire de chaque copie de mesure les accords dont la clé est dans
+    ``gone`` ; l'accord qui précède reprend leur fin (``t1``), de sorte que la
+    mesure « recollée » soit continue dans le temps."""
+    for sec in model.get("sections", []) or []:
+        for bar in sec.get("bars", []) or []:
+            keep = []
+            for c in bar:
+                if _key(c.get("bar"), c.get("beat")) in gone and keep:
+                    if c.get("t1") is not None and keep[-1].get("t1") is not None:
+                        keep[-1]["t1"] = max(keep[-1]["t1"], c["t1"])
+                    continue  # le PREMIER accord d'une mesure ne se recolle jamais
+                keep.append(c)
+            bar[:] = keep
 
 
 def overlay(model: dict, ann: dict | None) -> dict:
@@ -153,11 +179,20 @@ def overlay(model: dict, ann: dict | None) -> dict:
     """
     ann = ann or {}
     model["merges"] = ann.get("merges", []) or []
+    removed = [r for r in (ann.get("removed", []) or [])
+               if isinstance(r, dict) and r.get("bar") is not None]
+    model["removed"] = [{"bar": r["bar"], "beat": r.get("beat", 0)} for r in removed]
+    gone = {_key(r["bar"], r.get("beat", 0)) for r in removed}
+    if gone:
+        _remove_chords(model, gone)
     fixes = {}
     for fix in ann.get("chords", []) or []:
         if fix.get("root") is None:
             continue
-        fixes[_key(fix.get("bar"), fix.get("beat"))] = fix
+        k = _key(fix.get("bar"), fix.get("beat"))
+        if k in gone:
+            continue  # « recollé » après avoir été verrouillé : la suppression gagne
+        fixes[k] = fix
     if not fixes:
         return model
 

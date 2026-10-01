@@ -5,6 +5,34 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## UX top-5 de l'audit du 2026-10-01 : ce que chaque changement NE résout PAS
+
+Page avant/après : `docs/plots/ux_5_changements_2026-10-01.html`. Tests Playwright
+(rien n'est écrit dans `state/`) : `tests/ui/check_tap_zones.py`,
+`check_chord_listen.py`, `check_cut_bar.py`.
+
+1. **Zone à toucher = part de la mesure.** Une mesure sans accord à elle (« % »)
+   n'a qu'une zone, qui ajoute un accord au temps 1 ; en écriture serrée les
+   frontières sont mesurées sur les glyphes (après rendu), pas sur les temps.
+   Pendant l'outil de sections, plus d'éditeur au tap (avant : le tap ouvrait
+   quand même l'éditeur sous l'outil). Non fait : numéros de mesure dans la grille.
+2. **▶ Original.** Joue `ch.t0→ch.t1` (la 1re passe seulement) : pour un accord
+   replié « joué 13 fois », pas de choix du passage. Précision de l'arrêt = un
+   `setTimeout` sur l'horloge média, ~±30 ms. Non vérifié sur iPhone réel
+   (seulement Chromium headless) : à écouter une fois sur le téléphone.
+3. **Couper la mesure / Recoller.** Temps supposés égaux (`bar.t0..bar.t1 / bpb`).
+   Le premier accord (hôte) rétrécit en mémoire mais, s'il n'était pas verrouillé,
+   son `t1` n'est PAS écrit : au rechargement il redevient pleine mesure (le
+   chart se lit par les temps de début, donc sans effet visible ; seul ▶ Original
+   de l'hôte jouerait toute la mesure). Recoller ramène la mesure à son premier
+   accord (pas de « recoller deux voisins sur trois »). Recoller un accord du
+   MODÈLE passe par un nouveau champ `removed` du sidecar
+   (`annotations.overlay`) : **il faut redémarrer le serveur** pour que la route
+   `/api/annotations` le garde. Une coupe ne s'applique qu'à une mesure qui a au
+   moins un accord ; les mesures tenues (« % ») ajoutent seulement au temps 1.
+   Trouvé en route : les tests `test_annotations.py` écrivaient dans le registre
+   tracké `state/human/corrections/` (corrigé : le fixture le redirige).
+
 ## Transposer puis verrouiller un accord réécrivait les annotations (2026-10-01, RÉSOLU)
 
 Trouvé par l'audit UX (`docs/plots/ux_audit_2026-10-01.html`). `transposeTo`

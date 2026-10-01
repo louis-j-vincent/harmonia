@@ -414,6 +414,7 @@ export function loadModel(m, opts){
             pedal:!!c.pedal,
             n:(c.n==null?0:c.n|0),
             var:c.var||null,   // l'autre lecture de cette case, sur un chart replié
+            added:!!c.added,   // accord posé à la main (« Couper la mesure ») : se recolle sans trace sur disque
             sec:s.label, secId:s.id, secIdx:si, reps:s.reps,
             barFirst: ci===0, secFirst: !!meta.secFirst && ci===0,
             t0:c.t0, t1:c.t1, spans });

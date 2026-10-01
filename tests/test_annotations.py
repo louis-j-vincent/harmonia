@@ -43,6 +43,10 @@ pytestmark = pytest.mark.skipif(
 def _tmp_annot_dir(tmp_path, monkeypatch):
     """Never touch the real sidecar directory from tests."""
     monkeypatch.setattr(an, "ANNOT_DIR", tmp_path / "annotations")
+    # le registre des corrections (state/human/corrections/) est TRACKÉ : un
+    # POST de test ne doit pas y écrire (2026-10-01 : il y écrivait).
+    from harmonia import corrections
+    monkeypatch.setattr(corrections, "DOSSIER", tmp_path / "corrections")
 
 
 def _model() -> dict:
@@ -190,6 +194,7 @@ def test_overlay_is_a_noop_without_annotations():
     before = json.dumps(model, sort_keys=True)
     out = an.overlay(json.loads(before), {"chords": [], "merges": []})
     out.pop("merges", None)
+    out.pop("removed", None)
     assert json.dumps(out, sort_keys=True) == before
 
 
@@ -213,6 +218,66 @@ def test_post_annotations_then_chart_model_rehydrates():
     assert r2.status_code == 200
     got = _first_chord(r2.get_json())
     assert got["confirmed"] is True and got["root"] == 2 and got["q"] == "-7"
+
+
+# ── « Recoller » : retirer un accord (2026-10-01) ───────────────────────────
+
+def _bar_with_two_chords(model: dict):
+    for sec in model["sections"]:
+        for bar in sec["bars"]:
+            if len(bar) >= 2:
+                return bar
+    pytest.skip("no 2-chord bar in this chart")
+
+
+def test_removed_chord_disappears_and_the_previous_one_takes_its_time():
+    model = _model()
+    bar = _bar_with_two_chords(model)
+    first, second = bar[0], bar[1]
+    t1_second = second["t1"]
+    out = an.overlay(model, {"chords": [], "merges": [],
+                             "removed": [{"bar": second["bar"], "beat": second["beat"]}]})
+    again = next(b for sec in out["sections"] for b in sec["bars"]
+                 if b and b[0]["bar"] == first["bar"])
+    assert second["beat"] not in [c["beat"] for c in again]
+    assert again[0]["t1"] == pytest.approx(t1_second)
+    assert out["removed"] == [{"bar": second["bar"], "beat": second["beat"]}]
+
+
+def test_removal_beats_a_lock_on_the_same_chord():
+    model = _model()
+    bar = _bar_with_two_chords(model)
+    second = bar[1]
+    fix = {"bar": second["bar"], "beat": second["beat"], "root": 2, "bass": -1,
+           "q": "-7", "t0": second["t0"], "t1": second["t1"]}
+    out = an.overlay(model, {"chords": [fix], "merges": [],
+                             "removed": [{"bar": second["bar"], "beat": second["beat"]}]})
+    assert not [c for c in _chords(out)
+                if (c["bar"], c["beat"]) == (second["bar"], second["beat"])]
+
+
+def test_the_first_chord_of_a_bar_is_never_removed():
+    model = _model()
+    bar = _bar_with_two_chords(model)
+    first = bar[0]
+    out = an.overlay(model, {"chords": [], "merges": [],
+                             "removed": [{"bar": first["bar"], "beat": first["beat"]}]})
+    assert [c for c in _chords(out) if (c["bar"], c["beat"]) == (first["bar"], first["beat"])]
+
+
+def test_post_removed_survives_the_roundtrip():
+    from harmonia.server import app as srv
+
+    client = srv.app.test_client()
+    second = _bar_with_two_chords(_model())[1]
+    rem = [{"bar": second["bar"], "beat": second["beat"]}]
+    r = client.post("/api/annotations/min_maroon_5_this_love",
+                    json={"annotator": "", "chords": [], "merges": [], "removed": rem})
+    assert r.status_code == 200
+    model = client.get("/api/chart-model/min_maroon_5_this_love").get_json()
+    assert model["removed"] == rem
+    assert not [c for c in _chords(model)
+                if (c["bar"], c["beat"]) == (second["bar"], second["beat"])]
 
 
 def test_delete_chart_moves_its_sidecar_to_the_bin(tmp_path, monkeypatch):

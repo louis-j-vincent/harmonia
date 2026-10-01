@@ -148,7 +148,7 @@ export function openAnnotateTools(){
 export let editTab="compass", handTab="cylinder";
   // `opts.isNew` (2026-09-16, bar-expanded add-a-chord): the sheet opens on a
   // freshly pushed, UNCONFIRMED draft chord (see annotate.js openNewChord) —
-  // same shell, same tabs, same lockBtn/splitBtn wiring, just: no split (you
+  // same shell, same tabs, same lockBtn wiring, just: no cut tool (you
   // cannot split a chord that doesn't exist yet), a caption that says "new"
   // instead of guessing at doubt, and `opts.onCancel` to undo the draft push
   // if the user backs out without locking anything.
@@ -222,16 +222,13 @@ export function openEditor(idx,opts){
     let picked=null, selBtn=null;
     const preview=el("div",`display:flex;align-items:center;justify-content:center;gap:10px;min-height:24px;font:italic 12.5px ${SERIF};color:${T.faint};`,"Tap a chord to hear it");
     const lockBtn=el("button",`width:100%;margin-top:8px;border:none;border-radius:12px;padding:14px;font:600 14px ${UI};cursor:pointer;background:${T.line};color:${T.faint};pointer-events:none;transition:all .15s;`,"Lock this chord");
-    // Split-bar (user request 2026-07-20): "sometimes we detect several
-    // chords per bar but don't show them all" — the model's per-bar
-    // suggestions (ch.sug, same list Compass/Guide already show) ARE that
-    // second candidate; this just needs an easy way to say "no, TWO chords
-    // here" instead of picking one. Only offered on a bar that's currently
-    // ONE chord — a bar already split into 2 has nowhere to add a third
-    // (chart_model's own "≤2 chords per bar, never more" rule).
-    const _splitBi = S.bars.findIndex(b=>b.idxs.length===1 && b.idxs[0]===idx);
-    const canSplit = !opts.isNew && _splitBi>=0;
-    const splitBtn=el("button",`width:100%;margin-top:8px;border:1.5px solid ${T.rule};border-radius:12px;padding:12px;font:600 13px ${UI};cursor:pointer;background:transparent;color:${T.faint};pointer-events:none;opacity:.5;transition:all .15s;`,"Split into two — pick the 2nd half");
+    /* COUPER LA MESURE (Louis, 2026-10-01) : un seul outil, une règle des temps
+       (voir openCutBar), à la place de l'ancien « Split into two » grisé qui
+       coupait toujours au milieu et verrouillait la 2e moitié sans l'avoir
+       entendue. Toujours actif : il ne dépend pas d'un accord choisi. */
+    const _cutBi = S.bars.findIndex(b=>b.idxs.indexOf(idx)>=0);
+    const canCut = !opts.isNew && _cutBi>=0;
+    const cutBtn=el("button",`width:100%;margin-top:8px;border:1.5px solid ${T.rule};border-radius:12px;min-height:44px;padding:10px;font:600 13px ${UI};cursor:pointer;background:transparent;color:${T.ink};`,"Couper la mesure…");
     // LA BASSE SE CHOISIT SÉPARÉMENT DE L'ACCORD (Louis, 2026-09-16). `null`
     // = Louis n'a rien dit, on garde la basse du modèle (c'est aussi ce que
     // `-1` veut dire côté serveur : « pas d'avis », pas « pas de basse »).
@@ -268,11 +265,6 @@ export function openEditor(idx,opts){
       clear(preview); preview.appendChild(el("span","","▶ previewing"));
       preview.appendChild(glyph(cand.root,cand.q,20,"exact",T.ink,pickedBass!=null?pickedBass:-1));
       armerLock();
-      if(canSplit){
-        splitBtn.style.pointerEvents="auto"; splitBtn.style.opacity="1";
-        splitBtn.style.borderColor=T.accent; splitBtn.style.color=T.accent;
-        splitBtn.textContent="Split — 2nd half "+note(cand.root)+(TOK[cand.q]!=null?TOK[cand.q]:cand.q);
-      }
     }
     function renderPane(){
       clear(pane); selBtn=null;
@@ -293,9 +285,9 @@ export function openEditor(idx,opts){
     // affirmation de Louis.
     lockBtn.onclick=()=>{ if(picked||pickedBass!=null)
       confirmChord(idx,(picked||ch).root,(picked||ch).q,pickedBass); };
-    splitBtn.onclick=()=>{ if(picked && canSplit) splitBar(idx,picked); };
+    cutBtn.onclick=()=>{ stopSpan(); if(S._closeEditor) S._closeEditor(); openCutBar(_cutBi); };
     foot.appendChild(preview); foot.appendChild(lockBtn);
-    if(canSplit) foot.appendChild(splitBtn);
+    if(canCut) foot.appendChild(cutBtn);
     const cancel=el("button",`width:100%;margin-top:6px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:44px;cursor:pointer;`,"Cancel");
     cancel.onclick=()=>{ stopSpan(); if(opts.onCancel) opts.onCancel(); closeOverlay(back); }; foot.appendChild(cancel);
     sheet.appendChild(foot);
@@ -409,8 +401,22 @@ export function openNewChord(bi,k){
       bar:_inferBarNo(bi), beat:k,
       sec:bar.sec, secId:bar.secId, reps:bar.reps,
       barFirst:false, secFirst:false,
-      t0, t1, spans:[[t0,t1]],
+      t0, t1, spans:[[t0,t1]], added:true,
     };
+    // COUPER, ce n'est pas seulement ajouter : l'accord qui sonnait là cède la
+    // place. Il rétrécit jusqu'au nouveau temps (comme l'ancien « Split »), et
+    // revient à sa longueur d'avant si on annule le brouillon.
+    const host=(()=>{ let h=null, hb=-Infinity;
+      bar.idxs.forEach(ix=>{ const b0=S.chords[ix].beat||0; if(b0<=k+1e-6 && b0>=hb){ h=S.chords[ix]; hb=b0; } });
+      return h; })();
+    let hostOld=null;
+    if(host && host.t1>t0+1e-6 && host.t0<t0-1e-6){
+      hostOld={t1:host.t1, spans:host.spans};
+      const shift=t0-host.t0;
+      draft.spans=(host.spans||[[host.t0,host.t1]]).map(([s0,s1])=>[s0+shift, s1]);
+      host.spans=(host.spans||[[host.t0,host.t1]]).map(([s0])=>[s0, s0+shift]);
+      host.t1=t0;
+    }
     S.chords.push(draft);
     const newIdx=S.chords.length-1;
     bar.idxs.push(newIdx);
@@ -418,6 +424,7 @@ export function openNewChord(bi,k){
     const cancel=()=>{
       const p=bar.idxs.indexOf(newIdx); if(p>=0) bar.idxs.splice(p,1);
       if(S.chords[S.chords.length-1]===draft) S.chords.pop();
+      if(hostOld){ host.t1=hostOld.t1; host.spans=hostOld.spans; }
     };
     openEditor(newIdx,{isNew:true, onCancel:cancel});
     // LES CANDIDATS DU CRÉNEAU QU'ON VIENT DE CRÉER (Louis, 2026-09-16 :
@@ -952,39 +959,83 @@ export function confirmChord(idx,root,q,bass){
     go("chart");
     toast("Gardé — cet accord ne bougera plus");
   }
-  // Split one bar into two chords (2026-07-20 — see openEditor's splitBtn).
-  // The ORIGINAL chord keeps its array index/beat and just shrinks to the
-  // first half; the new second-half chord is APPENDED to S.chords (never
-  // inserted in the middle) so no other chord's index shifts — S.pending,
-  // any in-flight save, everything referencing an idx by position stays
-  // valid. S.bars[bi].idxs gets the new index pushed on, which also keeps
-  // render order correct: the kept original is always temporally first.
-export function splitBar(idx, cand){
-    const ch=S.chords[idx];
-    const bi=S.bars.findIndex(b=>b.idxs.length===1 && b.idxs[0]===idx);
-    if(bi<0){ toast("Can't split this bar"); return; }
+  // ── COUPER LA MESURE / RECOLLER (Louis, 2026-10-01, audit UX B7-B9) ────────
+  // Un seul outil à la place de « Split into two » (coupe au milieu seulement,
+  // 2e moitié verrouillée sans être entendue) et des points de l'ancienne
+  // feuille « mesure en grand » : une règle des temps, on touche le temps où
+  // le nouvel accord commence (2+2, 3+1, 1+3…). Le nouvel accord naît NON
+  // verrouillé : c'est `openNewChord`, donc l'éditeur s'ouvre dessus avec les
+  // propositions du modèle et le bouton ▶ Original sur SA part de la mesure ;
+  // rien n'est écrit tant qu'on ne l'a pas gardé, et annuler défait la coupe.
+  // « Recoller » ramène la mesure à son premier accord.
+  // Ce que ça ne fait pas : couper une mesure TENUE (« % », sans accord) passe
+  // par le tap sur la mesure (openNewChord au temps 1) ; et les temps sont
+  // supposés égaux (bar.t0..bar.t1 divisé par bpb), comme openNewChord.
+export function openCutBar(bi){
+    const bar=S.bars[bi]; if(!bar) return;
     const bpb=(S.model && S.model.bpb) || 4;
-    const mid=(ch.t0+ch.t1)/2;
-    const newCh={
-      root:cand.root, q:cand.q, c:1, confirmed:true,
-      bar:ch.bar, beat:(ch.beat||0)+bpb/2,
-      sec:ch.sec, secId:ch.secId, secIdx:ch.secIdx, reps:ch.reps,
-      barFirst:false, secFirst:false,
-      t0:mid, t1:ch.t1,
-      spans:(ch.spans||[]).map(([s0,s1])=>[s0+(mid-ch.t0), s1]),
-    };
-    ch.spans=(ch.spans||[]).map(([s0,s1])=>[s0, s0+(mid-ch.t0)]);
-    ch.t1=mid; ch.confirmed=true; ch.c=1;
+    const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
+    const close=()=>closeOverlay(back);
+    sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,"Couper la mesure"));
+    sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:14px;`,
+      "touche le temps où l'accord change"));
+    const ruler=el("div",`flex:0 0 auto;display:grid;grid-template-columns:repeat(${bpb},minmax(0,1fr));column-gap:6px;margin-bottom:12px;`);
+    for(let k=0;k<bpb;k++){
+      const onsetIdx=bar.idxs.find(ix=>Math.round(S.chords[ix].beat||0)===k);
+      const cell=el(onsetIdx!=null||k===0?"div":"button",`display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:72px;`+
+        `border:1.5px ${onsetIdx!=null?"solid "+T.rule:"dashed "+T.accent};border-radius:12px;background:${onsetIdx!=null?T.line:"transparent"};padding:0;`+
+        `font:600 12px ${UI};color:${T.faint};${onsetIdx!=null?"":"cursor:pointer;-webkit-tap-highlight-color:transparent;"}`);
+      cell.appendChild(el("div",`font:600 11px ${UI};color:${T.faint};`,String(k+1)));
+      if(onsetIdx!=null){
+        const c=S.chords[onsetIdx];
+        cell.appendChild(c.nc?el("div",`font:italic 600 13px ${SERIF};color:${T.faint};`,"N.C.")
+                             :glyph(c.root,c.q,18,"exact",T.ink));
+      } else {
+        cell.appendChild(el("div",`font:600 20px ${UI};color:${T.accent};`,"+"));
+        cell.dataset.cutBeat=String(k);
+        cell.setAttribute("aria-label","Couper au temps "+(k+1));
+        cell.onclick=()=>{ haptic(); close(); openNewChord(bi,k); };
+      }
+      ruler.appendChild(cell);
+    }
+    sheet.appendChild(ruler);
+    sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:italic 11.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:12px;`,
+      "le nouvel accord reste à confirmer : tu l'écoutes, tu le choisis, puis tu le gardes"));
+    if(bar.idxs.length>=2){
+      const rb=el("button",`flex:0 0 auto;width:100%;border:1.5px solid ${T.rule};border-radius:12px;min-height:44px;padding:10px;font:600 13px ${UI};cursor:pointer;background:transparent;color:${T.ink};`,
+        "Recoller en un seul accord");
+      rb.onclick=()=>{ haptic(); close(); recollerBar(bi); };
+      sheet.appendChild(rb);
+    }
+    const cancel=el("button",`flex:0 0 auto;width:100%;margin-top:6px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:${SZ.control}px;cursor:pointer;`,"Fermer");
+    cancel.onclick=close;
+    sheet.appendChild(cancel);
+    back.appendChild(sheet); root.appendChild(back);
+  }
+  // Recoller : la mesure ne garde que son premier accord, qui reprend toute la
+  // durée. Les accords retirés restent dans S.chords (les index ne bougent
+  // jamais) mais marqués `removed` ; côté disque, un accord ajouté à la main
+  // n'a qu'à quitter `chords`, un accord du modèle entre dans `removed`
+  // (annotations.py), seul moyen de le faire disparaître au rechargement.
+export function recollerBar(bi){
+    const bar=S.bars[bi]; if(!bar || bar.idxs.length<2) return;
+    const order=bar.idxs.slice().sort((a,b)=>(S.chords[a].beat||0)-(S.chords[b].beat||0));
+    const keep=S.chords[order[0]];
+    const rest=order.slice(1);
+    const end=Math.max(keep.t1, ...rest.map(i=>S.chords[i].t1));
+    keep.spans=(keep.spans||[[keep.t0,keep.t1]]).map(([s0,s1])=>[s0, s1+(end-keep.t1)]);
+    keep.t1=end;
+    S.model.removed=S.model.removed||[];
+    rest.forEach(i=>{
+      const c=S.chords[i];
+      if(!c.added) S.model.removed.push({bar:c.bar, beat:c.beat||0});
+      c.removed=true; c.confirmed=false;
+    });
+    bar.idxs=[order[0]];
     S._vlBump=(S._vlBump||0)+1;
-    S.chords.push(newCh);
-    const newIdx=S.chords.length-1;
-    S.bars[bi].idxs.push(newIdx);
-    if(S.pending.indexOf(idx)<0) S.pending.push(idx);
-    S.pending.push(newIdx);
-    if(S._closeEditor) S._closeEditor();
     saveAnnotations();
     go("chart");
-    toast("Mesure coupée — tes accords sont gardés");
+    toast("Mesure recollée");
   }
 
   // ── persistence (annotation sidecar; keyed on (bar,beat) per its schema) ──
@@ -1005,9 +1056,13 @@ export async function saveAnnotations(){
     // réécrivait tous les accords verrouillés du morceau (bug trouvé par
     // l'audit UX du 2026-10-01, tests/ui/check_transpose_save.py).
     const back=mod(S.model.key.tonic-S.key,12);
-    const chords=S.chords.filter(c=>c.confirmed).map(c=>({bar:c.bar, beat:c.beat, root:mod(c.root+back,12),
+    const chords=S.chords.filter(c=>c.confirmed && !c.removed).map(c=>({bar:c.bar, beat:c.beat, root:mod(c.root+back,12),
       bass:(c.bassPicked && c.bass>=0)?mod(c.bass+back,12):-1, q:c.q, t0:c.t0, t1:c.t1}));
     const merges=S.model.merges||[];
-    try{ await api.post("/api/annotations/"+S.model.file, {annotator:"", chords, merges}); }catch(e){}
+    // Une suppression ne survit pas à un accord reposé au même endroit.
+    const rk=c=>c.bar+":"+(c.beat||0);
+    const posed=new Set(chords.map(rk));
+    const removed=(S.model.removed||[]).filter(r=>!posed.has(rk(r)));
+    try{ await api.post("/api/annotations/"+S.model.file, {annotator:"", chords, merges, removed}); }catch(e){}
   }
 
