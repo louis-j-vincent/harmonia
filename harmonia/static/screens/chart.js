@@ -9,7 +9,7 @@ import { PLAYHEAD_LEAD_S, applyPlayRate, hitAtTime, playTick, loopEngineDispose,
 import { go, screenWrap } from "../router.js";
 import { applyRefinement } from "../screens/analyse.js";
 import { candList, maybeShowPendingUndo, openAnnotateTools, openEditor, openNewChord } from "../screens/annotate.js";
-import { openChordSheet, openPrefsSheet, openRotor, transposeTo } from "../screens/prefs.js";
+import { openChordSheet, openPrefsSheet, openRotor, openShareSheet, transposeTo } from "../screens/prefs.js";
 import { attachSectionDrag, buildSectionTool, closeSectionTool, paintSectionTool, sectToolOn, setPlayhead, spanTime } from "../screens/sections_editor.js";
 import { S } from "../state.js";
 import { PLAY_RATES, PREF, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, ctlSkin, dispQ, el, fmt, fnColor, glyph, glyphEpure, pedalGlyph, handle, haptic, keyFill, keyHue, kitIcon, kitLegend, kitSegmented, learnLevel, lensLabelColor, mod, note, overlay, rateLabel, play, playGlyph, sheetBox, playMidis, playedLabel, qClass, renderHand, setSpelling, songTitle, splitHands, tightGap, tightSize, toast, vlTrack, voClose, voicingByStyle, withBass } from "../ui/kit.js";
@@ -593,7 +593,20 @@ export function chartToolbar(){
     meta.appendChild(el("span",`color:${T.accent};`,"↻ Transposer"));   // UX #20 : le ↻ seul ressemblait à « rafraîchir »
     meta.setAttribute("aria-label","Transposer");
     meta.onclick=openRotor;
-    tw.appendChild(meta);
+    meta.style.minWidth="0"; meta.style.overflow="hidden";
+    // « Partager ce chart » (UX #23) : sort des Réglages — c'est une action.
+    // Une icône 44 px à droite de « Transposer », seulement s'il y a un chart.
+    if(m && m.file){
+      const metaRow=el("div","display:flex;align-items:center;gap:2px;");
+      const share=el("button",
+        `flex:0 0 auto;width:${SZ.control}px;height:${SZ.control}px;margin:-9px 0 -11px;border:none;background:none;`+
+        `padding:0;color:${T.accent};cursor:pointer;display:flex;align-items:center;justify-content:center;`);
+      share.innerHTML='<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M7.5 7.5 12 3l4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
+      share.setAttribute("aria-label","Partager ce chart"); share.dataset.role="share";
+      share.onclick=openShareSheet;
+      metaRow.appendChild(meta); metaRow.appendChild(share);
+      tw.appendChild(metaRow);
+    } else tw.appendChild(meta);
     bar.appendChild(tw);
 
     // Les outils d'Annotate, derrière UN bouton, et seulement là (T2,
