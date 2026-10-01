@@ -1121,7 +1121,7 @@ export function openCutBar(bi){
     const close=()=>closeOverlay(back);
     sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,"Couper la mesure"));
     sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:14px;`,
-      "touche le temps où l'accord change"));
+      "touche un « + » pour ajouter un accord à ce temps"));
     const ruler=el("div",`flex:0 0 auto;display:grid;grid-template-columns:repeat(${bpb},minmax(0,1fr));column-gap:6px;margin-bottom:12px;`);
     for(let k=0;k<bpb;k++){
       const onsetIdx=bar.idxs.find(ix=>Math.round(S.chords[ix].beat||0)===k);
@@ -1134,9 +1134,13 @@ export function openCutBar(bi){
         cell.appendChild(c.nc?el("div",`font:italic 600 13px ${SERIF};color:${T.faint};`,"N.C.")
                              :glyph(c.root,c.q,18,"exact",T.ink));
       } else {
-        cell.appendChild(el("div",`font:600 20px ${UI};color:${T.accent};`,"+"));
+        /* Un « + » franc et un mot, jamais l'accord tenu en pâle (UX #27, audit
+           B8 : « Fm + » avait l'air de trois Fm de plus). C'est le SEUL chemin
+           pour ajouter un accord sur un temps vide. */
+        cell.appendChild(el("div",`font:600 24px ${UI};line-height:1;color:${T.accent};`,"+"));
+        cell.appendChild(el("div",`font:600 10.5px ${UI};color:${T.accent};`,"ajouter"));
         cell.dataset.cutBeat=String(k);
-        cell.setAttribute("aria-label","Couper au temps "+(k+1));
+        cell.setAttribute("aria-label","Ajouter un accord au temps "+(k+1));
         cell.onclick=()=>{ haptic(); close(); openNewChord(bi,k); };
       }
       ruler.appendChild(cell);
