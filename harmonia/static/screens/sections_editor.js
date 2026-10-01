@@ -353,8 +353,8 @@ export function buildSectionTool(){
     card.appendChild(el("div",`font:italic 11.5px ${SERIF};color:${T.faint};margin-bottom:6px;`,
       st.sel ? `mesures ${st.sel.b0+1}–${st.sel.b1+1}`
              : (st.pendingStart!=null
-                ? `début mesure ${st.pendingStart+1} — touche la fin`
-                : (st.label ? `touche le début de ${st.label}`
+                ? `2/2 : début mesure ${st.pendingStart+1} — touche la fin de ${st.label||"la section"}`
+                : (st.label ? `1/2 : touche le début de ${st.label}`
                             : "aucune lettre : le tap déplace la lecture"))));
     // les lettres : UNE rangée, qui défile horizontalement
     const chips=el("div","display:flex;gap:5px;overflow-x:auto;margin-bottom:7px;"+
@@ -469,7 +469,7 @@ export function sectTapMark(b){
     const st=S.sectTool; if(!st) return;
     if(st.pendingStart==null){
       st.pendingStart=b; st.sel=null;
-      st.note="début en mesure "+(b+1)+" — touche la dernière mesure de "+st.label;
+      st.note="";   // l'étape « 2/2 » du bandeau le dit déjà (un seul indice)
     } else {
       const debut=st.pendingStart;
       st.sel={b0:Math.min(debut,b), b1:Math.max(debut,b)};
@@ -753,8 +753,11 @@ export function undoSectionEdit(){
        fin — le début reste en attente (« touche la fin »), comme avant le
        second appui. Un trait glissé n'a pas de début séparé : il s'efface
        entièrement. Un second Défaire annule alors le début. */
-    if(prev.debut!=null && st.label){ st.pendingStart=prev.debut;
-      st.note="début mesure "+(prev.debut+1)+" — touche la fin"; }
+    if(prev.debut!=null && st.label){ st.pendingStart=prev.debut; st.note=""; }
+    /* Un trait GLISSÉ (UX #30) : début et fin viennent du même geste, il n'y a
+       pas d'étape intermédiaire à retrouver — Défaire l'efface d'un coup, et
+       le dit. */
+    else if(prev.debut==null) st.note="section glissée défaite d'un coup";
     haptic(5); go("chart"); saveSectionMarks();
   }
 export function resetSectionMarks(){
