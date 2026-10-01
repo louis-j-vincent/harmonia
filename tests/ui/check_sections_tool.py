@@ -55,6 +55,22 @@ def run(p, name):
     pg.locator("[data-sect-undo]").tap(); pg.wait_for_timeout(400)
     n2 = ev("return S.sectTool.marks.reduce((n,m)=>n+m.occurrences.length,0)")
     check(n2 == n0, tag + f"« Défaire » removes it ({n2})")
+    # UX #13c: Défaire undoes only the END tap -> the start stays pending
+    check(ev("return S.sectTool.pendingStart") == 1, tag + "13c: after Défaire the start is pending again (bar 1)")
+    check("touche la fin" in pg.evaluate("document.body.innerText"), tag + "13c: « touche la fin » shown")
+    pg.wait_for_timeout(600)
+    pg.locator("[data-sect-undo]").tap(); pg.wait_for_timeout(300)
+    check(ev("return S.sectTool.pendingStart") is None and ev("return S.sectTool.marks.reduce((n,m)=>n+m.occurrences.length,0)") == n0, tag + "13c: a second Défaire cancels the pending start")
+    tap_bar(1); tap_bar(2)
+    pg.wait_for_timeout(600)
+    pg.locator("[data-sect-undo]").tap(); pg.wait_for_timeout(300)
+    # tapping the end again recreates the section from the kept start
+    tap_bar(2)
+    check(ev("return S.sectTool.marks.reduce((n,m)=>n+m.occurrences.length,0)") == n0 + 1, tag + "13c: touching the end again re-draws the section")
+    pg.wait_for_timeout(600)
+    pg.locator("[data-sect-undo]").tap(); pg.wait_for_timeout(300)
+    pg.wait_for_timeout(600)
+    pg.locator("[data-sect-undo]").tap(); pg.wait_for_timeout(300)
     # half-done tap is undone first
     tap_bar(3)
     check(ev("return S.sectTool.pendingStart") == 3, tag + "pending start set")

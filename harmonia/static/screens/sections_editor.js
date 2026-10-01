@@ -471,9 +471,12 @@ export function sectTapMark(b){
       st.pendingStart=b; st.sel=null;
       st.note="début en mesure "+(b+1)+" — touche la dernière mesure de "+st.label;
     } else {
-      st.sel={b0:Math.min(st.pendingStart,b), b1:Math.max(st.pendingStart,b)};
+      const debut=st.pendingStart;
+      st.sel={b0:Math.min(debut,b), b1:Math.max(debut,b)};
       st.pendingStart=null; st.note="";
-      commitSectionSelection();          // le trait posé EST la section
+      // le trait posé EST la section — et l'entrée Défaire qu'il empile retient
+      // le début, pour que Défaire n'annule que la FIN (UX #13c, 2026-10-01).
+      if(commitSectionSelection() && (st.undo||[]).length) st.undo[st.undo.length-1].debut=debut;
     }
     haptic(5); go("chart");
   }
@@ -731,7 +734,8 @@ export function dropSectionOccurrence(target){
   }
 /* DÉFAIRE — la pile des états de `marks` d'avant chaque geste (trait posé,
    occurrence retirée, Recommencer, Valider). Un premier tap posé mais pas
-   fini s'annule d'abord. Limite assumée : après « Valider », Défaire rend les
+   fini s'annule d'abord ; une section posée en deux touches ne perd que sa
+   fin (le début redevient « en attente »). Limite assumée : après « Valider », Défaire rend les
    marques mais le chart, déjà réécrit sur le serveur, garde la validation. */
 function pushSectUndo(){
     const st=S.sectTool; if(!st) return;
@@ -742,8 +746,15 @@ export function undoSectionEdit(){
     const st=S.sectTool; if(!st || st.busy) return;
     if(st.pendingStart!=null){ st.pendingStart=null; st.note="début annulé"; haptic(5); go("chart"); return; }
     if(!(st.undo||[]).length) return;
-    st.marks=st.undo.pop(); st.sel=null;
+    const prev=st.undo.pop();
+    st.marks=prev; st.sel=null;
     st.note="dernier geste défait";
+    /* Une section posée en deux touches (début, fin) : Défaire n'enlève que la
+       fin — le début reste en attente (« touche la fin »), comme avant le
+       second appui. Un trait glissé n'a pas de début séparé : il s'efface
+       entièrement. Un second Défaire annule alors le début. */
+    if(prev.debut!=null && st.label){ st.pendingStart=prev.debut;
+      st.note="début mesure "+(prev.debut+1)+" — touche la fin"; }
     haptic(5); go("chart"); saveSectionMarks();
   }
 export function resetSectionMarks(){
