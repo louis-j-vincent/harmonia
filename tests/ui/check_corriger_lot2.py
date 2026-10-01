@@ -97,6 +97,23 @@ def run(p, kind):
     check(abs(ev("return S.audio.currentTime") - ref) < 0.3, T + "31 the marker is back where it was")
     check(len([x for x in posts if "/api/bar1/" in x[0]]) == 0, T + "31 listening posts nothing")
     pg.get_by_role("button", name="Annuler").click(); pg.wait_for_timeout(300)
+    # ---- #32 : Tempo — ♩ affiché, confirmation en place
+    reopen()
+    pg.get_by_role("button", name="Outils").click(); pg.wait_for_timeout(400)
+    bpm = ev("return Math.round(S.model.meta.bpm)")
+    check(f"♩ = {bpm}" in pg.evaluate("document.body.innerText"), T + f"32 the current tempo ♩ = {bpm} is shown")
+    sh("32_tempo")
+    pg.locator('[data-tempo="0.5"]').click(); pg.wait_for_timeout(250)
+    check(pg.get_by_role("button", name=re.compile(f"^Passer à ♩ {round(bpm/2)} \\?")).count() == 1, T + f"32 first tap arms « Passer à ♩ {round(bpm/2)} ? »")
+    check(not any("/api/tempo/" in x[0] for x in posts), T + "32 nothing posted after the first tap")
+    sh("32_armed")
+    pg.get_by_text("on répare la grille").click(); pg.wait_for_timeout(250)
+    check(pg.get_by_role("button", name=re.compile("^Passer à")).count() == 0 and not any("/api/tempo/" in x[0] for x in posts), T + "32 tapping elsewhere cancels")
+    pg.locator('[data-tempo="2"]').click(); pg.wait_for_timeout(200)
+    check(pg.get_by_role("button", name=re.compile(f"^Passer à ♩ {round(bpm*2)} \\?")).count() == 1, T + "32 ×2 arms its own confirmation")
+    pg.locator('[data-tempo="2"]').click(); pg.wait_for_timeout(600)
+    tp = [json.loads(x[1]) for x in posts if "/api/tempo/" in x[0]]
+    check(tp == [{"factor": 2}], T + f"32 second tap confirms and posts {tp}")
     check(not errs, T + f"no page errors {errs[:3]}")
     b.close()
 

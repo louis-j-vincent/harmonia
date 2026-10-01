@@ -13,7 +13,7 @@ import { buildIReal, loadModel, renderChart } from "../screens/chart.js";
 import { openBar1Sheet, openSectionTool } from "../screens/sections_editor.js";
 import { S } from "../state.js";
 import { buildCascade } from "./cascade.js";
-import { kitButton, kitPlusFold, FAINT_ON_PETAL, INK_ON_PETAL, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, el, fifthsIndex, fmt, glyph, handle, haptic, keyTint, mod, note, overlay, petalEdge, petalFill, play, playedLabel, roleOf, sheetCol, sv, toast } from "../ui/kit.js";
+import { ctlSkin, kitButton, kitPlusFold, FAINT_ON_PETAL, INK_ON_PETAL, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, el, fifthsIndex, fmt, glyph, handle, haptic, keyTint, mod, note, overlay, petalEdge, petalFill, play, playedLabel, roleOf, sheetCol, sv, toast } from "../ui/kit.js";
 
 // The single DOM host div (`<div id="app">`) — there is exactly one call
 // site, `window.APP.build(document.getElementById("app"))` in main.js, so
@@ -162,14 +162,44 @@ export function openAnnotateTools(){
     };
     line("Redessiner les sections","les lettres et leurs frontières, au doigt", openSectionTool);
     line("Caler la mesure 1","le vrai départ du morceau", openBar1Sheet);
-    // ÷2 et ×2 : une seule ligne, deux boutons.
+    /* TEMPO (UX #32, audit C5) : le tempo actuel est affiché, et ÷2 / ×2 se
+       CONFIRMENT en place — un premier tap arme le bouton (« Passer à ♩ 40 ? »),
+       le second applique, un tap ailleurs désarme. Pas de confirm() système.
+       Retaper l'autre bouton arme celui-là. Chaque coup relance l'analyse
+       (~1 min) et s'ACCUMULE : voir applyTempoFactor. */
+    const bpm=Math.round(Number(m.meta&&m.meta.bpm)||0);
     const tr=el("div",`display:flex;align-items:center;gap:12px;width:100%;min-height:60px;padding:10px 2px;border-top:1px solid ${T.line};`);
     const tw=el("div","flex:1;min-width:0;");
-    tw.appendChild(el("div",`font:600 14.5px ${UI};color:${T.ink};`,"Tempo"));
-    tw.appendChild(el("div",`font:500 12px ${UI};color:${T.faint};margin-top:2px;`,"deux fois trop vite ou trop lent"));
+    const tTitle=el("div",`font:600 14.5px ${UI};color:${T.ink};`,"Tempo");
+    const tNote=el("div",`font:500 12px ${UI};color:${T.faint};margin-top:2px;`,"");
+    tw.appendChild(tTitle); tw.appendChild(tNote);
     tr.appendChild(tw);
-    tr.appendChild(kitButton("÷2", ()=>{ haptic(); close(); applyTempoFactor(0.5); }, {small:true}));
-    tr.appendChild(kitButton("×2", ()=>{ haptic(); close(); applyTempoFactor(2); }, {small:true}));
+    let armed=null;
+    const bHalf=kitButton("÷2", ()=>pick(0.5), {small:true});
+    const bDouble=kitButton("×2", ()=>pick(2), {small:true});
+    bHalf.dataset.tempo="0.5"; bDouble.dataset.tempo="2";
+    const paintTempo=()=>{
+      tTitle.textContent="Tempo"+(bpm?" · ♩ = "+bpm:"");
+      tNote.textContent=armed? "~1 min · annulable"
+                             : "deux fois trop vite ou trop lent";
+      [[bHalf,0.5,"÷2"],[bDouble,2,"×2"]].forEach(([b,f,lab])=>{
+        const on=armed===f;
+        b.firstChild.textContent=on? "Passer à ♩ "+(bpm?Math.round(bpm*f):(f===0.5?"÷2":"×2"))+" ?" : lab;
+        b.style.cssText+=";"+ctlSkin(on?"on":"off");
+        b.setAttribute("aria-label",on?b.firstChild.textContent+" (toucher pour confirmer)":"Tempo "+lab);
+      });
+    };
+    function pick(f){
+      haptic();
+      if(armed===f){ close(); applyTempoFactor(f); return; }
+      armed=f; paintTempo();
+    }
+    // un tap ailleurs dans la feuille désarme
+    sheet.addEventListener("click",e=>{
+      if(armed!=null && !e.target.closest("[data-tempo]")){ armed=null; paintTempo(); }
+    },true);
+    tr.appendChild(bHalf); tr.appendChild(bDouble);
+    paintTempo();
     list.appendChild(tr);
     const {plus, more}=kitPlusFold(false, null, {label:"Plus d'outils"});
     more.style.gap="0"; more.style.paddingTop="0";   // les lignes portent leur propre filet

@@ -94,7 +94,8 @@ with sync_playwright() as p:
 
     # --- 5. tempo ÷2 then undo
     pg.get_by_role("button", name="Outils").click(); pg.wait_for_timeout(400)
-    pg.get_by_role("button", name="÷2").click(); pg.wait_for_timeout(2500)
+    pg.get_by_role("button", name="÷2").click(); pg.wait_for_timeout(300)   # UX #32: first tap only arms
+    pg.get_by_role("button", name=re.compile(r"^Passer à ♩")).click(); pg.wait_for_timeout(2500)
     check(tempos == [{"factor": 0.5}], f"÷2 posted {tempos}")
     pg.screenshot(path=PRE + "_analysing.png")
     ev("S.job=null; const C=await import('/static/screens/chart.js'); await C.openChart(a)", FILE); pg.wait_for_timeout(1800)   # = the « Open the chart » button of the loading screen
