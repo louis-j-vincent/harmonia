@@ -340,14 +340,11 @@ export function openEditor(idx,opts){
     };
     const tabs=el("div",`flex:0 0 auto;display:inline-flex;background:${T.line};border-radius:10px;padding:3px;gap:2px;`);
     tabs.appendChild(tabBtn("guide","Propositions")); tabs.appendChild(tabBtn("hand","À la main"));
-    const plus=el("details",`flex:0 0 auto;margin:6px 0 10px;`);
-    const sum=el("summary",`font:600 12.5px ${UI};color:${T.faint};cursor:pointer;min-height:${SZ.control}px;display:flex;align-items:center;gap:6px;list-style:none;`);
-    const chev=el("span",`display:inline-block;width:16px;font:700 16px ${UI};line-height:1;`,"▸");
-    sum.appendChild(chev); sum.appendChild(el("span","","Plus…")); plus.appendChild(sum);
-    plus.addEventListener("toggle",()=>{ chev.textContent=plus.open?"▾":"▸"; });   // même chevron que kitPlusFold
+    const {plus, more:plusMore}=kitPlusFold(false, null, {label:"Plus…", pad:0});
+    plus.style.cssText+="flex:0 0 auto;margin:6px 0 10px;border-top:0;padding-top:0;";
     const plusRow=el("div",`display:inline-flex;background:${T.line};border-radius:10px;padding:3px;gap:2px;margin:2px 0 4px;`);
     plusRow.appendChild(tabBtn("compass","Roue")); plusRow.appendChild(tabBtn("cascade","Extensions"));
-    plus.appendChild(plusRow);
+    plusMore.appendChild(plusRow);
     const tabsBox=el("div","flex:0 0 auto;");
     tabsBox.appendChild(tabs); tabsBox.appendChild(plus);
     sheet.appendChild(tabsBox);
