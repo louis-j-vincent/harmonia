@@ -55,8 +55,8 @@ with sync_playwright() as p:
           tag + f"practise: play settings first, then reading settings {pos}")
     check(summ().count() == 1 and summ().inner_text().strip().startswith("▸"), tag + "practise: « Plus… » ▸ closed")
     check(pg.get_by_text("Calage de la boucle").count() == 0, tag + "no calage without a loop")
-    pg.locator("[data-overlay]").get_by_role("button", name="0.5×", exact=True).tap(); pg.wait_for_timeout(300)
-    check(pg.evaluate("async()=>(await import('/static/state.js')).S.playRate") == 0.5, tag + "Vitesse 0.5× applies")
+    pg.locator("[data-overlay]").get_by_role("button", name="0,5×", exact=True).tap(); pg.wait_for_timeout(300)
+    check(pg.evaluate("async()=>(await import('/static/state.js')).S.playRate") == 0.5, tag + "Vitesse 0,5× applies")
     pg.get_by_role("button", name="Fermer").tap(); pg.wait_for_timeout(500)
     # arm a loop -> calage appears inside Plus…
     pg.locator("button", has_text="boucle").first.tap(); pg.wait_for_timeout(500)
