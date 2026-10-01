@@ -254,8 +254,10 @@ export function renderPrompter(){
     // pour tout le site (UX #34), virgule française.
     const nextRate=r=>{ const i=RATES.findIndex(([v])=>Math.abs(v-(r||1))<1e-6); return RATES[((i<0?RATES.length-1:i)+1)%RATES.length][0]; };
     const rateLbl=()=>rateLabel(S.playRate);
-    const dots=kitIcon("···", ()=>openPractiseTools(), "Réglages",
-      {style:`border:1px solid ${T.accent};color:${T.accent};`});
+    // Même bouton que dans Lire (« Réglages », pilule) — le « ··· » d'ici
+    // ouvrait la même feuille sous un autre visage (vérif. visuelle 2026-10-01).
+    const dots=kitIcon("Réglages", ()=>openPractiseTools(), "Réglages",
+      {style:`width:auto;padding:0 13px;border-radius:${SZ.control/2}px;font:600 13px ${UI};`});
     /* 🎹 : le clavier en un tap (UX #36). Éteint = « Jamais » ; allumé = le
        dernier mode choisi (« Au tap » par défaut). Même état que la ligne
        « Piano » de la feuille Réglages (S.piano, S.coach, harmPiano). */
