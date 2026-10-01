@@ -41,7 +41,7 @@ with sync_playwright() as p:
     check("mesures" in txt, "« mesures » affiché")
     check(pg.locator("[data-pastille=corrige]").count() == 1, "une seule pastille « corrigé »")
     check(pg.locator("[data-tri=az]").count() == 1, "tri visible")
-    def titles(): return pg.evaluate("[...document.querySelectorAll('.ap-scroll > div:last-child > div')].map(e=>e.innerText.split('\\n')[0])")
+    def titles(): return pg.evaluate("[...document.querySelectorAll('.ap-scroll > div:last-child > div')].map(e=>e.querySelector('[data-nom=titre]').textContent)")
     pg.click("[data-tri=az]"); pg.wait_for_timeout(500)
     t = titles(); k = [x.split(" / ")[-1].lower().split()[0] for x in t]
     check(len(t) > 3 and k[:6] == sorted(k[:6], key=lambda x: x.lstrip("'\"(")) , "A–Z appliqué")
