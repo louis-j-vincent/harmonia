@@ -17,7 +17,13 @@ rejoint A). Rapport d'or : 52/63 identiques. Au défaut, seuls deux morceaux
 changent : This Love (intro en boucle de 4, validé) et She Will Be Loved (A′
 de la mes. 33 rejoint A, **à écouter**) ; page
 `docs/plots/similarite_avant_apres/avant_apres.html`. Note complète :
-`docs/similarite_accords.md`. **Ne résout pas :**
+`docs/similarite_accords.md`. **Arbitré par Louis le 2026-10-01 (captures
+`docs/plots/similarite_captures.html`) : « c'est parfait, c'est ce que je
+voulais » — EN PROD : serveur relancé (15h25, par une autre session) et
+bibliothèque republiée le même soir (63 charts, sauvegarde réelle).** Récit de
+la séance : `docs/blog/33-une-brique-et-ses-reprises.md`. Défaut connu : au
+cran 3, les N.C. du fondu final de Lost Without U disparaissent du chart.
+**Ne résout pas :**
 - une 2e fin se garde toujours si elle change de fondamentale (grains
   exact/racine inchangés) ;
 - le rythme harmonique n'est toléré qu'à l'intérieur d'une mesure ;
