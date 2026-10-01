@@ -590,7 +590,7 @@ export function chartToolbar(){
       `margin:-9px 0 -11px;background:none;padding:0;font:500 13px ${UI};color:${T.faint};cursor:pointer;`);
     meta.appendChild(el("span",`color:${T.ink};font-weight:600;`, note(S.key)+" "+(S.keyMode==="minor"?"mineur":"majeur")));   // comme la bibliothèque (« B♭ majeur »), UX #13a
     if(m && m.form){ meta.appendChild(el("span","","·")); meta.appendChild(el("span","",m.form)); }
-    meta.appendChild(el("span",`color:${T.accent};`,"↻"));
+    meta.appendChild(el("span",`color:${T.accent};`,"↻ Transposer"));   // UX #20 : le ↻ seul ressemblait à « rafraîchir »
     meta.setAttribute("aria-label","Transposer");
     meta.onclick=openRotor;
     tw.appendChild(meta);
@@ -1977,13 +1977,21 @@ export function buildIReal(){
         // `T.accent` — le rouge rivalisait avec les sections/reprises/tête de
         // lecture, qui le réservent ; en gris elle se lit comme une note en
         // marge. Rajusté le même jour (Louis : « un peu plus petit, et à
-        // droite comme dans irealb ») : bord droit, et redescendue d'un cran
-        // (×~1,3 au lieu de ×~1,6 — toujours bien plus lisible que l'original).
+        // droite comme dans irealb »), PUIS ancrée à la MESURE, pas au glyphe
+        // (Louis : « il ne devrait pas déborder quand la cellule devient +
+        // petite, il devrait toujours être placé en haut à droite avec le
+        // même décalage au sein de chaque barre ») — un accord seul sur le
+        // temps 1 se centre dans sa mesure (`justify-self:center` ci-dessus),
+        // donc `right:0` posé sur SON glyphe tombait n'importe où selon la
+        // largeur de ce glyphe-là, jamais au même endroit d'une mesure à
+        // l'autre. Posée sur `cell` (position:relative dès sa création) avec
+        // un décalage fixe, elle est donc désormais indépendante du nombre
+        // et de la largeur des accords de la mesure.
         if(ch.var) {
-          const vw=el("span","position:absolute;right:0;bottom:calc(100% + 3px);opacity:1;pointer-events:none;line-height:1;white-space:nowrap;text-align:right;");
+          const vw=el("span",`position:absolute;top:calc(${rowPT}px + 3px);right:3px;opacity:1;pointer-events:none;line-height:1;white-space:nowrap;text-align:right;z-index:2;`);
           vw.appendChild(G(ch.var.root,dispQ(ch.var.q),narrow?15:17,"exact",T.faint,
             (ch.var.bass==null?-1:ch.var.bass)));
-          gw.appendChild(vw);
+          cell.appendChild(vw);
         }
         if(S.learn&&(dq!==ch.q||bassHidden)) item.appendChild(el("span",`font:600 8px ${UI};color:${T.amber};`,"simplifié"));
         // LA RANGÉE DE MARQUE (T4, 2026-08-19). Une seule rangée sous le

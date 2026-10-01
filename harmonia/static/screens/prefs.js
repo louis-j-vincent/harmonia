@@ -385,7 +385,7 @@ export function openRotor(){
     });
     const hub=el("div",`position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:96px;height:96px;border-radius:50%;background:${T.card};border:1.5px solid ${T.line};display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;z-index:2;`);
     const hubKey=el("div",`font:italic 700 26px ${SERIF};color:${T.ink};`,note(S.key));
-    const hubMode=el("div",`font:500 11px ${UI};color:${T.faint};`, S.model?S.model.key.mode:"major");
+    const hubMode=el("div",`font:500 11px ${UI};color:${T.faint};`, (S.keyMode==="minor"?"mineur":"majeur"));   // UX #20 : plus de « minor »
     hub.appendChild(hubKey); hub.appendChild(hubMode); wheel.appendChild(hub);
     sheet.appendChild(wheel);
 
