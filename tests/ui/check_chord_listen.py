@@ -35,7 +35,7 @@ with sync_playwright() as p:
     k = pg.evaluate("""async(a)=>{const {S}=await import('/static/state.js'); return S.bars[a[0]].idxs.indexOf(a[1])}""", [bar, idx])
     n = pg.evaluate("""async(bi)=>{const {S}=await import('/static/state.js'); return S.bars[bi].idxs.length}""", bar)
     pg.mouse.click(r["x"] + r["w"]*(k+.5)/n, r["y"] + r["h"]/2); pg.wait_for_timeout(500)
-    btn = pg.get_by_role("button", name=re.compile("Écouter l'enregistrement"))
+    btn = pg.get_by_role("button", name=re.compile("(Écouter|Arrêter) l'enregistrement"))
     check(btn.count() == 1, "editor shows ONE play-original button")
     s0 = st(); check(s0["paused"] and not s0["span"], "no autoplay on opening the editor")
     if btn.count() == 1:

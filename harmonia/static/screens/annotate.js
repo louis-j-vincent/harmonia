@@ -243,7 +243,7 @@ export function openEditor(idx,opts){
         `border:1.5px solid ${T.rule};border-radius:22px;background:transparent;color:${T.ink};`+
         `font:600 12.5px ${UI};cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;`);
       sp.setAttribute("aria-label","Écouter l'enregistrement de cet accord");
-      const paint=on=>{ sp.textContent=on?"■ Stop":"▶ Original"; sp.style.color=on?T.accent:T.ink; sp.style.borderColor=on?T.accent:T.rule; };
+      const paint=on=>{ sp.setAttribute("aria-label",on?"Arrêter l'enregistrement":"Écouter l'enregistrement de cet accord"); sp.textContent=on?"■ Stop":"▶ Original"; sp.style.color=on?T.accent:T.ink; sp.style.borderColor=on?T.accent:T.rule; };
       paint(false);
       sp.onclick=()=>{ haptic();
         if(S._span && S._span.t0===ch.t0 && S._span.t1===ch.t1){ stopSpan(); return; }
