@@ -71,6 +71,8 @@ import numpy as np
 from harmonia import musx as _musx
 from harmonia.labels import to_chord
 from harmonia.roles import family as _role_family
+# re-exportés : ils vivaient ici avant le 2026-10-01 (tests, outils)
+from harmonia.roles import accord_sonnant, famille_de, lectures, meme_lecture  # noqa: F401
 from harmonia.settings import SETTINGS
 
 logger = logging.getLogger(__name__)
@@ -202,19 +204,6 @@ def _sig_repli(bar) -> tuple | None:
     if not reels:
         return None
     return tuple((c["root"] % 12, famille_de(c.get("q"))) for c in reels)
-
-
-def famille_de(q: str | None) -> str:
-    """maj / min / dim / aug — la granularité à laquelle `B-` et `B-7` sont le
-    même moment musical, et `B-` et `B` deux moments différents."""
-    q = q or ""
-    if q.startswith(("o", "h")) or q.startswith("-7b5"):
-        return "o"
-    if q.startswith("-"):
-        return "m"
-    if q.startswith("+"):
-        return "+"
-    return "M"
 
 
 def periode_interne(A: list) -> int:
@@ -1286,18 +1275,9 @@ def _etiquette(bar) -> str:
                     for c in bar or []) or "%"
 
 
-def _familles_par_temps(bar) -> tuple | None:
-    """Ce qu'une mesure joue HARMONIQUEMENT, temps par temps : à chaque temps,
-    (N.C. ?, {(fondamentale, famille)} de ses lectures). Une mesure vide
-    (accord tenu) vaut None, un joker.
-
-    C'est la mesure de différence de la factorisation par boucle (Louis,
-    2026-09-30 : « ne la fais pas quand il y a vraiment un changement
-    important »). La famille (`famille_de` : maj / min / dim / aug) absorbe
-    les COULEURS — 7 contre 9, maj contre maj7, sus contre dominante (sus =
-    famille majeure) ; `lectures` absorbe Bb/C ≡ C7sus4 et ignore la basse
-    d'un renversement. Ce qui reste est un vrai changement : une autre
-    fondamentale, une autre famille, ou un accord de plus sur un temps."""
+def _accords_par_temps(bar) -> tuple | None:
+    """L'accord qui sonne à chaque temps d'une mesure. Une mesure vide
+    (accord tenu) vaut None, un joker."""
     if not bar:
         return None
     fin = max(4, max(int(c.get("beat") or 0) for c in bar) + 1)
@@ -1307,21 +1287,29 @@ def _familles_par_temps(bar) -> tuple | None:
         for c in bar:
             if (c.get("beat") or 0) <= k:
                 cur = c
-        out.append((bool(cur.get("nc")), frozenset(
-            (r, famille_de(q)) for r, q in lectures(cur)) if not cur.get("nc") else frozenset()))
+        out.append(cur)
     return tuple(out)
 
 
 def meme_harmonie(a, b) -> bool:
-    """Deux mesures jouent la même harmonie (couleurs mises à part) —
-    voir `_familles_par_temps`."""
-    fa, fb = _familles_par_temps(a), _familles_par_temps(b)
+    """Deux mesures jouent la même harmonie (couleurs mises à part) : à
+    chaque temps, le même accord au sens de `meme_lecture` (grain
+    "famille"). Une mesure vide (accord tenu) est un joker.
+
+    C'est la mesure de différence de la factorisation par boucle (Louis,
+    2026-09-30 : « ne la fais pas quand il y a vraiment un changement
+    important »). La famille (`famille_de` : maj / min / dim / aug) absorbe
+    les COULEURS — 7 contre 9, maj contre maj7, sus contre dominante (sus =
+    famille majeure) ; `lectures` absorbe Bb/C ≡ C7sus4 et ignore la basse
+    d'un renversement. Ce qui reste est un vrai changement : une autre
+    fondamentale, une autre famille, ou un accord de plus sur un temps."""
+    fa, fb = _accords_par_temps(a), _accords_par_temps(b)
     if fa is None or fb is None:
         return True
     n = max(len(fa), len(fb))
     fa = fa + (fa[-1],) * (n - len(fa))
     fb = fb + (fb[-1],) * (n - len(fb))
-    return all(x[0] == y[0] and (x[0] or bool(x[1] & y[1])) for x, y in zip(fa, fb))
+    return all(meme_lecture(x, y, grain="famille") for x, y in zip(fa, fb))
 
 
 def boucle_minimale_ecrite(bars, vue, grid, occ, rep, S=None,
@@ -1340,7 +1328,7 @@ def boucle_minimale_ecrite(bars, vue, grid, occ, rep, S=None,
     s'arrêter en route. « Coller » : avec la matrice chord-tone `S` (quand
     l'audio est là), ≥ (1 + médiane des ressemblances internes du passage)/2,
     relatif au passage comme pour les briques ; sans `S`, même accord à la
-    famille près (`_barsig_famille`). Un fondu muet en fin de passage est
+    famille près (`meme_harmonie`). Un fondu muet en fin de passage est
     ignoré (Julia : « c'est une section qui se finit plus tôt »). Un passage
     qui ne tient qu'un accord n'est pas une boucle (phase indécidable, rien
     à gagner) : on s'abstient.
@@ -1810,109 +1798,30 @@ def appliquer_fusion(model: dict, niveau) -> dict:
     return model
 
 
-def accord_sonnant(c: dict) -> tuple[int, str]:
-    """(fondamentale, qualité) de l'accord tel qu'il SONNE sur sa basse.
-
-    Louis, 2026-09-30, sur Claustrophobic : « t'as différencié un A où il y a
-    un Bb/C d'un A où il y a un C7sus4 alors qu'essentiellement c'est la même
-    chose ». Bb/C, c'est Bb-D-F sur un do : do, 9, 11, b7 — un C9sus4. Même
-    chose pour F/G (G9sus4), Ab/Bb (Bb9sus4), G-7/C (C11).
-
-    LA RÈGLE, par le contenu et non par une liste : une basse ÉTRANGÈRE à
-    l'accord (pas un renversement), et, lues depuis cette basse, une septième
-    mineure sans aucune tierce → un accord sus sur la basse, écrit `7sus4`
-    (la 9 est une couleur : `9sus4` s'écrit `7sus4` aussi).
-
-    CE QUE ÇA NE FAIT PAS, exprès : une basse étrangère qui fait entendre une
-    tierce reste l'accord écrit — Eb7/C sonne C-7(b9), un accord MINEUR, et
-    `roles.role` (règle 2, « toute basse étrangère = sus ») l'aurait appelé
-    dominante. Un renversement (C/E) ne change rien. D/C (pas de b7 au-dessus
-    du do) ne change rien. Si Louis veut Eb7/C ≡ C-7, c'est une autre règle,
-    à arbitrer à part.
-    """
-    root, q = int(c["root"]) % 12, c.get("q") or ""
-    if q == "9sus4":
-        q = "7sus4"
-    b = c.get("bass", -1)
-    if c.get("nc") or b is None or b < 0 or b % 12 == root:
-        return root, q
-    b %= 12
-    from harmonia.labels import chord_pcs
-    from harmonia.roles import _PCS
-    up = {(root + r) % 12 for r in (_PCS.get(q) or chord_pcs(root, q))}
-    if b in up:
-        return root, q
-    rel = {(p - b) % 12 for p in up}
-    if 10 in rel and 3 not in rel and 4 not in rel:
-        return b, "7sus4"
-    return root, q
-
-
-def lectures(c: dict) -> frozenset:
-    """Les façons LÉGITIMES de lire un accord : {(fondamentale, qualité)}.
-
-    Un accord ordinaire n'en a qu'une — l'accord écrit (sa basse ignorée,
-    comme avant : Bb/D ≡ Bb). Un sus-sur-basse (`accord_sonnant`) en a DEUX :
-    la triade écrite ET le sus sur la basse — Bb/C se lit Bb (comme avant) OU
-    C7sus4 (Louis, 2026-09-30). Deux accords se valent s'ils partagent une
-    lecture. Ce n'est PAS une égalité (Bb ≡ Bb/C ≡ C7sus4 n'entraîne pas
-    Bb ≡ C7sus4) : c'est voulu, et c'est pour ça qu'on compare par
-    `_compat` et jamais par `==`.
-
-    Conséquence mesurée (rapport d'or 2026-09-30) : une première version
-    remplaçait la lecture écrite par la lecture sonnée ; elle CASSAIT un
-    raccord qui marchait (9zEl-FQLI4A : `G/A` d'un passage contre `G^7` de
-    l'autre, un A′ apparaissait). Avec deux lectures, l'équivalence ne fait
-    qu'AJOUTER des accords — jamais en retirer un.
-    """
-    r, q = int(c["root"]) % 12, c.get("q") or ""
-    if q == "9sus4":
-        q = "7sus4"
-    return frozenset({(r, q), accord_sonnant(c)})
-
-
 def _barsig(bar) -> tuple:
-    """Ce qu'une mesure JOUE — sert à REPÉRER UNE DIFFÉRENCE (les queues
-    divergentes d'une 1re/2e fin). Par accord : (ses lectures, N.C.?).
-    Se compare avec `_compat`."""
-    return tuple((lectures(c), bool(c["nc"])) for c in (bar or []))
+    """Ce qu'une mesure JOUE, accord par accord — la signature que comparent
+    les fins 1./2. et la cascade. Se compare avec `_compat`, qui passe par
+    `meme_lecture` à la granularité qu'on lui demande."""
+    return tuple(bar or [])
 
 
-def _barsig_famille(bar) -> tuple:
-    """La même mesure à la granularité où `B-` et `B-7` sont LE MÊME MOMENT —
-    sert à RECONNAÎTRE UN MÊME PASSAGE, où la septième entendue une fois sur
-    deux est du bruit de décodage, pas de la musique.
-
-    Deux usages, deux granularités, et c'est voulu : `_barsig` cherche une
-    différence, celle-ci cherche une ressemblance. Sur Fallin', dont toutes
-    les lettres sont la boucle `E-|B-`, l'exactitude de `_barsig` empêchait
-    `_merge_coupe` d'absorber les passages courts — un seul `B-7` au lieu d'un
-    `B-` suffisait à les déclarer autres, et le chart gardait trois blocs pour
-    une boucle. Se compare avec `_compat`, comme `_barsig`.
-    """
-    return tuple((frozenset((r, famille_de(q)) for r, q in lectures(c)),
-                  bool(c.get("nc"))) for c in (bar or []))
-
-
-def _compat(a, b) -> bool:
+def _compat(a, b, grain: str = "exact") -> bool:
     """Deux signatures (mesure, ou suite de mesures) se valent : même nombre
-    d'accords, et chaque paire partage une lecture et son statut N.C. Pour
-    des accords à lecture unique, c'est exactement l'ancienne égalité."""
+    d'accords, et chaque paire est le même accord (`meme_lecture`, au
+    `grain` donné).
+
+    Deux usages, deux granularités, et c'est voulu : "exact" cherche une
+    DIFFÉRENCE (les queues divergentes d'une 1re/2e fin), "famille" cherche
+    une RESSEMBLANCE (un passage coupé est-il le même moment musical ? — la
+    septième entendue une fois sur deux est du bruit de décodage : sur
+    Fallin', dont toutes les lettres sont la boucle `E-|B-`, un seul `B-7`
+    au lieu d'un `B-` suffisait à déclarer deux passages autres). "racine" :
+    une fin qui change de fondamentale quelque part."""
     if len(a) != len(b):
         return False
-    if a and isinstance(a[0], tuple) and len(a[0]) == 2 \
-            and isinstance(a[0][0], frozenset):
-        return all(xa[1] == xb[1] and bool(xa[0] & xb[0])
-                   for xa, xb in zip(a, b))
-    return all(_compat(xa, xb) for xa, xb in zip(a, b))
-
-
-def _racines(sig) -> tuple:
-    """La même signature réduite aux fondamentales lisibles."""
-    if sig and isinstance(sig[0], tuple) and len(sig[0]) == 2 \
-            and isinstance(sig[0][0], frozenset):
-        return tuple((frozenset(r for r, _ in x[0]), x[1]) for x in sig)
-    return tuple(_racines(x) for x in sig)
+    if a and isinstance(a[0], dict):
+        return all(meme_lecture(xa, xb, grain=grain) for xa, xb in zip(a, b))
+    return all(_compat(xa, xb, grain) for xa, xb in zip(a, b))
 
 
 def _ireal_endings(blk: dict, bars, grid, fusion: int = FUSION_DEFAUT) -> None:
@@ -1993,9 +1902,9 @@ def _ireal_endings(blk: dict, bars, grid, fusion: int = FUSION_DEFAUT) -> None:
     # « 1./2. » pour ça, c'est sur-noter du bruit. On exige donc que la queue
     # change de FONDAMENTALE quelque part (This Love : `B♭ E♭` contre `A♭ G`).
     # Au cran 0 (« garder toutes les fins »), une couleur suffit.
-    rac = [_racines(g["sig"]) for g in groupes]
-    meme_fond = all(_compat(ra, rb) for i, ra in enumerate(rac)
-                    for rb in rac[i + 1:])
+    sg = [g["sig"] for g in groupes]
+    meme_fond = all(_compat(ra, rb, "racine") for i, ra in enumerate(sg)
+                    for rb in sg[i + 1:])
     if meme_fond and fusion != 0:
         return
     variants = []
@@ -2046,12 +1955,12 @@ def _ireal_cascade(out: list[dict], bars, grid, fold_report) -> list[dict]:
         # un repli REFUSÉ ne sert pas de cellule (sa `period` est celle qu'il
         # testait, pas celle qu'il a validée) — on passe alors au test préfixe
         P = None if rep.get("reason") else rep.get("period")
-        # `_barsig_famille`, pas `_barsig` : `_merge_coupe` cherche une
+        # grain "famille", pas "exact" : `_merge_coupe` cherche une
         # RESSEMBLANCE (un passage coupé est-il le MÊME moment musical ?),
-        # jamais une différence — voir la docstring de `_barsig_famille`
-        # (le cas Fallin', un seul `B-7` au lieu de `B-` cassait le
-        # raccord). `_ireal_endings`, juste au-dessus, cherche l'inverse
-        # (une VRAIE fin change d'accord) et garde `_barsig` exact.
+        # jamais une différence — voir la docstring de `_compat` (le cas
+        # Fallin', un seul `B-7` au lieu de `B-` cassait le raccord).
+        # `_ireal_endings`, juste au-dessus, cherche l'inverse (une VRAIE
+        # fin change d'accord) et compare au grain "exact".
         cell = list(host["bars"][:P]) if P else None
         rank = 0
         for blk in blks:
@@ -2081,14 +1990,14 @@ def _accord_de_passage(a, b) -> bool:
     Without U, mesure 36 contre la boucle A : la relance G-7 que ce passage
     ne joue pas). Une autre fondamentale sur le temps fort n'en est jamais
     un."""
-    fa = [frozenset((r, famille_de(q)) for r, q in lectures(c))
-          for c in a or [] if not c.get("nc")]
-    fb = [frozenset((r, famille_de(q)) for r, q in lectures(c))
-          for c in b or [] if not c.get("nc")]
-    if not fa or not fb or len(fa) == len(fb) or not (fa[0] & fb[0]):
+    fa = [c for c in a or [] if not c.get("nc")]
+    fb = [c for c in b or [] if not c.get("nc")]
+    if not fa or not fb or len(fa) == len(fb) \
+            or not meme_lecture(fa[0], fb[0], grain="famille"):
         return False
     court, long_ = (fa, fb) if len(fa) < len(fb) else (fb, fa)
-    return all(any(x & y for y in long_) for x in court)
+    return all(any(meme_lecture(x, y, grain="famille") for y in long_)
+               for x in court)
 
 
 def meme_moment(a, b) -> bool:
@@ -2096,7 +2005,7 @@ def meme_moment(a, b) -> bool:
     `_merge_boucle`) : même harmonie (`meme_harmonie`, `_compat` à la
     famille près) ou même mesure à un accord de passage près."""
     return (meme_harmonie(a, b)
-            or _compat(_barsig_famille(a), _barsig_famille(b))
+            or _compat(_barsig(a), _barsig(b), "famille")
             or _accord_de_passage(a, b))
 
 

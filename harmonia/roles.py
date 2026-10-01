@@ -36,9 +36,12 @@ mêmes notes sont le même accord (D-7 = F6, A-7 = C6, Dh7 = F-6).
 Ce que ce module ne fait PAS (encore) : lire le contexte (ce qui précède et
 ce qui suit) — un E- sur le IIIe degré et un C^7 sur le Ier tiennent
 souvent le même rôle tonique, mais pas toujours ; la règle 1 les garde
-distincts, et Louis tranchera sur la page `tools/roles_page`. Rien ici
-n'est branché dans le repli : c'est une brique à valider à l'oreille avant
-d'en faire une loi.
+distincts, et Louis tranchera sur la page `tools/roles_page`. `role` et
+`equivalent` ne sont pas branchés dans le repli : c'est une brique à valider à
+l'oreille avant d'en faire une loi.
+
+Ce que le repli utilise, lui, vit en bas de ce module : `meme_lecture`, la
+SEULE comparaison « même accord » de `harmonia.folding` (2026-10-01).
 """
 from __future__ import annotations
 
@@ -170,3 +173,146 @@ def parse_key_name(name: str | None) -> tuple[int, str] | None:
         return (parse_root(parts[0]), parts[1].lower())
     except (KeyError, IndexError):
         return None
+
+
+# ── LA comparaison « même accord » du repli ───────────────────────────────
+#
+# Louis, 2026-10-01 : une mesure de similarité entre accords, générale et
+# reproductible, viendra remplacer les règles écrites à la main (m7 ≡ 7sus4
+# une quarte au-dessus, etc.). Pour qu'elle n'ait qu'UN endroit où se
+# brancher, toutes les questions « ces deux accords sont-ils le même accord,
+# ces deux passages le même passage ? » du repli (fins 1./2., boucle
+# minimale, cascade iReal, fusion des lettres, petite lecture d'une variante)
+# passent par `meme_lecture`. Son comportement aujourd'hui = les règles
+# d'avant, réunies sans rien changer : `lectures` (Bb/C se lit aussi
+# C7sus4, la basse d'un renversement ne compte pas), puis une granularité.
+
+def famille_de(q: str | None) -> str:
+    """maj / min / dim / aug — la granularité à laquelle `B-` et `B-7` sont le
+    même moment musical, et `B-` et `B` deux moments différents."""
+    q = q or ""
+    if q.startswith(("o", "h")) or q.startswith("-7b5"):
+        return "o"
+    if q.startswith("-"):
+        return "m"
+    if q.startswith("+"):
+        return "+"
+    return "M"
+
+
+
+def accord_sonnant(c: dict) -> tuple[int, str]:
+    """(fondamentale, qualité) de l'accord tel qu'il SONNE sur sa basse.
+
+    Louis, 2026-09-30, sur Claustrophobic : « t'as différencié un A où il y a
+    un Bb/C d'un A où il y a un C7sus4 alors qu'essentiellement c'est la même
+    chose ». Bb/C, c'est Bb-D-F sur un do : do, 9, 11, b7 — un C9sus4. Même
+    chose pour F/G (G9sus4), Ab/Bb (Bb9sus4), G-7/C (C11).
+
+    LA RÈGLE, par le contenu et non par une liste : une basse ÉTRANGÈRE à
+    l'accord (pas un renversement), et, lues depuis cette basse, une septième
+    mineure sans aucune tierce → un accord sus sur la basse, écrit `7sus4`
+    (la 9 est une couleur : `9sus4` s'écrit `7sus4` aussi).
+
+    CE QUE ÇA NE FAIT PAS, exprès : une basse étrangère qui fait entendre une
+    tierce reste l'accord écrit — Eb7/C sonne C-7(b9), un accord MINEUR, et
+    `roles.role` (règle 2, « toute basse étrangère = sus ») l'aurait appelé
+    dominante. Un renversement (C/E) ne change rien. D/C (pas de b7 au-dessus
+    du do) ne change rien. Si Louis veut Eb7/C ≡ C-7, c'est une autre règle,
+    à arbitrer à part.
+    """
+    root, q = int(c["root"]) % 12, c.get("q") or ""
+    if q == "9sus4":
+        q = "7sus4"
+    b = c.get("bass", -1)
+    if c.get("nc") or b is None or b < 0 or b % 12 == root:
+        return root, q
+    b %= 12
+    up = {(root + r) % 12 for r in (_PCS.get(q) or chord_pcs(root, q))}
+    if b in up:
+        return root, q
+    rel = {(p - b) % 12 for p in up}
+    if 10 in rel and 3 not in rel and 4 not in rel:
+        return b, "7sus4"
+    return root, q
+
+
+def lectures(c: dict) -> frozenset:
+    """Les façons LÉGITIMES de lire un accord : {(fondamentale, qualité)}.
+
+    Un accord ordinaire n'en a qu'une — l'accord écrit (sa basse ignorée,
+    comme avant : Bb/D ≡ Bb). Un sus-sur-basse (`accord_sonnant`) en a DEUX :
+    la triade écrite ET le sus sur la basse — Bb/C se lit Bb (comme avant) OU
+    C7sus4 (Louis, 2026-09-30). Deux accords se valent s'ils partagent une
+    lecture. Ce n'est PAS une égalité (Bb ≡ Bb/C ≡ C7sus4 n'entraîne pas
+    Bb ≡ C7sus4) : c'est voulu, et c'est pour ça qu'on compare par
+    `_compat` et jamais par `==`.
+
+    Conséquence mesurée (rapport d'or 2026-09-30) : une première version
+    remplaçait la lecture écrite par la lecture sonnée ; elle CASSAIT un
+    raccord qui marchait (9zEl-FQLI4A : `G/A` d'un passage contre `G^7` de
+    l'autre, un A′ apparaissait). Avec deux lectures, l'équivalence ne fait
+    qu'AJOUTER des accords — jamais en retirer un.
+    """
+    r, q = int(c["root"]) % 12, c.get("q") or ""
+    if q == "9sus4":
+        q = "7sus4"
+    return frozenset({(r, q), accord_sonnant(c)})
+
+
+#: Les granularités de `meme_lecture`, de la plus fine à la plus large.
+#: Deux systèmes de familles coexistent, hérités : `famille_de` (M/m/o/+ —
+#: une 7 de dominante ou une sus est une couleur du majeur) pour reconnaître
+#: un même passage, et `family` (maj/min/dom/dim/hdim — une dominante n'est
+#: pas un majeur) pour la petite lecture d'une variante. Les réunir changerait
+#: des décisions : c'est le travail de la future mesure apprise, pas d'ici.
+GRAINS = ("exact", "fonction", "famille", "racine")
+
+
+def _cles(c: dict, grain: str) -> frozenset:
+    ls = lectures(c)
+    if grain == "exact":
+        return ls
+    if grain == "fonction":
+        return frozenset((r, family(q)) for r, q in ls)
+    if grain == "famille":
+        return frozenset((r, famille_de(q)) for r, q in ls)
+    if grain == "racine":
+        return frozenset(r for r, _ in ls)
+    raise ValueError(f"grain inconnu : {grain!r} (attendu : {GRAINS})")
+
+
+def meme_lecture(a: dict, b: dict, contexte: dict | None = None,
+                 grain: str = "famille") -> bool:
+    """Deux accords sont-ils LE MÊME ACCORD pour le repli ?
+
+    LE point d'entrée unique de toutes les comparaisons « même accord /
+    même passage » de `harmonia.folding` (liste dans la docstring du
+    module, section « La comparaison »). Aujourd'hui : deux N.C. se valent,
+    un N.C. ne vaut aucun accord ; sinon les deux accords se valent s'ils
+    partagent une lecture (`lectures`) à la granularité `grain` :
+
+      - "exact"    : même fondamentale, même qualité (C7 ≠ C9, C ≠ C^7) —
+                     sert à repérer une VRAIE différence (fins 1./2.) ;
+      - "fonction" : même fondamentale, même `family` (C ≡ C^7, C ≢ C7) —
+                     la petite lecture d'une variante ;
+      - "famille"  : même fondamentale, même `famille_de` (C ≡ C^7 ≡ C7 ≡
+                     C7sus4, D- ≡ D-7) — reconnaître un même passage ;
+      - "racine"   : même fondamentale lisible — une fin qui change de
+                     fondamentale quelque part.
+
+    Ce n'est PAS une égalité (Bb ≡ Bb/C ≡ C7sus4 n'entraîne pas
+    Bb ≡ C7sus4) : on compare toujours par paires, jamais par `==` sur des
+    clés.
+
+    `contexte` : réservé à la mesure apprise qui remplacera ces règles
+    (tonalité, position dans la cadence, postérieures musx…). Ignoré
+    aujourd'hui. CE QUE ÇA NE FAIT PAS (encore) : m7 ≡ 7sus4 une quarte
+    au-dessus (D-7 ≡ G7sus4, Lost Without U) — Louis veut que ça sorte de la
+    mesure apprise, pas d'une règle de plus.
+    """
+    del contexte
+    na, nb = bool(a.get("nc")), bool(b.get("nc"))
+    if na or nb:
+        return na and nb
+    return bool(_cles(a, grain) & _cles(b, grain))
