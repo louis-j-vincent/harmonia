@@ -344,7 +344,22 @@ export function sv(t,a){ const e=document.createElementNS(SVGNS,t); for(const k 
 export function qClass(q){ if(q===""||q.startsWith("^")||q.startsWith("6")) return "maj"; if(isHalfDim(q)) return "m7b5"; if(isDim(q)) return "dim"; if(q.startsWith("-")) return "min"; if(q.startsWith("sus")) return (q.indexOf("7")>=0)?"dom":"sus"; if(q.startsWith("+")) return q.indexOf("7")>=0?"dom":"aug"; return "dom"; }
 export const ROMAN=["I","♭II","II","♭III","III","IV","♭V","V","♭VI","VI","♭VII","VII"];
 export function romanFor(deg,cls){ let n=ROMAN[deg]; if(cls==="min"||cls==="m7b5"||cls==="dim") n=n.toLowerCase(); if(cls==="m7b5") n+="ø"; else if(cls==="dim") n+="°"; else if(cls==="dom") n+="⁷"; return n; }
-export function roleOf(home,root,q,next){ const cls=qClass(q); const deg=mod(root-home,12); const num=romanFor(deg,cls); const nRoot=next?next.root:null, nCls=next?qClass(next.q):null; const resolvesTo=t=>nRoot!==null&&nRoot===t; let text;
+// `mode` (2026-10-01, vérif. lot 2 UX) : en MINEUR, les degrés naturels de la
+// gamme mineure ne sont pas des emprunts — Cm en sol mineur est iv, pas
+// « emprunté au mineur » ; E♭, B♭, F sont VI, III, VII. Défaut : la tonalité
+// du morceau (S.keyMode). Le majeur est inchangé.
+function roleMinor(deg,cls){
+    if(cls==="min"){ if(deg===5) return ["iv","iv — sous-dominante mineure, tire vers la tonique"];
+                     if(deg===7) return ["v","v — dominante mineure, sans sensible"]; }
+    if(cls==="maj"){ if(deg===3) return ["III","III — le relatif majeur"];
+                     if(deg===8) return ["VI","VI — degré naturel du mineur"];
+                     if(deg===10) return ["VII","VII — degré naturel du mineur"];
+                     if(deg===5) return ["IV","IV — emprunt dorien (sixte majeure)"];
+                     if(deg===0) return ["I","I — tierce picarde, la tonique en majeur"]; }
+    return null;
+  }
+export function roleOf(home,root,q,next,mode){ const cls=qClass(q); const deg=mod(root-home,12); const num=romanFor(deg,cls); const nRoot=next?next.root:null, nCls=next?qClass(next.q):null; const resolvesTo=t=>nRoot!==null&&nRoot===t; let text;
+    if((mode||S.keyMode)==="minor"){ const mr=roleMinor(deg,cls); if(mr && !(cls==="min"&&nCls==="dom"&&resolvesTo(mod(root+5,12)))) return {num:mr[0], text:mr[1]}; }
     if(cls==="dom"){ const target=mod(root+5,12), tdeg=mod(target-home,12); if(deg===1) text="substitut de triton de V⁷ — descend d'un demi-ton vers I"; else if(deg===7) text="V⁷ — la dominante, tire vers I"+(resolvesTo(target)?" (résout)":""); else if(target===home) text="V⁷ — dominante, résout à la maison"; else text="V⁷ de "+ROMAN[tdeg]+" — dominante secondaire"+(resolvesTo(target)?" (résout une quinte plus bas)":""); }
     else if(cls==="min"||cls==="m7b5"){ const v=mod(root+5,12); if(nCls==="dom"&&resolvesTo(v)) text=(cls==="m7b5"?"iiø":"ii")+" — prépare le V vers "+note(mod(v+5,12)); else if(deg===2) text=(cls==="m7b5"?"iiø":"ii")+" — pré-dominante, mène au V"; else if(deg===9) text="vi — le relatif mineur"; else if(deg===5) text="iv — emprunté au mineur, tire vers la tonique"; else if(deg===0) text="i — la tonique (mineur)"; else text=num+" — couleur mineure"; }
     else if(cls==="maj"){ if(deg===0) text="I — la maison, la tonique"; else if(deg===5) text="IV — sous-dominante"; else if(deg===7) text="V — degré de dominante"; else if(deg===9) text="VI — sus-dominante"; else if(deg===2) text="II — sus-tonique"; else if(deg===10) text="♭VII — emprunté au mixolydien"; else if(deg===8) text="♭VI — emprunt modal"; else if(deg===3) text="♭III — emprunt modal"; else text=num+" — couleur chromatique"; }
