@@ -61,6 +61,16 @@ def run(name, launcher, **ctx):
     check(r[1]["t"] < r[1]["tw"] and r[1]["a"] <= r[1]["aw"], f"titre trop long: il tronque en dernier {r[1]}")
     check(r[2]["t"] >= r[2]["tw"] and r[2]["a"] >= r[2]["aw"], f"assez de place: rien ne tronque {r[2]}")
     pg.screenshot(path=f"{PRE}_{name}_titre.png")
+
+    # ---- #41 : « ＋ Nouveau dossier » est un vrai bouton
+    pg.evaluate("async()=>{const {go}=await import('/static/router.js');go('charts')}"); pg.wait_for_timeout(800)
+    nb = pg.locator("button[data-act=nouveau-dossier]")
+    bb = nb.bounding_box() if nb.count() else None
+    check(bb is not None and bb["height"] >= 44 and bb["width"] > 300, f"bouton plein ≥44 px de haut {bb}")
+    check(nb.count() == 1 and "＋" in nb.inner_text(), "libellé « ＋ Nouveau dossier »")
+    pg.screenshot(path=f"{PRE}_{name}_dossier.png")
+    nb.click(); pg.wait_for_timeout(300)
+    check(pg.locator("input[placeholder=Standards]").count() == 1, "le bouton ouvre la feuille de nom")
     b.close()
 
 with sync_playwright() as p:

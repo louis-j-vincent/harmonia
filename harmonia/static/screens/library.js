@@ -310,7 +310,7 @@ export function paintChartList(){
       return;
     }
     if(!open){
-      body.appendChild(sectionHead("Dossiers","Nouveau",()=>promptNewFolder()));
+      body.appendChild(sectionHead("Dossiers"));
       const list=el("div","display:flex;flex-direction:column;gap:8px;");
       (F.order||[]).forEach(name=>{
         const row=el("div",
@@ -329,8 +329,13 @@ export function paintChartList(){
       });
       if(!(F.order||[]).length) list.appendChild(el("div",
         `font:italic 13px/1.6 ${SERIF};color:${T.faint};padding:0 4px 4px;`,
-        "aucun dossier — « Nouveau » pour ranger tes charts"));
+        "aucun dossier — crées-en un pour ranger tes charts"));
       body.appendChild(list);
+      // un vrai bouton (UX #41, audit F3) : « Nouveau » en rouge n'avait pas
+      // l'air tapable.
+      const nv=kitButton("＋ Nouveau dossier", ()=>promptNewFolder(), {height:SZ.control, state:"on"});
+      nv.style.width="100%"; nv.style.marginTop="10px"; nv.style.marginBottom="18px";
+      nv.dataset.act="nouveau-dossier"; body.appendChild(nv);
       body.appendChild(sectionHead("Hors dossier"));
       body.appendChild(chartRows(trierCharts(S.library.filter(c=>!F.of[c.file]))));
     } else {
