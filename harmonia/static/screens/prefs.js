@@ -190,9 +190,8 @@ export function openPrefsSheet(opts){
         toast("la première fois, l'alignement du chant prend ~15 s");
       });
       more.appendChild(tabRow);
-      const shareRow=kitButton("Partager ce chart", ()=>{ closeOverlay(back); openShareSheet(); });
-      shareRow.style.width="100%";
-      body.appendChild(shareRow);
+      // « Partager » n'est plus ici (UX #23) : c'est une action, pas un réglage —
+      // elle est sous le titre du chart (chartToolbar), à côté de « Transposer ».
     }
     body.appendChild(plus);
     sheet.appendChild(body);

@@ -59,6 +59,18 @@ def run(p, name):
     hit = pg.evaluate("""()=>{const r=document.querySelectorAll('[data-form-band] button')[0].getBoundingClientRect(); const e=document.elementFromPoint(r.right-3, r.top+r.height/2); return e===document.querySelectorAll('[data-form-band] button')[0]}""")
     check(hit, f"{name} #22 the narrow segment keeps its widened zone (on top of its neighbour)")
     pg.screenshot(path=pre + "_22_rail.png", clip={"x": 0, "y": 40, "width": 390, "height": 60})
+    # ---- #23
+    sh = pg.locator('[data-role="share"]'); check(sh.count() == 1, f"{name} #23 share icon under the title")
+    bb = sh.bounding_box(); check(bb["width"] >= 44 and bb["height"] >= 44, f"{name} #23 share >=44 {bb}")
+    pg.screenshot(path=pre + "_23_toolbar.png", clip={"x": 0, "y": 0, "width": 390, "height": 80})
+    tap(sh); pg.wait_for_timeout(400)
+    check(pg.get_by_text("Lien de partage").count() == 1, f"{name} #23 share sheet opens")
+    pg.screenshot(path=pre + "_23_share.png")
+    tap(pg.get_by_role("button", name="Annuler").first); pg.wait_for_timeout(300)
+    tap(pg.get_by_role("button", name="Réglages").first); pg.wait_for_timeout(400)
+    check("Partager" not in pg.inner_text("body"), f"{name} #23 Réglages sheet no longer has Partager")
+    pg.screenshot(path=pre + "_23_reglages.png")
+    tap(pg.get_by_role("button", name="Fermer").first); pg.wait_for_timeout(300)
     check(not errs, f"{name} no page errors: {errs}")
     return pg, tap, ev, pre
 
