@@ -84,6 +84,18 @@ def run(p, name):
     pg.screenshot(path=pre + "_24_open.png")
     ev("S._prefsPlusOpen=false")
     tap(pg.get_by_role("button", name="Fermer").first); pg.wait_for_timeout(300)
+    # ---- #25
+    tap(pg.get_by_role("button", name="Réglages").first); pg.wait_for_timeout(400)
+    txt = pg.inner_text("body")
+    check("Détail des accords" in txt and "Apprendre" not in txt and "Niveau" not in txt, f"{name} #25 one control, no Apprendre/Niveau")
+    pg.screenshot(path=pre + "_25_full.png", clip={"x": 0, "y": 440, "width": 390, "height": 404})
+    tap(pg.get_by_role("button", name="Triades", exact=True)); pg.wait_for_timeout(500)
+    check(ev("return [S.learn,S.level]") == [True, 1], f"{name} #25 Triades = learn on, level 1")
+    pg.screenshot(path=pre + "_25_triades.png")
+    tap(pg.get_by_role("button", name="Réglages").first); pg.wait_for_timeout(400)
+    pg.screenshot(path=pre + "_25_sheet_triades.png", clip={"x": 0, "y": 440, "width": 390, "height": 404})
+    tap(pg.get_by_role("button", name="Complet", exact=True)); pg.wait_for_timeout(500)
+    check(ev("return S.learn") is False, f"{name} #25 Complet = learn off")
     check(not errs, f"{name} no page errors: {errs}")
     return pg, tap, ev, pre
 

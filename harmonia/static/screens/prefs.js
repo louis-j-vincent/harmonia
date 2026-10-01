@@ -76,15 +76,24 @@ export function openPrefsSheet(opts){
     more.appendChild(pl);
     if(PREF.theme==="dark") more.appendChild(el("div",`font:italic 11.5px ${SERIF};color:${T.faint};`,"Le papier ne s'applique qu'au thème clair."));
     // reading level — was the Learn pill + the ladder row above the grid
-    body.appendChild(seg("Accords",[["advanced","Complets"],["learn","Apprendre"]],
-      ()=>S.learn?"learn":"advanced",
-      v=>{ S.learn=(v==="learn"); try{ localStorage.setItem("harmLearn",S.learn?"1":"0"); }catch(e){} }));
-    if(S.learn){
-      body.appendChild(seg("Niveau",[[1,"Triades"],[2,"Septièmes"],[3,"Tout"]],
-        ()=>S.level,
-        v=>{ S.level=v; try{ localStorage.setItem("harmLearnLevel",String(v)); }catch(e){} }));
-      body.appendChild(el("div",`font:italic 12px ${SERIF};color:${T.faint};margin-top:-8px;`,LEVEL_CAPTION[S.level]));
-    }
+    // UX #25 : UN réglage — « Détail des accords » : Complet · Septièmes · Triades.
+    // Avant : « Accords : Complets / Apprendre », puis (si Apprendre) « Niveau »
+    // Triades / Septièmes / Tout — deux commandes, deux vocabulaires. Même état
+    // dessous (S.learn + S.level, mêmes clés localStorage) : « Complet » = learn
+    // off (ou niveau 3, qui est le tableau complet) ; les deux autres = learn on.
+    const dt=el("div","display:flex;flex-direction:column;gap:8px;");
+    dt.appendChild(el("span",`font:600 13px ${UI};color:${T.ink};`,"Détail des accords"));
+    dt.appendChild(kitSegmented([["full","Complet"],[2,"Septièmes"],[1,"Triades"]],
+      ()=>(!S.learn||S.level>=3)?"full":S.level,
+      v=>{ if(v==="full"){ S.learn=false; } else { S.learn=true; S.level=v; }
+           try{ localStorage.setItem("harmLearn",S.learn?"1":"0"); localStorage.setItem("harmLearnLevel",String(S.level)); }catch(e){}
+           closeOverlay(back); rebuildChrome(); },
+      {height:SZ.control, font:13}));
+    dt.appendChild(el("div",`font:italic 12px ${SERIF};color:${T.faint};`,
+      {full:"Le tableau complet, tel que détecté.",
+       2:"Les trois septièmes courantes ; notes ajoutées et renversements disparaissent.",
+       1:"Triades seulement : le squelette de l'harmonie, rien pour trébucher."}[(!S.learn||S.level>=3)?"full":S.level]));
+    body.appendChild(dt);
     /* FUSION DES SECTIONS (Louis, 2026-09-30, sur Claustrophobic : « un
        curseur sur lequel on peut jouer qui force à quel point tu merges les
        sections ou tu les laisses avoir des bouts alternatifs »).
