@@ -12,7 +12,7 @@ import { candList, maybeShowPendingUndo, openAnnotateTools, openEditor, openNewC
 import { openChordSheet, openPrefsSheet, openRotor, transposeTo } from "../screens/prefs.js";
 import { attachSectionDrag, buildSectionTool, closeSectionTool, paintSectionTool, sectToolOn, setPlayhead, spanTime } from "../screens/sections_editor.js";
 import { S } from "../state.js";
-import { PREF, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, ctlSkin, dispQ, el, fmt, fnColor, glyph, glyphEpure, pedalGlyph, handle, haptic, keyFill, keyHue, kitIcon, kitLegend, kitSegmented, learnLevel, lensLabelColor, mod, note, overlay, play, playGlyph, playMidis, playedLabel, qClass, renderHand, setSpelling, songTitle, splitHands, tightGap, tightSize, toast, vlTrack, voClose, voicingByStyle, withBass } from "../ui/kit.js";
+import { PREF, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, ctlSkin, dispQ, el, fmt, fnColor, glyph, glyphEpure, pedalGlyph, handle, haptic, keyFill, keyHue, kitIcon, kitLegend, kitSegmented, learnLevel, lensLabelColor, mod, note, overlay, play, playGlyph, sheetBox, playMidis, playedLabel, qClass, renderHand, setSpelling, songTitle, splitHands, tightGap, tightSize, toast, vlTrack, voClose, voicingByStyle, withBass } from "../ui/kit.js";
 
 // The single DOM host div (`<div id="app">`) — there is exactly one call
 // site, `window.APP.build(document.getElementById("app"))` in main.js, so
@@ -702,7 +702,14 @@ export function chartDock(){
     band.addEventListener("pointercancel",()=>{ band._down=false; });
     const labels=el("div",
       `display:flex;justify-content:space-between;margin-top:6px;font:500 12px ${UI};color:${T.faint};`);
-    const tNow=el("span","","0:00"), tWhere=el("span","",""), tEnd=el("span","","0:00");
+    const tNow=el("span","","0:00"), tEnd=el("span","","0:00");
+    // « mesure N » est aussi le bouton « Aller à la mesure… » (UX #4, 2026-10-01) :
+    // vide à l'arrêt, il affiche alors son invite (CSS `[data-where]:empty`).
+    // Zone de 44 px par marges négatives, sans ajouter de hauteur au dock.
+    const tWhere=el("button",`border:none;background:none;padding:0 10px;margin:-14px 0;min-height:${SZ.control}px;min-width:${SZ.control}px;font:500 12px ${UI};color:${T.faint};cursor:pointer;`);
+    tWhere.dataset.where="1"; tWhere.setAttribute("aria-label","Aller à la mesure…");
+    tWhere.onclick=openGotoBar;
+    whereCss();
     labels.appendChild(tNow); labels.appendChild(tWhere); labels.appendChild(tEnd);
     mid.appendChild(band); mid.appendChild(labels);
     row.appendChild(mid);
@@ -770,6 +777,38 @@ export function chartLoopToggle(){
       if(h && h.bi!==S.playBar) setPlayhead(h.bi,h.rep,t+PLAYHEAD_LEAD_S);
       paintDockTime(t);
     },120);
+  }
+function whereCss(){
+    if(document.getElementById("harm-where-css")) return;
+    const st=document.createElement("style"); st.id="harm-where-css";
+    st.textContent=`[data-where]:empty::before{content:"aller à la mesure…";font-style:italic;}`;
+    document.head.appendChild(st);
+  }
+  // « Aller à la mesure… » (UX #4) : fait défiler la grille jusqu'à la mesure N
+  // et, s'il y a de l'audio, y place le curseur — sans lancer la lecture (même
+  // règle que le tap sur une mesure, choix de Louis du 10 août).
+export function gotoBar(n){
+    const bars=S.bars||[]; if(!bars.length) return;
+    const bi=Math.max(0,Math.min(bars.length-1,Math.round(n)-1));
+    const c=(S._cells||[]).find(x=>x.bar===bi);
+    if(c) c.el.scrollIntoView({block:"center",behavior:"smooth"});
+    if(chartHasAudio()) seekToBar(bi); else setPlayhead(bi,0,null);
+  }
+export function openGotoBar(){
+    const N=(S.bars||[]).length; if(!N) return;
+    const back=overlay(), sheet=sheetBox(); sheet.appendChild(handle());
+    sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:12px;`,"Aller à la mesure…"));
+    const row=el("div","display:flex;gap:10px;align-items:center;justify-content:center;");
+    const inp=el("input",`width:96px;height:${SZ.control}px;box-sizing:border-box;text-align:center;border:1.5px solid ${T.line};border-radius:12px;background:${T.paper};color:${T.ink};font:600 18px ${UI};`);
+    inp.type="number"; inp.min="1"; inp.max=String(N); inp.inputMode="numeric"; inp.placeholder="1–"+N;
+    inp.setAttribute("aria-label","Numéro de mesure");
+    const ok=el("button",`min-height:${SZ.control}px;padding:0 22px;border:none;border-radius:12px;background:${T.accent};color:#fff;font:700 15px ${UI};cursor:pointer;`,"Aller");
+    const go1=()=>{ const v=parseInt(inp.value,10); if(!(v>=1)) return; closeOverlay(back); gotoBar(Math.min(v,N)); };
+    ok.onclick=go1; inp.onkeydown=e=>{ if(e.key==="Enter") go1(); };
+    row.appendChild(inp); row.appendChild(ok); sheet.appendChild(row);
+    sheet.appendChild(el("div",`text-align:center;font:italic 12px ${SERIF};color:${T.faint};margin-top:10px;`,"le morceau écrit compte "+N+" mesures"));
+    back.appendChild(sheet); root.appendChild(back);
+    setTimeout(()=>inp.focus(),60);
   }
 export function paintDockTime(t,dur){
     dur=dur||totalDur()||1;
@@ -2014,6 +2053,10 @@ export function buildIReal(){
       // (sur une mesure « :|| » du treillis, la barre rouge passe DEVANT la
       //  barre épaisse d'encre — sinon la tête de lecture y disparaît)
       cell.appendChild(ph);
+      // Numéro de mesure : 1re mesure de chaque rangée seulement, petit et pâle
+      // (UX #4, 2026-10-01 — « combien de mesures avant la 12 ? »). En bas à
+      // gauche : le haut garde l'étiquette de section, ×N et les crochets.
+      if(col===0) cell.appendChild(el("div",`position:absolute;left:${b.secFirst&&EP?8:4}px;bottom:2px;font:500 9px ${UI};line-height:1;color:${T.faint};opacity:.75;pointer-events:none;z-index:1;`,String(bi+1)));
       const sel=el("div","position:absolute;inset:0;pointer-events:none;display:none;");
       cell.appendChild(sel);
       cell.dataset.bar=String(bi);
