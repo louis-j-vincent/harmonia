@@ -70,7 +70,6 @@ import numpy as np
 
 from harmonia import musx as _musx
 from harmonia.labels import to_chord
-from harmonia.roles import family as _role_family
 # re-exportés : ils vivaient ici avant le 2026-10-01 (tests, outils)
 from harmonia.roles import accord_sonnant, famille_de, lectures, meme_lecture  # noqa: F401
 from harmonia.settings import SETTINGS
@@ -203,7 +202,26 @@ def _sig_repli(bar) -> tuple | None:
     reels = [c for c in (bar or []) if not c.get("nc")]
     if not reels:
         return None
-    return tuple((c["root"] % 12, famille_de(c.get("q"))) for c in reels)
+    return _MesureRepli(reels)
+
+
+class _MesureRepli(tuple):
+    """Les accords réels d'une mesure, vus par la fusion des lettres : deux
+    mesures sont égales (`==`, ce qu'utilisent `concordance`,
+    `tete_commune` et `periode_interne`) quand elles ont autant d'accords et
+    que chaque paire est le même accord au sens de `meme_lecture` (grain
+    "famille"). Pas hachable : ce n'est pas une égalité transitive."""
+    __hash__ = None
+
+    def __eq__(self, other):
+        if not isinstance(other, _MesureRepli):
+            return NotImplemented
+        return len(self) == len(other) and all(
+            meme_lecture(a, b, grain="famille") for a, b in zip(self, other))
+
+    def __ne__(self, other):
+        r = self.__eq__(other)
+        return r if r is NotImplemented else not r
 
 
 def periode_interne(A: list) -> int:
@@ -468,8 +486,9 @@ def _bar_variant(members_raw: list[list[dict]], written: list[dict]) -> dict | N
     Une occurrence du groupe est une variante quand elle joue, à un temps où
     le gabarit N'ATTAQUE PAS (il tient l'accord précédent), un accord réel
     (confiance ≥ VAR_MIN_CONF) d'une famille différente de ce que le gabarit
-    tient là. Les occurrences sont regroupées par (temps, fondamentale,
-    famille) — `harmonia.roles.family` absorbe « D- » et « D-7 » dans le même
+    tient là. Les occurrences sont regroupées par temps et par
+    `meme_lecture` (grain "fonction" : même fondamentale, même
+    `harmonia.roles.family`) — qui absorbe « D- » et « D-7 » dans le même
     groupe, la même lecture à l'oreille dite avec plus ou moins de septième —
     et le groupe le plus soutenu (le plus de passes, puis la plus haute
     confiance) l'emporte ; c'est SA propre meilleure occurrence qui donne la
@@ -495,7 +514,7 @@ def _bar_variant(members_raw: list[list[dict]], written: list[dict]) -> dict | N
                 cur = e
         return cur
 
-    groups: dict[tuple, dict] = {}
+    groups: list[dict] = []          # une lecture par (temps, meme_lecture)
     for bar in members_raw:
         for e in bar:
             if e.get("nc") or e.get("carry"):
@@ -507,14 +526,15 @@ def _bar_variant(members_raw: list[list[dict]], written: list[dict]) -> dict | N
             if conf < VAR_MIN_CONF:
                 continue
             held = _sounding_at(beat)
-            if held is not None and held["root"] == e["root"] and \
-                    _role_family(held.get("q") or "") == _role_family(e.get("q") or ""):
+            if held is not None and meme_lecture(held, e, grain="fonction"):
                 continue                      # même lecture que ce qui est tenu
-            key = (beat, int(e["root"]) % 12, _role_family(e.get("q") or ""))
-            slot = groups.setdefault(key, {"root": int(e["root"]) % 12,
-                                           "q": e.get("q", ""),
-                                           "bass": e.get("bass", -1),
-                                           "beat": beat, "c": 0.0, "n": 0})
+            slot = next((g for g in groups if g["beat"] == beat
+                         and meme_lecture(g["_e"], e, grain="fonction")), None)
+            if slot is None:
+                slot = {"root": int(e["root"]) % 12, "q": e.get("q", ""),
+                        "bass": e.get("bass", -1), "beat": beat, "c": 0.0,
+                        "n": 0, "_e": e}
+                groups.append(slot)
             slot["n"] += 1
             if conf > slot["c"]:
                 slot["c"] = round(conf, 3)
@@ -522,7 +542,9 @@ def _bar_variant(members_raw: list[list[dict]], written: list[dict]) -> dict | N
                 slot["bass"] = e.get("bass", -1)
     if not groups:
         return None
-    return max(groups.values(), key=lambda g: (g["n"], g["c"]))
+    best = dict(max(groups, key=lambda g: (g["n"], g["c"])))
+    best.pop("_e")
+    return best
 
 
 def _attach_variant(chords_k: list[dict], variant: dict) -> None:
@@ -1170,9 +1192,10 @@ def facade(bars, grid, ranges, rng, rep: dict) -> dict[int, list]:
         # consensus. La façade ne parle qu'à partir de trois.
         return out
 
-    def _sig(bar):
-        return tuple((c["root"], c["q"], bool(c.get("nc")), bool(c.get("carry")))
-                     for c in bar)
+    def _meme_mesure(a, b):
+        return len(a) == len(b) and all(
+            bool(x.get("carry")) == bool(y.get("carry"))
+            and meme_lecture(x, y, grain="exact") for x, y in zip(a, b))
 
     for b in range(c0, c1 + 1):
         if b not in rej:
@@ -1188,10 +1211,14 @@ def facade(bars, grid, ranges, rng, rep: dict) -> dict[int, list]:
                  and any(c.get("folded") for c in bars[r0 + off])]
         if len(cands) < 2:
             continue
-        groups: dict[tuple, list[int]] = {}
+        groupes_: list[tuple] = []        # (mesure-témoin, passes)
         for bb in cands:
-            groups.setdefault(_sig(bars[bb]), []).append(bb)
-        best = max(groups.values(), key=len)
+            g = next((g for g in groupes_ if _meme_mesure(g[0], bars[bb])), None)
+            if g is None:
+                groupes_.append((bars[bb], [bb]))
+            else:
+                g[1].append(bb)
+        best = max((g[1] for g in groupes_), key=len)
         if len(best) < 2:
             continue                      # les autres passes ne s'accordent pas
         s = min(best, key=lambda bb: abs(bb - b))
@@ -1446,10 +1473,9 @@ def boucle_minimale_ecrite(bars, vue, grid, occ, rep, S=None,
         n_contre += sum(len(g[1]) for g in autres)
         _k, xs = max(autres, key=lambda g: (len(g[1]), -g[1][0]))
         minor = bars[xs[0]]
-        lus = {(rt, f) for c in ecrit[r] if not c.get("nc")
-               for rt, f in [(c["root"] % 12, famille_de(c.get("q")))]}
+        lus = [c for c in ecrit[r] if not c.get("nc")]
         cand = next((c for c in minor if not c.get("nc")
-                     and (c["root"] % 12, famille_de(c.get("q"))) not in lus),
+                     and not any(meme_lecture(c, w, grain="famille") for w in lus)),
                     next((c for c in minor if not c.get("nc")), None))
         if cand is not None and ecrit[r]:
             beat = cand.get("beat", 0)
