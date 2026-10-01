@@ -1908,16 +1908,20 @@ export function buildIReal(){
         // son orthographe correcte selon le ton (`noteEl`/`setSpelling`,
         // 2026-09-16) au lieu de la réinventer ici.
         // 2026-10-01 (docs/STATE.md « Reprises et petite lecture ») : AU-DESSUS
-        // du glyphe, alignée sur son bord gauche, jamais sur l'exposant — elle
-        // était en top:-7px;right:-4px et mordait « D° », « B♭ », « B° ».
+        // du glyphe — d'abord bord gauche, puis bord droit (voir plus bas) —
+        // jamais sur l'exposant : elle était en top:-7px;right:-4px et
+        // mordait « D° », « B♭ », « B° ».
         // 2026-10-01, option D validée (Louis, comparatif à 4 options sur The
-        // Lazy Song) : plus grande (×~1,6, elle se lisait comme du petit texte,
-        // pas comme un accord) et `T.faint` au lieu de `T.accent` — le rouge
-        // rivalisait avec les sections/reprises/tête de lecture, qui le
-        // réservent ; en gris elle se lit comme une note en marge.
+        // Lazy Song) : plus grande que l'original (elle se lisait comme du
+        // petit texte, pas comme un accord) et `T.faint` au lieu de
+        // `T.accent` — le rouge rivalisait avec les sections/reprises/tête de
+        // lecture, qui le réservent ; en gris elle se lit comme une note en
+        // marge. Rajusté le même jour (Louis : « un peu plus petit, et à
+        // droite comme dans irealb ») : bord droit, et redescendue d'un cran
+        // (×~1,3 au lieu de ×~1,6 — toujours bien plus lisible que l'original).
         if(ch.var) {
-          const vw=el("span","position:absolute;left:0;bottom:calc(100% + 3px);opacity:1;pointer-events:none;line-height:1;white-space:nowrap;");
-          vw.appendChild(G(ch.var.root,dispQ(ch.var.q),narrow?19:21,"exact",T.faint,
+          const vw=el("span","position:absolute;right:0;bottom:calc(100% + 3px);opacity:1;pointer-events:none;line-height:1;white-space:nowrap;text-align:right;");
+          vw.appendChild(G(ch.var.root,dispQ(ch.var.q),narrow?15:17,"exact",T.faint,
             (ch.var.bass==null?-1:ch.var.bass)));
           gw.appendChild(vw);
         }
