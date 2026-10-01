@@ -4,6 +4,7 @@
 #35 tapping « mesure N · v× » opens « Aller à la mesure… » and seeks the audio to that bar.
 #36 help line under Piano + 🎹 button toggling the keyboard card.
 #37 « Tic à chaque accord » rename + count-in (2 bars of ticks, then audio starts; default Non; tap cancels).
+#38 the note under the big chord is short and French (all degrees x qualities, and on screen).
 #33 drag on the bar band chooses loop A/B (engine a,b; audio stays inside; tap still seeks)."""
 import sys
 from playwright.sync_api import sync_playwright
@@ -65,6 +66,13 @@ with sync_playwright() as p:
     t1 = SE(pg,'S.audio.currentTime'); lp = eng()
     check(abs(t1 - last[3]) < 0.6 and t0 > 90 and lp is None, tag + f"plain tap on the last segment still seeks to its start ({t0:.1f}s -> {t1:.1f}s, segment starts {last[3]:.1f}s), no loop armed")
     pg.screenshot(path=f"/tmp/lot2_drag_{name}.png")
+    # ---- #38 short French role note
+    res = pg.evaluate("""async()=>{ const {roleCourt}=await import('/static/screens/practise.js'); const {roleOf}=await import('/static/ui/kit.js');
+      const out=new Set(); for(const q of ['','-','7','-7','h7','o','sus','+','^7']) for(let r=0;r<12;r++) for(const nx of [null,{root:(r+5)%12,q:'7'}]) out.add(roleCourt(roleOf(0,r,q,nx).text)); return [...out]; }""")
+    bad = [x for x in res if len(x) > 34 or "(" in x or "," in x or " — " in x]
+    check(len(res) > 15 and not bad, tag + f"{len(res)} distinct role notes, all <= 34 chars, no clause/parenthesis; longest: {max(res, key=len)!r}")
+    shown = pg.evaluate("()=>[...document.querySelectorAll('div')].map(d=>d.textContent).filter(t=>/^(I|II|III|IV|V|VI|VII|i|ii|iii|iv|v|vi|vii|♭\\w+|V⁷[^ ]*)( de \\w+)? : /.test(t))")
+    check(shown and all(len(x) <= 34 for x in shown), tag + f"on screen: {shown[:2]}")
     # ---- #37 count-in
     pg.locator('button[aria-label="Réglages"]').first.tap(); pg.wait_for_timeout(500)
     sh = pg.locator("[data-overlay]").inner_text()

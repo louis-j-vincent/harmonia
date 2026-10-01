@@ -202,6 +202,40 @@ export function prompterData(){
     return (S.chordTimeIndex||[]).map(h=>{ const c=S.chords[h.idx]||{};
       return {t0:h.t0, t1:h.t1, root:c.root||0, q:c.q||"", bass:(c.bass==null?-1:c.bass), nc:!!c.nc, c:(c.c==null?1:c.c)}; });
   }
+/* LA NOTE SOUS L'ACCORD, EN COURT (UX #38, 2026-10-01). roleOf (kit.js) écrit
+   déjà en français mais sur une phrase entière (« V⁷ de II — dominante
+   secondaire (résout une quinte plus bas) ») qui ne tient pas sous l'accord de
+   74 px. Ici : « numéro de degré : trois mots ». On garde le degré (ce qu'un
+   musicien lit d'abord) et un seul rôle ; la résolution se lit sur les deux
+   accords gris juste dessous. Une description inconnue est coupée à la
+   première virgule ou parenthèse plutôt que d'être affichée en entier. */
+const ROLE_COURT=[
+  [/^la dominante|^dominante, résout|^degré de dominante/,"dominante"],
+  [/^dominante secondaire/,"dominante secondaire"],
+  [/^prépare le V/,"prépare le V"],
+  [/^pré-dominante/,"mène au V"],
+  [/^le relatif mineur/,"relatif mineur"],
+  [/^emprunté au mineur/,"emprunté au mineur"],
+  [/^la tonique \(mineur\)/,"tonique mineure"],
+  [/^la maison, la tonique/,"la tonique"],
+  [/^couleur mineure/,"couleur mineure"],
+  [/^sous-dominante/,"sous-dominante"],
+  [/^sus-dominante/,"sus-dominante"],
+  [/^sus-tonique/,"sus-tonique"],
+  [/^emprunté au mixolydien/,"emprunt mixolydien"],
+  [/^emprunt modal/,"emprunt modal"],
+  [/^couleur chromatique/,"couleur chromatique"],
+  [/^diminué de passage/,"diminué de passage"],
+  [/^suspendu/,"suspendu"],
+  [/^augmenté/,"instable"],
+];
+export function roleCourt(text){
+  if(text.startsWith("substitut de triton")) return "substitut de triton de V⁷";   // le « degré » est déjà la phrase
+  const i=text.indexOf(" — "); if(i<0) return text;
+  const num=text.slice(0,i), desc=text.slice(i+3);
+  const hit=ROLE_COURT.find(([re])=>re.test(desc));
+  return num+" : "+(hit?hit[1]:desc.split(/[,(]/)[0].trim());
+}
 export let _promptKeysBound=false;
 export function renderPrompter(){
     const w=screenWrap();
@@ -713,7 +747,7 @@ export function renderPrompter(){
           big.appendChild(glyph(c.root,c.q,bigSize,"exact",bigChordColor(c.root),c.bass));
           // the ROLE on one line (design 2a) — same roleOf the editor's Guide uses
           const nx=(chords[i+1]&&!chords[i+1].nc)?{root:chords[i+1].root,q:chords[i+1].q}:null;
-          sub.textContent=roleOf(S.key,c.root,dispQ(c.q),nx).text;
+          sub.textContent=roleCourt(roleOf(S.key,c.root,dispQ(c.q),nx).text);
           // the next two chords, greyed
           [chords[i+1], chords[i+2]].forEach(n=>{ if(!n) return;
             nextRow.appendChild(n.nc
