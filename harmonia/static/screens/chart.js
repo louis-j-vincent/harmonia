@@ -8,7 +8,7 @@ import { api } from "../api.js";
 import { PLAYHEAD_LEAD_S, hitAtTime, loopEngineDispose, loopEngineStart, loopEngineToggle, nowTime, seekFrac, seekToBar, setPlayBtn, syncTransport, togglePlay, totalDur } from "../audio.js";
 import { go, screenWrap } from "../router.js";
 import { applyRefinement } from "../screens/analyse.js";
-import { candList, openAnnotateTools, openBarExpanded, openEditor } from "../screens/annotate.js";
+import { candList, openAnnotateTools, openEditor, openNewChord } from "../screens/annotate.js";
 import { openChordSheet, openPrefsSheet, openRotor, transposeTo } from "../screens/prefs.js";
 import { attachSectionDrag, buildSectionTool, closeSectionTool, paintSectionTool, sectToolOn, setPlayhead, spanTime } from "../screens/sections_editor.js";
 import { S } from "../state.js";
@@ -612,7 +612,7 @@ export function chartToolbar(){
 export function annotateHint(){
     return el("div",`flex:0 0 auto;padding:0 16px 10px;background:${T.paper};`+
       `font:italic 12.5px ${SERIF};color:${T.faint};`,
-      "touche un accord dont tu es sûr — il se verrouille");
+      "touche un accord pour l'écouter, le corriger ou le confirmer");
   }
 
   /* The Analyse lens row + its ONE-LINE legend. Replaces the three outlined
@@ -1629,13 +1629,6 @@ export function buildIReal(){
       // utile que pour `b.secFirst`, où il garantit la colonne 1.
       const gridStart = b.secFirst ? 1 : null;
       const bpbQ=S.model.bpb||4;
-      // Bar-expanded add-a-chord (2026-09-16): a bar with fewer onsets than
-      // beats — including zero, a held "%" bar — has room to add one. Such a
-      // bar routes EVERY tap (glyph or empty space alike) to the zoomed
-      // dotted view instead of straight to the editor; a FULLY written bar
-      // (one onset per beat already) keeps today's direct tap-to-edit
-      // untouched below — there is nowhere to add.
-      const roomToAdd = b.chords.length<bpbQ;
       // §7 (delta2 / design 4a): en écriture compacte, dès 2 accords la barre
       // les EMPILE À GAUCHE avec un écart fixe (flex) au lieu de les répartir
       // sur les temps. C'est le changement de layout qui fait tenir 4 accords
@@ -1825,6 +1818,7 @@ export function buildIReal(){
       // prints the same chord twice inside one bar, so the duplicate is
       // dropped — only in Learn; L3/Advanced always shows the full picture.
       let prevInBar=null;
+      const zoneItems=[];   // Annotate : un accord dessiné = une zone à toucher (voir plus bas)
       b.chords.forEach(({ch,idx})=>{
         if(S.learn && !ch.nc){
           const key=ch.root+"|"+dispQ(ch.q);
@@ -1867,7 +1861,7 @@ export function buildIReal(){
               // (la capture) — ça ne ment sur aucun temps.
               ? "grid-column:1/-1;grid-row:1;justify-self:center;"
               : `grid-column:${q4+1};grid-row:1;justify-self:start;`)}`;
-        const item=el(S.mode==="annotate"?"button":"div",`${place}min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;background:none;border:none;cursor:${ch.nc&&S.mode!=="annotate"?"default":"pointer"};padding:0 ${tight||pendu?0:2}px;${S.mode==="annotate"?"min-height:44px;min-width:44px;":""}${ch.carry?"opacity:.72;":""}`);
+        const item=el(S.mode==="annotate"?"button":"div",`${place}min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;background:none;border:none;cursor:${ch.nc&&S.mode!=="annotate"?"default":"pointer"};padding:0 ${tight||pendu?0:2}px;${S.mode==="annotate"?"pointer-events:none;":""}${ch.carry?"opacity:.72;":""}`);
 
         // No-chord (N.C.) cell: music-x-lab detected silence/no harmony here.
         // Render a faint "N.C." rather than an invented glyph (the intro/outro
@@ -1875,11 +1869,7 @@ export function buildIReal(){
         // * CHORDS / NO-CHORD. Still clickable in annotate mode to override.
         if(ch.nc){
           item.appendChild(el("div",`font:italic 600 ${narrow?15:18}px ${SERIF};color:${T.faint};opacity:.55;`,"N.C."));
-          // A bar with room to add (roomToAdd) routes ANY tap — glyph or empty
-        // space alike — to the bar-expanded dotted view instead (see the
-        // cell-level handler below): the direct tap-to-edit stays only for a
-        // fully written bar, where there is no empty beat to route to.
-        if(S.mode==="annotate" && !roomToAdd) item.onclick=()=>openEditor(idx);
+          zoneItems.push({idx,item});
           cell.appendChild(item);
           return;
         }
@@ -1976,17 +1966,13 @@ export function buildIReal(){
             `font:italic 600 ${narrow?9:10.5}px ${SERIF};color:${ok?T.faint:T.accent};opacity:${ok?.75:1};margin-top:1px;white-space:nowrap;`,
             "GT "+gt.text+(gt.extra?"…":"")));
         }
-        // A bar with room to add (roomToAdd) routes ANY tap — glyph or empty
-        // space alike — to the bar-expanded dotted view instead (see the
-        // cell-level handler below): the direct tap-to-edit stays only for a
-        // fully written bar, where there is no empty beat to route to.
-        if(S.mode==="annotate" && !roomToAdd) item.onclick=()=>openEditor(idx);
+        zoneItems.push({idx,item});
         // Read/Analyse à l'arrêt: tap → la grande feuille (piano + voicings —
         // c'est là qu'on édite). En LECTURE Read (§6 delta2): "tap" fait
         // monter la carte de voicing par-dessus la grille sans couper
         // l'audio; "follow" garde la feuille (le clavier du bas suit déjà);
         // "never" ne monte rien — la grille reste seule.
-        else if(S.mode!=="annotate"){
+        if(S.mode!=="annotate"){
           item.setAttribute("data-chord-cell","1");
           item.onclick=()=>{
             if(tapSeeks()){ seekToBar(bi); return; }
@@ -2037,7 +2023,50 @@ export function buildIReal(){
       // feuille Aa agit tout de suite, sans re-rendre la grille sous une
       // feuille ouverte.
       if(S.mode!=="annotate" && !sectToolOn()) cell.onclick=()=>{ if(tapSeeks()) seekToBar(bi); };
-      else if(S.mode==="annotate" && !sectToolOn() && roomToAdd) cell.onclick=()=>openBarExpanded(bi);
+      /* UN ACCORD = UNE ZONE À TOUCHER (Louis, 2026-10-01, audit UX B2/B13).
+         Avant : un bouton de 44 px par glyphe, qui se chevauchaient dans une
+         mesure à 3-4 accords, et pour toute mesure incomplète une feuille « à
+         points » intermédiaire dont les glyphes ne répondaient pas. Maintenant
+         chaque accord possède sa PART DE LA MESURE, sur toute la hauteur de la
+         cellule (56-64 px) : jamais de chevauchement, et un tap ouvre l'éditeur
+         de CET accord, tout de suite. Une mesure sans accord à elle (« % »)
+         n'a qu'une zone, qui ajoute un accord au temps 1. Read n'est pas
+         touché : son tap-pour-chercher reste celui de la cellule. Les
+         frontières suivent les temps en grille normale, et les glyphes
+         eux-mêmes (milieu de l'écart) en écriture serrée, où l'abscisse ne dit
+         plus le temps. */
+      if(S.mode==="annotate" && !sectToolOn()){
+        const mkZone=(left,right,label,onTap)=>{
+          const z=el("button",`position:absolute;top:0;bottom:0;left:${left}%;width:${right-left}%;z-index:2;`+
+            `border:0;padding:0;margin:0;background:transparent;cursor:pointer;border-radius:10px;`+
+            `-webkit-tap-highlight-color:transparent;transition:background .08s;`);
+          z.dataset.tapzone="1"; z.setAttribute("aria-label",label);
+          const on=()=>{ z.style.background="rgba(138,43,43,.10)"; }, off=()=>{ z.style.background="transparent"; };
+          z.addEventListener("pointerdown",on);
+          ["pointerup","pointerleave","pointercancel"].forEach(ev=>z.addEventListener(ev,off));
+          z.onclick=()=>{ haptic(); onTap(); };
+          cell.appendChild(z); return z;
+        };
+        if(!zoneItems.length) mkZone(0,100,"Ajouter un accord",()=>openNewChord(bi,0));
+        else {
+          const n=zoneItems.length;
+          const beatOf=k=>Math.max(0,Math.min(bpbQ,(S.chords[zoneItems[k].idx].beat||0)));
+          const zs=zoneItems.map(({idx},k)=>{
+            const l=tight?k/n*100:(k===0?0:beatOf(k)/bpbQ*100);
+            const r=tight?(k+1)/n*100:(k===n-1?100:beatOf(k+1)/bpbQ*100);
+            return mkZone(l,r,"Corriger l'accord",()=>openEditor(idx));
+          });
+          if(tight && n>1) requestAnimationFrame(()=>{
+            const cr=cell.getBoundingClientRect(); if(!cr.width) return;
+            const rs=zoneItems.map(z=>z.item.getBoundingClientRect());
+            zs.forEach((z,k)=>{
+              const l=k===0?0:((rs[k-1].right+rs[k].left)/2-cr.left)/cr.width*100;
+              const r=k===n-1?100:((rs[k].right+rs[k+1].left)/2-cr.left)/cr.width*100;
+              z.style.left=l+"%"; z.style.width=(r-l)+"%";
+            });
+          });
+        }
+      }
       S._cells.push({el:cell, bar:bi, idxs:b.chords.map(x=>x.idx), ph, sel, epure:EP});
       grid.appendChild(cell);
       rowCells.push(cell);

@@ -279,7 +279,8 @@ export function openEditor(idx,opts){
     cancel.onclick=()=>{ if(opts.onCancel) opts.onCancel(); closeOverlay(back); }; foot.appendChild(cancel);
     sheet.appendChild(foot);
     back.appendChild(sheet); root.appendChild(back);
-    S._closeEditor=()=>{ S._editorRefresh=null; closeOverlay(back); };
+    S._editorIdx=idx;
+    S._closeEditor=()=>{ S._editorRefresh=null; S._editorIdx=null; closeOverlay(back); };
     // Redessiner la feuille quand ses candidats arrivent APRÈS son ouverture
     // (`openNewChord` : un créneau qu'on vient de créer n'a pas de `sug`, le
     // serveur les calcule pendant que la feuille est déjà à l'écran). Elle
@@ -305,34 +306,8 @@ export function openEditor(idx,opts){
   // musx's real top-3 there is Cm .73 / G .05 / Fm .03. A silent fallback gets
   // deleted, not repaired — the editor now says it has nothing and sends you
   // to By hand.
-  // ── BAR EXPANDED (2026-09-16, Louis: « quand je clique sur un endroit vide
-  // de la barre je peux ajouter un accord dessus : ça ouvre d'abord la barre
-  // en grand, puis ça met un point sous chacun des 4 temps de la barre, et je
-  // clique sur la partie que je veux pour soit modifier un accord existant
-  // soit en ajouter un nouveau »). A bar that is not fully written (fewer
-  // onsets than `bpb`, INCLUDING zero — a held "%" bar) opens this sheet
-  // instead of jumping straight to the editor (chart.js's buildIReal decides
-  // when: see `roomToAdd`). A FULL bar (one onset per beat already) keeps the
-  // old one-tap-on-the-glyph flow untouched — there is no empty beat to route
-  // to here.
-  //
-  // The dot row is the whole feature: one dot per BEAT OF THE BAR
-  // (`S.model.bpb`, never hardcoded 4 — Ju8Hr50Ckwk is 3/4, Urdlvw0SSEc is
-  // 6/8). A dot a chord already covers opens THAT chord's normal editor
-  // (openEditor, unchanged); an uncovered dot opens the same editor on a
-  // fresh draft (openNewChord).
 
-  // The chord sounding at beat k of `bar` (the latest onset at-or-before k),
-  // or null if nothing in this bar has started yet by k.
-function _activeChordAt(bar,k){
-    let found=null, foundBeat=-Infinity;
-    bar.idxs.forEach(idxx=>{
-      const beat=S.chords[idxx].beat||0;
-      if(beat<=k+1e-6 && beat>=foundBeat){ found=idxx; foundBeat=beat; }
-    });
-    return found;
-  }
-  // The next onset strictly after beat k in `bar`, or null — bounds a new
+    // The next onset strictly after beat k in `bar`, or null — bounds a new
   // chord's default duration ("until the next existing onset, or the bar's
   // end").
 function _nextOnsetAfter(bar,k){
@@ -451,67 +426,9 @@ export function openNewChord(bi,k){
     }
   }
 
-export function openBarExpanded(bi){
-    const bar=S.bars[bi]; if(!bar) return;
-    const bpb=(S.model && S.model.bpb) || 4;
-    const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
-    const close=()=>closeOverlay(back);
-    sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`, bar.sec||"Bar"));
-    sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:14px;`,
-      "tap a beat to fix or add a chord"));
-    const row=el("div",`flex:0 0 auto;display:grid;grid-template-columns:repeat(${bpb},minmax(0,1fr));align-items:end;column-gap:6px;min-height:64px;margin-bottom:10px;`);
-    const dots=el("div",`flex:0 0 auto;display:grid;grid-template-columns:repeat(${bpb},minmax(0,1fr));column-gap:6px;margin-bottom:16px;`);
-    for(let k=0;k<bpb;k++){
-      const cidx=_activeChordAt(bar,k);
-      const onset = cidx!=null && Math.round(S.chords[cidx].beat||0)===k;
-      const cell=el("div","display:flex;align-items:flex-end;justify-content:center;min-height:64px;");
-      if(onset){
-        const c=S.chords[cidx];
-        // Match the main grid's own N.C. treatment (buildIReal) — a faint
-        // "N.C." reads as "the model heard silence here", not an invented
-        // root; the dot below is still covered (tap it to override, same as
-        // an N.C. glyph in the normal grid).
-        if(c.nc) cell.appendChild(el("div",`font:italic 600 20px ${SERIF};color:${T.faint};opacity:.55;`,"N.C."));
-        else cell.appendChild(glyph(c.root,c.q,28,"exact",c.confirmed?T.ink:confColor(c.c)));
-      } else if(cidx==null){
-        cell.appendChild(el("div",`font:600 20px ${UI};color:${T.faint};opacity:.4;`,"+"));
-      } else {
-        // UN ACCORD TENU N'OCCUPE PAS LE TEMPS (Louis, 2026-09-16 : « quand je
-        // clique pour créer un nouvel accord et que je valide, ça remplace
-        // l'ancien accord existant »). C'est ici que ça se jouait : le test
-        // était « un accord SONNE sur ce temps », donc sur une mesure tenue —
-        // un seul accord au temps 1 — les temps 2, 3 et 4 passaient pour
-        // occupés et renvoyaient tous vers l'accord EXISTANT. Verrouiller le
-        // remplaçait, et le classement par delta ne tournait jamais, faute de
-        // nouveau créneau. Ce qui compte, c'est qu'un accord COMMENCE ici :
-        // un temps que l'accord d'avant se contente de tenir est précisément
-        // « un endroit vide de la barre », les propres mots de la demande.
-        // On montre quand même ce qui tient, en petit : sans ça on ne sait
-        // pas sur quoi on ajoute.
-        const c=S.chords[cidx];
-        const tenu=el("div",`display:flex;align-items:center;gap:3px;opacity:.38;`);
-        if(!c.nc) tenu.appendChild(glyph(c.root,c.q,15,"exact",T.faint));
-        tenu.appendChild(el("div",`font:600 17px ${UI};color:${T.faint};`,"+"));
-        cell.appendChild(tenu);
-      }
-      row.appendChild(cell);
-      // « plein » = un accord COMMENCE ici (on l'édite) ; « anneau » = rien ne
-      // commence (on en ajoute un), que le temps soit tenu ou franchement vide.
-      const debute=onset;
-      const dotBtn=el("button",`display:flex;align-items:center;justify-content:center;min-height:44px;border:none;background:transparent;cursor:pointer;-webkit-tap-highlight-color:transparent;`);
-      dotBtn.appendChild(el("div",`width:${debute?9:7}px;height:${debute?9:7}px;border-radius:50%;background:${debute?T.ink:"transparent"};border:${debute?"none":`1.5px solid ${T.faint}`};box-sizing:border-box;`));
-      dotBtn.dataset.beat=String(k); dotBtn.dataset.covered=String(debute);
-      dotBtn.onclick=()=>{ haptic(); close(); if(debute) openEditor(cidx); else openNewChord(bi,k); };
-      dots.appendChild(dotBtn);
-    }
-    sheet.appendChild(row); sheet.appendChild(dots);
-    sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:italic 11.5px ${SERIF};color:${T.faint};margin-bottom:6px;`,
-      "filled dot = a chord STARTS here · ring = nothing starts here, tap to add one"));
-    const cancel=el("button",`flex:0 0 auto;width:100%;margin-top:6px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:${SZ.control}px;cursor:pointer;`,"Close");
-    cancel.onclick=close;
-    sheet.appendChild(cancel);
-    back.appendChild(sheet); root.appendChild(back);
-  }
+  // (La feuille « mesure en grand » à points, openBarExpanded, a été supprimée
+  // le 2026-10-01 : chaque accord est maintenant sa propre zone à toucher, voir
+  // chart.js « UN ACCORD = UNE ZONE À TOUCHER ».)
 
   // Jusqu'à CINQ candidats, plus trois (Louis, 2026-09-16). Le « si relevant »
   // de sa demande est un plancher, et il est appliqué UNE seule fois, côté
