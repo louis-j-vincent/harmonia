@@ -274,6 +274,34 @@ export function renderPrompter(){
     const bandWrap=el("div","flex:0 0 auto;padding:0 0 calc(14px + env(safe-area-inset-bottom));");
     const band=buildFormRail({h:16});
     if(band){ band.style.paddingBottom="0"; bandWrap.appendChild(band); w.appendChild(bandWrap); }
+    /* GLISSER SUR LA BANDE = CHOISIR A ET B (UX #33, 2026-10-01). Un tap garde
+       son sens (les boutons de passe de chart.js : aller là). Un glissé de plus
+       de 8 px dessine une plage, et au relâché la boucle prend les mesures
+       entières qu'elle touche : de la mesure sous le doigt de départ à celle
+       sous le doigt d'arrivée, dans un sens ou dans l'autre. La plage reste
+       dessinée tant que la boucle tourne (elle sert aussi de lecture de A–B).
+       x ↔ temps : la bande est proportionnelle au temps JOUÉ par passe, donc on
+       interpole à l'intérieur du segment sous le doigt. */
+    const chipsT=()=>(S._formChips||[]).filter(c=>c.t0!=null&&c.t1!=null&&c.t1>c.t0);
+    const xToT=x=>{ const cs=chipsT(); if(!cs.length) return null;
+      let best=null, bd=1e9;
+      cs.forEach(c=>{ const r=c.el.getBoundingClientRect();
+        const d=x<r.left?r.left-x:(x>r.right?x-r.right:0); if(d<bd){ bd=d; best=[c,r]; } });
+      const [c,r]=best; const f=Math.max(0,Math.min(1,(x-r.left)/Math.max(1,r.width)));
+      return c.t0+f*(c.t1-c.t0); };
+    const tToX=t=>{ const cs=chipsT(); if(!cs.length) return null;
+      let c=cs.find(k=>t>=k.t0&&t<=k.t1);
+      if(!c){ const before=cs.filter(k=>k.t1<t); c=before.length?before.reduce((a,k)=>k.t1>a.t1?k:a):cs.reduce((a,k)=>k.t0<a.t0?k:a); t=Math.max(c.t0,Math.min(c.t1,t)); }
+      const r=c.el.getBoundingClientRect(); return r.left+(t-c.t0)/(c.t1-c.t0)*r.width; };
+    const loopHi=el("div",`position:absolute;top:-2px;height:20px;box-sizing:border-box;border:2px solid ${T.accent};border-radius:6px;background:${T.accent}2e;pointer-events:none;z-index:3;display:none;`);
+    loopHi.dataset.role="loop-range";
+    if(band){ band.style.position="relative"; band.appendChild(loopHi); }
+    const showHi=(ta,tb)=>{ if(!band) return;
+      const x0=tToX(ta), x1=tToX(tb);
+      if(x0==null||x1==null||!(tb>ta)){ loopHi.style.display="none"; return; }
+      const br=band.getBoundingClientRect();
+      loopHi.style.left=(x0-br.left)+"px"; loopHi.style.width=Math.max(4,x1-x0)+"px"; loopHi.style.display="block"; };
+    const paintLoopHi=()=>{ if(loop) showHi(loop.a,loop.b); else loopHi.style.display="none"; };
 
     const MARKER_FRAC=0.18;
     // window ahead of the marker = exactly FOUR bars of this song
@@ -312,6 +340,7 @@ export function renderPrompter(){
       // le calage de seam vit dans la feuille « ··· » (T5) : si elle est
       // ouverte pendant qu'on arme la boucle, elle se repeint ; sinon rien.
       if(S._practiseSeamPaint) S._practiseSeamPaint();
+      paintLoopHi();
     }
     // Two-hand voicings (Louis, 2026-08-05): left hand = the sounding bass
     // (F2–E3 window), right hand = the §9 minimal-movement cascade run over
@@ -469,6 +498,26 @@ export function renderPrompter(){
       }
       paintLoop();
     };
+    // — le glissé lui-même (voir xToT plus haut)
+    if(band){
+      band.style.touchAction="none";
+      let bdr=null, swallow=false;
+      const spanBars=(t1,t2)=>{ const lo=Math.min(t1,t2), hi=Math.max(t1,t2);
+        const ia=barAt(lo+0.01); let ib=Math.max(ia,barAt(hi-0.01));
+        ib=Math.min(ib,Math.max(ia,grid.length-2));
+        return {a:grid[ia], b:grid[Math.min(ib+1,grid.length-1)]}; };
+      band.addEventListener("pointerdown",e=>{ const t=xToT(e.clientX); bdr=t==null?null:{x:e.clientX,t,moved:false,t2:t}; });
+      band.addEventListener("pointermove",e=>{ if(!bdr) return;
+        if(!bdr.moved && Math.abs(e.clientX-bdr.x)>8){ bdr.moved=true; try{ band.setPointerCapture(e.pointerId); }catch(err){} }
+        if(bdr.moved){ const t2=xToT(e.clientX); if(t2!=null){ bdr.t2=t2; const s2=spanBars(bdr.t,t2); showHi(s2.a,s2.b); } } });
+      const finish=e=>{ const d=bdr; bdr=null; if(!d||!d.moved) return;
+        swallow=true; setTimeout(()=>{ swallow=false; },450);
+        const sp=spanBars(d.t,d.t2); haptic();
+        loop={a:sp.a,b:sp.b}; loopEngineStart(loop.a,loop.b); curBar=-1; paintLoop(); };
+      band.addEventListener("pointerup",finish);
+      band.addEventListener("pointercancel",()=>{ bdr=null; paintLoopHi(); });
+      band.addEventListener("click",e=>{ if(swallow){ e.stopPropagation(); e.preventDefault(); swallow=false; } },true);
+    }
     ctrl.appendChild(back4); ctrl.appendChild(bigPlay); ctrl.appendChild(fwd4); ctrl.appendChild(loopBtn); ctrl.appendChild(chips);
     // Le calage de seam (Louis, 2026-08-08 : « encore un poil trop tard, fais
     // moi un outil pour décaler à l'oreille ») est parti dans la feuille
@@ -543,7 +592,7 @@ export function renderPrompter(){
       W=reel.clientWidth; if(!W){ return; }
       markerX=Math.round(W*MARKER_FRAC); pxs=(W-markerX)/aheadS;
       marker.style.left=markerX+"px"; markerCap.style.left=markerX+"px"; markerLbl.style.left=(markerX+6)+"px";
-      clear(strip); blocks=[];
+      clear(strip); blocks=[]; paintLoopHi();
       // bar lines first, then chord blocks on top
       for(let i=0;i<grid.length;i++){
         strip.appendChild(el("div",`position:absolute;top:0;bottom:0;left:${(grid[i]*pxs).toFixed(1)}px;width:1px;background:${T.rule};opacity:.45;`));
