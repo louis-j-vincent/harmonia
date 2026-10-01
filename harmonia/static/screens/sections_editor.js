@@ -204,7 +204,7 @@ export function unfoldedModel(m){
 export async function openSectionTool(){
     const folded=S.model;
     S.sectTool={label:"A", marks:[], sel:null, busy:true, note:"chargement…",
-                thr:0.78};
+                undo:[]};
     // on garde le modèle replié pour le remettre en sortant
     const un=unfoldedModel(folded);
     if(un!==folded){
@@ -321,26 +321,48 @@ export function buildSectionTool(){
     const card=el("div",`border:1px solid ${T.line};background:${T.card};`+
                  `border-radius:${SZ.radiusLg}px;padding:8px 10px 10px;`+
                  `box-shadow:0 2px 10px rgba(0,0,0,.10);`);
-    const head=el("div","display:flex;align-items:center;gap:8px;margin-bottom:6px;");
+    const head=el("div","display:flex;align-items:center;gap:8px;margin-bottom:2px;");
     head.appendChild(el("div",`font:700 13.5px ${UI};color:${T.ink};`,"Sections"));
-    head.appendChild(el("div",`flex:1;font:italic 11.5px ${SERIF};color:${T.faint};`,
+    // Le tempo vient du modèle du chart (meta.bpm) : de quoi juger si les
+    // « mesures » de l'outil sont au bon rythme avant de poser une lettre.
+    const bpm=Math.round(Number(m.meta&&m.meta.bpm)||0);
+    if(bpm) head.appendChild(el("div",`font:600 12.5px ${UI};color:${T.faint};`+
+      `font-variant-numeric:tabular-nums;`,"♩ = "+bpm));
+    head.appendChild(el("div","flex:1;"));
+    const nUndo=(st.undo||[]).length, canUndo=nUndo>0||st.pendingStart!=null;
+    const undoB=el("button",`flex:0 0 auto;min-height:44px;padding:0 10px;border:none;`+
+      `background:transparent;font:600 13px ${UI};cursor:${canUndo?"pointer":"default"};`+
+      `color:${canUndo?T.accent:T.line};`,"Défaire");
+    undoB.setAttribute("data-sect-undo","1");
+    undoB.disabled=!canUndo;
+    undoB.onclick=undoSectionEdit;
+    head.appendChild(undoB);
+    const close=el("button",`flex:0 0 auto;min-height:44px;padding:0 10px;border:none;background:transparent;`+
+      `color:${T.faint};font:600 13px ${UI};cursor:pointer;`,"Fermer");
+    close.onclick=closeSectionTool;
+    head.appendChild(close);
+    card.appendChild(head);
+    // CLIC FANTÔME : le trait qu'on vient de poser fait grandir la carte
+    // (Défaire, Recommencer, résumé…) JUSTE sous le doigt, et le clic qui suit
+    // le relâchement tombait sur le bouton apparu — Défaire annulait le trait
+    // à peine posé. Un clic sur la carte dans les 450 ms d'un geste sur la
+    // grille est donc ignoré.
+    card.addEventListener("click",ev=>{
+      if(Date.now()-(S._sectGridUp||0)<450){ ev.stopPropagation(); ev.preventDefault(); }
+    },true);
+    card.appendChild(el("div",`font:italic 11.5px ${SERIF};color:${T.faint};margin-bottom:6px;`,
       st.sel ? `mesures ${st.sel.b0+1}–${st.sel.b1+1}`
              : (st.pendingStart!=null
                 ? `début mesure ${st.pendingStart+1} — touche la fin`
                 : (st.label ? `touche le début de ${st.label}`
                             : "aucune lettre : le tap déplace la lecture"))));
-    const close=el("button",`flex:0 0 auto;border:none;background:transparent;`+
-      `color:${T.faint};font:600 12.5px ${UI};cursor:pointer;padding:6px;`,"Fermer");
-    close.onclick=closeSectionTool;
-    head.appendChild(close);
-    card.appendChild(head);
     // les lettres : UNE rangée, qui défile horizontalement
     const chips=el("div","display:flex;gap:5px;overflow-x:auto;margin-bottom:7px;"+
                    "padding-bottom:2px;");
     chips.className="ap-nobar";
     SECT_LABELS.forEach(([lb,col])=>{
       const on=st.label===lb;
-      const c=el("button",`flex:0 0 auto;height:38px;padding:0 12px;`+
+      const c=el("button",`flex:0 0 auto;height:44px;min-width:44px;padding:0 14px;`+
                 `border-radius:${SZ.radius}px;cursor:pointer;font:700 14px ${UI};`+
                 (on?`border:1.5px solid ${col};background:${col}22;color:${T.ink};`
                    :`border:1px solid ${T.line};background:${T.card};color:${T.faint};`), lb);
@@ -366,33 +388,20 @@ export function buildSectionTool(){
     if(nHumain) row.appendChild(kitButton(
       st.busy?"Inférence…":"Valider les sections",
       ()=>{ if(!st.busy) validateSectionSelection(); },
-      {state:st.busy?"off":"on", height:40,
+      {state:st.busy?"off":"on", height:44,
        note:nHumain+" à toi · le reste sera nommé"}));
     if(st.sel) row.appendChild(kitButton("Effacer",
-      ()=>{ st.sel=null; go("chart"); }, {height:40}));
-    // LA SÉVÉRITÉ EST À L'UTILISATEUR. Mesuré sur les 18 annotations : à
-    // 0,78 on retrouve 66 reprises sur 100 en en proposant 60 fausses ; à
-    // 0,90, 60 sur 100 pour 44 fausses ; à 0,95, 57 pour 37. Aucun seuil ne
-    // domine — c'est un échange entre « ça trouve tout » et « j'ai peu à
-    // enlever », et c'est un choix, pas un réglage à deviner.
-    const sev=el("div","display:flex;gap:5px;align-items:center;margin-left:auto;");
-    sev.appendChild(el("span",`font:600 10.5px ${UI};color:${T.faint};`,"tri"));
-    [["large",0.78],["moyen",0.88],["strict",0.95]].forEach(([lb,v])=>{
-      const on=Math.abs((st.thr||0.78)-v)<0.001;
-      const c=el("button",`flex:0 0 auto;height:28px;padding:0 9px;border-radius:8px;`+
-        `cursor:pointer;font:600 11.5px ${UI};`+
-        (on?`border:1.5px solid ${T.accent};background:rgba(138,43,43,.09);color:${T.ink};`
-           :`border:1px solid ${T.line};background:${T.card};color:${T.faint};`), lb);
-      c.onclick=()=>{ haptic(); st.thr=v;
-        st.note="tri « "+lb+" » — s'applique à la prochaine validation";
-        go("chart"); };
-      sev.appendChild(c);
-    });
-    row.appendChild(sev);
+      ()=>{ st.sel=null; go("chart"); }, {height:44}));
+    // Le réglage « tri large / moyen / strict » a été retiré (2026-10-01) : il
+    // posait `st.thr` que plus rien ne lisait — « Valider » appelle
+    // /api/sections/inferer, qui ne reçoit que les traits et prend son seuil
+    // de ressemblance (RESSEMBLE_MIN) côté serveur. Un réglage sans effet qui
+    // promet « s'applique à la prochaine validation » est pire que pas de
+    // réglage. Pour le rendre vrai : lire `thr` dans sections_inferer.
     if(st.marks.length && !st.sel){
       row.appendChild(kitButton("Enregistrer comme vérité", confirmSectionTruth,
-                                {height:40}));
-      row.appendChild(kitButton("Recommencer", resetSectionMarks, {height:40}));
+                                {height:44}));
+      row.appendChild(kitButton("Recommencer", resetSectionMarks, {height:44}));
     }
     card.appendChild(row);
     if(st.note) card.appendChild(el("div",
@@ -407,17 +416,21 @@ export function buildSectionTool(){
       });
       const holes=runs.filter(r=>r.label==="?").length;
       const det=el("details","margin-top:7px;");
-      const sum=el("summary",`font:600 11.5px ${UI};color:${T.faint};cursor:pointer;`,
+      const sum=el("summary",`font:600 12.5px ${UI};color:${T.faint};cursor:pointer;min-height:44px;display:flex;align-items:center;`,
         `${runs.filter(r=>r.label!=="?").length} section(s)` +
         (holes?` · ${holes} trou(s) à nommer`:" · tout le morceau est couvert"));
       det.appendChild(sum);
-      const strip=el("div","display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;");
+      const strip=el("div","display:flex;flex-wrap:wrap;gap:6px;margin-top:2px;");
       runs.forEach(r=>{
         const col=r.label==="?"?T.line:sectColor(r.label);
-        const chip=el("div",
-          `display:inline-flex;align-items:center;gap:4px;font:700 11px ${UI};`+
+        const chip=el("button",
+          `display:inline-flex;align-items:center;gap:4px;font:700 12px ${UI};border:none;cursor:pointer;`+
           `color:${r.label==="?"?T.faint:"#fff"};background:${r.label==="?"?T.line:col};`+
-          `border-radius:5px;padding:2px 7px;`, r.label+" "+(r.b0+1)+"–"+(r.b1+1));
+          `border-radius:8px;padding:0 12px;min-height:44px;min-width:44px;`, r.label+" "+(r.b0+1)+"–"+(r.b1+1));
+        chip.setAttribute("data-sect-run",String(r.b0));
+        // toucher un segment amène la grille sur sa première mesure
+        chip.onclick=()=>{ const c=document.querySelector(`[data-bar="${r.b0}"]`);
+          if(c) c.scrollIntoView({block:"center",behavior:"smooth"}); };
         if(r.n>1) chip.appendChild(el("span",`font:600 10px ${UI};opacity:.8;`,"×"+r.n));
         strip.appendChild(chip);
       });
@@ -480,6 +493,7 @@ export function sectTapMark(b){
 export function commitSectionSelection(){
     const st=S.sectTool;
     if(!st || !st.sel || !st.label) return false;
+    pushSectUndo();
     const b0=st.sel.b0, b1=st.sel.b1;
     // Une mesure n'appartient qu'à UNE section : le nouveau trait libère ce
     // qu'il recouvre. Sans ça deux lettres se disputent la même mesure, et
@@ -534,6 +548,7 @@ function estDeLui(o){ return SIENNES.has(o && o.source); }
 export async function validateSectionSelection(){
     const st=S.sectTool, m=S.model;
     if(!st) return;
+    pushSectUndo();
     st.busy=true; st.note=""; go("chart");
     const humain=[];
     st.marks.forEach(mk=>(mk.occurrences||[]).forEach(o=>{
@@ -706,6 +721,7 @@ export function dropSectionOccurrence(target){
       // et celle qui vient de l'annotation : l'outil sert à MODIFIER, et un
       // passage qu'on ne peut pas retirer est un passage qu'il faut aller
       // corriger ailleurs.
+      pushSectUndo();
       mk.occurrences.splice(i,1);
       if(!mk.occurrences.length) st.marks=st.marks.filter(x=>x!==mk);
       haptic(5); go("chart"); saveSectionMarks();
@@ -713,8 +729,26 @@ export function dropSectionOccurrence(target){
     }
     return false;
   }
+/* DÉFAIRE — la pile des états de `marks` d'avant chaque geste (trait posé,
+   occurrence retirée, Recommencer, Valider). Un premier tap posé mais pas
+   fini s'annule d'abord. Limite assumée : après « Valider », Défaire rend les
+   marques mais le chart, déjà réécrit sur le serveur, garde la validation. */
+function pushSectUndo(){
+    const st=S.sectTool; if(!st) return;
+    (st.undo=st.undo||[]).push(JSON.parse(JSON.stringify(st.marks)));
+    if(st.undo.length>30) st.undo.shift();
+  }
+export function undoSectionEdit(){
+    const st=S.sectTool; if(!st || st.busy) return;
+    if(st.pendingStart!=null){ st.pendingStart=null; st.note="début annulé"; haptic(5); go("chart"); return; }
+    if(!(st.undo||[]).length) return;
+    st.marks=st.undo.pop(); st.sel=null;
+    st.note="dernier geste défait";
+    haptic(5); go("chart"); saveSectionMarks();
+  }
 export function resetSectionMarks(){
     const st=S.sectTool; if(!st) return;
+    pushSectUndo();
     st.marks=[]; st.sel=null; st.note=""; go("chart"); saveSectionMarks();
   }
 
@@ -863,6 +897,7 @@ export function attachSectionDrag(grid){
     const end=()=>{
       disarm();
       if(anchor==null) return;
+      S._sectGridUp=Date.now();     // voir le garde-fou « clic fantôme » dans buildSectionTool
       const cell=anchorCell, song=anchor, wasArmed=armed;
       const dist=maxDist, held=Date.now()-t0;
       anchor=null; anchorCell=null; armed=false;
