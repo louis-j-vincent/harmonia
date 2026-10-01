@@ -35,7 +35,16 @@ import math
 from pathlib import Path
 
 from harmonia import chord_similarity as cs
-from harmonia.roles import meme_lecture
+from harmonia.roles import _cles, meme_lecture
+
+
+def famille_avant(a, b) -> bool:
+    """La règle « famille » d'AVANT le 2026-10-01 (même fondamentale + même
+    `famille_de`, ou B♭/C ≡ C7sus4) — pour montrer ce que la mesure change."""
+    na, nb = bool(a.get("nc")), bool(b.get("nc"))
+    if na or nb:
+        return na and nb
+    return bool(_cles(a, "famille") & _cles(b, "famille"))
 from harmonia.settings import SETTINGS
 
 CHARTS = SETTINGS.repo / "state" / "cache" / "charts"
@@ -55,6 +64,7 @@ COLS = [
     ("fonction", "contexte : même fonction tonale (T / PD / D) dans la tonalité"),
     ("notes+fonction", "moitié notes, moitié fonction"),
     ("notes+musx", "moitié notes, moitié musx"),
+    ("v2", "EN PRODUCTION : notes7 + la tierce (tierce contraire ×0,4, sus sans case de tierce, deux tierces sur deux fondamentales ×0,8)"),
 ]
 
 
@@ -112,6 +122,7 @@ def seuils() -> dict:
         vals = [cs.CANDIDATES[k](a, b, {"cle": key}) for _, a, b, att, key, _ in PANEL if att == "proche"]
         vals = [v for v in vals if v is not None]
         out[k] = math.floor(min(vals) * 1000) / 1000 if vals else None
+    out["v2"] = cs.CRANS_V2[cs.CRAN_DEFAUT][0]        # le seuil branché
     out["notes7+voisins"] = out["notes7"]
     return out
 
@@ -123,10 +134,10 @@ def panneau(seuil) -> list[dict]:
         v = {k: cs.CANDIDATES[k](a, b, ctx) for k, _ in COLS}
         rows.append({"lab": lab, "att": att, "note": note,
                      "cle": ("C majeur" if key == MAJ else "C mineur"),
-                     "actuel": bool(meme_lecture(a, b)),
+                     "actuel": bool(famille_avant(a, b)),
                      "exact": bool(meme_lecture(a, b, grain="exact")),
                      "musx_lab": f"{cs.nom_musx(a)} · {cs.nom_musx(b)}",
-                     "cran": cs.cran(a, b),
+                     "cran": cs.cran_v2(a, b),
                      "v": {k: (None if x is None else round(x, 3)) for k, x in v.items()}})
     return rows
 
@@ -265,6 +276,8 @@ def compare(titre, pa, pb, cle, ma, mb, ta=None, tb=None, genre="") -> dict:
     grain = "racine" if genre == "fin" else "famille"
 
     def actuel(x, y):
+        if grain == "famille":
+            return all(famille_avant(u, v) for u, v in zip(x, y))
         return all(meme_lecture(u, v, grain=grain) for u, v in zip(x, y))
     n = min(len(pa), len(pb))
     pa, pb = pa[:n], pb[:n]
@@ -275,7 +288,7 @@ def compare(titre, pa, pb, cle, ma, mb, ta=None, tb=None, genre="") -> dict:
              "a": " ".join(nom(c) for c in bar_folding(pa[i])),
              "b": " ".join(nom(c) for c in bar_folding(pb[i])),
              "actuel": bool(actuel(pa[i], pb[i])), "s": {}, "pire": {},
-             "cran": max(cs.cran(u, v) for u, v in zip(pa[i], pb[i]))}
+             "cran": max(cs.cran_v2(u, v) for u, v in zip(pa[i], pb[i]))}
         for k in [c for c, _ in COLS] + ["notes7+voisins"]:
             s, paire = score_mesure(k, pa, pb, i, ctx)
             r["s"][k] = round(s, 3)
@@ -409,8 +422,9 @@ Rien n'est branché dans l'app. Seuil de chaque candidate = sa plus petite valeu
 équivalentes (vert ci-dessous), posé <b>sans regarder les morceaux</b>.</p>
 
 <h2>1. Les paires</h2>
-<p class="l">Gras = « même accord » au seuil de la colonne. « actuel » = la règle d'aujourd'hui
-(<code>roles.meme_lecture</code>, même fondamentale + même famille, ou B♭/C ≡ C7sus4).
+<p class="l"><b>Mise à jour du 2026-10-01 (après tes verdicts) :</b> la colonne <b>v2</b> est la mesure BRANCHÉE dans l'app
+(<code>roles.meme_lecture</code>) — notes7 + la tierce. « actuel » = la règle d'AVANT v2 (même fondamentale + même famille,
+ou B♭/C ≡ C7sus4). Gras = « même accord » au seuil de la colonne. « cran » = le plus petit cran du curseur où v2 les fusionne.
 Les étiquettes musx sont celles vers lesquelles chaque accord est projeté pour lire la table apprise.</p>
 <div class="sc"><table id="panel"></table></div>
 <div class="lesson" id="lecon1"></div>
@@ -425,10 +439,10 @@ Contexte des cartes : C majeur.</p>
 
 <h2>3. Sur trois morceaux</h2>
 <p class="l">Chaque ligne = deux passages comparés mesure à mesure, temps par temps. ✓ = « les mêmes » : une mesure compte si
-tous ses temps passent le seuil. « actuel » = la règle d'aujourd'hui au grain de cette décision (fin : même fondamentale ; boucle et brut :
+tous ses temps passent le seuil. « actuel » = la règle d'avant v2 au grain de cette décision (fin : même fondamentale ; boucle et brut :
 même fondamentale + famille), appliquée temps par temps elle aussi. Fond jaune = la candidate dit autre chose que la règle actuelle.
-<b>cran</b> = le plus petit cran du curseur « Section merging » (proposition, sur notes7) où les deux fusionneraient :
-0 mêmes notes · 1 ≥ 0,71 (défaut proposé) · 2 ≥ 0,63 · 3 ≥ 0,47 · 4 tout. ▶ 1 / ▶ 2 jouent les deux passages.</p>
+<b>cran</b> = le plus petit cran du curseur « Section merging » où v2 les fusionne (sans le décalage de rythme) :
+0 mêmes notes · 1 ≥ 0,72 (défaut) · 2 ≥ 0,63 et ±1 temps · 3 ≥ 0,38 et ±2 temps · 4 tout. ▶ 1 / ▶ 2 jouent les deux passages.</p>
 <div id="morceaux"></div>
 <p class="m" id="pied"></p>
 </div>
@@ -455,7 +469,8 @@ const same = (k,v) => v!=null && D.seuils[k]!=null && v >= D.seuils[k]-1e-9;
    '« tiv » sépare aussi, mais de 0,07 seulement, et rapproche C de F (voisins de quinte : il mesure la TONALITÉ, pas l\'accord). '+
    '« musx » n\'hésite presque jamais entre deux fondamentales : D-7/G7sus4 vaut 0,03 (4× C/F, mais quasi nul) ; ses vraies hésitations sont les couleurs (C7/C9 0,54) et les accords de même basse. '+
    '« fonction » est grossière : ii et V7sus4 n\'ont pas la même fonction de manuel (0,5), C/Em = 1 mais C/Am = 0,5. '+
-   'Le point faible de notes7 : tout couple de 4 notes qui en partage 3 vaut 0,75 — G7 ≈ Gm7 autant que D-7 ≈ G7sus4.';
+   'Le point faible de notes7 : tout couple de 4 notes qui en partage 3 vaut 0,75 — G7 ≈ Gm7 autant que D-7 ≈ G7sus4. '+
+   '<b>v2 (branchée, tes verdicts)</b> : G7/Gm7 0,30 (tierce contraire), G7sus4/G7 et G7sus4/Gm7 1,00 (la sus est proche des deux), D-7/G7sus4 0,75, B♭/C/C7sus4 0,75, C/F 0,27 ; C^7/Am7 tombe à 0,60 (deux tierces sur deux fondamentales : cran 3).';
 })();
 // ── 2. cartes
 let refI = 0, colK = 'notes7';
@@ -481,7 +496,7 @@ const scols = cols.concat(['notes7+voisins']);
 const LECONS = {
  'min_0DdCoNbbRvQ': "Aucune décision ne bascule. notes7 change deux mesures (G7sus4 ≈ Dm7 au début de l'outro, G7sus4 ≈ Gm7 en mes. 8 du A), mais ce qui bloque est ailleurs : la mes. 2 du A (Dm7 tenu contre Dm7 | G7 — un décalage de rythme harmonique, 0,50) et la mes. 4 de l'outro (le C tenu de la cadence finale contre Fmaj7, 0,58). Les deux fusionneraient au cran 3.",
  'min_mCwI0YA4mIY': "Aucune décision ne bascule avec notes7. La fin C9 F7 rejoint C7sus4 Fmaj7 (0,75 ; déjà vrai aujourd'hui), les fins B♭m7… et B♭7 Fmaj7 restent de vraies fins (0,50). « notes » avec couleurs séparerait C9 de C7sus4 (0,67) : c'est pour ça qu'on retire 9/11/13. Dans le décodage brut, E♭7sus4 ≈ B♭m7 (le même cas que D-7/G7sus4, en E♭) devient « même accord ».",
- 'min_maroon_5_this_love': "Les deuxièmes moitiés de B restent DIFFÉRENTES pour toutes les candidates (A♭ contre B♭ = 0, G contre E♭ = 0,33), même au cran 3 ; A et bridge aussi. Une seule bascule : l'intro, dont la mes. 4 (D° puis Fm/A♭) et la mes. 8 (Dø7) ont presque les mêmes notes (0,87) — notes7 fermerait la boucle de l'intro (4 mesures ×2). À toi de dire si c'est la même chose.",
+ 'min_maroon_5_this_love': "(v2 : l'intro se replie en boucle de 4 — tu as confirmé que mes. 4 ≡ mes. 8.) Les deuxièmes moitiés de B restent DIFFÉRENTES pour toutes les candidates (A♭ contre B♭ = 0, G contre E♭ = 0,33), même au cran 3 ; A et bridge aussi. Une seule bascule : l'intro, dont la mes. 4 (D° puis Fm/A♭) et la mes. 8 (Dø7) ont presque les mêmes notes (0,87) — notes7 fermerait la boucle de l'intro (4 mesures ×2). À toi de dire si c'est la même chose.",
 };
 const GENRES = [['fin','Les fins : une fin contre la plus jouée (et l\'outro contre le A)', true],
                 ['boucle','La boucle : le 2e tour du bloc écrit contre le 1er', true],
@@ -506,8 +521,8 @@ for(const m of D.morceaux){
   for(const [g, titre, ouvert] of GENRES){
     const cs_ = m.comps.filter(c=>c.genre===g);
     if(!cs_.length) continue;
-    const nflip = cs_.filter(c=>{const act=c.rows.every(r=>r.actuel); return c.rows.every(r=>r.s['notes7']>=D.seuils['notes7']-1e-9)!==act}).length;
-    html += `<details ${ouvert?'open':''}><summary><b>${titre}</b> <span class="m">— ${cs_.length} comparaison(s), ${nflip} bascule(nt) avec notes7</span></summary>` +
+    const nflip = cs_.filter(c=>{const act=c.rows.every(r=>r.actuel); return c.rows.every(r=>r.s['v2']>=D.seuils['v2']-1e-9)!==act}).length;
+    html += `<details ${ouvert?'open':''}><summary><b>${titre}</b> <span class="m">— ${cs_.length} comparaison(s), ${nflip} bascule(nt) avec v2</span></summary>` +
       `<div class="sc"><table class="cmp"><tr><th class="t">comparaison</th><th></th><th>actuel</th>` + scols.map(k=>`<th>${k}</th>`).join('') + '<th>cran</th></tr>' +
       cs_.map(c=>ligne(m,c)).join('') + '</table></div></details>';
   }

@@ -5,17 +5,24 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
-## Mesure de ressemblance entre accords : candidates comparées, rien de branché (2026-10-01)
+## « Même accord » = la mesure de ressemblance v2, au seuil du curseur (2026-10-01, BRANCHÉ 6271b31)
 
-Page : `docs/plots/similarite_accords.html` ; note : `docs/similarite_accords.md` ;
-code : `harmonia/chord_similarity.py`. Recommandation : `notes7`, le cosinus des
-notes sonnées sans les couleurs 9/11/13 (D-7/G7sus4 0,75, C/F 0,33, Fm/F7 0,58).
-La table apprise de musx ne sert pas : musx n'hésite presque jamais entre deux
-fondamentales, sauf quand la basse est la même. **Attend l'arbitrage de Louis**
-(3 questions dans la note). **Ne résout pas :** (1) le rythme harmonique : sur
-Lost Without U, « Dm7 tenu » contre « Dm7 | G7 » bloque, pas D-7/G7sus4 ;
-(2) la tierce pèse comme une autre note, donc G7 ≈ Gm7 (0,75) ; (3) un accord
-de passage en plus reste une différence.
+`roles.meme_lecture(grain="famille")` = `chord_similarity.v2 ≥ seuil du cran`.
+v2 part de notes7 (les notes qui sonnent, sans 9/11/13) et fait peser la
+tierce : G7/Gm7 0,30, une sus est proche des deux (1,00), D-7/G7sus4 0,75,
+C/F 0,27. Les crans du curseur règlent le seuil et un décalage de rythme
+toléré dans la mesure (0 / ±1 / ±2 temps). Au cran ≥ 3, une fin d'une autre
+lettre peut devenir le dernier tour d'une lettre (l'outro de Lost Without U
+rejoint A). Rapport d'or : 52/63 identiques. Au défaut, seuls deux morceaux
+changent : This Love (intro en boucle de 4, validé) et She Will Be Loved (A′
+de la mes. 33 rejoint A, **à écouter**) ; page
+`docs/plots/similarite_avant_apres/avant_apres.html`. Note complète :
+`docs/similarite_accords.md`. **Ne résout pas :**
+- une 2e fin se garde toujours si elle change de fondamentale (grains
+  exact/racine inchangés) ;
+- le rythme harmonique n'est toléré qu'à l'intérieur d'une mesure ;
+- l'inclusion est stricte ;
+- un accord de passage en plus reste la tolérance de `meme_moment`.
 
 ## Règles de Louis du 2026-10-01 : m7 ≡ 7sus4 (en attente de la mesure apprise), dernier tour du A (FAIT, 3c42bcc)
 

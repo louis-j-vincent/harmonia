@@ -1,5 +1,104 @@
 # Une mesure de ressemblance entre deux accords (2026-10-01)
 
+## v2, BRANCHÉE (2026-10-01, après les verdicts de Louis) — commit 6271b31
+
+Louis sur la page : « G7 différent de Gm7, ce sont des familles différentes,
+il faut faire peser la tierce. Un sus4 est ambigu entre mineur et majeur par
+essence, donc proche des deux » ; « This Love, les mesures 4 et 8 sont la même
+chose » ; « Dm7 tenu » contre « Dm7 | G7 » : « c'est au cas par cas […]
+l'utilisateur peut choisir » (le curseur « Section merging »).
+
+**La formule** (`chord_similarity.v2`) : on part de notes7, le cosinus des
+notes qui sonnent sans les couleurs 9/11/13. La fondamentale est celle qui
+sonne (`roles.accord_sonnant`). Ensuite la tierce compte :
+- même fondamentale et tierces contraires → ×0,4 ;
+- même fondamentale et une seule tierce (une sus) → on compare sans la case
+  de la tierce (2 à 5 demi-tons) ;
+- deux fondamentales qui ont chacune une tierce, sans que l'un des accords
+  soit contenu dans l'autre → ×0,8.
+
+| paire | notes7 | **v2** | plus petit cran qui fusionne |
+|---|---|---|---|
+| G7 / Gm7 | 0,75 | **0,30** | 4 (jamais avant « tout ») |
+| G7sus4 / G7 | 0,75 | **1,00** | 1 |
+| G7sus4 / Gm7 | 0,75 | **1,00** | 1 |
+| D-7 / G7sus4 | 0,75 | **0,75** | 1 |
+| B♭/C / C7sus4 | 0,75 | 0,75 | 1 |
+| C / F | 0,33 | **0,27** | 4 |
+| Fm/A♭ / Dø7 (This Love mes. 4 ≡ 8) | 0,87 | 0,87 | 1 (Fm/A♭ ⊂ Dø7) |
+| C^7 / Am7, F7 / D-7, D^7 / F♯-7 | 0,75 | 0,60 | 3 |
+| Dm7 / G7, G7 / D♭7 | 0,50 | 0,40 | 3 |
+| C / Fmaj7 | 0,58 | 0,46 | 3 |
+| Fm / F7, Am / A | 0,58 / 0,67 | 0,23 / 0,27 | 4 |
+| A♭ / B♭, G / E♭ (This Love B) | 0 / 0,33 | 0 / 0,27 | 4 |
+
+Le ×0,8 « deux tierces sur deux fondamentales » n'était pas demandé. Il est
+venu du rapport d'or. Sans lui, avec seulement la tierce de même
+fondamentale, deux décisions par défaut cassaient :
+- **San Francisco Street** : le turnaround Gb-7 Gb-7 G^7 G^7 passait pour la
+  boucle D^7 D^7 E-7 E-7 (I^7 ≈ iii-7 à 0,75), et la carte de lecture d'un A
+  coupé se décalait de 8 mesures ;
+- **Don't Know Why** : la 2e fin de B (D-7 au lieu de F7) disparaissait.
+
+L'inclusion garde ce que Louis a validé : Fm/A♭ ⊂ Dø7 (This Love), B° ⊂ G7,
+F ⊂ D-7.
+
+**Branchement.** `roles.meme_lecture(a, b, contexte, grain="famille")` rend
+`v2 ≥ seuil du cran`. Le cran vient de `contexte["cran"]`, sinon de
+`roles.cran_de_fusion(n)` (posé par `soudure.sections_pour_chart` pour chaque
+cran du curseur), sinon du défaut. `folding.meme_harmonie` tolère un décalage
+de rythme du cran : chaque temps peut trouver son accord ±d temps plus loin
+dans l'autre mesure. Au cran ≥ 3, la dernière section d'une AUTRE lettre
+peut rejoindre une lettre comme son dernier tour
+(`CRAN_DERNIER_TOUR_AUTRE_LETTRE`).
+
+| cran | seuil v2 | décalage de rythme toléré | en plus, dans `folding` |
+|---|---|---|---|
+| 0 | 0,72 | 0 | pas de boucle, les fins de couleur se gardent |
+| 1 (défaut) | 0,72 | 0 | — |
+| 2 | 0,63 | ±1 temps | fins proches fusionnées (inchangé) |
+| 3 | 0,38 | ±2 temps | fins apparentées ; une fin d'une autre lettre peut devenir le dernier tour d'une lettre |
+| 4 | 0,38 | ±2 temps | tout en un bloc ×N (inchangé) |
+
+**Rapport d'or** (contre une cuisson de HEAD avant branchement,
+`state/cache/golden/avant_simil`) : 52/63 identiques, 3 mesures changées.
+Seuls deux morceaux changent au défaut (page
+`docs/plots/similarite_avant_apres/avant_apres.html`) :
+
+| morceau | au défaut, avant | au défaut, après | pourquoi |
+|---|---|---|---|
+| This Love | intro écrite en 8 | intro en boucle de 4 ×2 | mes. 8 Dø7 ≡ mes. 4 D° Fm/A♭ (confirmé par Louis) |
+| She Will Be Loved | A′ d'une mesure (mes. 33, A♭^7) | rejoint A | Cm ⊂ A♭^7 : la basse descend sous Cm. **À écouter** |
+
+Inchangés au défaut : Claustrophobic (fusionne toujours aux crans de
+fusion), Julia, The Walk, Let It Be, et les deuxièmes moitiés de This Love.
+Changements aux crans 3-4 seulement :
+- **Lost Without U** : l'outro rejoint A (le test `test_lost_without_u_*`
+  le vérifie).
+- **Be My Baby** : l'outro rejoint C.
+- **The Walk** : l'outro rejoint B ; B et bridge en boucle.
+- **San Francisco Street** : A″ rejoint A, B en boucle.
+- **Bein Green** : le A′ rejoint A.
+- **Easy On Me** : A en boucle.
+- **Claustrophobic** : B en boucle.
+
+**Ce que v2 ne résout pas, en plus de la liste plus bas :**
+- les grains « exact », « fonction », « racine » gardent leurs règles. Une
+  2e fin se garde toujours si elle change de FONDAMENTALE : C7 contre Cm7
+  seul n'en fait pas une, alors que v2 les dit loin. Les crans 2-3 des fins
+  gardent aussi leur cosinus par mesure (≥ 0,90 / 0,70) ;
+- l'inclusion est stricte : Fm6 ⊂ Dø7 oui, mais un accord avec une note de
+  plus d'un côté et une de moins de l'autre prend le ×0,8 ;
+- le décalage de rythme ne joue qu'à l'intérieur d'une mesure, jamais d'une
+  mesure à l'autre ;
+- les entrées `old_/new_` d'un premier passage d'avant/après (San Francisco
+  Street, Don't Know Why, avant le ×0,8) sont restées dans la bibliothèque,
+  sans `--clean`.
+
+---
+
+## Étape 1-2 (avant les verdicts) — gardé pour l'historique
+
 Louis : « il faut une mesure de similarité / de distance reproductible et
 généralisable […] Pense aussi à prendre en compte l'harmonie du contexte. »
 

@@ -405,6 +405,19 @@ CRANS_V2 = {0: (0.72, 0), 1: (0.72, 0), 2: (0.63, 1), 3: (0.38, 2), 4: (0.38, 2)
 CRAN_DEFAUT = 1
 
 
+def cran_v2(a: dict, b: dict) -> int:
+    """Le plus petit cran du curseur où `roles.meme_lecture(grain="famille")`
+    dit « même accord » (0 si mêmes notes exactement, 4 = jamais avant
+    « tout »). Sans le décalage de rythme, qui se juge sur une mesure."""
+    if notes(a, b) >= 1.0 - 1e-9:
+        return 0
+    s = v2(a, b)
+    for n in (1, 2, 3):
+        if s >= CRANS_V2[n][0] - 1e-9:
+            return n
+    return 4
+
+
 def similarite(a: dict, b: dict, contexte: dict | None = None,
                mesure: str = RECOMMANDEE) -> float | None:
     """s(a, b | contexte) dans [0, 1], 1 = le même accord. `mesure` choisit
