@@ -139,10 +139,14 @@ export function openPrefsSheet(opts){
     // UX #8 (2026-10-01) : l'ancienne étiquette « Toucher une mesure : Joue / Fiche
     // accord » mentait — « Joue » ne jouait pas, il place le curseur (à l'arrêt rien
     // ne démarre). Ne vaut qu'en Lire : en Corriger un tap sur un accord l'édite.
-    more.appendChild(seg("Taper une mesure"+(S.mode==="annotate"?" (inactif en Corriger)":" en Lire"),[["play","Va à la mesure"],["sheet","Ouvre l'accord"]],
+    const tapRow=el("div","display:flex;flex-direction:column;gap:4px;");
+    tapRow.appendChild(seg("Taper une mesure"+(S.mode==="annotate"?" (inactif en Corriger)":" en Lire"),[["play","Curseur"],["sheet","Accord"]],
       ()=>S.tapSeek?"play":"sheet",
       v=>{ S.tapSeek=(v==="play");
            try{ localStorage.setItem("harmTapSeek",S.tapSeek?"1":"0"); }catch(e){} }));
+    tapRow.appendChild(el("div",`font:italic 12px ${SERIF};color:${T.faint};`,
+      S.tapSeek?"Curseur : le tap place la lecture sur la mesure (rien ne démarre).":"Accord : le tap ouvre la feuille de l'accord touché."));
+    more.appendChild(tapRow);
     // playback companions — were the 9px uppercase toggles in the transport
     more.appendChild(seg("Suivre la lecture",[["on","Oui"],["off","Non"]],
       ()=>S.follow?"on":"off", v=>{ S.follow=(v==="on"); }));

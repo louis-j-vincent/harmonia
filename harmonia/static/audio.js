@@ -549,7 +549,9 @@ export function seekToBar(bi){
       loopEngineDispose(true);
     }
     const d=totalDur()||1;
-    seekFrac(t/d);
+    // +2 ms : t/d*d retombait 1e-14 s AVANT le début de la mesure (WebKit : le
+    // curseur s'allumait sur la mesure d'avant, vu au test UX #8).
+    seekFrac((t+0.002)/d);
     // Louis, 2026-08-10 : « si le playhead est en pause, quand je clique sur
     // une barre ça me déplace le playhead là, mais ça ne lance pas play : ça
     // respecte le mode play/pause qu'on avait déjà avant. » Un tap déplace,

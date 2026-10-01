@@ -250,6 +250,13 @@ défauts vus au rendu 390px, et le look qui les corrige :
   la typographie du chart, plus petite (20/18px avant rétrécissement). Les mesures
   à 1-2 accords et la notation Serrée choisie à la main ne changent pas.
 
+**Taper une mesure en Lire (2026-10-01, liste UX #8).** Le réglage s'appelait
+« Toucher une mesure : Joue / Fiche accord » et mentait : « Joue » ne joue pas,
+il place le curseur. Il s'appelle maintenant « Taper une mesure en Lire :
+Curseur / Accord » avec une phrase dessous ; en Corriger l'intitulé dit
+« (inactif en Corriger) ». Retour au tap : éclair rouge pâle de 420 ms sur la
+mesure et, À L'ARRÊT seulement, un tic (`playTick`) — jamais pendant la lecture.
+
 **Le curseur « Section merging » pilote aussi la boucle (2026-10-01, Louis :
 « mets-moi le curseur qui permet de choisir à quel point tu factorises »).**
 Un seul curseur, une seule question — à quel point deux passages peuvent

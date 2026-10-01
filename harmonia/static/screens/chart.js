@@ -5,7 +5,7 @@
 
 
 import { api } from "../api.js";
-import { PLAYHEAD_LEAD_S, hitAtTime, loopEngineDispose, loopEngineStart, loopEngineToggle, nowTime, seekFrac, seekToBar, setPlayBtn, syncTransport, togglePlay, totalDur } from "../audio.js";
+import { PLAYHEAD_LEAD_S, hitAtTime, playTick, loopEngineDispose, loopEngineStart, loopEngineToggle, nowTime, seekFrac, seekToBar, setPlayBtn, syncTransport, togglePlay, totalDur } from "../audio.js";
 import { go, screenWrap } from "../router.js";
 import { applyRefinement } from "../screens/analyse.js";
 import { candList, maybeShowPendingUndo, openAnnotateTools, openEditor, openNewChord } from "../screens/annotate.js";
@@ -671,6 +671,21 @@ export const chartHasAudio=()=>!!S.audioUrl;
   // Taper une mesure ne peut « aller à » nulle part sans audio : le réglage
   // « tap = play » avale alors le geste au lieu d'ouvrir la fiche d'accord.
 export const tapSeeks=()=>S.tapSeek && chartHasAudio();
+  // Taper une mesure en Lire = y poser le curseur (UX #8, 2026-10-01). À l'arrêt
+  // rien ne bougeait de visible : un éclair rouge pâle sur la mesure (420 ms) et,
+  // à l'arrêt seulement, un tic bref (playTick, le même que la roue de tonalité —
+  // jamais pendant la lecture, ni avant qu'elle démarre). Le tap sur un accord
+  // remonte aussi à la cellule : le garde de 80 ms évite le double tic.
+export function tapBar(bi){
+    const now=Date.now(); if(S._tapBarAt && now-S._tapBarAt.t<80 && S._tapBarAt.bi===bi) return;
+    S._tapBarAt={bi,t:now};
+    seekToBar(bi);
+    const c=(S._cells||[]).find(x=>x.bar===bi);
+    if(c){ const f=el("div",`position:absolute;top:4px;bottom:4px;left:4px;right:4px;border-radius:14px;background:rgba(138,43,43,.22);pointer-events:none;z-index:0;`);
+      c.el.appendChild(f);
+      try{ f.animate([{opacity:1},{opacity:0}],{duration:420,easing:"ease-out"}).onfinish=()=>f.remove(); }catch(e){ setTimeout(()=>f.remove(),420); } }
+    if(!S.playing) playTick();
+  }
 export function chartDock(){
     const dock=el("div",
       `flex:0 0 auto;background:${T.card};border-top:1px solid ${T.line};`+
@@ -2026,7 +2041,7 @@ export function buildIReal(){
         if(S.mode!=="annotate"){
           item.setAttribute("data-chord-cell","1");
           item.onclick=()=>{
-            if(tapSeeks()){ seekToBar(bi); return; }
+            if(tapSeeks()){ tapBar(bi); return; }
             if(S.playing && S.mode==="read"){
               if(S.piano==="tap") openVoicingCard(idx, cell);
               else if(S.piano==="follow") openChordSheet(idx);
@@ -2095,7 +2110,7 @@ export function buildIReal(){
       // Le réglage est lu AU CLIC, pas à la construction : le basculer dans la
       // feuille Aa agit tout de suite, sans re-rendre la grille sous une
       // feuille ouverte.
-      if(S.mode!=="annotate" && !sectToolOn()) cell.onclick=()=>{ if(tapSeeks()) seekToBar(bi); };
+      if(S.mode!=="annotate" && !sectToolOn()) cell.onclick=()=>{ if(tapSeeks()) tapBar(bi); };
       /* UN ACCORD = UNE ZONE À TOUCHER (Louis, 2026-10-01, audit UX B2/B13).
          Avant : un bouton de 44 px par glyphe, qui se chevauchaient dans une
          mesure à 3-4 accords, et pour toute mesure incomplète une feuille « à

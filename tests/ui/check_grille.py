@@ -23,6 +23,7 @@ with sync_playwright() as p:
             b = p.webkit.launch()
             ctx = b.new_context(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, device_scale_factor=2)
         pg = ctx.new_page(); errs = []; posts = []
+        pg.add_init_script("window.__ticks=0; for (const C of [window.AudioContext, window.webkitAudioContext]) { if (C && C.prototype.createOscillator) { const o = C.prototype.createOscillator; C.prototype.createOscillator = function(){ window.__ticks++; return o.apply(this, arguments); }; } }")
         pg.on("pageerror", lambda e: errs.append(str(e)))
         def route(r):
             if r.request.method == "POST": posts.append(r.request.url); r.fulfill(status=200, body="{}", content_type="application/json")
@@ -49,6 +50,22 @@ with sync_playwright() as p:
             check(r[0] >= 0 and r[1] <= r[2], "bar %d scrolled into view (%s)" % (target, r))
             check((ev("return S.playBar") == target - 1), "playhead on bar %d" % target)
             pg.screenshot(path=f"{PRE}_{name}_goto.png")
+        # --- #8 retour au tap : réglage nommé, éclair + tic à l'arrêt, un seul tic
+        pg.evaluate("()=>window.scrollTo(0,0)"); pg.evaluate("(bi)=>document.querySelector(`[data-bar=\"${bi}\"]`).scrollIntoView({block:'center'})", 5); pg.wait_for_timeout(300)
+        ev("S.tapSeek=true"); t0 = pg.evaluate("window.__ticks")
+        r = pg.evaluate("(bi)=>{const r=document.querySelector(`[data-bar=\"${bi}\"]`).getBoundingClientRect(); return [r.x,r.y,r.width,r.height]}", 5)
+        pg.mouse.click(r[0] + r[2] * .9, r[1] + r[3] / 2); pg.wait_for_timeout(100)
+        flash = pg.evaluate("(bi)=>[...document.querySelector(`[data-bar=\"${bi}\"]`).children].filter(x=>getComputedStyle(x).backgroundColor.includes('0.22')).length", 5)
+        check(flash == 1, "tap on a bar flashes it (%d)" % flash)
+        check(pg.evaluate("window.__ticks") - t0 == 1, "exactly one tick at the stop (%d)" % (pg.evaluate("window.__ticks") - t0))
+        pg.wait_for_timeout(900)
+        check(ev("return S.playBar") == 5, "playhead on the tapped bar (%s)" % ev("return [S.playBar, S.bars[5].tspans, S.audio&&S.audio.currentTime, S.tapSeek]"))
+        check(pg.evaluate("(bi)=>document.querySelector(`[data-bar=\"${bi}\"]`).children.length", 5) > 0, "bar still intact after flash")
+        pg.get_by_label("Réglages").click(); pg.wait_for_timeout(400); pg.get_by_text("Plus…").click(); pg.wait_for_timeout(300)
+        txt = pg.locator("body").inner_text()
+        check("Taper une mesure en Lire" in txt and "Curseur" in txt and "Toucher une mesure" not in txt, "setting renamed (Taper une mesure en Lire : Curseur / Accord)")
+        pg.screenshot(path=f"{PRE}_{name}_reglage.png")
+        pg.get_by_role("button", name="Fermer").click(); pg.wait_for_timeout(400)
         # --- #9 mesures serrées : tout tient dans la cellule, rien ne se chevauche
         res = pg.evaluate("""()=>{
           const cells=[...document.querySelectorAll('[data-bar]')].filter(c=>c.querySelector('[data-fit]'));
