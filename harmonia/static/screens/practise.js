@@ -217,7 +217,7 @@ export function renderPrompter(){
     const topBar=appBar(m.title, "mesure 1 · "+rateLbl(), "chart", dots);
     const paintSub=()=>{ if(topBar._sub)
       topBar._sub.textContent="mesure "+Math.max(1,curBar>0?curBar:1)+" · "+rateLbl();
-      if(typeof speedChip!=="undefined") speedChip.textContent=rateLbl(); };
+      if(typeof speedChip!=="undefined") speedChip.firstChild.nodeValue=rateLbl(); };
     w.appendChild(topBar);
     const chords=prompterData().slice().sort((a,b)=>a.t0-b.t0);
     const grid=(m.barGrid||[]).slice();
@@ -424,10 +424,17 @@ export function renderPrompter(){
     // comportement. La bande se cale sur la grille de N mesures.
     const LOOP_LENS=[1,2,4,8];
     let loopN=(()=>{ try{ const v=parseInt(localStorage.getItem("harmLoopBars"),10); return LOOP_LENS.includes(v)?v:4; }catch(e){ return 4; } })();
-    const chipStyle=`flex:0 0 auto;height:24px;min-width:44px;padding:0 6px;border-radius:12px;cursor:pointer;font:700 12px ${UI};${ctlSkin("off")}`;
-    const lenChip=el("button",chipStyle,loopN+" mes.");
+    const chipStyle=`position:relative;z-index:1;flex:0 0 auto;height:24px;min-width:44px;padding:0 6px;border-radius:12px;cursor:pointer;font:700 12px ${UI};${ctlSkin("off")}`;
+    /* ZONE DE TAP ≥ 44 px (UX #13b, 2026-10-01) : la pastille reste de 24 px
+       (deux pastilles empilées tiennent dans la hauteur du transport), mais un
+       enfant transparent agrandit la zone qui répond — celle du haut déborde
+       vers le haut, celle du bas vers le bas, et elles se séparent au milieu de
+       l'espace qui les sépare (4 px). 24 + 18 + 2 = 44 (+1 px de bordure de chaque côté, compté dans le décalage). */
+    const hitZone=(btn,up)=>{ const z=el("span",`position:absolute;left:0;right:0;${up?"top:-19px;bottom:-3px":"top:-3px;bottom:-19px"};`);
+      z.dataset.role="hit"; btn.appendChild(z); return btn; };
+    const lenChip=hitZone(el("button",chipStyle,loopN+" mes."),true);
     lenChip.title="Longueur de la boucle : 1, 2, 4 ou 8 mesures";
-    const speedChip=el("button",chipStyle,rateLbl());
+    const speedChip=hitZone(el("button",chipStyle,rateLbl()),false);
     speedChip.title="Vitesse de lecture : 0,5×, 0,75× ou 1×";
     const chips=el("div","flex:0 0 auto;display:flex;flex-direction:column;gap:4px;");
     chips.appendChild(lenChip); chips.appendChild(speedChip);
@@ -443,7 +450,7 @@ export function renderPrompter(){
     lenChip.onclick=()=>{
       loopN=LOOP_LENS[(LOOP_LENS.indexOf(loopN)+1)%LOOP_LENS.length];
       try{ localStorage.setItem("harmLoopBars",String(loopN)); }catch(e){}
-      lenChip.textContent=loopN+" mes.";
+      lenChip.firstChild.nodeValue=loopN+" mes.";
       if(loop){ loop=bandAt(); loopEngineStart(loop.a,loop.b); }   // reprend sur la nouvelle bande
       curBar=-1; paintLoop(); if(!loop) sync(true);
     };
