@@ -47,6 +47,20 @@ def run(name, launcher, **ctx):
     check(p is not None and p["bar"] == exp, f"la pause écrit la position (mesure {exp}) -> {p}")
     check(not any("position" in u for u in posts), "rien envoyé au serveur")
     check(not errs, f"pas d'erreur JS {errs[:2]}")
+
+    # ---- #40 : le titre passe avant l'artiste
+    pg.goto("http://localhost:7772/"); pg.wait_for_timeout(1200)
+    pg.evaluate('''async()=>{const k=await import('/static/screens/library.js');
+      const d=document.createElement('div'); d.id='t40'; d.style.cssText='position:fixed;top:300px;left:20px;width:250px;background:#fff;z-index:99';
+      d.appendChild(k.nameEl({title:'Autumn Leaves (live)',artist:'Cannonball Adderley Quintet'},16));
+      d.appendChild(k.nameEl({title:'Un titre vraiment très très long qui ne tient pas du tout',artist:'Court'},16));
+      d.appendChild(k.nameEl({title:'Solo',artist:'Artiste'},16));
+      document.body.appendChild(d);}''')
+    r = pg.evaluate('''()=>[...document.querySelectorAll('#t40 > div')].map(w=>({a:(w.querySelector('[data-nom=artiste]')||{}).clientWidth,aw:(w.querySelector('[data-nom=artiste]')||{}).scrollWidth,t:w.querySelector('[data-nom=titre]').clientWidth,tw:w.querySelector('[data-nom=titre]').scrollWidth}))''')
+    check(r[0]["t"] >= r[0]["tw"] and r[0]["a"] < r[0]["aw"], f"artiste long: le titre tient en entier, l'artiste tronque {r[0]}")
+    check(r[1]["t"] < r[1]["tw"] and r[1]["a"] <= r[1]["aw"], f"titre trop long: il tronque en dernier {r[1]}")
+    check(r[2]["t"] >= r[2]["tw"] and r[2]["a"] >= r[2]["aw"], f"assez de place: rien ne tronque {r[2]}")
+    pg.screenshot(path=f"{PRE}_{name}_titre.png")
     b.close()
 
 with sync_playwright() as p:

@@ -50,15 +50,20 @@ export function chartName(c){
   // « Artiste / Chanson »: artiste en gris, titre en encre. Une seule ligne,
   // ellipse à droite — jamais deux lignes, la liste doit se scanner.
 export function nameEl(c, size){
+    // Le TITRE passe avant l'artiste (UX #40, audit F1) : quand la place manque,
+    // c'est l'artiste (flex-shrink énorme) qui rétrécit d'abord, le titre ne
+    // se coupe qu'une fois l'artiste réduit à rien. Le « / » vit dans le span
+    // de l'artiste : il disparaît avec lui, jamais de ligne qui commence par « / ».
     const n=chartName(c);
     const w=el("div",
-      `font:600 ${size||16}px ${UI};color:${T.ink};`+
-      `white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`);
+      `font:600 ${size||16}px ${UI};color:${T.ink};display:flex;min-width:0;overflow:hidden;white-space:nowrap;`);
     if(n.artist){
-      w.appendChild(el("span",`color:${T.faint};font-weight:500;`, n.artist));
-      w.appendChild(el("span",`color:${T.faint};font-weight:500;`, " / "));
+      const a=el("span",`color:${T.faint};font-weight:500;flex:0 1000 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:pre;`,
+        n.artist+" / ");
+      a.dataset.nom="artiste"; w.appendChild(a);
     }
-    w.appendChild(el("span","", n.title));
+    const t=el("span","flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;", n.title);
+    t.dataset.nom="titre"; w.appendChild(t);
     return w;
   }
 
