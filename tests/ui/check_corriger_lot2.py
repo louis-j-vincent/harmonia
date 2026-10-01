@@ -8,6 +8,7 @@ import json, re, sys
 from playwright.sync_api import sync_playwright
 
 FILE = sys.argv[1] if len(sys.argv) > 1 else "min_08DjMT-qR9g"
+FOLDED = "min_0DdCoNbbRvQ"   # a folded chart: A sung 11 times
 PRE = sys.argv[2] if len(sys.argv) > 2 else "/tmp/lot2c"
 fails = []
 def check(cond, msg):
@@ -28,8 +29,11 @@ def run(p, kind):
             posts.append((u, r.request.post_data)); r.fulfill(status=200, body='{"job_id":"j1"}', content_type="application/json")
         else: r.continue_()
     pg.route("**/api/**", route)
-    pg.goto(f"http://localhost:7772/?open={FILE}"); pg.wait_for_selector("[data-bar]", timeout=20000, state="attached"); pg.wait_for_timeout(1500)
-    pg.locator('button:text-is("Corriger")').first.click(); pg.wait_for_timeout(500)
+    def reopen(f=FILE):
+        posts.clear(); errs.clear()
+        pg.goto(f"http://localhost:7772/?open={f}"); pg.wait_for_selector("[data-bar]", timeout=20000, state="attached"); pg.wait_for_timeout(1500)
+        pg.locator('button:text-is("Corriger")').first.click(); pg.wait_for_timeout(500)
+    reopen()
     ev = lambda js, arg=None: pg.evaluate("async(a)=>{const {S}=await import('/static/state.js'); " + js + "}", arg)
     def tap_bar(bi):
         pg.evaluate("(bi)=>document.querySelector(`[data-bar=\"${bi}\"]`).scrollIntoView({block:'center'})", bi); pg.wait_for_timeout(250)
@@ -47,6 +51,21 @@ def run(p, kind):
     sh("27_cut")
     cells.first.click(); pg.wait_for_timeout(500)
     check(pg.get_by_text("nouvel accord").count() == 1, T + "27 tapping « + » opens the editor on a new chord")
+    reopen(FOLDED)
+    # ---- #28 : « Garder corrige les N passages »
+    multi = ev("return S.chords.findIndex(c=>!c.nc&&(c.spans||[]).length>1)")
+    single = ev("return S.chords.findIndex(c=>!c.nc&&!c.confirmed&&(c.spans||[]).length===1)")
+    check(multi >= 0, T + "28 the chart has a folded chord (spans>1)")
+    if multi >= 0:
+        n = ev("return S.chords[a].spans.length", multi)
+        ev("const E=await import('/static/screens/annotate.js'); E.openEditor(a)", multi); pg.wait_for_timeout(500)
+        t = pg.get_by_text(re.compile("^Garder corrige les ")).first.inner_text()
+        check(t.startswith(f"Garder corrige les {n} passages (0:") or re.match(rf"Garder corrige les {n} passages \(\d+:\d\d", t), T + f"28 text names the {n} passages: {t}")
+        sh("28_multi")
+        ev("S._closeEditor()")
+    ev("const E=await import('/static/screens/annotate.js'); E.openEditor(a)", single); pg.wait_for_timeout(500)
+    check(pg.get_by_text(re.compile("^Garder corrige")).count() == 0, T + "28 a one-pass chord says nothing about passes")
+    ev("S._closeEditor()")
     check(not errs, T + f"no page errors {errs[:3]}")
     b.close()
 

@@ -13,7 +13,7 @@ import { buildIReal, loadModel, renderChart } from "../screens/chart.js";
 import { openBar1Sheet, openSectionTool } from "../screens/sections_editor.js";
 import { S } from "../state.js";
 import { buildCascade } from "./cascade.js";
-import { kitButton, FAINT_ON_PETAL, INK_ON_PETAL, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, el, fifthsIndex, glyph, handle, haptic, keyTint, mod, note, overlay, petalEdge, petalFill, play, playedLabel, roleOf, sheetCol, sv, toast } from "../ui/kit.js";
+import { kitButton, FAINT_ON_PETAL, INK_ON_PETAL, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, el, fifthsIndex, fmt, glyph, handle, haptic, keyTint, mod, note, overlay, petalEdge, petalFill, play, playedLabel, roleOf, sheetCol, sv, toast } from "../ui/kit.js";
 
 // The single DOM host div (`<div id="app">`) — there is exactly one call
 // site, `window.APP.build(document.getElementById("app"))` in main.js, so
@@ -278,6 +278,19 @@ export function openEditor(idx,opts){
       // with no `n` meant it fired on chords the song plays throughout.
       meta.appendChild(el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:2px;`,
         (ch.c<.42 && (ch.n|0)===1)?"un accord que le morceau ne rejoue jamais est souvent faux":"choisis une proposition, ou corrige à la main"));
+      /* CE QUE « GARDER » CHANGE (UX #28, audit B10). « joué 9 fois » compte les
+         accords identiques de tout le morceau, il ne dit PAS ce que le geste
+         corrige. Ce qui est vrai : un chart replié écrit ce temps UNE fois pour
+         tous ses passages (`ch.spans`, un empan par passage) et la correction est
+         posée sur cette case (annotations.overlay) — donc elle vaut pour chacun.
+         Les autres cases où le morceau rejoue le même accord, elles, ne bougent
+         pas : on ne le dit pas, on ne dit que le nombre de passages de CETTE case. */
+      const passes=(ch.spans||[]).filter(sp=>sp&&sp.length>=2);
+      if(passes.length>1){
+        const dep=passes.slice(0,3).map(sp=>fmt(sp[0])).join(", ")+(passes.length>3?"…":"");
+        meta.appendChild(el("div",`font:600 11.5px ${UI};color:${T.ink};margin-top:2px;`,
+          "Garder corrige les "+passes.length+" passages ("+dep+")"));
+      }
     }
     hd.appendChild(meta);
     /* ÉCOUTER L'ENREGISTREMENT, seulement quand on le demande (Louis,
