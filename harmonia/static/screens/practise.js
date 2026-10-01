@@ -77,7 +77,7 @@ export function buildHandsCard(getTwo, getOne, onPlay, ranges){
     const head=el("div","display:flex;align-items:center;gap:8px;margin-bottom:8px;");
     const names=el("div",`flex:1;min-width:0;font:600 13px ${UI};color:${T.faint};min-height:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`);
     head.appendChild(names);
-    head.appendChild(kitButton("setup", openSetup, {small:true}));
+    head.appendChild(kitButton("réglages", openSetup, {small:true}));
     card.appendChild(head);
     function openSetup(){
       const back=overlay(); const sheet=sheetBox(); sheet.appendChild(handle());
@@ -147,8 +147,8 @@ export function buildHandsCard(getTwo, getOne, onPlay, ranges){
       if(split){
         const {left,right}=splitHands(midis);
         clear(names);
-        const l=el("span",`color:${T.accent};`,"L "+left.map(m=>note(m%12)).join(" "));
-        const r=el("span",`color:#2a6fb0;`,"R "+right.map(m=>note(m%12)).join(" "));
+        const l=el("span",`color:${T.accent};`,"G "+left.map(m=>note(m%12)).join(" "));
+        const r=el("span",`color:#2a6fb0;`,"D "+right.map(m=>note(m%12)).join(" "));
         names.appendChild(l); names.appendChild(el("span",""," · ")); names.appendChild(r);
         const rh=el("div",""), lh=el("div","");
         body.appendChild(row("MD", rh));

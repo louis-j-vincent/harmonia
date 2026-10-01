@@ -409,9 +409,9 @@ export function showAudioDiag(){
     const box=el("div",`position:absolute;left:12px;right:12px;bottom:calc(96px + env(safe-area-inset-bottom));z-index:80;background:${T.deep};color:#fff;font:500 11px/1.5 ui-monospace,Menlo,monospace;padding:12px 14px;border-radius:12px;box-shadow:0 14px 32px -14px rgba(0,0,0,.55);max-height:46vh;overflow-y:auto;white-space:pre-wrap;`);
     box.textContent=audioDiagText();
     const row=el("div","display:flex;gap:8px;margin-top:10px;");
-    const copyBtn=el("button",`flex:1;border:none;background:#ffffff22;color:#fff;border-radius:8px;padding:8px;font:600 11.5px ${UI};cursor:pointer;`,"Copy");
-    copyBtn.onclick=()=>{ navigator.clipboard?.writeText(audioDiagText()).then(()=>toast("Copied")).catch(()=>toast("Could not copy")); };
-    const closeBtn=el("button",`flex:0 0 auto;border:none;background:#ffffff22;color:#fff;border-radius:8px;padding:8px 14px;font:600 11.5px ${UI};cursor:pointer;`,"Close");
+    const copyBtn=el("button",`flex:1;border:none;background:#ffffff22;color:#fff;border-radius:8px;padding:8px;font:600 11.5px ${UI};cursor:pointer;`,"Copier");
+    copyBtn.onclick=()=>{ navigator.clipboard?.writeText(audioDiagText()).then(()=>toast("Copié")).catch(()=>toast("Copie impossible")); };
+    const closeBtn=el("button",`flex:0 0 auto;border:none;background:#ffffff22;color:#fff;border-radius:8px;padding:8px 14px;font:600 11.5px ${UI};cursor:pointer;`,"Fermer");
     closeBtn.onclick=()=>{ box.remove(); S._diagBox=null; };
     row.appendChild(copyBtn); row.appendChild(closeBtn); box.appendChild(row);
     root.appendChild(box); S._diagBox=box;
@@ -482,7 +482,7 @@ export function togglePlay(){
     }catch(e){}
     S._playBranch=_branch;
     if(S._audioEvents) S._audioEvents.push(`${(performance.now()/1000).toFixed(2)}s TAP:${_branch} ns=${S.audio.networkState} rs=${S.audio.readyState}`);
-    S.audio.play().catch(()=>{ S.playing=false; setPlayBtn(); toast("Could not start audio"); });
+    S.audio.play().catch(()=>{ S.playing=false; setPlayBtn(); toast("Impossible de lancer le son"); });
     clearTimeout(S._diagTimer);
     // Watchdog: if the playhead hasn't moved 2.5 s after the tap, the loader is
     // stalled. Try the blob swap BEFORE showing a diagnostic — a fix the user

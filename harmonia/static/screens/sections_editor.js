@@ -1304,6 +1304,8 @@ export function openBar1Sheet(){
     }, {height:SZ.primary, state:"on"});
     apply.style.cssText+="width:100%;margin-top:14px;flex:0 0 auto;";
     sheet.appendChild(apply);
+    sheet.appendChild(el("div",`text-align:center;font:italic 12px ${SERIF};color:${T.faint};margin-top:6px;flex:0 0 auto;`,
+      "ça recalcule tout le morceau (environ une minute) — tu pourras annuler"));
     const cancel=el("button",`flex:0 0 auto;width:100%;margin-top:6px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:${SZ.control}px;cursor:pointer;`,"Annuler");
     cancel.onclick=close;
     sheet.appendChild(cancel);

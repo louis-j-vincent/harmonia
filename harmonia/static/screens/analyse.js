@@ -86,9 +86,9 @@ export function requestMic(){
 export function micErrorMessage(e){
     if(e && e.harmReason==="insecure")
       return "Le micro demande une adresse https — ouvre "+HTTPS_HOST+" (même app).";
-    if(e && e.name==="NotAllowedError") return "Microphone permission was denied — check the site settings.";
-    if(e && e.name==="NotFoundError") return "No microphone found on this device.";
-    return "Could not access the microphone ("+((e&&e.name)||String(e))+")";
+    if(e && e.name==="NotAllowedError") return "Le micro est refusé — vérifie les réglages du site.";
+    if(e && e.name==="NotFoundError") return "Aucun micro trouvé sur cet appareil.";
+    return "Impossible d’accéder au micro ("+((e&&e.name)||String(e))+")";
   }
   // ── Mic recording (2026-07-20) ────────────────────────────────────────────
 export async function startRecordAnalysis(blob, title){
@@ -211,12 +211,12 @@ export async function applyRefinement(file, j){
   // retired by this — the preview inferred bars from tempo/4 and never lined
   // up with the chart that opened after it.
 export const PHASE_COPY={
-    listening:["listening to the track",      "finding the beat"],
-    decoding: ["reading the harmony",         "this is the long part — a minute or so on a new song"],
-    head:     ["the first bars, already",     "les premières mesures pendant que le reste se calcule"],
-    raw:      ["the chart, bar by bar",       "no letters yet — you can already play along"],
-    sections: ["finding the sections",        "grouping the repeats into A, B, C…"],
-    done:     ["ready",                       ""]
+    listening:["j’écoute le morceau",          "je cherche le tempo"],
+    decoding: ["je lis l’harmonie",           "c’est la partie longue — environ une minute pour un nouveau morceau"],
+    head:     ["déjà les premières mesures",  "les premières mesures pendant que le reste se calcule"],
+    raw:      ["le chart, mesure par mesure","pas encore de lettres — tu peux déjà jouer"],
+    sections: ["je cherche les sections",     "je regroupe les reprises en A, B, C…"],
+    done:     ["prêt",                         ""]
   };
 export function renderLoading(){
     const w=screenWrap();
@@ -224,7 +224,7 @@ export function renderLoading(){
     const bar=el("div",
       `flex:0 0 auto;display:flex;align-items:center;gap:12px;`+
       `padding:calc(6px + env(safe-area-inset-top)) 14px 12px;background:${T.paper};`);
-    bar.appendChild(kitIcon("‹", ()=>{ S.job=null; go("library"); }, "Back"));
+    bar.appendChild(kitIcon("‹", ()=>{ S.job=null; go("library"); }, "Retour"));
     const tw=el("div","flex:1;min-width:0;");
     const title=el("div",
       `font:italic 600 19px ${SERIF};color:${T.ink};`+
@@ -300,15 +300,15 @@ export function paintLoading(){
     if(!L || !j || S.screen!=="analysing") return;
     const phase=j.phase||"listening";
 
-    L.title.textContent=j.title||"your song";
+    L.title.textContent=j.title||"ton morceau";
 
     if(j.error){
-      L.sub.textContent="something went wrong";
+      L.sub.textContent="quelque chose a échoué";
       clear(L.body);
       const card=el("div",
         `margin:18px 4px;background:${T.card};border:1px solid ${T.line};`+
         `border-radius:${SZ.radiusLg}px;padding:20px;`);
-      card.appendChild(el("div",`font:600 15px ${UI};color:${T.accent};margin-bottom:6px;`,"That didn't work"));
+      card.appendChild(el("div",`font:600 15px ${UI};color:${T.accent};margin-bottom:6px;`,"Ça n’a pas marché"));
       // STAGES names the step that broke — the one thing the old five-line
       // screen still had to offer.
       card.appendChild(el("div",`font:italic 13px ${SERIF};color:${T.faint};margin-bottom:8px;`,
@@ -316,7 +316,7 @@ export function paintLoading(){
       card.appendChild(el("div",`font:500 13px/1.5 ${UI};color:${T.faint};`, j.error));
       L.body.appendChild(card);
       clear(L.foot);
-      L.foot.appendChild(kitButton("Back to library", ()=>{ S.job=null; go("library"); },
+      L.foot.appendChild(kitButton("Retour à la bibliothèque", ()=>{ S.job=null; go("library"); },
         {height:SZ.primary, grow:true, state:"on"}));
       return;
     }
@@ -338,8 +338,8 @@ export function paintLoading(){
     clear(L.meta);
     if(hasRaw && j.n_bars){
       const a=el("div","");
-      a.appendChild(el("span",`color:${done?T.green:T.ink};font-weight:700;`, j.n_bars+" bars"));
-      a.appendChild(el("span","", done ? " · "+(j.sections_found||1)+" section"+((j.sections_found||1)>1?"s":"") : " decoded"));
+      a.appendChild(el("span",`color:${done?T.green:T.ink};font-weight:700;`, j.n_bars+" mesures"));
+      a.appendChild(el("span","", done ? " · "+(j.sections_found||1)+" section"+((j.sections_found||1)>1?"s":"") : " décodées"));
       L.meta.appendChild(a);
     } else {
       L.meta.appendChild(el("span","", copy[1]));
@@ -347,7 +347,7 @@ export function paintLoading(){
     // Dire l'étape RÉELLE : pendant l'aperçu on décode encore le morceau, on
     // ne cherche pas les sections (2026-08-18).
     if(hasRaw && !done) L.meta.appendChild(el("span","",
-      phase==="head" ? "le reste se décode…" : "finding the sections…"));
+      phase==="head" ? "le reste se décode…" : "je cherche les sections…"));
 
     /* ── the body ──────────────────────────────────────────────────────────
        Before the raw chart: a quiet waiting state, NOT a fake grid. After it:
@@ -381,13 +381,13 @@ export function paintLoading(){
       const head=el("div","display:flex;align-items:center;gap:8px;margin:0 4px 8px;");
       head.appendChild(el("div",
         `font:600 11px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};`,
-        phase==="head" ? "aperçu · les premières mesures" : "raw chart · no letters yet"));
+        phase==="head" ? "aperçu · les premières mesures" : "chart brut · pas encore de lettres"));
       head.appendChild(el("div",`flex:1;height:1px;background:${T.line};`));
       L.body.appendChild(head);
       L.body.appendChild(buildIReal());
       L.body.appendChild(kitLegend(T.green, phase==="head"
         ? "le reste du morceau se décode — ces mesures peuvent encore bouger"
-        : "every bar written out — you can already play along"));
+        : "chaque mesure est écrite — tu peux déjà jouer"));
       L.shown="chart"; L.shownBars=nb;
     }
 
@@ -415,7 +415,7 @@ export function paintLoading(){
       // bouton principal de cet écran était en fait à la largeur de son texte.
       // On lui donne une ligne flex, et la légende reste en dessous.
       const row=el("div","display:flex;");
-      row.appendChild(kitButton(early ? "Play it now" : "Open the chart", ()=>{
+      row.appendChild(kitButton(early ? "Jouer tout de suite" : "Ouvrir le chart", ()=>{
         const f=j.file;
         // l'ordre compte : pollJob s'arrête si S.job ET S.refining sont nuls
         if(early && f) S.refining={file:f, id:j.id, what:j.refining||[]};
@@ -437,7 +437,7 @@ export function paintLoading(){
         `width:14px;height:14px;border-radius:50%;border:2px solid ${T.line};`+
         `border-top-color:${T.accent};animation:ap-spin .7s linear infinite;`));
       busy.appendChild(el("span","",
-        phase==="head" ? "Le chart complet arrive" : "Finding the sections"));
+        phase==="head" ? "Le chart complet arrive" : "Je cherche les sections"));
       L.foot.appendChild(busy);
     }
   }
