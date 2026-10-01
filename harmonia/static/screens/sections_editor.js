@@ -8,7 +8,7 @@ import { api } from "../api.js";
 import { PLAYHEAD_LEAD_S, hitAtTime, hitChordAtTime, loopEngineDispose, nowTime, paintCoachChord, seekFrac, seekToBar, stopPlayback, togglePlay, totalDur } from "../audio.js";
 import { appBar, go, screenWrap } from "../router.js";
 import { paintLoading, pollJob } from "../screens/analyse.js";
-import { openAnnotateTools } from "../screens/annotate.js";
+import { openAnnotateTools, relancerAnalyse } from "../screens/annotate.js";
 import { formGroups, loadModel, paintFormChip, paintFormRail } from "../screens/chart.js";
 import { prompterData, reelFill } from "../screens/practise.js";
 import { S } from "../state.js";
@@ -1296,13 +1296,11 @@ export function openBar1Sheet(){
       const t=nowTime()+PLAYHEAD_LEAD_S;
       stopPlayback();
       close();
-      S.job={title:m.title, stage:0, phase:"listening", error:null, file:null};
-      go("analysing");
-      try{
-        const r=await api.post("/api/bar1/"+m.file, {t});
-        if(r.error){ S.job.error=r.error; paintLoading(); return; }
-        pollJob(r.job_id);
-      }catch(e){ S.job.error=String(e); paintLoading(); }
+      // « Annuler » : le serveur rend la marque d'AVANT (`previous_bar1`), on la
+      // repose — ou on l'efface s'il n'y en avait pas (retour au départ détecté).
+      await relancerAnalyse("/api/bar1/", {t}, r=>({
+        msg:"Mesure 1 calée",
+        onUndo:()=>relancerAnalyse("/api/bar1/", r.previous_bar1==null?{clear:true}:{t:r.previous_bar1}, null) }));
     }, {height:SZ.primary, state:"on"});
     apply.style.cssText+="width:100%;margin-top:14px;flex:0 0 auto;";
     sheet.appendChild(apply);

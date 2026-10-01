@@ -8,7 +8,7 @@ import { api } from "../api.js";
 import { playSpan, stopSpan } from "../audio.js";
 import { go } from "../router.js";
 import { paintLoading, pollJob } from "../screens/analyse.js";
-import { deleteChart } from "../screens/library.js";
+import { deleteChart, showUndoSnackbar } from "../screens/library.js";
 import { buildIReal, renderChart } from "../screens/chart.js";
 import { openBar1Sheet, openSectionTool } from "../screens/sections_editor.js";
 import { S } from "../state.js";
@@ -38,14 +38,58 @@ const root = document.getElementById("app");
   // `harmonia/beats.py::apply_tempo_octave` pour ce que fait le facteur, et
   // `/api/tempo` pour pourquoi il s'ACCUMULE (÷2 puis ×2 annule).
 async function applyTempoFactor(factor){
+    // L'inverse EXACT existe déjà côté serveur (÷2 puis ×2 s'annule, voir
+    // /api/tempo) : « Annuler » ne demande donc aucune route de plus.
+    await relancerAnalyse("/api/tempo/", {factor}, ()=>({
+      msg:"Tempo "+(factor===0.5?"÷2":"×2")+" appliqué",
+      onUndo:()=>relancerAnalyse("/api/tempo/", {factor:1/factor}, null) }));
+  }
+  /* RELANCER L'ANALYSE (tempo, mesure 1) — le même geste qu'avant, plus un
+     filet : `apresCoup(réponse)` rend le message et l'annulation à proposer
+     une fois le chart revenu à l'écran (le travail dure ~1 min : un bouton
+     posé AVANT l'attente serait mort depuis longtemps). Voir
+     maybeShowPendingUndo, appelé par renderChart. */
+export async function relancerAnalyse(url, body, apresCoup){
     const m=S.model; if(!m||!m.file) return;
     S.job={title:m.title, stage:0, phase:"listening", error:null, file:null};
     go("analysing");
     try{
-      const r=await api.post("/api/tempo/"+m.file, {factor});
+      const r=await api.post(url+m.file, body);
       if(r.error){ S.job.error=r.error; paintLoading(); return; }
+      S._undoAfterJob = apresCoup ? Object.assign({file:m.file}, apresCoup(r)) : null;
       pollJob(r.job_id);
     }catch(e){ S.job.error=String(e); paintLoading(); }
+  }
+export function maybeShowPendingUndo(){
+    const u=S._undoAfterJob;
+    if(!u || S.screen!=="chart" || !S.model || S.model.file!==u.file) return;
+    S._undoAfterJob=null;
+    setTimeout(()=>showUndoSnackbar(u.msg, u.onUndo, {ms:12000}), 400);
+  }
+  /* LE FILET DE SÉCURITÉ DES ACCORDS (audit UX B9). Avant de toucher aux
+     accords, on garde une copie de ce que le disque est censé contenir : les
+     champs de chaque accord, la liste des accords de chaque mesure, les
+     accords « recollés ». « Annuler » remet cette copie en place et réécrit
+     le sidecar. Ce que ça ne défait PAS : la ligne ajoutée au registre des
+     corrections (state/human/corrections/, journal pour apprendre de toi). */
+function snapAnnot(){
+    return { chords:S.chords.map(c=>Object.assign({},c)),
+             bars:S.bars.map(b=>b.idxs.slice()),
+             removed:(S.model.removed||[]).map(r=>Object.assign({},r)),
+             pending:S.pending.slice() };
+  }
+function restoreAnnot(sn){
+    S.chords.splice(0, S.chords.length, ...sn.chords.map(c=>Object.assign({},c)));
+    S.bars.forEach((b,i)=>{ b.idxs=sn.bars[i].slice(); });
+    S.model.removed=sn.removed.map(r=>Object.assign({},r));
+    S.pending=sn.pending.slice();
+    S._vlBump=(S._vlBump||0)+1;
+    saveAnnotations();
+    go("chart");
+    toast("Annulé");
+  }
+function offrirAnnuler(msg, sn){
+    showUndoSnackbar(msg, ()=>restoreAnnot(sn), {ms:6000});
   }
 
 export function openAnnotateTools(){
@@ -401,6 +445,7 @@ export function openNewChord(bi,k){
       const cand=idxs.filter(ix=> j<bi || (S.chords[ix].beat||0)<k);
       if(cand.length) seed=S.chords[cand[cand.length-1]];
     }
+    const snapAvant=snapAnnot();   // pour « Annuler » une fois le nouvel accord gardé
     const draft={
       root: seed?seed.root:S.key, q: seed?seed.q:"",
       c:0, confirmed:false, nc:false, n:0, sug:null, bass:-1,
@@ -409,6 +454,7 @@ export function openNewChord(bi,k){
       barFirst:false, secFirst:false,
       t0, t1, spans:[[t0,t1]], added:true,
     };
+    Object.defineProperty(draft,"_snap",{value:snapAvant, writable:true, configurable:true, enumerable:false});
     // COUPER, ce n'est pas seulement ajouter : l'accord qui sonnait là cède la
     // place. Il rétrécit jusqu'au nouveau temps (comme l'ancien « Split »), et
     // revient à sa longueur d'avant si on annule le brouillon.
@@ -951,6 +997,11 @@ export function buildChipGrid(idx,onPick){
     refresh(); return box;
   }
 export function confirmChord(idx,root,q,bass){
+    // la copie d'AVANT : celle prise à l'ouverture de la coupe si c'est un
+    // accord ajouté (annuler défait alors toute la coupe), sinon maintenant.
+    const sn=(S.chords[idx]._snap) || snapAnnot();
+    delete S.chords[idx]._snap;
+    const coupe=!!S.chords[idx].added;
     const ch=S.chords[idx]; ch.root=root; ch.q=q; ch.confirmed=true; ch.c=1;
     // La basse que Louis a choisie dans le compas (2026-09-16). `bassPicked`
     // distingue « Louis l'affirme » de « le modèle l'a devinée » : sans ce
@@ -963,7 +1014,7 @@ export function confirmChord(idx,root,q,bass){
     if(S._closeEditor) S._closeEditor();
     saveAnnotations();
     go("chart");
-    toast("Gardé — cet accord ne bougera plus");
+    offrirAnnuler(coupe?"Mesure coupée — nouvel accord gardé":"Gardé — cet accord ne bougera plus", sn);
   }
   // ── COUPER LA MESURE / RECOLLER (Louis, 2026-10-01, audit UX B7-B9) ────────
   // Un seul outil à la place de « Split into two » (coupe au milieu seulement,
@@ -1026,6 +1077,7 @@ export function openCutBar(bi){
 export function recollerBar(bi){
     const bar=S.bars[bi]; if(!bar || bar.idxs.length<2) return;
     const order=bar.idxs.slice().sort((a,b)=>(S.chords[a].beat||0)-(S.chords[b].beat||0));
+    const sn=snapAnnot();
     const keep=S.chords[order[0]];
     const rest=order.slice(1);
     const end=Math.max(keep.t1, ...rest.map(i=>S.chords[i].t1));
@@ -1041,7 +1093,7 @@ export function recollerBar(bi){
     S._vlBump=(S._vlBump||0)+1;
     saveAnnotations();
     go("chart");
-    toast("Mesure recollée");
+    offrirAnnuler("Mesure recollée", sn);
   }
 
   // ── persistence (annotation sidecar; keyed on (bar,beat) per its schema) ──
@@ -1069,6 +1121,12 @@ export async function saveAnnotations(){
     const rk=c=>c.bar+":"+(c.beat||0);
     const posed=new Set(chords.map(rk));
     const removed=(S.model.removed||[]).filter(r=>!posed.has(rk(r)));
-    try{ await api.post("/api/annotations/"+S.model.file, {annotator:"", chords, merges, removed}); }catch(e){}
+    try{ await api.post("/api/annotations/"+S.model.file, {annotator:"", chords, merges, removed}); }
+    catch(e){
+      // JAMAIS en silence (audit UX B9) : le toast « Gardé » disait vrai même
+      // quand l'écriture avait échoué. Le bouton renvoie tout l'état d'un coup
+      // (la sauvegarde est un document entier, pas un journal : rien à rejouer).
+      showUndoSnackbar("⚠ Pas enregistré sur le disque", ()=>saveAnnotations(), {label:"Réessayer", ms:15000});
+    }
   }
 

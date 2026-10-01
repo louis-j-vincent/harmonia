@@ -8,7 +8,7 @@ import { api } from "../api.js";
 import { PLAYHEAD_LEAD_S, hitAtTime, loopEngineDispose, loopEngineStart, loopEngineToggle, nowTime, seekFrac, seekToBar, setPlayBtn, syncTransport, togglePlay, totalDur } from "../audio.js";
 import { go, screenWrap } from "../router.js";
 import { applyRefinement } from "../screens/analyse.js";
-import { candList, openAnnotateTools, openEditor, openNewChord } from "../screens/annotate.js";
+import { candList, maybeShowPendingUndo, openAnnotateTools, openEditor, openNewChord } from "../screens/annotate.js";
 import { openChordSheet, openPrefsSheet, openRotor, transposeTo } from "../screens/prefs.js";
 import { attachSectionDrag, buildSectionTool, closeSectionTool, paintSectionTool, sectToolOn, setPlayhead, spanTime } from "../screens/sections_editor.js";
 import { S } from "../state.js";
@@ -920,6 +920,7 @@ export function closeVoicingCard(){
   }
 export function renderChart(){
     const w=screenWrap();
+    maybeShowPendingUndo();   // « Annuler » d'un tempo / d'une mesure 1, une fois le chart revenu
     if(S.chartChrome){
       S._immFill=null;
       w.appendChild(chartToolbar());

@@ -40,6 +40,19 @@ Page avant/après : `docs/plots/ux_5_changements_2026-10-01.html`. Tests Playwri
    et Extensions sous « Plus… » (le P2 de l'audit veut 2 onglets seulement) ;
    les mots internes du serveur (messages d'erreur d'API) ne sont pas traduits ;
    les pages `/soudure`, `/ssm` (hors de ces écrans) non revues.
+5. **Filet de sécurité.** « Annuler » (6 s) après garder un accord, couper,
+   recoller : remet une copie des accords/mesures d'AVANT et réécrit le sidecar.
+   Après ÷2/×2 et « Caler la mesure 1 » : proposé 12 s une fois le chart revenu
+   (l'attente dure ~1 min) ; ÷2 s'annule par ×2 (déjà exact côté serveur),
+   `/api/bar1` rend désormais `previous_bar1` et accepte `{"clear": true}`.
+   Une sauvegarde qui échoue affiche « ⚠ Pas enregistré · Réessayer » (avant :
+   `catch(e){}`, le toast « Gardé » mentait). **Ne défait pas** : la ligne déjà
+   ajoutée au registre des corrections (`state/human/corrections/`) ; annuler
+   un tempo/mesure 1 relance une analyse complète (~1 min) ; l'annulation se
+   perd si on quitte l'écran avant qu'elle expire. Les routes `removed` et
+   `previous_bar1` demandent un **redémarrage du serveur**. Trouvé en route :
+   l'écran de chargement (`analyse.js`) est encore en anglais (« listening to the
+   track », « Open the chart ») — hors des cinq écrans demandés, pas touché.
 
 ## Transposer puis verrouiller un accord réécrivait les annotations (2026-10-01, RÉSOLU)
 

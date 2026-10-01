@@ -54,6 +54,18 @@ def _write_mark(stem: str, **fields) -> None:
         json.dumps(mark), encoding="utf-8")
 
 
+def _drop_mark(stem: str, key: str) -> None:
+    """Retire UN champ du sidecar de marques (les autres restent)."""
+    import json
+    mark = _read_mark(stem)
+    if key not in mark:
+        return
+    mark.pop(key)
+    SETTINGS.marks_dir.mkdir(parents=True, exist_ok=True)
+    (SETTINGS.marks_dir / f"{stem}.json").write_text(
+        json.dumps(mark), encoding="utf-8")
+
+
 @bp.post("/api/analyze")
 def api_analyze():
     url = (request.get_json(silent=True) or {}).get("url", "")
@@ -79,8 +91,10 @@ def api_bar1(file):
     from whatever chart happens to be on disk.
     """
     import json
-    t = (request.get_json(silent=True) or {}).get("t")
-    if t is None:
+    body = request.get_json(silent=True) or {}
+    t = body.get("t")
+    clear = bool(body.get("clear"))
+    if t is None and not clear:
         return jsonify({"error": "no t"})
     p = CHARTS_DIR / f"{Path(file).stem}.json"
     if not p.exists():
@@ -88,9 +102,18 @@ def api_bar1(file):
     model = json.loads(p.read_text(encoding="utf-8"))
     stem = Path(model.get("audio_url") or "").stem or \
         Path(file).stem.removeprefix("min_")
-    _write_mark(stem, bar1=float(t))
-    job_id = start_job(stem, title=model.get("title") or "", bar1_time=float(t))
-    return jsonify({"job_id": job_id})
+    # La marque d'AVANT, rendue au client : c'est ce qui permet « Annuler »
+    # (2026-10-01, audit UX) — reposer cette valeur, ou `{"clear": true}` si
+    # il n'y en avait pas (revenir au départ détecté par le pipeline).
+    previous = _read_mark(stem).get("bar1")
+    if clear:
+        _drop_mark(stem, "bar1")
+        job_id = start_job(stem, title=model.get("title") or "")
+    else:
+        _write_mark(stem, bar1=float(t))
+        job_id = start_job(stem, title=model.get("title") or "",
+                           bar1_time=float(t))
+    return jsonify({"job_id": job_id, "previous_bar1": previous})
 
 
 @bp.post("/api/tempo/<file>")

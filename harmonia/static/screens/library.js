@@ -400,15 +400,16 @@ export function openMetaSheet(c){
   // way back if you tap it by mistake. Optimistic remove + a few seconds to
   // undo is the standard, gentler mobile pattern — the actual server DELETE
   // only fires once the window lapses.
-export function showUndoSnackbar(msg, onUndo){
+export function showUndoSnackbar(msg, onUndo, opts){
+    opts=opts||{};
     if(S._undoBox) S._undoBox.remove();
     const box=el("div",`position:absolute;left:16px;right:16px;bottom:calc(100px + env(safe-area-inset-bottom));z-index:70;display:flex;align-items:center;justify-content:space-between;gap:14px;background:${T.deep};color:#fff;font:600 13px ${UI};padding:12px 12px 12px 16px;border-radius:14px;box-shadow:0 10px 26px -10px rgba(0,0,0,.5);animation:ap-in .25s both;`);
     box.appendChild(el("div","flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;",msg));
-    const undoBtn=el("button",`flex:0 0 auto;border:none;background:transparent;color:${T.amber||"#c58a2e"};font:700 13px ${UI};cursor:pointer;padding:6px 4px;`,"Undo");
+    const undoBtn=el("button",`flex:0 0 auto;border:none;background:transparent;color:${T.amber||"#c58a2e"};font:700 13px ${UI};cursor:pointer;padding:6px 4px;`,opts.label||"Annuler");
     undoBtn.onclick=()=>{ clearTimeout(box._t); box.remove(); S._undoBox=null; onUndo(); };
     box.appendChild(undoBtn);
     root.appendChild(box); S._undoBox=box;
-    box._t=setTimeout(()=>{ box.style.opacity="0"; box.style.transition="opacity .3s"; setTimeout(()=>{ box.remove(); if(S._undoBox===box) S._undoBox=null; },300); },5000);
+    box._t=setTimeout(()=>{ box.style.opacity="0"; box.style.transition="opacity .3s"; setTimeout(()=>{ box.remove(); if(S._undoBox===box) S._undoBox=null; },300); },opts.ms||5000);
   }
 export function deleteChart(r){
     S.library=S.library.filter(x=>x.file!==r.file);
@@ -416,7 +417,7 @@ export function deleteChart(r){
     // aussi de son dossier toute seule (le filtre roule sur S.library)
     if(S.screen==="charts") paintChartList(); else go("library",{push:false});
     const t=setTimeout(()=>{ api.del("/api/chart/"+r.file).catch(()=>{}); },5000);
-    showUndoSnackbar(`Deleted "${r.title}"`, ()=>{
+    showUndoSnackbar(`Supprimé « ${r.title} »`, ()=>{
       clearTimeout(t);
       S.library.push(r);
       if(S.screen==="charts") paintChartList(); else go("library",{push:false});
