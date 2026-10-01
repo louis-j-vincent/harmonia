@@ -71,6 +71,19 @@ def run(p, name):
     check("Partager" not in pg.inner_text("body"), f"{name} #23 Réglages sheet no longer has Partager")
     pg.screenshot(path=pre + "_23_reglages.png")
     tap(pg.get_by_role("button", name="Fermer").first); pg.wait_for_timeout(300)
+    # ---- #24
+    tap(pg.get_by_role("button", name="Réglages").first); pg.wait_for_timeout(400)
+    sm = pg.locator("summary").first
+    check("Plus de réglages" in sm.inner_text(), f"{name} #24 summary says « Plus de réglages »")
+    bb = sm.bounding_box(); check(bb["height"] >= 44, f"{name} #24 summary >= 44 high {bb['height']}")
+    col = sm.evaluate("e=>getComputedStyle(e).color"); ink = pg.evaluate("async()=>{const {T}=await import('/static/ui/kit.js'); return T.ink}")
+    print("     summary colour", col, "ink", ink)
+    pg.screenshot(path=pre + "_24_closed.png", clip={"x": 0, "y": 560, "width": 390, "height": 284})
+    tap(sm); pg.wait_for_timeout(400)
+    check(sm.inner_text().strip().startswith("▾"), f"{name} #24 chevron turns")
+    pg.screenshot(path=pre + "_24_open.png")
+    ev("S._prefsPlusOpen=false")
+    tap(pg.get_by_role("button", name="Fermer").first); pg.wait_for_timeout(300)
     check(not errs, f"{name} no page errors: {errs}")
     return pg, tap, ev, pre
 

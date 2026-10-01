@@ -61,7 +61,7 @@ with sync_playwright() as p:
         pg.wait_for_timeout(900)
         check(ev("return S.playBar") == 5, "playhead on the tapped bar (%s)" % ev("return [S.playBar, S.bars[5].tspans, S.audio&&S.audio.currentTime, S.tapSeek]"))
         check(pg.evaluate("(bi)=>document.querySelector(`[data-bar=\"${bi}\"]`).children.length", 5) > 0, "bar still intact after flash")
-        pg.get_by_label("Réglages").click(); pg.wait_for_timeout(400); pg.get_by_text("Plus…").click(); pg.wait_for_timeout(300)
+        pg.get_by_label("Réglages").click(); pg.wait_for_timeout(400); pg.get_by_text("Plus de réglages").click(); pg.wait_for_timeout(300)
         txt = pg.locator("body").inner_text()
         check("Taper une mesure en Lire" in txt and "Curseur" in txt and "Toucher une mesure" not in txt, "setting renamed (Taper une mesure en Lire : Curseur / Accord)")
         pg.screenshot(path=f"{PRE}_{name}_reglage.png")

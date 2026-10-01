@@ -412,9 +412,13 @@ export function kitPlusFold(isOpen, onToggle, opts){
     opts = opts || {};
     const plus=el("details",`border-top:1px solid ${T.line};padding-top:4px;`);
     plus.open=!!isOpen;
-    const sum=el("summary",`font:600 13px ${UI};color:${T.faint};cursor:pointer;min-height:${SZ.control}px;display:flex;align-items:center;gap:6px;list-style:none;`);
+    // UX #24 : lisible comme une COMMANDE — encre (pas le gris « faint » d'un
+    // titre), 44 px, « Plus de réglages » + chevron. (annotate.js garde ses deux
+    // copies en ligne de ce résumé : à aligner par son propriétaire.)
+    const sum=el("summary",`font:600 14px ${UI};color:${T.ink};cursor:pointer;min-height:${SZ.control}px;display:flex;align-items:center;gap:6px;list-style:none;`);
+    sum.style.webkitTapHighlightColor="transparent";
     const chev=el("span",`display:inline-block;width:16px;font:700 16px ${UI};line-height:1;`,plus.open?"▾":"▸");
-    sum.appendChild(chev); sum.appendChild(el("span","","Plus…"));
+    sum.appendChild(chev); sum.appendChild(el("span","",(opts.label||"Plus de réglages")));
     plus.appendChild(sum);
     plus.ontoggle=()=>{ chev.textContent=plus.open?"▾":"▸"; if(onToggle) onToggle(plus.open); };
     const more=el("div",`display:flex;flex-direction:column;gap:14px;padding-top:${opts.pad==null?6:opts.pad}px;`);
