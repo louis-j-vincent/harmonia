@@ -588,7 +588,7 @@ export function chartToolbar(){
     const meta=el("button",
       `display:inline-flex;align-items:center;gap:6px;border:none;min-height:${SZ.control}px;`+
       `margin:-9px 0 -11px;background:none;padding:0;font:500 13px ${UI};color:${T.faint};cursor:pointer;`);
-    meta.appendChild(el("span",`color:${T.ink};font-weight:600;`, note(S.key)+" "+(S.keyMode||"major")));
+    meta.appendChild(el("span",`color:${T.ink};font-weight:600;`, note(S.key)+" "+(S.keyMode==="minor"?"mineur":"majeur")));   // comme la bibliothèque (« B♭ majeur »), UX #13a
     if(m && m.form){ meta.appendChild(el("span","","·")); meta.appendChild(el("span","",m.form)); }
     meta.appendChild(el("span",`color:${T.accent};`,"↻"));
     meta.setAttribute("aria-label","Transposer");
@@ -603,7 +603,10 @@ export function chartToolbar(){
     if(S.mode==="annotate")
       bar.appendChild(kitIcon("···", openAnnotateTools, "Outils",
                               {style:`border:1px solid ${T.accent};color:${T.accent};`}));
-    bar.appendChild(kitIcon("Aa", openPrefsSheet, "Réglages", {serif:true}));
+    // « Aa » ne disait pas « réglages » (UX #13a, 2026-10-01) : le bouton porte
+    // maintenant le mot de la feuille qu'il ouvre. 44 px de haut, pilule.
+    bar.appendChild(kitIcon("Réglages", openPrefsSheet, "Réglages",
+                            {style:`width:auto;padding:0 13px;border-radius:${SZ.control/2}px;font:600 13px ${UI};`}));
     return bar;
   }
 
@@ -983,7 +986,8 @@ export function renderChart(){
       // (Louis, 2026-07-30: the timeline lives in the chart, never folded away).
       const rail=buildFormRail(); if(rail) w.appendChild(rail);
       if(S.mode==="analyse") w.appendChild(analyseLens());
-      if(S.mode==="annotate") w.appendChild(annotateHint());
+      // L'outil de sections a sa propre consigne : un seul indice à l'écran (UX #13a).
+      if(S.mode==="annotate" && !sectToolOn()) w.appendChild(annotateHint());
     } else {
       w.appendChild(immersiveProgress());
       // LA FORME NE SE REPLIE JAMAIS (Louis, 2026-09-18 : « le overhead view

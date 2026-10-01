@@ -81,6 +81,16 @@ with sync_playwright() as p:
         check(zs[0] > 0 and zs[1] == 0, "Annotate tap zones disjoint (%d zones, %d overlaps)" % tuple(zs))
         pg.evaluate("()=>{const c=document.querySelector('[data-fit]'); c&&c.scrollIntoView({block:'center'})}"); pg.wait_for_timeout(300)
         pg.screenshot(path=f"{PRE}_{name}_annotate_dense.png")
+        # --- #13a : en-tête en français, bouton « Réglages », un seul indice avec l'outil de sections
+        head = pg.locator("button[aria-label=Transposer]").inner_text()
+        check("mineur" in head and "minor" not in head, "header key in French (%r)" % head.strip())
+        rb = pg.get_by_label("Réglages"); bb = rb.bounding_box()
+        check(rb.inner_text().strip() == "Réglages" and bb["height"] >= 44 and bb["x"] + bb["width"] <= 390, "« Réglages » button: word, >=44px tall, inside 390px (%dx%d @%d)" % (bb["width"], bb["height"], bb["x"]))
+        hint = "touche un accord pour l'écouter"
+        check(hint in pg.evaluate("document.body.innerText"), "annotate hint shown in Corriger")
+        pg.get_by_text("···").first.click(); pg.wait_for_timeout(400); pg.get_by_text("Redessiner les sections").first.click(); pg.wait_for_timeout(1500)
+        check(hint not in pg.evaluate("document.body.innerText"), "annotate hint hidden while the sections tool is open")
+        pg.evaluate("window.scrollTo(0,0)"); pg.screenshot(path=f"{PRE}_{name}_sections.png")
         check(not errs, "no page errors " + str(errs)); check(not posts, "no POST " + str(posts))
         b.close()
 print("FAILS:", fails); sys.exit(1 if fails else 0)
