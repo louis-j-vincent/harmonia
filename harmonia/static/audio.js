@@ -264,6 +264,18 @@ export function syncTransport(screen){
       S.audio.playsInline=true; try{ S.audio.setAttribute("playsinline",""); S.audio.setAttribute("webkit-playsinline",""); }catch(e){}
       S.audio.src=S.audioUrl; S._audioSrc=S.audioUrl;
       applyPlayRate();   // a fresh Audio() resets playbackRate to 1
+      // « Reprendre · mesure 40 » (UX #39) : l'élément n'est pas dans le DOM,
+      // donc un écouteur posé sur `document` n'entend jamais ses événements
+      // (vérif. 2026-10-01 : rien n'était enregistré en vrai). On branche ici
+      // le crochet que pose library.js (S._notePos), sans import circulaire.
+      { const a=S.audio, np=force=>{ if(S._notePos && S.audio===a) S._notePos(a,force); };
+        a.addEventListener("timeupdate",()=>{ if(!a.paused) np(false); });
+        a.addEventListener("pause",()=>np(true));
+        a.addEventListener("seeked",()=>{ if(a.paused) np(true); });
+        a.addEventListener("ended",()=>np(true));
+        if(S._resumeAt!=null){ const r=S._resumeAt, t=r.t; S._resumeAt=null;   // lié au fichier : jamais appliqué à un autre morceau
+          const go2=()=>{ if(S.audio!==a || !S.model || S.model.file!==r.f) return; const d=totalDur(); if(d>0) seekFrac(t/d); };
+          if(a.readyState>=1) go2(); else a.addEventListener("loadedmetadata",go2,{once:true}); } }
       // iOS INSTALLED-app (home-screen standalone) media stall — on-device
       // triage 2026-08-02: in a Safari TAB everything plays (raw fetch OK,
       // native <audio> OK, this exact new Audio()+load()+play() pattern OK,

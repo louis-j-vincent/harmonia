@@ -100,6 +100,7 @@ export function noterPosition(a, force){
       localStorage.setItem(POS_KEY+f, JSON.stringify({t:Math.round(t*10)/10, bar:bi+1}));
     }catch(e){}
   }
+S._notePos=noterPosition;   // branché sur S.audio par audio.js (l'élément n'est pas dans le DOM)
 if(typeof document!=="undefined" && !window.__harmPosInstalle){
     window.__harmPosInstalle=true;
     document.addEventListener("timeupdate",e=>{ if(e.target && e.target.tagName==="AUDIO" && !e.target.paused) noterPosition(e.target,false); },true);
@@ -152,7 +153,10 @@ export function renderLibrary(){
       }
       cont.appendChild(ct);
       cont.appendChild(el("span",`flex:0 0 auto;font:400 24px ${UI};color:${T.rule};`,"›"));
-      cont.onclick=()=>openChart(last.file);
+      // La carte dit « mesure 42 » : elle doit aussi y RAMENER (vérif. 2026-10-01 —
+      // elle ouvrait le chart au début). audio.js consomme S._resumeAt dès que
+      // l'élément connaît sa durée.
+      cont.onclick=()=>{ S._resumeAt=pos?{f:last.file,t:pos.t}:null; openChart(last.file); };
       body.appendChild(cont);
     }
     // porte 1 — chercher. Le champ est DANS la carte: on ne fait pas taper
