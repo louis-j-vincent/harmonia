@@ -2032,22 +2032,33 @@ export function buildIReal(){
         // petit texte, pas comme un accord) et `T.faint` au lieu de
         // `T.accent` — le rouge rivalisait avec les sections/reprises/tête de
         // lecture, qui le réservent ; en gris elle se lit comme une note en
-        // marge. Rajusté le même jour (Louis : « un peu plus petit, et à
-        // droite comme dans irealb »), PUIS ancrée à la MESURE, pas au glyphe
-        // (Louis : « il ne devrait pas déborder quand la cellule devient +
-        // petite, il devrait toujours être placé en haut à droite avec le
-        // même décalage au sein de chaque barre ») — un accord seul sur le
-        // temps 1 se centre dans sa mesure (`justify-self:center` ci-dessus),
-        // donc `right:0` posé sur SON glyphe tombait n'importe où selon la
-        // largeur de ce glyphe-là, jamais au même endroit d'une mesure à
-        // l'autre. Posée sur `cell` (position:relative dès sa création) avec
-        // un décalage fixe, elle est donc désormais indépendante du nombre
-        // et de la largeur des accords de la mesure.
+        // marge. Essayé le même jour, ancrée à la MESURE plutôt qu'au glyphe
+        // (un accord seul sur le temps 1 se centre dans sa mesure, donc
+        // `right:0` posé sur SON glyphe tombait n'importe où) — REVENU EN
+        // ARRIÈRE : Louis la voulait au-dessus de CHAQUE accord suggéré, pas
+        // au coin de la mesure (« un petit accord en haut à droite de chaque
+        // accord suggéré, et moins à droite complètement, comme irealb »).
+        // Posée sur `gw` (le glyphe), donc, mais plus à son bord exact :
+        // `right:20%` au lieu de `right:0` la tire vers son centre, en
+        // proportion de SA propre largeur — ni collée à l'arête (le defaut
+        // d'avant), ni fixée en pixels (qui aurait recréé l'incohérence
+        // selon la largeur du glyphe, cette fois dans l'autre sens).
         if(ch.var) {
-          const vw=el("span",`position:absolute;top:calc(${rowPT}px + 3px);right:3px;opacity:1;pointer-events:none;line-height:1;white-space:nowrap;text-align:right;z-index:2;`);
+          const vw=el("span","position:absolute;right:20%;bottom:calc(100% + 3px);opacity:1;pointer-events:none;line-height:1;white-space:nowrap;text-align:right;z-index:2;");
           vw.appendChild(G(ch.var.root,dispQ(ch.var.q),narrow?15:17,"exact",T.faint,
             (ch.var.bass==null?-1:ch.var.bass)));
-          cell.appendChild(vw);
+          gw.appendChild(vw);
+          // LA MESURE RÉSERVE PARFOIS MOINS QUE CE QU'IL FAUT (trouvé au
+          // rendu, 2026-10-01) : une rangée « 1re/2e fin » (`endingPadTop`,
+          // plus haut) ne réserve que 9/11px en haut, pensés pour SA propre
+          // étiquette — pas pour une petite lecture (~17-20px avec sa
+          // marge), qui traversait alors la ligne rouge de section. Une
+          // rangée de nouvelle section réserve déjà 22+px, largement assez.
+          // On ne réduit jamais ce qui existe, on ne fait que l'agrandir SI
+          // cette mesure porte réellement une petite lecture.
+          const need=(narrow?15:17)+6;
+          const have=parseFloat(cell.style.paddingTop)||0;
+          if(have<need) cell.style.paddingTop=`${need}px`;
         }
         if(S.learn&&(dq!==ch.q||bassHidden)) item.appendChild(el("span",`font:600 8px ${UI};color:${T.amber};`,"simplifié"));
         // LA RANGÉE DE MARQUE (T4, 2026-08-19). Une seule rangée sous le
