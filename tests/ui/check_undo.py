@@ -77,7 +77,8 @@ with sync_playwright() as p:
     # --- 3. recoller + undo (a model 2-chord bar)
     two = ev("return S.bars.map((b,i)=>[i,b.idxs]).find(([i,x])=>x.length===2&&!x.some(j=>S.chords[j].added||S.chords[j].confirmed))")
     tap_chord(two[1][0]); cut_btn().click(); pg.wait_for_timeout(400)
-    pg.get_by_role("button", name=re.compile("^Recoller")).click(); pg.wait_for_timeout(500)
+    pg.get_by_role("button", name=re.compile("^Recoller")).click(); pg.wait_for_timeout(400)
+    pg.locator("[data-keep-idx]").first.click(); pg.wait_for_timeout(500)   # « garder lequel ? » : le premier
     check(snack().count() == 1 and ev("return S.bars[a].idxs.length", two[0]) == 1, "« Annuler » appears after gluing a bar")
     snack().click(); pg.wait_for_timeout(500)
     check(ev("return S.bars[a].idxs.length", two[0]) == 2 and annots[-1]["removed"] == [], "undo brings the second chord back and clears `removed`")

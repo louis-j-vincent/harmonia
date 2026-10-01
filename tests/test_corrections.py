@@ -136,3 +136,56 @@ def test_compter_repond_a_en_a_t_on_assez():
     c = corrections.compter()
     assert c["total"] == 2 and c["morceaux"] == 2
     assert c["par_type"] == {"accord": 1, "section": 1}
+
+
+# ── « Annuler » retire aussi la ligne du registre (UX #12, 2026-10-01) ─────
+# Le registre reste en AJOUT SEUL : annuler ajoute une ligne « annulation »
+# qui nomme les `id` défaits ; `lire()` saute les deux. Aucune ligne n'est
+# réécrite, et le brut reste sur disque.
+
+def test_chaque_ligne_d_accord_porte_un_id_rendu_a_l_appelant():
+    ids = []
+    corrections.note_corrections_accords(
+        "min_essai", _chart(),
+        [{"bar": 0, "beat": 0, "root": 5, "q": "min", "bass": -1}], ids=ids)
+    (ligne,) = corrections.lire("min_essai")
+    assert ids == [ligne["id"]]
+
+
+def test_annuler_masque_la_ligne_sans_rien_reecrire(registre_temporaire):
+    ids = []
+    corrections.note_corrections_accords(
+        "min_essai", _chart(),
+        [{"bar": 0, "beat": 0, "root": 5, "q": "min", "bass": -1}], ids=ids)
+    corrections.note_corrections_accords(
+        "min_essai", _chart(),
+        [{"bar": 1, "beat": 0, "root": 2, "q": "", "bass": -1}])
+    f = registre_temporaire / "min_essai.jsonl"
+    avant = f.read_text()
+    assert corrections.annuler("min_essai", ids) is True
+    apres = f.read_text()
+    assert apres.startswith(avant)            # ajout seul : le début est intact
+    lignes = corrections.lire("min_essai")
+    assert [l["mesure"] for l in lignes] == [1]
+    assert corrections.compter()["total"] == 1
+    assert len(corrections.lire("min_essai", brut=True)) == 3
+
+
+def test_post_annule_puis_la_sauvegarde_d_annulation_ne_note_rien(
+        tmp_path, monkeypatch):
+    from harmonia import annotations as an
+    from harmonia.server import app as srv
+    from harmonia.server.routes import annotate as route
+    monkeypatch.setattr(an, "ANNOT_DIR", tmp_path / "annotations")
+    chart = _chart()
+    (tmp_path / "min_essai.json").write_text(json.dumps(chart))
+    monkeypatch.setattr(route, "CHARTS_DIR", tmp_path)
+    c = srv.app.test_client()
+    body = {"chords": [{"bar": 0, "beat": 0, "root": 5, "q": "min", "bass": -1}]}
+    r = c.post("/api/annotations/min_essai", json=body).get_json()
+    assert len(r["ledger_ids"]) == 1
+    assert len(corrections.lire("min_essai")) == 1
+    r2 = c.post("/api/annotations/min_essai",
+                json={"chords": [], "annule": r["ledger_ids"]}).get_json()
+    assert r2["ledger_ids"] == []
+    assert corrections.lire("min_essai") == []

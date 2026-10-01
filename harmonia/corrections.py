@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -108,8 +109,20 @@ def noter(stem: str, quoi: str, ligne: dict) -> bool:
         return False
 
 
-def lire(stem: str | None = None) -> list[dict]:
+def annuler(stem: str, ids: list[str]) -> bool:
+    """« Annuler » dans l'app : AJOUTE une ligne `annulation` qui nomme les
+    `id` défaits. Rien n'est réécrit (le registre reste en ajout seul) ;
+    `lire()` saute les lignes annulées et la ligne d'annulation elle-même,
+    `lire(brut=True)` rend tout. Rend False si rien à annuler ou écriture KO.
+    """
+    ids = [str(i) for i in (ids or []) if i]
+    return bool(ids) and noter(stem, "annulation", {"annule": ids})
+
+
+def lire(stem: str | None = None, brut: bool = False) -> list[dict]:
     """Les corrections d'un morceau, ou de toute la bibliothèque.
+
+    Les corrections ANNULÉES (voir `annuler`) sont masquées, sauf `brut=True`.
 
     Une ligne illisible est SAUTÉE et signalée : un fichier en ajout seul peut
     toujours porter une écriture interrompue, et perdre tout le registre pour
@@ -120,14 +133,19 @@ def lire(stem: str | None = None) -> list[dict]:
     for f in fichiers:
         if not f.exists():
             continue
-        for n, brut in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
-            if not brut.strip():
+        for n, texte in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
+            if not texte.strip():
                 continue
             try:
-                out.append(json.loads(brut))
+                out.append(json.loads(texte))
             except ValueError:
                 log.warning("registre %s ligne %d illisible, sautée", f.name, n)
-    return out
+    if brut:
+        return out
+    defaites = {i for l in out if l.get("quoi") == "annulation"
+                for i in l.get("annule") or []}
+    return [l for l in out
+            if l.get("quoi") != "annulation" and l.get("id") not in defaites]
 
 
 def compter() -> dict:
@@ -169,12 +187,16 @@ def accords_du_chart(model: dict) -> dict:
     return out
 
 
-def note_corrections_accords(stem: str, model: dict, fixes: list[dict]) -> int:
+def note_corrections_accords(stem: str, model: dict, fixes: list[dict],
+                             ids: list | None = None) -> int:
     """Compare ses accords confirmés à ce que la machine avait écrit.
 
     Rend le nombre de lignes ajoutées. Un accord qu'il confirme SANS le
     changer n'est pas une correction — c'est un accord validé, et ça n'apprend
     rien sur les erreurs de la machine ; on ne l'enregistre pas.
+
+    `ids` (optionnel) reçoit l'`id` de chaque ligne ajoutée : c'est ce que
+    l'app renvoie pour « Annuler » (voir `annuler`).
     """
     machine = accords_du_chart(model)
     ordre = sorted(machine)
@@ -192,7 +214,9 @@ def note_corrections_accords(stem: str, model: dict, fixes: list[dict]) -> int:
                                   and bool(avant.get("nc")) == apres["nc"]):
             continue                       # confirmé à l'identique : rien appris
         i = ordre.index(cle) if cle in ordre else None
-        n += noter(stem, "accord", {
+        ligne_id = uuid.uuid4().hex[:12]
+        ok = noter(stem, "accord", {
+            "id": ligne_id,
             "mesure": cle[0], "temps": cle[1],
             "t0": (avant or {}).get("t0"), "t1": (avant or {}).get("t1"),
             "avant": None if avant is None else {
@@ -212,6 +236,9 @@ def note_corrections_accords(stem: str, model: dict, fixes: list[dict]) -> int:
                            if i is not None and i + 1 < len(ordre) else None,
                 "section": _section_de(model, cle[0]),
             }})
+        n += ok
+        if ok and ids is not None:
+            ids.append(ligne_id)
     if n:
         log.info("registre : %d correction(s) d'accord notée(s) pour %s", n, stem)
     return n

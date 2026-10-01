@@ -55,17 +55,28 @@ def save_annotations(file):
     #
     # Le registre ne doit JAMAIS faire échouer une sauvegarde : son annotation
     # est le travail, la ligne de registre n'est qu'une trace.
+    #
+    # « Annuler » (UX #12) : la réponse porte `ledger_ids`, les id des lignes
+    # que CETTE sauvegarde a ajoutées ; l'undo les renvoie dans `annule` avec
+    # la sauvegarde qui restaure l'état d'avant. Cette sauvegarde-là ne note
+    # rien (elle ne fait que remettre des accords déjà notés) et ajoute une
+    # ligne « annulation » — le registre reste en ajout seul.
+    ledger_ids: list[str] = []
     try:
         from harmonia import corrections
-        p = CHARTS_DIR / f"{Path(file).stem}.json"
-        if p.exists():
-            corrections.note_corrections_accords(
-                Path(file).stem, json.loads(p.read_text(encoding="utf-8")),
-                saved.get("chords") or [])
+        stem = Path(file).stem
+        if doc.get("annule"):
+            corrections.annuler(stem, doc["annule"])
+        elif doc.get("annule") is None:
+            p = CHARTS_DIR / f"{stem}.json"
+            if p.exists():
+                corrections.note_corrections_accords(
+                    stem, json.loads(p.read_text(encoding="utf-8")),
+                    saved.get("chords") or [], ids=ledger_ids)
     except Exception:                                        # noqa: BLE001
         log.exception("registre des corrections : accords non notés pour %s",
                       file)
-    return jsonify(saved)
+    return jsonify({**saved, "ledger_ids": ledger_ids})
 
 
 @bp.get("/api/annotations/<file>")

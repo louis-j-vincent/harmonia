@@ -78,7 +78,8 @@ with sync_playwright() as p:
     # --- C. recoller an ADDED chord: it just leaves `chords`, no marker
     tap_chord(idx)
     pg.get_by_role("button", name=re.compile("^Couper la mesure")).click(); pg.wait_for_timeout(400)
-    pg.get_by_role("button", name=re.compile("^Recoller")).click(); pg.wait_for_timeout(500)
+    pg.get_by_role("button", name=re.compile("^Recoller")).click(); pg.wait_for_timeout(400)
+    pg.locator("[data-keep-idx]").first.click(); pg.wait_for_timeout(500)   # « garder lequel ? » : le premier
     st = ev("const bi=S.bars.findIndex(b=>b.idxs.includes(a)); return {n:S.bars[bi].idxs.length, t1:S.chords[a].t1}", idx)
     check(st["n"] == 1 and abs(st["t1"] - before["t1"]) < 1e-6, "recoller: one chord again, full length back")
     check(not any(c["beat"] == 2 and c["bar"] == sent[0]["bar"] for c in posts[-1]["chords"]) and posts[-1]["removed"] == [], "recoller of an added chord: gone from chords, no marker")
@@ -90,7 +91,8 @@ with sync_playwright() as p:
     tap_chord(first)
     pg.get_by_role("button", name=re.compile("^Couper la mesure")).click(); pg.wait_for_timeout(400)
     pg.screenshot(path=(sys.argv[2] if len(sys.argv) > 2 else "/tmp/cut.png").replace(".png", "_recoller.png"))
-    pg.get_by_role("button", name=re.compile("^Recoller")).click(); pg.wait_for_timeout(500)
+    pg.get_by_role("button", name=re.compile("^Recoller")).click(); pg.wait_for_timeout(400)
+    pg.locator("[data-keep-idx]").first.click(); pg.wait_for_timeout(500)   # « garder lequel ? » : le premier
     check(posts[-1]["removed"] == [{"bar": c2["bar"], "beat": c2["beat"]}], f"recoller of a model chord records it in `removed` ({posts[-1]['removed']})")
     check(ev("return S.bars[a].idxs.length", two[0]) == 1, "bar shows one chord")
     check(not errs, f"no console errors {errs[:2]}")

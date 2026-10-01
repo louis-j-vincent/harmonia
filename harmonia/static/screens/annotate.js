@@ -70,26 +70,31 @@ export function maybeShowPendingUndo(){
      accords, on garde une copie de ce que le disque est censé contenir : les
      champs de chaque accord, la liste des accords de chaque mesure, les
      accords « recollés ». « Annuler » remet cette copie en place et réécrit
-     le sidecar. Ce que ça ne défait PAS : la ligne ajoutée au registre des
-     corrections (state/human/corrections/, journal pour apprendre de toi). */
+     le sidecar. La ligne ajoutée au registre des corrections
+     (state/human/corrections/) est défaite aussi : la sauvegarde d'origine
+     rend les `ledger_ids` de ses lignes, l'undo les renvoie dans `annule` et
+     le serveur AJOUTE une ligne « annulation » (le registre reste en ajout
+     seul ; la sauvegarde d'annulation ne note rien). */
 function snapAnnot(){
     return { chords:S.chords.map(c=>Object.assign({},c)),
              bars:S.bars.map(b=>b.idxs.slice()),
              removed:(S.model.removed||[]).map(r=>Object.assign({},r)),
              pending:S.pending.slice() };
   }
-function restoreAnnot(sn){
+async function restoreAnnot(sn, saved){
+    let ids=[];
+    try{ const r=await saved; ids=(r && r.ledger_ids) || []; }catch(e){}
     S.chords.splice(0, S.chords.length, ...sn.chords.map(c=>Object.assign({},c)));
     S.bars.forEach((b,i)=>{ b.idxs=sn.bars[i].slice(); });
     S.model.removed=sn.removed.map(r=>Object.assign({},r));
     S.pending=sn.pending.slice();
     S._vlBump=(S._vlBump||0)+1;
-    saveAnnotations();
+    saveAnnotations({annule:ids});
     go("chart");
     toast("Annulé");
   }
-function offrirAnnuler(msg, sn){
-    showUndoSnackbar(msg, ()=>restoreAnnot(sn), {ms:6000});
+function offrirAnnuler(msg, sn, saved){
+    showUndoSnackbar(msg, ()=>restoreAnnot(sn, saved), {ms:6000});
   }
 
 /* DÉVERROUILLER (UX #1, 2026-10-01) : un accord gardé redevient celui du
@@ -110,7 +115,8 @@ export async function deverrouillerChord(idx){
     const avant={bar:c.bar, beat:c.beat||0, root:c.root, q:c.q, bass:c.bass, bassPicked:c.bassPicked};
     if(S._closeEditor) S._closeEditor();
     c.confirmed=false;                 // saveAnnotations n'écrit que les gardés
-    await saveAnnotations();
+    const saved=saveAnnotations();
+    await saved;
     try{ await relireChart(); }catch(e){ toast("Rechargement impossible"); return; }
     showUndoSnackbar("Déverrouillé", async()=>{
       const j=trouverChord(avant.bar, avant.beat); if(j<0) return;
@@ -118,7 +124,8 @@ export async function deverrouillerChord(idx){
       if(avant.bassPicked && avant.bass>=0){ k.bass=avant.bass; k.bassPicked=true; }
       if(S.pending.indexOf(j)<0) S.pending.push(j);
       S._vlBump=(S._vlBump||0)+1;
-      await saveAnnotations(); go("chart"); toast("Annulé");
+      let ids=[]; try{ ids=((await saved)||{}).ledger_ids||[]; }catch(e){}
+      await saveAnnotations({annule:ids}); go("chart"); toast("Annulé");
     }, {ms:6000});
   }
 /* L'ordre dans lequel ‹ › parcourent les accords : celui du chart (mesure par
@@ -1085,9 +1092,9 @@ export function confirmChord(idx,root,q,bass){
     S._vlBump=(S._vlBump||0)+1;   // the cascade depends on this chord's quality
     if(S.pending.indexOf(idx)<0) S.pending.push(idx);
     if(S._closeEditor) S._closeEditor();
-    saveAnnotations();
+    const saved=saveAnnotations();
     go("chart");
-    offrirAnnuler(coupe?"Mesure coupée — nouvel accord gardé":"Gardé — cet accord ne bougera plus", sn);
+    offrirAnnuler(coupe?"Mesure coupée — nouvel accord gardé":"Gardé — cet accord ne bougera plus", sn, saved);
   }
   // ── COUPER LA MESURE / RECOLLER (Louis, 2026-10-01, audit UX B7-B9) ────────
   // Un seul outil à la place de « Split into two » (coupe au milieu seulement,
@@ -1133,8 +1140,8 @@ export function openCutBar(bi){
       "le nouvel accord reste à confirmer : tu l'écoutes, tu le choisis, puis tu le gardes"));
     if(bar.idxs.length>=2){
       const rb=el("button",`flex:0 0 auto;width:100%;border:1.5px solid ${T.rule};border-radius:12px;min-height:44px;padding:10px;font:600 13px ${UI};cursor:pointer;background:transparent;color:${T.ink};`,
-        "Recoller en un seul accord");
-      rb.onclick=()=>{ haptic(); close(); recollerBar(bi); };
+        "Recoller en un seul accord…");
+      rb.onclick=()=>{ haptic(); close(); choisirRecoller(bi); };
       sheet.appendChild(rb);
     }
     const cancel=el("button",`flex:0 0 auto;width:100%;margin-top:6px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:${SZ.control}px;cursor:pointer;`,"Fermer");
@@ -1142,16 +1149,54 @@ export function openCutBar(bi){
     sheet.appendChild(cancel);
     back.appendChild(sheet); root.appendChild(back);
   }
-  // Recoller : la mesure ne garde que son premier accord, qui reprend toute la
-  // durée. Les accords retirés restent dans S.chords (les index ne bougent
+  // Recoller : la mesure ne garde qu'UN accord — au choix (« garder lequel ? »),
+  // le premier par défaut — qui reprend toute la durée. Un accord autre que le
+  // premier est RECOPIÉ dans le créneau du premier (temps 1, verrouillé, basse
+  // comprise) : le serveur ne retire jamais le premier accord d'une mesure.
+  // Ce que ça ne fait pas : un « N.C. » ne peut pas être gardé à la place du
+  // premier accord (le sidecar n'a pas de champ N.C.), il n'est donc pas proposé. Les accords retirés restent dans S.chords (les index ne bougent
   // jamais) mais marqués `removed` ; côté disque, un accord ajouté à la main
   // n'a qu'à quitter `chords`, un accord du modèle entre dans `removed`
   // (annotations.py), seul moyen de le faire disparaître au rechargement.
-export function recollerBar(bi){
+export function choisirRecoller(bi){
+    const bar=S.bars[bi]; if(!bar || bar.idxs.length<2) return;
+    const order=bar.idxs.slice().sort((a,b)=>(S.chords[a].beat||0)-(S.chords[b].beat||0));
+    const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
+    const close=()=>closeOverlay(back);
+    sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,"Recoller : garder lequel ?"));
+    sheet.appendChild(el("div",`flex:0 0 auto;text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:14px;`,
+      "la mesure ne gardera que cet accord, sur toute sa durée"));
+    const row=el("div",`flex:0 0 auto;display:grid;grid-template-columns:repeat(${Math.min(order.length,4)},minmax(0,1fr));gap:6px;margin-bottom:12px;`);
+    order.forEach((ix,k)=>{
+      const c=S.chords[ix];
+      if(c.nc && k>0) return;
+      const b=el("button",`display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:72px;border:1.5px solid ${T.rule};border-radius:12px;background:${T.line};padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent;font:600 11px ${UI};color:${T.faint};`);
+      b.appendChild(el("div",`font:600 11px ${UI};color:${T.faint};`,"temps "+(Math.round(c.beat||0)+1)));
+      b.appendChild(c.nc?el("div",`font:italic 600 13px ${SERIF};color:${T.faint};`,"N.C.")
+                        :glyph(c.root,c.q,18,"exact",T.ink));
+      b.setAttribute("aria-label","Recoller sur "+(c.nc?"N.C.":note(c.root)+(TOK[c.q]!=null?TOK[c.q]:c.q)));
+      b.dataset.keepIdx=String(ix);
+      b.onclick=()=>{ haptic(); close(); recollerBar(bi, ix); };
+      row.appendChild(b);
+    });
+    sheet.appendChild(row);
+    const cancel=el("button",`flex:0 0 auto;width:100%;margin-top:6px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:${SZ.control}px;cursor:pointer;`,"Fermer");
+    cancel.onclick=close;
+    sheet.appendChild(cancel);
+    back.appendChild(sheet); root.appendChild(back);
+  }
+export function recollerBar(bi, keepIdx){
     const bar=S.bars[bi]; if(!bar || bar.idxs.length<2) return;
     const order=bar.idxs.slice().sort((a,b)=>(S.chords[a].beat||0)-(S.chords[b].beat||0));
     const sn=snapAnnot();
     const keep=S.chords[order[0]];
+    if(keepIdx!=null && keepIdx!==order[0] && order.includes(keepIdx)){
+      const k=S.chords[keepIdx];
+      keep.root=k.root; keep.q=k.q; keep.confirmed=true; keep.c=1; keep.nc=false;
+      if(k.bass>=0){ keep.bass=k.bass; keep.bassPicked=true; }
+      else { keep.bass=-1; keep.bassPicked=false; }
+      if(S.pending.indexOf(order[0])<0) S.pending.push(order[0]);
+    }
     const rest=order.slice(1);
     const end=Math.max(keep.t1, ...rest.map(i=>S.chords[i].t1));
     keep.spans=(keep.spans||[[keep.t0,keep.t1]]).map(([s0,s1])=>[s0, s1+(end-keep.t1)]);
@@ -1164,14 +1209,14 @@ export function recollerBar(bi){
     });
     bar.idxs=[order[0]];
     S._vlBump=(S._vlBump||0)+1;
-    saveAnnotations();
+    const saved=saveAnnotations();
     go("chart");
-    offrirAnnuler("Mesure recollée", sn);
+    offrirAnnuler("Mesure recollée", sn, saved);
   }
 
   // ── persistence (annotation sidecar; keyed on (bar,beat) per its schema) ──
-export async function saveAnnotations(){
-    if(!S.model) return;
+export async function saveAnnotations(opts){
+    if(!S.model) return null;
     // t0/t1 travel too (2026-07-20): a plain correction's (bar,beat) already
     // matches a real inferred chord so the server never needed timing from
     // the sidecar — but a SPLIT's new second-half chord has no matching raw
@@ -1194,12 +1239,15 @@ export async function saveAnnotations(){
     const rk=c=>c.bar+":"+(c.beat||0);
     const posed=new Set(chords.map(rk));
     const removed=(S.model.removed||[]).filter(r=>!posed.has(rk(r)));
-    try{ await api.post("/api/annotations/"+S.model.file, {annotator:"", chords, merges, removed}); }
+    const body={annotator:"", chords, merges, removed};
+    if(opts && opts.annule) body.annule=opts.annule;   // « Annuler » : le serveur défait ces lignes du registre
+    try{ return await api.post("/api/annotations/"+S.model.file, body); }
     catch(e){
       // JAMAIS en silence (audit UX B9) : le toast « Gardé » disait vrai même
       // quand l'écriture avait échoué. Le bouton renvoie tout l'état d'un coup
       // (la sauvegarde est un document entier, pas un journal : rien à rejouer).
       showUndoSnackbar("⚠ Pas enregistré sur le disque", ()=>saveAnnotations(), {label:"Réessayer", ms:15000});
+      return null;
     }
   }
 
