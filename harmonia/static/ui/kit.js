@@ -367,6 +367,18 @@ export function haptic(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms||6);
   // invent a fourth height.
 export const SZ = { primary:56, tab:48, control:44, radius:12, radiusLg:16 };
 
+  /* Les vitesses de lecture, UNE seule liste (UX #21) : la pastille du dock de
+     Lire (chart.js) et le réglage « Vitesse » de S'entraîner (practise.js, qui
+     peut importer celle-ci au lieu de sa copie locale) partagent S.playRate.
+     Virgule française. */
+export const PLAY_RATES = [[0.5,"0,5×"],[0.6,"0,6×"],[0.75,"0,75×"],[0.9,"0,9×"],[1,"1×"]];
+  /* Le libellé de la vitesse la plus proche de r. */
+export function rateLabel(r){
+    r=r||1; let best=PLAY_RATES[PLAY_RATES.length-1][1], bd=9;
+    PLAY_RATES.forEach(([v,l])=>{ const d=Math.abs(v-r); if(d<bd){ bd=d; best=l; } });
+    return best;
+  }
+
   // A control's three states, as a style fragment. `state`: "on" | "off" | "mute".
 export function ctlSkin(state){
     if(state==="on")   return `background:${T.accent};color:#fff;border:1.5px solid ${T.accent};`;

@@ -5,14 +5,14 @@
 
 
 import { api } from "../api.js";
-import { PLAYHEAD_LEAD_S, hitAtTime, playTick, loopEngineDispose, loopEngineStart, loopEngineToggle, nowTime, seekFrac, seekToBar, setPlayBtn, syncTransport, togglePlay, totalDur } from "../audio.js";
+import { PLAYHEAD_LEAD_S, applyPlayRate, hitAtTime, playTick, loopEngineDispose, loopEngineStart, loopEngineToggle, nowTime, seekFrac, seekToBar, setPlayBtn, syncTransport, togglePlay, totalDur } from "../audio.js";
 import { go, screenWrap } from "../router.js";
 import { applyRefinement } from "../screens/analyse.js";
 import { candList, maybeShowPendingUndo, openAnnotateTools, openEditor, openNewChord } from "../screens/annotate.js";
 import { openChordSheet, openPrefsSheet, openRotor, transposeTo } from "../screens/prefs.js";
 import { attachSectionDrag, buildSectionTool, closeSectionTool, paintSectionTool, sectToolOn, setPlayhead, spanTime } from "../screens/sections_editor.js";
 import { S } from "../state.js";
-import { PREF, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, ctlSkin, dispQ, el, fmt, fnColor, glyph, glyphEpure, pedalGlyph, handle, haptic, keyFill, keyHue, kitIcon, kitLegend, kitSegmented, learnLevel, lensLabelColor, mod, note, overlay, play, playGlyph, sheetBox, playMidis, playedLabel, qClass, renderHand, setSpelling, songTitle, splitHands, tightGap, tightSize, toast, vlTrack, voClose, voicingByStyle, withBass } from "../ui/kit.js";
+import { PLAY_RATES, PREF, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, ctlSkin, dispQ, el, fmt, fnColor, glyph, glyphEpure, pedalGlyph, handle, haptic, keyFill, keyHue, kitIcon, kitLegend, kitSegmented, learnLevel, lensLabelColor, mod, note, overlay, rateLabel, play, playGlyph, sheetBox, playMidis, playedLabel, qClass, renderHand, setSpelling, songTitle, splitHands, tightGap, tightSize, toast, vlTrack, voClose, voicingByStyle, withBass } from "../ui/kit.js";
 
 // The single DOM host div (`<div id="app">`) — there is exactly one call
 // site, `window.APP.build(document.getElementById("app"))` in main.js, so
@@ -733,6 +733,17 @@ export function chartDock(){
     row.appendChild(mid);
     S._dockFill=fill; S._dockNow=tNow; S._dockWhere=tWhere; S._dockEnd=tEnd;
 
+    // Vitesse (UX #21) : la même S.playRate que dans S'entraîner. Une pastille
+    // de 44 px dans le dock ; elle ouvre les vitesses (PLAY_RATES, kit.js).
+    const rate=el("button",
+      `flex:0 0 auto;min-width:${SZ.control}px;height:${SZ.control}px;padding:0 8px;`+
+      `border-radius:${SZ.radius}px;cursor:pointer;font:700 13px ${UI};`+
+      ctlSkin((S.playRate||1)===1?"off":"on"), rateLabel(S.playRate));
+    rate.setAttribute("aria-label","Vitesse de lecture");
+    rate.dataset.role="rate";
+    rate.onclick=openRateSheet;
+    row.appendChild(rate);   // UX #21
+
     const loop=el("button",
       `flex:0 0 auto;width:${SZ.primary}px;height:${SZ.primary}px;border-radius:${SZ.radiusLg}px;`+
       `cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;`+
@@ -774,6 +785,16 @@ export function chartDock(){
   // interval here only carries the DISPLAY: once the engine ping-pongs onto
   // its own elements, the chart's timeupdate listener (on the main audio,
   // now paused) goes silent.
+export function openRateSheet(){
+    const back=overlay(), sheet=sheetBox(); sheet.appendChild(handle());
+    sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:12px;`,"Vitesse"));
+    sheet.appendChild(kitSegmented(PLAY_RATES,
+      ()=>{ const r=S.playRate||1; let best=1,bd=9; PLAY_RATES.forEach(([v])=>{ const d=Math.abs(v-r); if(d<bd){ bd=d; best=v; } }); return best; },
+      v=>{ S.playRate=v; applyPlayRate(); closeOverlay(back); go("chart",{push:false}); },
+      {height:SZ.control, font:13}));   // UX #21
+    sheet.appendChild(el("div",`text-align:center;font:italic 12px ${SERIF};color:${T.faint};margin-top:10px;`,"la hauteur des notes ne change pas"));
+    back.appendChild(sheet); root.appendChild(back);
+  }
 export function chartLoopToggle(){
     if(S._loopEngine){
       if(S._chartLoopTimer){ clearInterval(S._chartLoopTimer); S._chartLoopTimer=null; }
