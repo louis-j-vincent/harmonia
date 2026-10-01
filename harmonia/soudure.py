@@ -916,6 +916,17 @@ def sections_pour_chart(chart: dict, secs: list[dict],
                         bars: list | None = None,
                         fold_report: dict | None = None,
                         fusion: int | None = None) -> list[dict]:
+    """Voir `_sections_pour_chart` ; toute la construction lit le cran
+    `fusion` (comparaisons « même accord », `roles.cran_de_fusion`)."""
+    from harmonia.roles import cran_de_fusion
+    with cran_de_fusion(fusion):
+        return _sections_pour_chart(chart, secs, bars, fold_report, fusion)
+
+
+def _sections_pour_chart(chart: dict, secs: list[dict],
+                         bars: list | None = None,
+                         fold_report: dict | None = None,
+                         fusion: int | None = None) -> list[dict]:
     """Les sections du chart, refaites à partir du découpage de la Soudure.
 
     `fusion` : le cran du curseur « fusion des sections »

@@ -40,13 +40,17 @@ FIN_LWU = [[_c(7, "7sus4")], [_c(7, "7")], [_c(0, "")], [_c(0, ""), _c(7, "-7", 
 def test_lost_without_u_est_le_dernier_tour_du_A():
     r = dernier_tour_partiel(FIN_LWU, A, DO)
     assert r is not None
-    assert r["ouverture"] == 3 and r["premiere_toleree"]
+    # depuis la mesure de ressemblance (2026-10-01), G7sus4 ≈ D-7 : la 1re
+    # mesure COLLE, elle n'a plus besoin d'être tolérée
+    assert r["ouverture"] == 3 and not r["premiere_toleree"]
     assert r["tenue"] == 2 and r["fondu"] == 2
 
 
 def test_une_seule_mesure_qui_colle_ne_suffit_pas():
     """1re mesure tolérée + UNE seule qui colle : pas assez de preuve."""
-    fin = [[_c(7, "7sus4")], [_c(7, "7")], [_c(9, "-7")], [_c(9, "-7")], [dict(NC)]]
+    # (B♭7 au lieu de G7sus4, E7 au lieu de A-7 : depuis 2026-10-01 G7sus4 ≈
+    # D-7 et A-7 ≈ C^7 collent, ils ne testeraient plus la tolérance)
+    fin = [[_c(10, "7")], [_c(7, "7")], [_c(4, "7")], [_c(4, "7")], [dict(NC)]]
     assert dernier_tour_partiel(fin, A, DO) is None
 
 

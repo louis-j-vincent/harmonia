@@ -107,3 +107,19 @@ def test_lost_without_u_fin_rejoint_A_au_cran_haut_seulement():
               for n in (1, 3)}
     assert "outro" in labels[1]
     assert "outro" not in labels[3]
+
+
+# ── garde-fous trouvés par le rapport d'or (2026-10-01) ─────────────────────
+
+@pytest.mark.parametrize("a,b", [(C(2, "^7"), C(6, "-7")),     # San Francisco Street : I^7 / iii-7
+                                 (C(5, "7"), C(2, "-7")),      # Don't Know Why : F7 / D-7
+                                 (C(0, "^7"), C(9, "-7"))])    # tonique / relatif
+def test_deux_tierces_sur_deux_fondamentales_restent_differentes_au_defaut(a, b):
+    assert not meme_lecture(a, b)
+
+
+def test_seuils_v2_loin_des_valeurs():
+    qs = ["", "-", "7", "^7", "-7", "6", "h7", "o", "o7", "+", "sus4", "7sus4", "9", "13"]
+    vals = {round(cs.v2(C(0, qa), C(d, qb)), 4) for qa in qs for qb in qs for d in range(12)}
+    for t, _d in cs.CRANS_V2.values():
+        assert all(abs(v - t) >= 0.015 for v in vals), (t, sorted(v for v in vals if abs(v - t) < .015))

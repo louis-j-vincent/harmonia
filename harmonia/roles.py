@@ -45,6 +45,9 @@ SEULE comparaison « même accord » de `harmonia.folding` (2026-10-01).
 """
 from __future__ import annotations
 
+import contextvars
+from contextlib import contextmanager
+
 from harmonia.labels import chord_pcs
 
 NOTES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
@@ -282,6 +285,40 @@ def _cles(c: dict, grain: str) -> frozenset:
     raise ValueError(f"grain inconnu : {grain!r} (attendu : {GRAINS})")
 
 
+#: Le cran du curseur « Section merging » pendant qu'on construit les
+#: sections d'un chart à ce cran (`cran_de_fusion`, posé par
+#: `soudure.sections_pour_chart`). None = le défaut. Un ContextVar plutôt
+#: qu'un paramètre : la comparaison est appelée depuis une vingtaine
+#: d'endroits de `folding` qui n'ont pas à connaître le curseur.
+_CRAN: contextvars.ContextVar = contextvars.ContextVar("harmonia_cran_fusion",
+                                                       default=None)
+
+
+@contextmanager
+def cran_de_fusion(n: int | None):
+    """`with cran_de_fusion(3): …` — toutes les comparaisons « même accord »
+    faites dedans lisent le cran 3 (None = le défaut)."""
+    jeton = _CRAN.set(n)
+    try:
+        yield
+    finally:
+        _CRAN.reset(jeton)
+
+
+def cran_courant(contexte: dict | None = None) -> int:
+    """Le cran en vigueur : `contexte["cran"]`, sinon `cran_de_fusion`,
+    sinon le défaut (`chord_similarity.CRAN_DEFAUT`)."""
+    from harmonia.chord_similarity import CRAN_DEFAUT, CRANS_V2
+    n = (contexte or {}).get("cran")
+    if n is None:
+        n = _CRAN.get()
+    try:
+        n = int(n)
+    except (TypeError, ValueError):
+        return CRAN_DEFAUT
+    return n if n in CRANS_V2 else CRAN_DEFAUT
+
+
 def meme_lecture(a: dict, b: dict, contexte: dict | None = None,
                  grain: str = "famille") -> bool:
     """Deux accords sont-ils LE MÊME ACCORD pour le repli ?
@@ -296,8 +333,13 @@ def meme_lecture(a: dict, b: dict, contexte: dict | None = None,
                      sert à repérer une VRAIE différence (fins 1./2.) ;
       - "fonction" : même fondamentale, même `family` (C ≡ C^7, C ≢ C7) —
                      la petite lecture d'une variante ;
-      - "famille"  : même fondamentale, même `famille_de` (C ≡ C^7 ≡ C7 ≡
-                     C7sus4, D- ≡ D-7) — reconnaître un même passage ;
+      - "famille"  : LA MESURE DE RESSEMBLANCE (2026-10-01,
+                     `chord_similarity.v2` ≥ le seuil du cran du curseur,
+                     `CRANS_V2`) — reconnaître un même passage. Au défaut :
+                     couleurs (C ≡ C^7 ≡ C9), sus proche des deux tierces
+                     (G7sus4 ≡ G7 ≡ Gm7), D-7 ≡ G7sus4, B♭/C ≡ C7sus4 ; mais
+                     G7 ≢ Gm7 (tierce contraire), C ≢ F. Avant le
+                     2026-10-01 : même fondamentale + même `famille_de` ;
       - "racine"   : même fondamentale lisible — une fin qui change de
                      fondamentale quelque part.
 
@@ -305,14 +347,18 @@ def meme_lecture(a: dict, b: dict, contexte: dict | None = None,
     Bb ≡ C7sus4) : on compare toujours par paires, jamais par `==` sur des
     clés.
 
-    `contexte` : réservé à la mesure apprise qui remplacera ces règles
-    (tonalité, position dans la cadence, postérieures musx…). Ignoré
-    aujourd'hui. CE QUE ÇA NE FAIT PAS (encore) : m7 ≡ 7sus4 une quarte
-    au-dessus (D-7 ≡ G7sus4, Lost Without U) — Louis veut que ça sorte de la
-    mesure apprise, pas d'une règle de plus.
+    `contexte` : {"cran": n} force un cran du curseur (sinon
+    `cran_de_fusion`, sinon le défaut) ; seul le grain "famille" le lit.
+    CE QUE ÇA NE FAIT PAS : les grains "exact", "fonction", "racine" (fins
+    1./2., petite lecture) gardent leurs règles d'avant — une vraie 2e fin
+    change toujours de FONDAMENTALE (une tierce contraire seule, C7 contre
+    Cm7, n'en fait pas une). Voir docs/similarite_accords.md.
     """
-    del contexte
     na, nb = bool(a.get("nc")), bool(b.get("nc"))
     if na or nb:
         return na and nb
+    if grain == "famille":
+        # LA MESURE (2026-10-01) : `chord_similarity.v2` au seuil du cran
+        from harmonia.chord_similarity import CRANS_V2, v2
+        return v2(a, b) >= CRANS_V2[cran_courant(contexte)][0] - 1e-9
     return bool(_cles(a, grain) & _cles(b, grain))

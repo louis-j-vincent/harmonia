@@ -281,14 +281,93 @@ def notes_musx(a: dict, b: dict, contexte=None) -> float:
     return 0.5 * notes(a, b) + 0.5 * musx(a, b)
 
 
+# ── v2 : la tierce pèse (Louis, 2026-10-01) ───────────────────────────────
+# « G7 différent de Gm7, ce sont des familles différentes, il faut faire peser
+# la tierce. Un sus4 est ambigu entre mineur et majeur par essence, donc
+# proche des deux, car la quarte ne différencie pas. »
+
+#: Une tierce contraire (majeure contre mineure, même fondamentale) multiplie
+#: la ressemblance par ce facteur : G7/Gm7 0,75 → 0,30, C/Cm 0,67 → 0,27 —
+#: sous le seuil de tous les crans sauf « tout ».
+PENALITE_TIERCE = 0.4
+#: Deux fondamentales différentes qui ont CHACUNE une tierce sont deux
+#: accords définis, deux familles : × ce facteur (D^7 / F#-7 0,75 → 0,60,
+#: C^7 / A-7 → 0,60, F7 / D-7 → 0,60) — sauf si l'un est CONTENU dans
+#: l'autre (une voix sans fondamentale, une basse ajoutée : Fm/A♭ ⊂ Dø7,
+#: B° ⊂ G7, F ⊂ D-7). Une sus n'a pas de tierce : D-7 / G7sus4 reste 0,75.
+PENALITE_DEUX_TIERCES = 0.8
+#: La « case de la tierce » lue depuis la fondamentale : 2 (sus2), 3, 4
+#: (tierces), 5 (sus4). Masquée quand un seul des deux accords a une tierce.
+_CASE_TIERCE = (2, 3, 4, 5)
+
+
+def _fondamentale_et_tierce(c: dict) -> tuple[int, str | None]:
+    """(fondamentale sonnante, "M" / "m" / None) — la fondamentale de
+    `roles.accord_sonnant` (B♭/C se lit C7sus4 : pas de tierce)."""
+    from harmonia.roles import accord_sonnant
+    r, q = accord_sonnant(c)
+    rel = {(p - r) % 12 for p in notes_jouees({**c, "root": r, "q": q,
+                                                "bass": c.get("bass", -1)}, False)}
+    if 4 in rel:
+        return r, "M"
+    if 3 in rel:
+        return r, "m"
+    return r, None
+
+
+def _cle(c: dict) -> tuple:
+    b = c.get("bass", -1)
+    return (bool(c.get("nc")), int(c.get("root", 0)) % 12, c.get("q") or "",
+            -1 if b is None or b < 0 else int(b) % 12)
+
+
+@lru_cache(maxsize=65536)
+def _v2(ka: tuple, kb: tuple) -> float:
+    a = {"nc": ka[0], "root": ka[1], "q": ka[2], "bass": ka[3]}
+    b = {"nc": kb[0], "root": kb[1], "q": kb[2], "bass": kb[3]}
+    r = _nc_ou(a, b)
+    if r is not None:
+        return r
+    va, vb = vecteur_notes(a, couleurs=False), vecteur_notes(b, couleurs=False)
+    (ra, ta), (rb, tb) = _fondamentale_et_tierce(a), _fondamentale_et_tierce(b)
+    if ra == rb and (ta is None) != (tb is None):
+        # une sus contre un accord à tierce, même fondamentale : la quarte
+        # ne différencie pas — on compare sans la case de la tierce
+        for iv in _CASE_TIERCE:
+            va[(ra + iv) % 12] = vb[(ra + iv) % 12] = 0.0
+    s = _cos(va, vb)
+    if ta is not None and tb is not None:
+        if ra == rb and ta != tb:
+            s *= PENALITE_TIERCE
+        elif ra != rb:
+            na = frozenset(i for i, x in enumerate(va) if x)
+            nb = frozenset(i for i, x in enumerate(vb) if x)
+            if not (na <= nb or nb <= na):
+                s *= PENALITE_DEUX_TIERCES
+    return s
+
+
+def v2(a: dict, b: dict, contexte=None) -> float:
+    """`notes7` + la tierce (fondamentale = celle qui SONNE,
+    `roles.accord_sonnant`) :
+      * même fondamentale, tierces contraires → × PENALITE_TIERCE (G7/Gm7) ;
+      * même fondamentale, une seule a une tierce (une sus) → comparées sans
+        la case de la tierce, 2 à 5 demi-tons (G7sus4 ≡ G7 ≡ Gm7) ;
+      * fondamentales différentes, toutes deux avec une tierce, aucune
+        contenue dans l'autre → × PENALITE_DEUX_TIERCES (C^7/A-7, F7/D-7) ;
+      * sinon `notes7` tel quel (D-7/G7sus4 0,75, B♭/C/C7sus4 0,75)."""
+    return _v2(_cle(a), _cle(b))
+
+
 CANDIDATES = {
     "notes": notes, "notes7": notes7, "notes_basse": notes_basse, "tiv": tiv, "musx": musx,
     "fonction": fonction, "notes+fonction": notes_fonction, "notes+musx": notes_musx,
+    "v2": v2,
 }
 
 
 #: LA RECOMMANDATION (docs/similarite_accords.md) : `notes7`.
-RECOMMANDEE = "notes7"
+RECOMMANDEE = "v2"
 
 #: Proposition de crans pour le curseur « Section merging », lus sur la
 #: recommandation TEMPS PAR TEMPS (une mesure vaut son pire temps). Chaque
@@ -313,6 +392,17 @@ def cran(a: dict, b: dict, contexte: dict | None = None) -> int:
         if s >= CRANS[c] - 1e-9:
             return c
     return 4
+
+
+#: LE CURSEUR « Section merging » branché (2026-10-01, Louis : « c'est au cas
+#: par cas, c'est là que le levier de granularité […] est utile ») : cran →
+#: (seuil de `v2` pour « même accord », décalage de rythme toléré en temps
+#: dans une mesure). Monotone : plus le cran monte, plus le seuil descend et
+#: plus le décalage permis grandit. Les crans 0 et 4 gardent EN PLUS leurs
+#: effets d'écriture propres dans `folding` (0 : pas de boucle, les fins de
+#: couleur ; 4 : un bloc ×N).
+CRANS_V2 = {0: (0.72, 0), 1: (0.72, 0), 2: (0.63, 1), 3: (0.38, 2), 4: (0.38, 2)}
+CRAN_DEFAUT = 1
 
 
 def similarite(a: dict, b: dict, contexte: dict | None = None,

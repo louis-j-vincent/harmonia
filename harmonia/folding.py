@@ -193,6 +193,9 @@ MERGE_LETTERS_COS = 0.93
 #: dernier tour ne colle pas au A, il en faut au moins autant qui collent
 #: juste après pour croire que c'est le début du A.
 DERNIER_TOUR_MIN_COLLE = 2
+#: À partir de ce cran du curseur, la dernière section d'une AUTRE lettre
+#: peut rejoindre une lettre comme son dernier tour (`_ireal_cascade`).
+CRAN_DERNIER_TOUR_AUTRE_LETTRE = 3
 
 
 def _sig_repli(bar) -> tuple | None:
@@ -1329,18 +1332,30 @@ def meme_harmonie(a, b) -> bool:
 
     C'est la mesure de différence de la factorisation par boucle (Louis,
     2026-09-30 : « ne la fais pas quand il y a vraiment un changement
-    important »). La famille (`famille_de` : maj / min / dim / aug) absorbe
-    les COULEURS — 7 contre 9, maj contre maj7, sus contre dominante (sus =
-    famille majeure) ; `lectures` absorbe Bb/C ≡ C7sus4 et ignore la basse
-    d'un renversement. Ce qui reste est un vrai changement : une autre
-    fondamentale, une autre famille, ou un accord de plus sur un temps."""
+    important »). Depuis le 2026-10-01, « le même accord » = la mesure de
+    ressemblance (`chord_similarity.v2` au seuil du cran) : couleurs, sus
+    proche des deux tierces, D-7 ≡ G7sus4 ; une tierce contraire ou une
+    autre harmonie reste un vrai changement. Au cran ≥ 2 un décalage d'un
+    temps (2 au cran 3) dans la mesure est toléré (`CRANS_V2`)."""
     fa, fb = _accords_par_temps(a), _accords_par_temps(b)
     if fa is None or fb is None:
         return True
     n = max(len(fa), len(fb))
     fa = fa + (fa[-1],) * (n - len(fa))
     fb = fb + (fb[-1],) * (n - len(fb))
-    return all(meme_lecture(x, y, grain="famille") for x, y in zip(fa, fb))
+    # LE RYTHME HARMONIQUE SUIT LE CURSEUR (Louis, 2026-10-01 : « c'est au
+    # cas par cas […] l'utilisateur peut choisir ») : au cran du curseur,
+    # chaque temps d'une mesure peut trouver son accord jusqu'à `dec` temps
+    # plus tôt ou plus tard dans l'autre (0 au défaut), dans les deux sens.
+    from harmonia.chord_similarity import CRANS_V2
+    from harmonia.roles import cran_courant
+    dec = CRANS_V2[cran_courant()][1]
+
+    def trouve(x, i, autre):
+        return any(meme_lecture(x, autre[j], grain="famille")
+                   for j in range(max(0, i - dec), min(n, i + dec + 1)))
+    return all(trouve(fa[i], i, fb) for i in range(n)) and \
+        all(trouve(fb[i], i, fa) for i in range(n))
 
 
 def boucle_minimale_ecrite(bars, vue, grid, occ, rep, S=None,
@@ -2014,6 +2029,25 @@ def _ireal_cascade(out: list[dict], bars, grid, fold_report,
                                     else str(rank))
             logger.info("ireal: %s devient %s (même lettre, autre musique)",
                         label, blk["label"])
+    # AU CRAN HAUT, UNE FIN D'UNE AUTRE LETTRE (Louis, 2026-10-01, Lost
+    # Without U : son « outro » est le dernier tour du A — « au cas par cas,
+    # l'utilisateur peut choisir ») : la dernière section, seule de sa
+    # lettre, qui est le dernier tour d'une autre lettre la rejoint. Jamais
+    # au défaut : l'étiquette est celle que Louis a posée.
+    from harmonia.roles import cran_courant
+    if cran_courant() >= CRAN_DERNIER_TOUR_AUTRE_LETTRE:
+        fin = next((b for b in out if id(b) not in drop
+                    and any(r[1] == fin_morceau for r in b.get("barRanges") or [])), None)
+        if fin is not None and len(by_label.get(fin["label"], [])) == 1:
+            hotes = sorted((b for b in out if id(b) not in drop and b is not fin
+                            and b["label"] != fin["label"] and not _bloc_muet(b)),
+                           key=lambda b: (-b["reps"], out.index(b)))
+            for host in hotes:
+                if _merge_dernier_tour(host, fin, bars, grid, fin_morceau, tonique):
+                    logger.info("ireal: %s rejoint %s (dernier tour, cran %d)",
+                                fin["label"], host["label"], cran_courant())
+                    drop.add(id(fin))
+                    break
     return [b for b in out if id(b) not in drop]
 
 

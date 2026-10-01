@@ -1,0 +1,34 @@
+<meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Avant / après</title><style>
+*{box-sizing:border-box}
+body{margin:0;padding:14px 10px 90px;background:#faf6ec;color:#2c2820;
+ font:15px/1.45 system-ui,sans-serif;max-width:760px;margin-inline:auto}
+h1{font-size:19px;margin:0 0 6px} h2{font-size:16px;margin:26px 0 2px}
+.lede{background:#fff7df;border:1px solid #e8d9a8;border-radius:10px;
+ padding:10px 12px;font-size:14px;margin:10px 0}
+.note{color:#8a8371;font-size:12.5px}
+.row{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 10px;align-items:center}
+.chip{border:1px solid #d8cfb4;border-radius:8px;background:#fff;
+ padding:3px 7px;min-width:54px;text-align:center;cursor:pointer}
+.chip.on{background:#8a2b2b;border-color:#8a2b2b;color:#fff}
+.chip.new{background:#eef4e6;border-color:#a9c488}
+.bar{font:600 11px system-ui;color:#8a8371;margin-right:4px}
+.open{display:inline-flex;gap:8px;margin:6px 0 2px;flex-wrap:wrap}
+.open a{text-decoration:none;font:600 13px system-ui;border-radius:10px;
+ padding:9px 13px;border:1px solid #d8cfb4;background:#fff;color:#2c2820}
+.open a.now{background:#8a2b2b;border-color:#8a2b2b;color:#fff}
+table{border-collapse:collapse;font-size:12.5px;width:100%;display:block;
+ overflow-x:auto;margin:8px 0}
+td,th{border:1px solid #ddd3b8;padding:3px 7px;white-space:nowrap;text-align:left}
+th{background:#f3edda}
+</style><body><h1>Mesure de ressemblance v2 branchée (cran par défaut)</h1><div class=lede>Les charts d'<b>avant</b> et d'<b>après</b> sont republiés dans la bibliothèque sous les titres « … — AVANT » et « … — APRÈS » : les deux versions s'ouvrent dans l'app, avec sa vraie mise en page et son audio. Ci-dessous, mesure par mesure, ce qui a changé — clique pour entendre le passage.</div><p class=note>2 morceaux changent, 61 sont identiques mesure par mesure ; voici les 2 où l'écart est le plus large. <code>python -m tools.avant_apres --clean</code> retire les entrées AVANT/APRÈS de la bibliothèque.</p><table><tr><th>morceau</th><th>mesures changées</th><th>tonalité</th><th>sections</th></tr><tr><td>Maroon 5 This Love</td><td>2</td><td>C minor</td><td>5</td></tr><tr><td>She Will Be Loved</td><td>1</td><td>Bb major</td><td>7 → 6</td></tr></table><h2>Maroon 5 This Love</h2><div class=open><a href='/?open=old_maroon_5_this_love'>ouvrir AVANT</a><a class=now href='/?open=new_maroon_5_this_love'>ouvrir APRÈS</a></div><p class=note>2 mesures changent</p><div class=row><span class=bar>mes. 5</span><div class=chip onclick="play(this,'/audio/maroon_5_this_love.m4a',11.18,13.70)">(G/B)</div><div class='chip new' onclick="play(this,'/audio/maroon_5_this_love.m4a',11.18,13.70)">G/B</div></div><div class=row><span class=bar>mes. 8</span><div class=chip onclick="play(this,'/audio/maroon_5_this_love.m4a',18.75,21.28)">Dh7</div><div class='chip new' onclick="play(this,'/audio/maroon_5_this_love.m4a',18.75,21.28)">Do F-/Ab</div></div><h2>She Will Be Loved</h2><div class=open><a href='/?open=old_maroon_5_she_will_be_loved_official_music_video'>ouvrir AVANT</a><a class=now href='/?open=new_maroon_5_she_will_be_loved_official_music_video'>ouvrir APRÈS</a></div><p class=note>1 mesures changent</p><div class=row><span class=bar>mes. 33</span><div class=chip onclick="play(this,'/audio/maroon_5_she_will_be_loved_official_music_video.m4a',87.24,89.60)">(Ab^7)</div><div class='chip new' onclick="play(this,'/audio/maroon_5_she_will_be_loved_official_music_video.m4a',87.24,89.60)">C-</div></div><audio id=au preload=auto playsinline></audio><script>
+const au=document.getElementById('au');let stopAt=null,cur=null;
+au.addEventListener('timeupdate',()=>{if(stopAt!=null&&au.currentTime>=stopAt){
+ au.pause();stopAt=null;if(cur){cur.classList.remove('on');cur=null;}}});
+function play(el,src,t0,t1){
+ if(cur===el&&!au.paused){au.pause();return;}
+ if(cur)cur.classList.remove('on');cur=el;el.classList.add('on');
+ const go=()=>{try{au.currentTime=t0;}catch(e){}stopAt=t1;
+  au.play().catch(()=>{el.classList.remove('on');cur=null;});};
+ if(au.getAttribute('src')!==src){au.setAttribute('src',src);
+  au.addEventListener('loadedmetadata',go,{once:true});au.load();}else go();}
+</script>
