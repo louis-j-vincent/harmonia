@@ -12,9 +12,10 @@ propose les autres passages du bloc en pointillés pâles « A ? » ; un tap les
 garde, « Garder les N » les garde tous, Défaire en défait un à la fois. Mesures
 de la chanson, telles que rendues par le serveur. Test :
 `tests/ui/check_section_suggestions.py`. **Ne résout pas :** (1) le seuil est
-celui du serveur, aucun réglage ici ; (2) sur Chasing Pavements les 5 reprises
-trouvées sont toutes « found-transposed » (rot 1 ou 2 demi-tons) et aucune
-n'est à l'identique — à écouter avant de s'y fier, non retouché ; (3) les
+celui du serveur, aucun réglage ici ; (2) depuis 2026-10-02 seules les reprises de même tonalité (rot=0) sont
+proposées (60 % justes, 79 % des vraies reprises ; avec transposées 46 %) : une
+reprise modulée n'est jamais suggérée, et Chasing Pavements n'en propose
+aucune (message « aucune reprise trouvée » 2 s) ; (3) les
 mesures déjà posées par l'algo (pas par Louis) ne sont pas réclamées : garder
 une proposition les écrase ; (4) sur un chart replié, une proposition peut
 tomber sur un passage non écrit (non affiché) ; (5) la carte collante occupe la

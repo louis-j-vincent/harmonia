@@ -321,6 +321,36 @@ export function buildSectionTool(){
     const card=el("div",`border:1px solid ${T.line};background:${T.card};`+
                  `border-radius:${SZ.radiusLg}px;padding:8px 10px 10px;`+
                  `box-shadow:0 2px 10px rgba(0,0,0,.10);`);
+    // PROPOSITIONS EN ATTENTE : la carte se réduit à UNE ligne (Louis,
+    // 2026-10-02) — « A : 4 proposés [Garder les 4] [Ignorer] » — pour que la
+    // grille garde l'écran. Lettres, Valider, Enregistrer, Recommencer et les
+    // textes d'aide reviennent dès qu'il ne reste plus rien à trancher.
+    const sg0=st.sugg;
+    if(sg0 && sg0.items.length && !st.sel && st.pendingStart==null){
+      const nP=sg0.items.length;
+      card.style.padding="6px 8px";
+      card.addEventListener("click",ev=>{
+        if(Date.now()-(S._sectGridUp||0)<450){ ev.stopPropagation(); ev.preventDefault(); }
+      },true);
+      const bn=el("div","display:flex;align-items:center;gap:6px;");
+      bn.setAttribute("data-sect-sugg","1");
+      bn.appendChild(el("div",`flex:1 1 auto;min-width:0;font:600 13px ${UI};color:${T.ink};white-space:nowrap;`,
+        `${sg0.label} : ${nP} proposé${nP>1?"s":""}`));
+      bn.appendChild(kitButton(nP>1?`Garder les ${nP}`:"Garder",
+        ()=>confirmerReprises(sg0.items.slice()), {state:"on", height:44}));
+      bn.appendChild(kitButton("Ignorer",
+        ()=>{ clearSugg(); haptic(5); go("chart"); }, {height:44}));
+      // Défaire reste à portée (un « Garder » unitaire se défait ici), en glyphe.
+      const canU=(st.undo||[]).length>0;
+      const u=el("button",`flex:0 0 auto;width:44px;height:44px;border:none;background:transparent;`+
+        `font:600 20px ${UI};color:${canU?T.accent:T.line};cursor:${canU?"pointer":"default"};`,"↶");
+      u.setAttribute("data-sect-undo","1"); u.setAttribute("aria-label","Défaire");
+      u.disabled=!canU; u.onclick=undoSectionEdit;
+      bn.appendChild(u);
+      card.appendChild(bn);
+      wrap.appendChild(card);
+      return wrap;
+    }
     const head=el("div","display:flex;align-items:center;gap:8px;margin-bottom:2px;");
     head.appendChild(el("div",`font:700 13.5px ${UI};color:${T.ink};`,"Sections"));
     // Le tempo vient du modèle du chart (meta.bpm) : de quoi juger si les
@@ -352,26 +382,9 @@ export function buildSectionTool(){
     },true);
     const sg=st.sugg;
     const sgShown=sg && !st.sel && st.pendingStart==null;
-    if(sgShown && sg.items.length){
-      // PROPOSITIONS (Louis, 2026-10-01) : les autres passages de la section
-      // qu'il vient de tracer, en pâle sur la grille. Rien n'est gardé tant
-      // qu'il n'a pas touché ou dit « Garder ».
-      const nT=st.marks.filter(x=>x.label===sg.label).reduce(
-        (n,x)=>n+(x.occurrences||[]).filter(estDeLui).length,0);
-      const nP=sg.items.length;
-      // Deux lignes courtes : le compte, puis les deux boutons côte à côte
-      // (la carte colle en haut — chaque ligne de plus mange la grille).
-      const bn=el("div","margin-bottom:6px;");
-      bn.setAttribute("data-sect-sugg","1");
-      bn.appendChild(el("div",`font:600 12.5px ${UI};color:${T.ink};margin-bottom:5px;`,
-        `${sg.label} : ${nT} tracé${nT>1?"s":""} · ${nP} proposé${nP>1?"s":""}`));
-      const br=el("div","display:flex;gap:6px;");
-      br.appendChild(kitButton(nP>1?`Garder les ${nP}`:"Garder",
-        ()=>confirmerReprises(sg.items.slice()), {state:"on", height:44, grow:true}));
-      br.appendChild(kitButton("Ignorer",
-        ()=>{ clearSugg(); haptic(5); go("chart"); }, {height:44, grow:true}));
-      bn.appendChild(br);
-      card.appendChild(bn);
+    if(sgShown && sg.none){
+      card.appendChild(el("div",`font:600 12.5px ${UI};color:${T.ink};margin-bottom:6px;`,
+        `${sg.label} : aucune reprise trouvée`));
     } else if(sgShown && sg.slow && sg.loading){
       card.appendChild(el("div",`font:italic 11.5px ${SERIF};color:${T.faint};margin-bottom:6px;`,
         `${sg.label} : je cherche où elle revient…`));
@@ -559,6 +572,11 @@ export function commitSectionSelection(){
      longueur de la CELLULE : on recolle les voisines pour retrouver la
      longueur tracée, sinon une proposition ne durerait que la moitié du bloc.
 
+     MÊME TONALITÉ SEULEMENT (Louis, 2026-10-02, mesuré sur 26 morceaux validés :
+     46 % de propositions justes avec les transposées, 60 % sans, pour 79 % des
+     vraies reprises retrouvées) : on écarte `rot≠0` ici, le serveur n'a pas de
+     paramètre pour ça et son seuil n'est pas touché.
+
      Il n'y a rien à régler ici : le seuil est celui du serveur. Une erreur ne
      dit rien (pas de toast) — il pose simplement ses sections à la main. */
 function clearSugg(){
@@ -586,7 +604,7 @@ async function proposerReprises(label, b0, b1){
                              {b0, b1, claimed:[...pris]});
       if(S.sectTool!==st || st._suggTok!==tok) return;       // périmée
       const L=b1-b0+1, cell=Math.max(1,r.cell_bars|0||L);
-      const trouvees=(r.occurrences||[]).filter(o=>String(o.source).startsWith("found"))
+      const trouvees=(r.occurrences||[]).filter(o=>String(o.source).startsWith("found") && !o.rot)
         .sort((a,b)=>a.b0-b.b0);
       let items=[];
       if(cell<L){
@@ -600,9 +618,12 @@ async function proposerReprises(label, b0, b1){
       } else items=trouvees.map(o=>({b0:o.b0, b1:o.b1, rot:o.rot|0}));
       const libre=it=>{ for(let b=it.b0;b<=it.b1;b++) if(pris.has(b)) return false; return true; };
       items=items.filter(libre);
-      st.sugg=items.length?{label, items, loading:false, slow:false}:null;
+      st.sugg=items.length?{label, items, loading:false, slow:false}
+                          :{label, items:[], none:true};
       go("chart");
       if(items.length) montrerPremiere(items[0]);
+      else setTimeout(()=>{      // « aucune reprise trouvée » : ~2 s, puis l'état normal
+        if(S.sectTool===st && st._suggTok===tok){ st.sugg=null; go("chart"); } }, 2000);
     }catch(e){
       if(S.sectTool===st && st._suggTok===tok){ st.sugg=null; go("chart"); }
     }
@@ -1085,6 +1106,32 @@ export function attachSectionDrag(grid){
 export function paintSectionTool(){
     if(!S._cells || !sectToolOn()) return;
     const st=S.sectTool;
+    // CHAQUE proposition est UN bloc : son cadre en pointillés ne longe que le
+    // contour de l'ensemble de ses cases (deux propositions voisines ne se
+    // fondent pas). Un côté est tracé quand aucune autre case du même bloc
+    // n'est collée de ce côté — sur les rectangles réels, donc aussi sur les
+    // retours à la ligne de la grille.
+    const cadre=new Map();
+    // Les rectangles n'existent qu'une fois la grille dans la page : à la
+    // première peinture (grille encore détachée) ils sont nuls — on repeint
+    // une fois la mise en page faite, au plus trois fois.
+    if(st.sugg && st.sugg.items.length && S._cells.length
+       && S._cells[0].el.getBoundingClientRect().width===0 && (S._paintTry||0)<3){
+      S._paintTry=(S._paintTry||0)+1;
+      requestAnimationFrame(()=>{ if(sectToolOn()) paintSectionTool(); });
+    } else S._paintTry=0;
+    if(st.sugg) st.sugg.items.forEach(o=>{
+      const cs=S._cells.filter(c=>songBarsOfCell(c.bar).some(x=>x>=o.b0&&x<=o.b1));
+      const rs=cs.map(c=>({c, r:c.el.getBoundingClientRect()}));
+      const T3=3, voisin=(a,f)=>rs.some(q=>q!==a && f(q.r,a.r));
+      const ovH=(p,q)=>p.left<q.right-T3 && p.right>q.left+T3;
+      const ovV=(p,q)=>p.top<q.bottom-T3 && p.bottom>q.top+T3;
+      rs.forEach(a=>cadre.set(a.c,{
+        t:!voisin(a,(q,r)=>Math.abs(q.bottom-r.top)<=T3 && ovH(q,r)),
+        b:!voisin(a,(q,r)=>Math.abs(q.top-r.bottom)<=T3 && ovH(q,r)),
+        l:!voisin(a,(q,r)=>Math.abs(q.right-r.left)<=T3 && ovV(q,r)),
+        r:!voisin(a,(q,r)=>Math.abs(q.left-r.right)<=T3 && ovV(q,r))}));
+    });
     S._cells.forEach(c=>{
       let tint=null, edge=null, dashed=false, tag=null, tagOcc=null, pale=false;
       const sb=songBarsOfCell(c.bar);
@@ -1093,7 +1140,7 @@ export function paintSectionTool(){
       if(st.sugg) st.sugg.items.forEach(o=>{
         if(inRange(o)){
           pale=true; edge=sectColor(st.sugg.label); tint=edge+"0c"; dashed=true;
-          tag=(sb.indexOf(o.b0)>=0)?st.sugg.label+" ?"+(o.rot?" ↗":""):null; tagOcc=null;
+          tag=(sb.indexOf(o.b0)>=0)?st.sugg.label+" ?":null; tagOcc=null;
         }
       });
       st.marks.forEach(mk=>mk.occurrences.forEach(o=>{
@@ -1120,6 +1167,12 @@ export function paintSectionTool(){
       if(!tint) return;
       c.sel.style.background=tint;
       c.sel.style.boxShadow="none";
+      if(pale && cadre.has(c)){
+        const e=cadre.get(c), ln=`2px dashed ${edge}`, no="2px solid transparent";
+        c.sel.style.border="none";
+        c.sel.style.borderTop=e.t?ln:no; c.sel.style.borderBottom=e.b?ln:no;
+        c.sel.style.borderLeft=e.l?ln:no; c.sel.style.borderRight=e.r?ln:no;
+      } else
       c.sel.style.border=`${dashed?"1.5px dashed":"2px solid"} ${pale?edge+"99":edge}`;
       c.sel.style.borderRadius="4px";
       if(tag && !tagOcc){
