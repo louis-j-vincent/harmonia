@@ -5,6 +5,27 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Règles de Louis du 2026-10-01 : m7 ≡ 7sus4 (en attente de la mesure apprise), dernier tour du A (FAIT, 3c42bcc)
+
+- **Une seule comparaison « même accord »** : `harmonia.roles.meme_lecture(a, b,
+  contexte=None, grain)` (d6b471e, e63ded1 ; rapport d'or 63/63 identiques). La
+  règle m7 ≡ 7sus4 une quarte au-dessus n'est PAS codée : elle doit sortir de la
+  mesure de similarité apprise, qui se branche là. **Non résolu** : deux systèmes
+  de familles coexistent (`famille_de` M/m/o/+ pour reconnaître un passage,
+  `family` maj/min/dom pour la petite lecture d'une variante) — les réunir
+  changerait des décisions ; `contexte` est ignoré.
+- **Dernier tour du A** (`folding.dernier_tour_partiel`) : début du A, tonique
+  tenue et/ou fondu, en dernière section. **Non résolu** : phase ≠ 0 (une fin qui
+  joue le milieu du A), tenue sur un autre degré, tenue plus longue que le début,
+  hôte écrit en 1re/2e fin. Sur Lost Without U la 1re mesure (G7sus4 pour D-7)
+  est seulement TOLÉRÉE en attendant la mesure apprise. L'outro de LWU (83-89) et
+  celle de Be My Baby (79-85) sont posées par Louis : la règle les appellerait A
+  et C, à réétiqueter dans l'outil s'il le veut (`docs/sections_etat_2026-09-30.md`
+  §14, page `/plots/dernier_tour_2026-10-01/avant_apres.html`).
+- Vu en route, pas touché : sur LWU la passe que la façade écrit pour A (mes.
+  17-24) décode `G7sus4 D-7 | D-7 G7 | C | C G-7` — l'harmonie décalée d'un
+  demi-temps — alors que 7 passages sur 9 jouent `D-7 | G7 | C^7 | F^7 G-7`.
+
 ## UX top-5 de l'audit du 2026-10-01 : ce que chaque changement NE résout PAS
 
 Page avant/après : `docs/plots/ux_5_changements_2026-10-01.html`. Tests Playwright

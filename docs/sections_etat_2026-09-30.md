@@ -438,3 +438,44 @@ matière d'une section (les 4 ratées), la reprise la mange avant que la règle
 puisse s'appliquer — c'est « une intro ne se rejoue pas » vu de l'autre côté,
 et il faudrait qu'une reprise en mesure 1 cède la tête. Non fait (hors
 périmètre). Rapport d'or : 0 mesure changée (Valider n'est pas rejoué par lui).
+
+## 14. Deux règles de Louis du 2026-10-01 : m7 ≡ 7sus4, et le dernier tour du A
+
+**Règle 1** (« un accord m7 et le 7sus4 une quarte au-dessus comptent comme
+le même accord ») — **pas codée en dur**, sur décision de Louis le même jour :
+une mesure de similarité apprise (postérieures musx, contenu harmonique,
+contexte) la remplacera. Ce qui est fait : toutes les comparaisons « même
+accord / même passage » du repli passent par UNE fonction,
+`harmonia.roles.meme_lecture(a, b, contexte=None, grain="famille")` — la
+future mesure se branche là. Comportement = les règles d'avant réunies
+(`lectures` : Bb/C se lit aussi C7sus4 ; puis un grain : exact / fonction /
+famille / racine). Appelants : fins 1./2. (`_compat` exact et racine),
+boucle minimale (`meme_harmonie`, conflations), cascade (`meme_moment`,
+`_accord_de_passage`), fusion des lettres (`_sig_repli` → `_MesureRepli`),
+façade (passes qui s'accordent), petite lecture d'une variante (grain
+fonction). `simulation.py` ne compare pas d'accords (il groupe des mots de
+bi-mesures issus de la matrice chord-tone). Rapport d'or : 63/63 identiques
+au JSON près, contre une cuisson de HEAD (commits d6b471e, e63ded1).
+
+**Règle 2** (« quand une section est la dernière du morceau, qu'elle joue le
+début du A puis tient la tonique et s'éteint, la traiter comme le dernier
+tour du A ») — branchée (3c42bcc). `folding.dernier_tour_partiel` : début
+en phase 0 qui colle (1re mesure tolérée si les 2 suivantes collent — LWU
+joue G7sus4 pour D-7, ce que la mesure apprise devra lire), puis la tonique
+tenue (pas plus longue que le début) et/ou un fondu muet, plus court que le
+A ; contre les passages entiers bruts de la lettre, la moitié au moins
+(LWU : 7 sur 9). Écrit comme dernier tour : même lettre, curseur sur début +
+tenue, tonique en petite lecture `var`, fondu éteint. Nommage : seulement la
+zone libre finale de `remplir_par_algo` ; jamais une section posée par Louis.
+
+**Outros posées à la main que la règle appellerait A** (à réétiqueter dans
+l'outil si tu es d'accord ; rien n'est changé d'office) :
+
+| morceau | mesures | ce qu'elle joue | règle 2 |
+|---|---|---|---|
+| Lost Without U | 83-89 | G7sus4 \| G7 \| C \| C G-7 \| G-7 D-7 \| N.C. \| N.C. | A (début 3 mes., 1re tolérée, tonique 2, fondu 2) — Louis : « c'est A » |
+| Be My Baby | 79-85 | E \| E \| Db- \| Db- \| A \| A \| N.C. | C (6 mes. de C puis fondu, sans tonique tenue) — plus faible, à toi de voir |
+
+Les 7 autres outros validées ne déclenchent pas. Page :
+`/plots/dernier_tour_2026-10-01/avant_apres.html` (LWU si l'outro devient A :
+avant = A, B, A′ ; après = A ×12, B).
