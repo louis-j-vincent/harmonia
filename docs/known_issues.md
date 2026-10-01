@@ -94,6 +94,15 @@ Page avant/après : `docs/plots/ux_5_changements_2026-10-01.html`. Tests Playwri
    l'écran de chargement (`analyse.js`) est encore en anglais (« listening to the
    track », « Open the chart ») — hors des cinq écrans demandés, pas touché.
 
+## UX — la liste du 2026-10-01 est faite et vérifiée (2026-10-01)
+
+Toutes les propositions de l'audit (`docs/plots/ux_audit_2026-10-01.html`),
+validées par Louis, sont faites et vérifiées de bout en bout par la session
+principale (WebKit 390 px, vraies sauvegardes puis « Annuler », vrais
+recalculs annulés). Suivi ligne à ligne et restes ouverts :
+`docs/ux_todo_2026-10-01.md`. Tests : `tests/ui/check_*.py` (17, tous verts)
++ pytest 759 verts.
+
 ## Transposer puis verrouiller un accord réécrivait les annotations (2026-10-01, RÉSOLU)
 
 Trouvé par l'audit UX (`docs/plots/ux_audit_2026-10-01.html`). `transposeTo`
