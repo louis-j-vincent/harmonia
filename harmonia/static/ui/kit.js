@@ -878,16 +878,33 @@ export function vlTotals(){
   // logic; sus keeps its sus flavour at every level (a sus4 IS a triad —
   // relabelling it major would invent a 3rd the song doesn't play).
 export const RED={
-    1:{"":"","^7":"","^":"","^9":"","6":"","69":"","7":"","9":"","13":"","7b9":"","7#9":"","7b5":"","7#11":"",
-       "-":"-","-7":"-","-6":"-","-^7":"-","-9":"-",
+    1:{"":"","^7":"","^":"","^9":"","^13":"","6":"","69":"","7":"","9":"","13":"","7b9":"","7#9":"","7b5":"","7#11":"","7b13":"","13b9":"",
+       "-":"-","-7":"-","-6":"-","-^7":"-","-^9":"-","-9":"-","-11":"-",
        "-7b5":"o","h7":"o","h":"o","o":"o","o7":"o",
-       "+":"+","+7":"+","sus":"sus","sus2":"sus2","sus4":"sus4","7sus":"sus4","7sus4":"sus4"},
-    2:{"":"","^7":"^7","^":"^7","^9":"^7","6":"","69":"","7":"7","9":"7","13":"7","7b9":"7","7#9":"7","7b5":"7","7#11":"7",
-       "-":"-","-7":"-7","-6":"-","-^7":"-7","-9":"-7",
-       "-7b5":"o","h7":"o","h":"o","o":"o","o7":"o",
-       "+":"+","+7":"7","sus":"sus","sus2":"sus2","sus4":"sus4","7sus":"sus4","7sus4":"sus4"}
+       "+":"+","+7":"+","7#5":"+","sus":"sus","sus2":"sus2","sus4":"sus4","7sus":"sus4","7sus4":"sus4","9sus":"sus4"},
+    // Septièmes = la triade + SA septième, avec sa couleur : ø7 et °7 restent
+    // distincts, m(maj7) reste m(maj7), 7sus4 garde son 7 (vérif. lot 2 UX,
+    // 2026-10-01 : Aø7 s'affichait A°, D7♭13 n'était pas simplifié du tout).
+    2:{"":"","^7":"^7","^":"^7","^9":"^7","^13":"^7","6":"","69":"","7":"7","9":"7","13":"7","7b9":"7","7#9":"7","7b5":"7","7#11":"7","7b13":"7","13b9":"7",
+       "-":"-","-7":"-7","-6":"-","-^7":"-^7","-^9":"-^7","-9":"-7","-11":"-7",
+       "-7b5":"h7","h7":"h7","h":"h7","o":"o","o7":"o7",
+       "+":"+","+7":"7","7#5":"7","sus":"sus","sus2":"sus2","sus4":"sus4","7sus":"7sus4","7sus4":"7sus4","9sus":"7sus4"}
   };
-export function reduceQ(q,lv){ return lv>=3?q:(RED[lv][q]!=null?RED[lv][q]:q); }
+// Une qualité absente de la table ne doit jamais traverser la simplification
+// telle quelle : on la range par famille (lecture du symbole iReal).
+function reduceUnknown(q,lv){
+    const sus=/sus/.test(q), seventh=/(7|9|11|13)/.test(q);
+    let fam = q.startsWith("-") ? "-" : q.startsWith("h") ? "h" : q.startsWith("o") ? "o"
+            : (q.startsWith("+")||/#5/.test(q)) ? "+" : sus ? "sus4" : "";
+    if(lv<=1) return fam==="h"?"o":fam;
+    if(!seventh || fam==="+") return fam==="h"?"h7":fam==="+"?(seventh?"7":"+"):fam;
+    if(fam==="-") return /\^/.test(q)?"-^7":"-7";
+    if(fam==="h") return "h7";
+    if(fam==="o") return "o7";
+    if(fam==="sus4") return "7sus4";
+    return /\^/.test(q)?"^7":"7";
+  }
+export function reduceQ(q,lv){ return lv>=3?q:(RED[lv][q]!=null?RED[lv][q]:reduceUnknown(q,lv)); }
 export function dispQ(q){ return S.learn?reduceQ(q,S.level):q; }
 export function learnLevel(){ return S.learn?S.level:3; }
 export function fmt(s){ s=Math.max(0,Math.floor(s||0)); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
