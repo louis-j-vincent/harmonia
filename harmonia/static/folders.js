@@ -55,6 +55,12 @@ export async function fusionnerDossiersServeur(){
       if(!(f.order||[]).includes(nom)){ (f.order=f.order||[]).push(nom); bouge=true; }
     for(const [chart,nom] of Object.entries(d.of||{}))
       if(!f.of[chart]){ f.of[chart]=nom; bouge=true; }
-    if(bouge){ S.folders=f; saveFolders(f); }
+    // Ce qu'on vient de lire vient DU serveur : le lui renvoyer serait une
+    // écriture inutile à chaque visite (audit UX 2026-10-01, F3). On ne
+    // met à jour que le localStorage ; le POST reste réservé aux gestes.
+    if(bouge){
+      S.folders=f;
+      try{ localStorage.setItem(FOLDERS_KEY, JSON.stringify(f)); }catch(e){}
+    }
     return bouge;
   }

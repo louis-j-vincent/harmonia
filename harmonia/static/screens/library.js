@@ -192,10 +192,22 @@ export function renderCharts(){
       `display:flex;align-items:center;gap:10px;padding:0 14px;`);
     fb.appendChild(el("span",`font:400 16px ${UI};color:${T.rule};`,"⌕"));
     const fi=el("input",
-      `flex:1;min-width:0;border:none;background:none;outline:none;font:500 14px ${UI};color:${T.ink};`);
+      `flex:1;min-width:0;height:100%;min-height:${SZ.control}px;border:none;background:none;outline:none;font:500 14px ${UI};color:${T.ink};`);
     fi.placeholder="Filtrer mes charts"; fi.value=S.chartFilter||"";
     fi.oninput=()=>{ S.chartFilter=fi.value; paintChartList(); };
-    fb.appendChild(fi); filt.appendChild(fb); w.appendChild(filt);
+    fb.appendChild(fi); filt.appendChild(fb);
+    // Tri visible (audit F2) : `S.librarySort` existait sans écran qui le lise.
+    const tri=el("div",`display:flex;align-items:center;gap:6px;margin-top:8px;`);
+    tri.appendChild(el("span",`font:700 11px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};margin-right:4px;`,"Trier"));
+    [["recent","Récents"],["az","A–Z"]].forEach(([k,lab])=>{
+      const b=kitButton(lab, ()=>{
+        S.librarySort=k;
+        try{ localStorage.setItem("harmLibrarySort",k); }catch(e){}
+        go("charts",{push:false});
+      }, {state:(S.librarySort||"recent")===k?"on":"off"});
+      b.dataset.tri=k; tri.appendChild(b);
+    });
+    filt.appendChild(tri); w.appendChild(filt);
 
     const body=el("div",`flex:1;min-height:0;overflow-y:auto;padding:0 14px calc(20px + env(safe-area-inset-bottom));`);
     body.className="ap-scroll"; w.appendChild(body);
@@ -227,7 +239,7 @@ export function paintChartList(){
     // chaque résultat dit en petit gris où il vit. Vider le champ ramène au
     // dossier ouvert — `S.openFolder` n'est jamais touché ici.
     if(q){
-      const res=chercherPartout(S.library, F.of, q, chartName);
+      const res=chercherPartout(trierCharts(S.library), F.of, q, chartName);
       const n=res.length;
       body.appendChild(sectionHead(n ? (n+" chart"+(n>1?"s":"")+" · tous les dossiers")
                                      : "Tous les dossiers"));
@@ -260,9 +272,9 @@ export function paintChartList(){
         "aucun dossier — « Nouveau » pour ranger tes charts"));
       body.appendChild(list);
       body.appendChild(sectionHead("Hors dossier"));
-      body.appendChild(chartRows(S.library.filter(c=>!F.of[c.file])));
+      body.appendChild(chartRows(trierCharts(S.library.filter(c=>!F.of[c.file]))));
     } else {
-      body.appendChild(chartRows(S.library.filter(c=>F.of[c.file]===open)));
+      body.appendChild(chartRows(trierCharts(S.library.filter(c=>F.of[c.file]===open))));
     }
   }
 
@@ -279,6 +291,14 @@ export function folderMark(accent){
       `background:${col};border-radius:2px 2px 0 0;`));
     return d;
   }
+// Tri de la liste : récents = date du fichier décroissante, A–Z = titre.
+export function trierCharts(items){
+    const a=items.slice();
+    if((S.librarySort||"recent")==="az")
+      a.sort((x,y)=>(chartName(x).title||"").localeCompare(chartName(y).title||"","fr",{sensitivity:"base"}));
+    else a.sort((x,y)=>(y.mtime||0)-(x.mtime||0));
+    return a;
+  }
 export function chartRows(items, dossiers){
     const list=el("div","display:flex;flex-direction:column;gap:8px;");
     items.forEach((c,i)=>{
@@ -288,7 +308,14 @@ export function chartRows(items, dossiers){
       const tx=el("div","flex:1;min-width:0;");
       tx.appendChild(nameEl(c,16));
       tx.appendChild(el("div",`font:500 12.5px ${UI};color:${T.faint};margin-top:3px;`,
-        note(c.key.tonic)+" "+c.key.mode+" · "+c.bars+" bars"+(c.hasAudio?"":" · no audio")));
+        note(c.key.tonic)+" "+(c.key.mode==="minor"?"mineur":c.key.mode==="major"?"majeur":c.key.mode)+
+        " · "+c.bars+" mesures"+(c.hasAudio?"":" · sans audio")));
+      if(c.corrected){
+        const pa=el("span",
+          `display:inline-block;margin-left:8px;padding:1px 7px;border-radius:9px;font:600 11px ${UI};`+
+          `color:${T.accent};border:1px solid ${T.accent};vertical-align:1px;`,"✓ corrigé");
+        pa.dataset.pastille="corrige"; tx.children[1].appendChild(pa);
+      }
       // en recherche globale : le dossier où vit le chart, discret
       if(dossiers && dossiers[i]) tx.appendChild(el("div",
         `font:italic 12px ${SERIF};color:${T.faint};margin-top:2px;`+

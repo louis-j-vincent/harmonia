@@ -48,6 +48,23 @@ def _capabilities() -> list[str]:
     return ["annotations"]
 
 
+def _corrige_a_la_main(stem: str) -> bool:
+    """Louis a-t-il touché à ce chart ? Annotations (accords/fusions),
+    sections validées ou marques de temps dans `state/human/`. Les dossiers
+    sont indexés par le stem du chart (`min_X`) ou par l'identifiant nu (`X`)."""
+    nu = stem[4:] if stem.startswith("min_") else stem
+    try:
+        ann = annotations.load_annotation(stem) or {}
+        if ann.get("chords") or ann.get("merges"):
+            return True
+    except Exception:  # un fichier illisible n'est pas une correction
+        pass
+    for d in (SETTINGS.sections_dir, SETTINGS.marks_dir):
+        if any((d / f"{k}.json").exists() for k in {stem, nu}):
+            return True
+    return False
+
+
 @bp.get("/api/library")
 def library():
     meta = _load_chart_meta()
@@ -66,6 +83,7 @@ def library():
             "bars": m.get("nBars") or 0,
             "hasAudio": bool(m.get("audio_url")),
             "mtime": p.stat().st_mtime,
+            "corrected": _corrige_a_la_main(p.stem),
         })
     return jsonify({"charts": charts, "capabilities": _capabilities()})
 
