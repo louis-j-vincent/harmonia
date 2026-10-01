@@ -66,6 +66,16 @@ def run(p, kind):
     ev("const E=await import('/static/screens/annotate.js'); E.openEditor(a)", single); pg.wait_for_timeout(500)
     check(pg.get_by_text(re.compile("^Garder corrige")).count() == 0, T + "28 a one-pass chord says nothing about passes")
     ev("S._closeEditor()")
+    # ---- #29 : « Supprimer ce morceau » sous « Plus… »
+    reopen()
+    pg.get_by_role("button", name="Outils").click(); pg.wait_for_timeout(400)
+    sup = pg.get_by_text("Supprimer ce morceau")
+    check(not sup.first.is_visible(), T + "29 « Supprimer ce morceau » is hidden until « Plus… » is opened")
+    sh("29_outils")
+    pg.locator("summary", has_text="Plus d'outils").click(); pg.wait_for_timeout(300)
+    check(sup.first.is_visible(), T + "29 it appears under « Plus… »")
+    sh("29_outils_plus")
+    pg.get_by_role("button", name="Fermer").last.click()
     check(not errs, T + f"no page errors {errs[:3]}")
     b.close()
 

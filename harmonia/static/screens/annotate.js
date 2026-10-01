@@ -13,7 +13,7 @@ import { buildIReal, loadModel, renderChart } from "../screens/chart.js";
 import { openBar1Sheet, openSectionTool } from "../screens/sections_editor.js";
 import { S } from "../state.js";
 import { buildCascade } from "./cascade.js";
-import { kitButton, FAINT_ON_PETAL, INK_ON_PETAL, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, el, fifthsIndex, fmt, glyph, handle, haptic, keyTint, mod, note, overlay, petalEdge, petalFill, play, playedLabel, roleOf, sheetCol, sv, toast } from "../ui/kit.js";
+import { kitButton, kitPlusFold, FAINT_ON_PETAL, INK_ON_PETAL, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, el, fifthsIndex, fmt, glyph, handle, haptic, keyTint, mod, note, overlay, petalEdge, petalFill, play, playedLabel, roleOf, sheetCol, sv, toast } from "../ui/kit.js";
 
 // The single DOM host div (`<div id="app">`) — there is exactly one call
 // site, `window.APP.build(document.getElementById("app"))` in main.js, so
@@ -171,19 +171,10 @@ export function openAnnotateTools(){
     tr.appendChild(kitButton("÷2", ()=>{ haptic(); close(); applyTempoFactor(0.5); }, {small:true}));
     tr.appendChild(kitButton("×2", ()=>{ haptic(); close(); applyTempoFactor(2); }, {small:true}));
     list.appendChild(tr);
-    line("Supprimer ce morceau","il quitte la bibliothèque — ton travail est gardé",
-      ()=>{
-        const r=(S.library||[]).find(x=>x.file===m.file)
-                || {file:m.file, title:m.title||m.file};
-        deleteChart(r);
-      });
-    const plus=el("details",`border-top:1px solid ${T.line};`);
-    const sum=el("summary",`font:600 13px ${UI};color:${T.faint};cursor:pointer;min-height:${SZ.control}px;display:flex;align-items:center;gap:6px;padding:0 2px;list-style:none;`);
-    const chev=el("span",`display:inline-block;width:16px;font:700 16px ${UI};line-height:1;`,"▸");
-    sum.appendChild(chev); sum.appendChild(el("span","","Plus…")); plus.appendChild(sum);
-    plus.ontoggle=()=>{ chev.textContent=plus.open?"▾":"▸"; };   // même chevron que kitPlusFold
+    const {plus, more}=kitPlusFold(false, null, {label:"Plus d'outils"});
+    more.style.gap="0"; more.style.paddingTop="0";   // les lignes portent leur propre filet
     list.appendChild(plus);
-    into=plus;
+    into=more;
     line("Souder les sections","à l'oreille, deux passages à la fois",
       ()=>{ window.location="/soudure/"+encodeURIComponent(m.file); });
     line("Voir la matrice","où le morceau se répète, à l'œil",
@@ -226,6 +217,14 @@ export function openAnnotateTools(){
           toast(r.sections+" sections · "+(r.occam&&r.occam.forme||""));
           go("chart",{file:r.file});
         }).catch(()=>toast("tab injoignable"));
+      });
+    /* UX #29 (audit C1) : l'action la plus risquée n'est plus à deux lignes de
+       « Tempo » — elle vit sous « Plus… », en dernier. */
+    line("Supprimer ce morceau","il quitte la bibliothèque — ton travail est gardé",
+      ()=>{
+        const r=(S.library||[]).find(x=>x.file===m.file)
+                || {file:m.file, title:m.title||m.file};
+        deleteChart(r);
       });
     sheet.appendChild(list);
     const cancel=el("button",`flex:0 0 auto;width:100%;margin-top:10px;background:transparent;`+
