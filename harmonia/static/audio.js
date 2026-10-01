@@ -453,6 +453,7 @@ export function swapToBlob(resumeAt){
   }
 export function togglePlay(){
     if(!S.audio) return;
+    stopSpan();
     if(S.playing){ stopPlayback(); return; }
     // Play part de la musique, pas du logo de la chaîne (voir `caleAuDebut`).
     caleAuDebut();
@@ -558,9 +559,49 @@ export function seekToBar(bi){
   // once in syncTransport) instead of a RAF loop — these two just gate
   // S.playing, which the listener checks. Kept as named functions since
   // togglePlay/stopPlayback/the "ended" handler call them.
+  // ── ÉCOUTER LE PASSAGE D'UN ACCORD, SUR DEMANDE (Louis, 2026-10-01) ─────────
+  // « l'éditeur fait écouter l'enregistrement seulement quand on le lui
+  // demande, donc petit bouton play, c'est tout ». Une fois, de t0 à t1, sur
+  // l'élément audio principal (donc le même blob que la lecture : rien à
+  // re-télécharger, rien de nouveau côté iOS). Pas de boucle, pas de moteur
+  // à deux éléments : la fin est un `setTimeout` calé sur l'horloge média
+  // (comme loopSchedule), jamais une boucle rAF — cf. le piège iOS où un rendu
+  // rAF empêche WebKit de démarrer l'audio. Retourne false s'il n'y a pas de
+  // son (chart iReal) ; `onEnd` est appelé à l'arrêt, quelle qu'en soit la
+  // cause (fin du passage, nouveau stopSpan, pause du dock).
+export function playSpan(t0,t1,onEnd){
+    if(!S.audio || !(t1>t0)) return false;
+    stopSpan();
+    // la musique du dock se tait : un seul son à la fois
+    S.playing=false; loopEngineDispose(false); stopTick();
+    try{ S.audio.pause(); }catch(e){}
+    suspendPreviewAudio();
+    try{ if(tickCtx && tickCtx.state==="running") tickCtx.suspend(); }catch(e){}
+    const sp={t0,t1,onEnd,timer:null};
+    S._span=sp;
+    try{ S.audio.currentTime=Math.max(0,t0); }catch(e){}
+    S.audio.play().catch(()=>{ if(S._span===sp) stopSpan(); toast("Impossible de lancer le son"); });
+    const arm=()=>{
+      if(S._span!==sp) return;
+      const rate=S.playRate||1;
+      const ms=Math.max(30, ((t1-S.audio.currentTime)/rate)*1000);
+      sp.timer=setTimeout(()=>{
+        if(S._span!==sp) return;
+        if(S.audio.currentTime>=t1-0.03 || S.audio.paused) stopSpan(); else arm();
+      }, ms);
+    };
+    arm();
+    return true;
+  }
+export function stopSpan(){
+    const sp=S._span; if(!sp) return;
+    S._span=null; clearTimeout(sp.timer);
+    if(S.audio){ try{ S.audio.pause(); }catch(e){} }
+    if(sp.onEnd){ try{ sp.onEnd(); }catch(e){} }
+  }
 export function startTick(){ /* no-op: timeupdate listener does the work */ }
 export function stopTick(){ if(S.rafId){ cancelAnimationFrame(S.rafId); S.rafId=null; } }
-export function stopPlayback(){ S.playing=false; loopEngineDispose(false); stopTick(); if(S.audio){ try{ S.audio.pause(); }catch(e){} } setPlayBtn();
+export function stopPlayback(){ stopSpan(); S.playing=false; loopEngineDispose(false); stopTick(); if(S.audio){ try{ S.audio.pause(); }catch(e){} } setPlayBtn();
     // §6: l'arrêt rappelle toujours le chrome — un tap à l'arrêt doit
     // retrouver la feuille, le dock et les bandeaux comme avant.
     clearTimeout(S._immTimer); closeVoicingCard();

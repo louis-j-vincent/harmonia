@@ -5,6 +5,7 @@
 
 
 import { api } from "../api.js";
+import { playSpan, stopSpan } from "../audio.js";
 import { go } from "../router.js";
 import { paintLoading, pollJob } from "../screens/analyse.js";
 import { deleteChart } from "../screens/library.js";
@@ -164,7 +165,8 @@ export function openEditor(idx,opts){
     // overlay()'s own backdrop-tap-to-close bypasses onCancel — a tap outside
     // the sheet is just as much a "back out" as the Cancel button below, and
     // a new-chord draft must not survive either.
-    if(opts.onCancel) back.onclick=e=>{ if(e.target===back){ opts.onCancel(); closeOverlay(back); } };
+    // (aussi : fermer l'éditeur coupe l'enregistrement qu'il jouait)
+    back.onclick=e=>{ if(e.target===back){ stopSpan(); if(opts.onCancel) opts.onCancel(); closeOverlay(back); } };
     const ch=S.chords[idx];
     const hd=el("div","flex:0 0 auto;display:flex;align-items:center;gap:12px;margin-bottom:12px;");
     hd.appendChild(glyph(ch.root,ch.q,32,"exact",ch.confirmed?T.ink:confColor(ch.c)));
@@ -186,7 +188,26 @@ export function openEditor(idx,opts){
       meta.appendChild(el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:2px;`,
         (ch.c<.42 && (ch.n|0)===1)?"a chord the song never plays again is usually wrong":"choose a reading, or fix it by hand"));
     }
-    hd.appendChild(meta); sheet.appendChild(hd);
+    hd.appendChild(meta);
+    /* ÉCOUTER L'ENREGISTREMENT, seulement quand on le demande (Louis,
+       2026-10-01) : un petit bouton ▶, rien d'autre — pas de départ tout seul,
+       pas de boucle. Il joue le passage de CET accord (t0→t1) sur l'audio du
+       morceau ; retaper arrête. Le « Tap a chord to hear it » plus bas reste
+       la synthèse de l'accord choisi : ici, c'est le disque. */
+    if(S.audio && ch.t1>ch.t0){
+      const sp=el("button",`flex:0 0 auto;margin-left:auto;min-height:44px;min-width:44px;padding:0 14px;`+
+        `border:1.5px solid ${T.rule};border-radius:22px;background:transparent;color:${T.ink};`+
+        `font:600 12.5px ${UI};cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;`);
+      sp.setAttribute("aria-label","Écouter l'enregistrement de cet accord");
+      const paint=on=>{ sp.textContent=on?"■ Stop":"▶ Original"; sp.style.color=on?T.accent:T.ink; sp.style.borderColor=on?T.accent:T.rule; };
+      paint(false);
+      sp.onclick=()=>{ haptic();
+        if(S._span && S._span.t0===ch.t0 && S._span.t1===ch.t1){ stopSpan(); return; }
+        if(!playSpan(ch.t0,ch.t1,()=>paint(false))) { toast("Pas d'enregistrement ici"); return; }
+        paint(true); };
+      hd.appendChild(sp);
+    }
+    sheet.appendChild(hd);
     const tabs=el("div",`flex:0 0 auto;display:inline-flex;background:${T.line};border-radius:10px;padding:3px;gap:2px;margin-bottom:12px;align-self:flex-start;`);
     [["compass","Compass"],["cascade","Cascade"],["guide","Guide"],["hand","By hand"]].forEach(([k,lbl])=>{
       const b=el("button",`border:none;border-radius:8px;padding:7px 13px;font:600 12.5px ${UI};cursor:pointer;`,lbl);
@@ -231,7 +252,7 @@ export function openEditor(idx,opts){
       // position fondamentale. On ne l'écrit donc pas « G7/G » — on annule la
       // sélection, ce qui est le sens le plus proche que la convention
       // actuelle sache porter (`-1` = pas d'avis).
-      pickedBass=(pickedBass===pc || pc===r0)?null:pc; haptic(6);
+      stopSpan(); pickedBass=(pickedBass===pc || pc===r0)?null:pc; haptic(6);
       const r=picked?picked.root:ch.root, q=picked?picked.q:ch.q;
       play(r,q);
       clear(preview);
@@ -241,7 +262,7 @@ export function openEditor(idx,opts){
       renderPane();                     // redessiner l'anneau choisi
     }
     function onPick(cand, btn){
-      picked=cand; play(cand.root,cand.q); haptic(6);
+      stopSpan(); picked=cand; play(cand.root,cand.q); haptic(6);
       if(selBtn){ selBtn.style.outline=""; selBtn.style.outlineOffset=""; }
       if(btn){ btn.style.outline=`2.5px solid ${T.accent}`; btn.style.outlineOffset="2px"; selBtn=btn; }
       clear(preview); preview.appendChild(el("span","","▶ previewing"));
@@ -276,11 +297,11 @@ export function openEditor(idx,opts){
     foot.appendChild(preview); foot.appendChild(lockBtn);
     if(canSplit) foot.appendChild(splitBtn);
     const cancel=el("button",`width:100%;margin-top:6px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:44px;cursor:pointer;`,"Cancel");
-    cancel.onclick=()=>{ if(opts.onCancel) opts.onCancel(); closeOverlay(back); }; foot.appendChild(cancel);
+    cancel.onclick=()=>{ stopSpan(); if(opts.onCancel) opts.onCancel(); closeOverlay(back); }; foot.appendChild(cancel);
     sheet.appendChild(foot);
     back.appendChild(sheet); root.appendChild(back);
     S._editorIdx=idx;
-    S._closeEditor=()=>{ S._editorRefresh=null; S._editorIdx=null; closeOverlay(back); };
+    S._closeEditor=()=>{ stopSpan(); S._editorRefresh=null; S._editorIdx=null; closeOverlay(back); };
     // Redessiner la feuille quand ses candidats arrivent APRÈS son ouverture
     // (`openNewChord` : un créneau qu'on vient de créer n'a pas de `sug`, le
     // serveur les calcule pendant que la feuille est déjà à l'écran). Elle
