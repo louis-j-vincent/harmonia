@@ -33,8 +33,8 @@ export function practiseKeyboard(rng){
       `display:flex;flex-direction:column;gap:3px;`);
     const head=el("div","flex:0 0 auto;display:flex;align-items:baseline;gap:8px;height:13px;");
     head.appendChild(el("div",
-      `flex:0 0 auto;font:600 10px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};`,
-      "au piano"));
+      `flex:0 0 auto;font:600 10px ${UI};color:${T.faint};`,
+      "piano : gauche = basse, droite = accord"));
     const names=el("div",`flex:1;min-width:0;text-align:right;font:600 11px ${UI};`+
       `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`);
     head.appendChild(names); card.appendChild(head);
@@ -215,7 +215,8 @@ export function renderPrompter(){
       {style:`border:1px solid ${T.accent};color:${T.accent};`});
     const topBar=appBar(m.title, "mesure 1 · "+rateLbl(), "chart", dots);
     const paintSub=()=>{ if(topBar._sub)
-      topBar._sub.textContent="mesure "+Math.max(1,curBar>0?curBar:1)+" · "+rateLbl(); };
+      topBar._sub.textContent="mesure "+Math.max(1,curBar>0?curBar:1)+" · "+rateLbl();
+      if(typeof speedChip!=="undefined") speedChip.textContent=rateLbl(); };
     w.appendChild(topBar);
     const chords=prompterData().slice().sort((a,b)=>a.t0-b.t0);
     const grid=(m.barGrid||[]).slice();
@@ -306,7 +307,7 @@ export function renderPrompter(){
       const on=!!loop;
       loopBtn.style.background=on?T.accent:T.card; loopBtn.style.color=on?"#fff":T.ink;
       loopBtn.style.borderColor=on?T.accent:T.line;
-      if(on) loopBars.textContent="mesures "+(barAt(loop.a+0.01)+1)+"–"+(barAt(loop.b-0.01)+1);
+      if(on) { const x=barAt(loop.a+0.01)+1, y=barAt(loop.b-0.01)+1; loopBars.textContent=y>x?"mesures "+x+"–"+y:"mesure "+x; }
       // le calage de seam vit dans la feuille « ··· » (T5) : si elle est
       // ouverte pendant qu'on arme la boucle, elle se repeint ; sinon rien.
       if(S._practiseSeamPaint) S._practiseSeamPaint();
@@ -407,7 +408,7 @@ export function renderPrompter(){
     // FIXED bottom block, not the scrollable stage (Louis, 2026-08-08,
     // iPhone: "je ne vois même pas le bouton play une fois que c'est lancé")
     // — what you touch while playing never scrolls away.
-    const ctrl=el("div","flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:10px;");
+    const ctrl=el("div","flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:10px;");
     const jumpStyle=`flex:0 0 auto;width:52px;height:52px;border-radius:50%;border:1px solid ${T.line};background:${T.card};color:${T.ink};font:600 15px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;`;
     const back4=el("button",jumpStyle,"‹‹4"); back4.title="Reculer de quatre mesures (flèche gauche)";
     back4.onclick=()=>jumpBars(-4);
@@ -417,24 +418,50 @@ export function renderPrompter(){
     bigPlay.onclick=()=>{ if(S._loopEngine) loopEngineToggle(); else togglePlay(); };
     const fwd4=el("button",jumpStyle,"4››"); fwd4.title="Avancer de quatre mesures (flèche droite)";
     fwd4.onclick=()=>jumpBars(4);
+    // Longueur de la boucle (UX #5, 2026-10-01) : 1 / 2 / 4 / 8 mesures, une
+    // pastille à côté du bouton (un tap = la suivante), mémorisée. 4 = l'ancien
+    // comportement. La bande se cale sur la grille de N mesures.
+    const LOOP_LENS=[1,2,4,8];
+    let loopN=(()=>{ try{ const v=parseInt(localStorage.getItem("harmLoopBars"),10); return LOOP_LENS.includes(v)?v:4; }catch(e){ return 4; } })();
+    const chipStyle=`flex:0 0 auto;height:24px;min-width:44px;padding:0 6px;border-radius:12px;cursor:pointer;font:700 12px ${UI};${ctlSkin("off")}`;
+    const lenChip=el("button",chipStyle,loopN+" mes.");
+    lenChip.title="Longueur de la boucle : 1, 2, 4 ou 8 mesures";
+    const speedChip=el("button",chipStyle,rateLbl());
+    speedChip.title="Vitesse de lecture : 0,5×, 0,75× ou 1×";
+    const chips=el("div","flex:0 0 auto;display:flex;flex-direction:column;gap:4px;");
+    chips.appendChild(lenChip); chips.appendChild(speedChip);
     const loopBtn=el("button",`flex:0 0 auto;height:52px;padding:0 14px;border-radius:${SZ.radiusLg}px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;${ctlSkin("off")}`);
     const loopLbl=el("div",`font:700 13px ${UI};`,"boucle");
     const loopBars=el("div",`font:500 11px ${UI};opacity:.75;`,"");
     loopBtn.appendChild(loopLbl); loopBtn.appendChild(loopBars);
-    loopBtn.title="Boucler la phrase de quatre mesures en cours";
+    loopBtn.title="Boucler les mesures en cours (longueur : pastille à droite)";
+    const bandAt=()=>{
+      const n=loopN, g=Math.min(Math.floor(barAt(nowTime()+PLAYHEAD_LEAD_S)/n)*n, Math.max(0,grid.length-2));
+      return {a:grid[g], b:grid[Math.min(g+n,grid.length-1)]};
+    };
+    lenChip.onclick=()=>{
+      loopN=LOOP_LENS[(LOOP_LENS.indexOf(loopN)+1)%LOOP_LENS.length];
+      try{ localStorage.setItem("harmLoopBars",String(loopN)); }catch(e){}
+      lenChip.textContent=loopN+" mes.";
+      if(loop){ loop=bandAt(); loopEngineStart(loop.a,loop.b); }   // reprend sur la nouvelle bande
+      curBar=-1; paintLoop(); if(!loop) sync(true);
+    };
+    speedChip.onclick=()=>{
+      const cur=RATES.findIndex(([v])=>v===(S.playRate||1));
+      S.playRate=RATES[(cur+1)%RATES.length][0]; applyPlayRate(); paintSub();
+    };
     loopBtn.onclick=()=>{
       if(loop){ loop=null; loopEngineDispose(true); }
       else{
         // snap to the 4-bar PHRASE grid (bars 0-3, 4-7, …) so the loop
         // cycles a musical unit, not four bars from wherever you happened
         // to press (Louis, 2026-08-05: "snap sur le grid de 4 barres")
-        const g=Math.min(Math.floor(barAt(nowTime()+PLAYHEAD_LEAD_S)/4)*4, Math.max(0,grid.length-2));
-        loop={a:grid[g], b:grid[Math.min(g+4,grid.length-1)]};
+        loop=bandAt();
         loopEngineStart(loop.a,loop.b);
       }
       paintLoop();
     };
-    ctrl.appendChild(back4); ctrl.appendChild(bigPlay); ctrl.appendChild(fwd4); ctrl.appendChild(loopBtn);
+    ctrl.appendChild(back4); ctrl.appendChild(bigPlay); ctrl.appendChild(fwd4); ctrl.appendChild(loopBtn); ctrl.appendChild(chips);
     // Le calage de seam (Louis, 2026-08-08 : « encore un poil trop tard, fais
     // moi un outil pour décaler à l'oreille ») est parti dans la feuille
     // « ··· » (T5). Il reste joignable dès qu'une boucle tourne, qu'elle ait
@@ -578,8 +605,9 @@ export function renderPrompter(){
       if(bar1!==curBar){ curBar=bar1;
         paintSub();
         if(!loop){
-          const g=Math.min(Math.floor(Math.max(0,bi)/4)*4, Math.max(0,grid.length-2));
-          loopBars.textContent="mesures "+(g+1)+"–"+Math.min(g+4,Math.max(1,grid.length-1));
+          const g=Math.min(Math.floor(Math.max(0,bi)/loopN)*loopN, Math.max(0,grid.length-2));
+          const e=Math.min(g+loopN,Math.max(1,grid.length-1));
+          loopBars.textContent=e>g+1?"mesures "+(g+1)+"–"+e:"mesure "+(g+1);
         }
       }
       // la bande de forme (T1) tient la position dans le morceau entier —
