@@ -72,9 +72,9 @@ _ASSET = Path(__file__).resolve().parent / "assets" / "chord_similarity_musx.jso
 def notes_jouees(c: dict, couleurs: bool = True) -> frozenset[int]:
     """Les notes sonnées (`roles.pcs`, basse comprise). `couleurs=False`
     retire les EXTENSIONS au-dessus de la septième, lues depuis la
-    fondamentale écrite : la 9 et la 11 d'un accord qui a une tierce, la 13
-    d'un accord qui a une septième mineure (C9 → C7, D-11 → D-7, G13 → G7,
-    C69 → C6). Les sus (pas de tierce), la 6 (pas de septième), les
+    fondamentale écrite : la 9 et la 11 d'un accord qui a une tierce, la 9
+    et la 13 d'un accord qui a une septième mineure (C9 → C7, D-11 → D-7,
+    G13 → G7, C69 → C6, C9sus4 → C7sus4). Les sus (pas de tierce), la 6 (pas de septième), les
     altérations (b9, #11…) et la basse restent."""
     out = pcs(c)
     if couleurs:
@@ -85,7 +85,7 @@ def notes_jouees(c: dict, couleurs: bool = True) -> frozenset[int]:
     if 3 in rel or 4 in rel:
         drop |= {2, 5}
     if 10 in rel:
-        drop.add(9)
+        drop |= {2, 9}            # la 9 d'une 7sus4 aussi (9sus4 → 7sus4)
     b = c.get("bass", -1)
     garde = set() if b is None or b < 0 else {int(b) % 12}
     return frozenset(p for p in out if (p - r) % 12 not in drop or p in garde)
@@ -292,16 +292,16 @@ RECOMMANDEE = "notes7"
 
 #: Proposition de crans pour le curseur « Section merging », lus sur la
 #: recommandation TEMPS PAR TEMPS (une mesure vaut son pire temps). Chaque
-#: seuil tombe dans un TROU de la distribution des valeurs de `notes7` (qui
+#: seuil tombe au MILIEU d'un trou de la distribution des valeurs de `notes7` (qui
 #: ne prend que quelques valeurs : 1, .89, .87, .80, .77, .75 | .67 | .60,
 #: .58, .52, .50 | .45 … sur 23 qualités usuelles sans basse étrangère),
 #: donc aucun de ces accords n'est à cheval sur un seuil :
 #:   0  mêmes notes exactement (`notes` = 1 : C7 ≠ C9, D-7 = F6)
-#:   1  ≥ 0.72 : couleurs, D-7 ≈ G7sus4, B♭/C ≈ C7sus4, G7 ≈ Gm7, C^7 ≈ A-7
-#:   2  ≥ 0.62 : + relatif mineur (C ≈ A-), tierce changée sur triade (A- ≈ A)
-#:   3  ≥ 0.49 : + triton (G7 ≈ D♭7), ii ≈ V (D-7 ≈ G7), F- ≈ F7
+#:   1  ≥ 0.71 : couleurs, D-7 ≈ G7sus4, B♭/C ≈ C7sus4, G7 ≈ Gm7, C^7 ≈ A-7
+#:   2  ≥ 0.63 : + relatif mineur (C ≈ A-), tierce changée sur triade (A- ≈ A)
+#:   3  ≥ 0.47 : + triton (G7 ≈ D♭7), ii ≈ V (D-7 ≈ G7), F- ≈ F7
 #:   4  tout
-CRANS = {1: 0.72, 2: 0.62, 3: 0.49}
+CRANS = {1: 0.71, 2: 0.63, 3: 0.47}
 
 
 def cran(a: dict, b: dict, contexte: dict | None = None) -> int:

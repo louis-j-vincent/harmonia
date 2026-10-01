@@ -5,6 +5,18 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Mesure de ressemblance entre accords : candidates comparées, rien de branché (2026-10-01)
+
+Page : `docs/plots/similarite_accords.html` ; note : `docs/similarite_accords.md` ;
+code : `harmonia/chord_similarity.py`. Recommandation : `notes7`, le cosinus des
+notes sonnées sans les couleurs 9/11/13 (D-7/G7sus4 0,75, C/F 0,33, Fm/F7 0,58).
+La table apprise de musx ne sert pas : musx n'hésite presque jamais entre deux
+fondamentales, sauf quand la basse est la même. **Attend l'arbitrage de Louis**
+(3 questions dans la note). **Ne résout pas :** (1) le rythme harmonique : sur
+Lost Without U, « Dm7 tenu » contre « Dm7 | G7 » bloque, pas D-7/G7sus4 ;
+(2) la tierce pèse comme une autre note, donc G7 ≈ Gm7 (0,75) ; (3) un accord
+de passage en plus reste une différence.
+
 ## Règles de Louis du 2026-10-01 : m7 ≡ 7sus4 (en attente de la mesure apprise), dernier tour du A (FAIT, 3c42bcc)
 
 - **Une seule comparaison « même accord »** : `harmonia.roles.meme_lecture(a, b,
