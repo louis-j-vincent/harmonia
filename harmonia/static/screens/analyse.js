@@ -105,10 +105,39 @@ export async function startRecordAnalysis(blob, title){
   }
   // Un fichier audio choisi dans les Fichiers (2026-10-01) : même job, même
   // écran de chargement que le micro, route `/api/import-audio`.
+// Mêmes chiffres que MAX_IMPORT_MO / MAX_IMPORT_MIN dans routes/analyze.py :
+// le serveur a le dernier mot, mais on évite d'envoyer 400 Mo pour s'entendre
+// dire non (UX #44).
+export const LIMITE_IMPORT={mo:200, min:30};
+export function dureeFichier(file){
+    return new Promise(res=>{
+      let fini=false, u=null;
+      const fin=v=>{ if(fini) return; fini=true; if(u) try{URL.revokeObjectURL(u);}catch(e){} res(v); };
+      try{
+        const a=new Audio(); u=URL.createObjectURL(file); a.preload="metadata";
+        a.onloadedmetadata=()=>fin(isFinite(a.duration)?a.duration:null);
+        a.onerror=()=>fin(null);
+        setTimeout(()=>fin(null),2000);   // format que le navigateur ne lit pas : le serveur tranchera
+        a.src=u;
+      }catch(e){ fin(null); }
+    });
+  }
+// Le message français si le fichier dépasse une limite, sinon "".
+export function refusImport(taille, secondes){
+    if(taille>LIMITE_IMPORT.mo*1048576)
+      return "Ce fichier fait "+Math.round(taille/1048576)+" Mo : la limite est de "+LIMITE_IMPORT.mo+" Mo.";
+    if(secondes!=null && secondes>LIMITE_IMPORT.min*60)
+      return "Ce morceau dure "+Math.round(secondes/60)+" min : la limite est de "+LIMITE_IMPORT.min+" min.";
+    return "";
+  }
 export async function startFileImport(file){
+    const refus=refusImport(file.size, await dureeFichier(file));
     const title=(file.name||"").replace(/\.[^.]+$/,"").replace(/_/g," ").trim();
-    S.job={title, stage:0, phase:"listening", error:null, file:null};
+    // le message reste à l'écran (la carte d'erreur de l'écran de chargement),
+    // un toast de 2 s ne laisserait pas le temps de lire la phrase
+    S.job={title, stage:0, phase:"listening", error:refus||null, file:null};
     go("analysing");
+    if(refus) return;
     try{
       const fd=new FormData();
       fd.append("audio", file, file.name||"audio");

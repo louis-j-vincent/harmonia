@@ -9,7 +9,7 @@ import { FOLDERS_KEY, folderCount, fusionnerDossiersServeur, loadFolders,
          ranger, saveFolders } from "../folders.js";
 import { chercherPartout } from "../recherche.js";
 import { go, screenWrap } from "../router.js";
-import { HTTPS_HOST, micDispo, startFileImport } from "../screens/analyse.js";
+import { HTTPS_HOST, LIMITE_IMPORT, micDispo, startFileImport } from "../screens/analyse.js";
 import { runSearch } from "../screens/search.js";
 import { openChart } from "../screens/chart.js";
 import { S } from "../state.js";
@@ -187,6 +187,8 @@ export function renderLibrary(){
       "Importer un fichier audio");
     imp.onclick=()=>fin.click();
     seek.appendChild(imp);
+    seek.appendChild(el("div",`font:italic 12.5px ${SERIF};color:${T.faint};`,
+      "jusqu’à "+LIMITE_IMPORT.min+" min et "+LIMITE_IMPORT.mo+" Mo"));
     body.appendChild(seek);
 
     // porte 2 — mes charts

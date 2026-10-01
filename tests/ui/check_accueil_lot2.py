@@ -4,7 +4,7 @@ POSTs interceptés; rien n'atteint state/.
 
     .venv/bin/python tests/ui/check_accueil_lot2.py [shots_prefix]
 """
-import json, sys
+import io, json, sys, wave
 from playwright.sync_api import sync_playwright
 
 PRE = sys.argv[1] if len(sys.argv) > 1 else "/tmp/accueil2"
@@ -12,6 +12,13 @@ fails = []
 def check(cond, msg):
     print(("ok   " if cond else "FAIL ") + msg)
     if not cond: fails.append(msg)
+
+def wav(sec, rate=8000):
+    b = io.BytesIO()
+    with wave.open(b, "wb") as w:
+        w.setnchannels(1); w.setsampwidth(1); w.setframerate(rate)
+        w.writeframes(b"\x80" * int(sec * rate))
+    return b.getvalue()
 
 def run(name, launcher, **ctx):
     print("==", name)
@@ -109,6 +116,40 @@ def run(name, launcher, **ctx):
     pg.evaluate("async()=>{const {go}=await import('/static/router.js');const {S}=await import('/static/state.js');S.searchQuery='';S.results=[];go('search',{push:false})}"); pg.wait_for_timeout(400)
     pg.get_by_text("Effacer", exact=True).first.click(); pg.wait_for_timeout(300)
     check(pg.locator("[data-recente]").count() == 0, "Effacer vide la liste")
+
+    # ---- #44 : limites d'import (pré-contrôle client + message serveur)
+    pg.goto("http://localhost:7772/"); pg.wait_for_timeout(1200)
+    check("30 min" in pg.inner_text("body") and "200 Mo" in pg.inner_text("body"), "la limite est annoncée sous « Importer »")
+    n0 = len(posts)
+    pg.locator("input[type=file]").set_input_files({"name": "long.wav", "mimeType": "audio/wav", "buffer": wav(31 * 60)})
+    pg.wait_for_timeout(2500)
+    txt = pg.inner_text("body")
+    check("Ce morceau dure 31 min : la limite est de 30 min." in txt, "fichier de 31 min refusé côté client, message français")
+    check(len(posts) == n0, "rien n'est envoyé au serveur")
+    pg.screenshot(path=f"{PRE}_{name}_trop_long.png")
+    import tempfile, os
+    gros = os.path.join(tempfile.mkdtemp(), "gros.wav")
+    with open(gros, "wb") as fh: fh.truncate(201 * 1048576)      # fichier creux : aucune place disque
+    pg.goto("http://localhost:7772/"); pg.wait_for_timeout(1200)
+    pg.locator("input[type=file]").set_input_files(gros)
+    pg.wait_for_timeout(2500)
+    check("Ce fichier fait 201 Mo : la limite est de 200 Mo." in pg.inner_text("body") and len(posts) == n0, "fichier de 201 Mo refusé côté client")
+    pg.goto("http://localhost:7772/"); pg.wait_for_timeout(1200)
+    pg.locator("input[type=file]").set_input_files({"name": "ok.wav", "mimeType": "audio/wav", "buffer": wav(20)})
+    pg.wait_for_timeout(2500)
+    check(any("/api/import-audio" in u for u in posts[n0:]), "un fichier de 20 s part au serveur")
+    # le serveur peut refuser aussi (413) : son message s'affiche tel quel
+    pg.unroute("**/api/**")
+    def r413(r):
+        if "/api/import-audio" in r.request.url:
+            r.fulfill(status=413, body=json.dumps({"error": "Ce morceau dure 45 min : la limite est de 30 min."}), content_type="application/json")
+        elif r.request.method == "POST": r.fulfill(status=200, body="{}", content_type="application/json")
+        else: r.continue_()
+    pg.route("**/api/**", r413)
+    pg.goto("http://localhost:7772/"); pg.wait_for_timeout(1200)
+    pg.locator("input[type=file]").set_input_files({"name": "ok.wav", "mimeType": "audio/wav", "buffer": wav(20)})
+    pg.wait_for_timeout(2500)
+    check("Ce morceau dure 45 min : la limite est de 30 min." in pg.inner_text("body"), "message 413 du serveur affiché")
     b.close()
 
 with sync_playwright() as p:

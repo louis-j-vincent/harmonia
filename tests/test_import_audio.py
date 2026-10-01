@@ -50,3 +50,26 @@ def test_import_illisible_400_et_rien_ne_reste(client):
                     data={"audio": (io.BytesIO(b"pas de l'audio"), "x.mp3")})
     assert r.status_code == 400 and not client.vus
     assert not list(client.audio.glob("*"))
+
+
+def test_import_trop_long_413_et_rien_ne_reste(client, tmp_path, monkeypatch):
+    monkeypatch.setattr(analyze, "MAX_IMPORT_MIN", 0.01)   # 0,6 s
+    r = client.post("/api/import-audio", content_type="multipart/form-data",
+                    data={"audio": (io.BytesIO(_wav(tmp_path)), "Ma_chanson.wav")})
+    assert r.status_code == 413 and not client.vus
+    assert "limite est de" in r.get_json()["error"] and "min" in r.get_json()["error"]
+    assert not list(client.audio.glob("*"))
+
+
+def test_import_trop_gros_413_avant_de_lire_le_corps(client, tmp_path, monkeypatch):
+    monkeypatch.setattr(analyze, "MAX_IMPORT_MO", 0.0001)   # ~100 octets
+    r = client.post("/api/import-audio", content_type="multipart/form-data",
+                    data={"audio": (io.BytesIO(_wav(tmp_path)), "Ma_chanson.wav")})
+    assert r.status_code == 413 and "Mo" in r.get_json()["error"]
+    assert not client.vus and not list(client.audio.glob("*"))
+
+
+def test_import_dans_les_limites_passe(client, tmp_path):
+    r = client.post("/api/import-audio", content_type="multipart/form-data",
+                    data={"audio": (io.BytesIO(_wav(tmp_path)), "a.wav")})
+    assert r.status_code == 200

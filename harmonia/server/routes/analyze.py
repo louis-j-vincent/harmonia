@@ -29,6 +29,14 @@ bp = Blueprint("analyze", __name__)
 
 AUDIO_DIR = SETTINGS.audio_dir
 
+#: Limites d'un fichier importé (UX #44). Larges exprès : un album-concert de
+#: 25 min en FLAC passe ; un DJ set de trois heures, non — il ferait attendre
+#: dix minutes puis donnerait un chart inutilisable. Le client les revérifie
+#: avant d'envoyer (`LIMITE_IMPORT` dans screens/analyse.js) : garder les deux
+#: chiffres identiques.
+MAX_IMPORT_MO = 200
+MAX_IMPORT_MIN = 30
+
 
 def _read_mark(stem: str) -> dict:
     """Le sidecar de corrections humaines d'un morceau
@@ -190,6 +198,19 @@ def _ffmpeg(src: Path, dest: Path, args: list[str], *, timeout: int) -> bool:
         return False
 
 
+def _duree_min(p: Path) -> float | None:
+    """Durée en minutes d'après ffprobe, ou None si illisible (c'est alors au
+    transcodage de dire que le fichier est mauvais)."""
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "csv=p=0", str(p)],
+            check=True, capture_output=True, timeout=30, text=True).stdout
+        return float(out.strip()) / 60.0
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
 def _ingerer_audio(prefixe: str, titre_defaut: str):
     """Reçoit un champ multipart `audio`, le transcode en m4a sous un stem
     UNIQUE (`<prefixe>_<ms>`) dans docs/audio/ et lance le MÊME `_run_job`
@@ -202,9 +223,16 @@ def _ingerer_audio(prefixe: str, titre_defaut: str):
     l'ancienne app — un clip de 45 s avait tronqué l'analyse d'un morceau de
     283 s).
 
-    Ne fait PAS : borner la taille ou la durée du fichier (ffmpeg décide si
-    c'est lisible, rien d'autre).
+    Borne la taille (200 Mo, d'après Content-Length) et la durée (30 min,
+    d'après ffprobe) : au-delà, 413 et un message français. Ne fait PAS :
+    juger si le contenu est de la musique (ffmpeg décide seulement si c'est
+    lisible).
     """
+    # Taille d'abord, SANS lire le corps : l'en-tête Content-Length suffit.
+    n = request.content_length or 0
+    if n > MAX_IMPORT_MO * 1024 * 1024:
+        return jsonify({"error": f"Ce fichier fait {n / 1048576:.0f} Mo : "
+                                 f"la limite est de {MAX_IMPORT_MO} Mo."}), 413
     f = request.files.get("audio")
     if f is None:
         return jsonify({"error": "Aucun audio reçu"}), 400
@@ -212,6 +240,13 @@ def _ingerer_audio(prefixe: str, titre_defaut: str):
     AUDIO_DIR.mkdir(parents=True, exist_ok=True)
     raw = AUDIO_DIR / f"{stem}.upload"
     f.save(raw)
+    # Durée ensuite, sur le fichier tel quel (ffprobe ≈ instantané) — avant
+    # le transcodage, qui lui peut prendre des minutes sur un long fichier.
+    minutes = _duree_min(raw)
+    if minutes is not None and minutes > MAX_IMPORT_MIN:
+        raw.unlink(missing_ok=True)
+        return jsonify({"error": f"Ce morceau dure {minutes:.0f} min : "
+                                 f"la limite est de {MAX_IMPORT_MIN} min."}), 413
     dest = AUDIO_DIR / f"{stem}.m4a"
     ok = _ffmpeg(raw, dest, ["-ac", "1", "-ar", "44100", "-c:a", "aac",
                              "-b:a", "128k"], timeout=600)
