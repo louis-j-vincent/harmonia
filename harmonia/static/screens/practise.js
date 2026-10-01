@@ -215,7 +215,23 @@ export function renderPrompter(){
     const rateLbl=()=>rateLabel(S.playRate);
     const dots=kitIcon("···", ()=>openPractiseTools(), "Réglages",
       {style:`border:1px solid ${T.accent};color:${T.accent};`});
-    const topBar=appBar(m.title, "mesure 1 · "+rateLbl(), "chart", dots);
+    /* 🎹 : le clavier en un tap (UX #36). Éteint = « Jamais » ; allumé = le
+       dernier mode choisi (« Au tap » par défaut). Même état que la ligne
+       « Piano » de la feuille Réglages (S.piano, S.coach, harmPiano). */
+    const pianoOn=S.piano!=="never";
+    const pianoBtn=kitIcon("🎹", ()=>{
+      let next;
+      if(S.piano==="never"){ let last="tap"; try{ last=localStorage.getItem("harmPianoLast")==="follow"?"follow":"tap"; }catch(e){} next=last; }
+      else{ try{ localStorage.setItem("harmPianoLast",S.piano); }catch(e){} next="never"; }
+      S.piano=next; S.coach=(next==="follow");
+      try{ localStorage.setItem("harmPiano",next); localStorage.setItem("harmCoach",S.coach?"1":"0"); }catch(e){}
+      go("prompter",{push:false});
+    }, pianoOn?"Cacher le clavier":"Afficher le clavier",
+      {style:pianoOn?`background:${T.accent}22;border:1.5px solid ${T.accent};font-size:20px;`:`font-size:20px;opacity:.6;`});
+    pianoBtn.dataset.role="piano-toggle"; pianoBtn.setAttribute("aria-pressed",pianoOn?"true":"false");
+    const right=el("div","flex:0 0 auto;display:flex;align-items:center;gap:8px;");
+    right.appendChild(pianoBtn); right.appendChild(dots);
+    const topBar=appBar(m.title, "mesure 1 · "+rateLbl(), "chart", right);
     const paintSub=()=>{ if(topBar._sub)
       topBar._sub.textContent="mesure "+Math.max(1,curBar>0?curBar:1)+" · "+rateLbl();
       if(typeof speedChip!=="undefined") speedChip.firstChild.nodeValue=rateLbl(); };
@@ -585,12 +601,20 @@ export function renderPrompter(){
           host.appendChild(vit);
           // « Mains » a quitté cette feuille (Louis, 2026-10-01, UX minimaliste) :
           // doublon exact du réglage de la carte clavier (bouton « setup »).
-          host.appendChild(row("Piano", kitSegmented([["never","Jamais"],["tap","Au tap"],["follow","Suit"]],
+          const pianoRow=row("Piano", kitSegmented([["never","Jamais"],["tap","Au tap"],["follow","Suit"]],
             ()=>S.piano,
             v=>{ S.piano=v; S.coach=(v==="follow");
                  try{ localStorage.setItem("harmPiano",v); localStorage.setItem("harmCoach",S.coach?"1":"0"); }catch(e){}
                  close(); go("prompter",{push:false}); },   // la carte apparaît/disparaît
-            {inline:true, height:SZ.control, font:13})));
+            {inline:true, height:SZ.control, font:13}));
+          // UX #36 : ce que veulent dire les trois choix, sous la rangée.
+          const pianoBox=el("div","display:flex;flex-direction:column;gap:4px;");
+          pianoBox.dataset.role="piano-help";
+          pianoBox.appendChild(pianoRow);
+          pianoBox.appendChild(el("div",`font:italic 12px ${SERIF};color:${T.faint};line-height:1.4;`,
+            "Jamais : pas de clavier. Au tap : le clavier s'affiche, et sur le chart un accord touché s'ouvre au piano. "+
+            "Suit : le clavier montre l'accord qui joue, aussi sur le chart."));
+          host.appendChild(pianoBox);
           host.appendChild(row("Clic sur les accords", kitSegmented([["on","Oui"],["off","Non"]],
             ()=>S.metronome?"on":"off",
             v=>{ S.metronome=(v==="on"); try{ localStorage.setItem("harmMetronome",S.metronome?"1":"0"); }catch(e){} paint(); },

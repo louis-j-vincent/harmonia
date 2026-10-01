@@ -2,6 +2,7 @@
     .venv/bin/python tests/ui/check_practise_lot2.py [file]
 #34 speeds 0,5 0,6 0,75 0,9 1 (comma; audio.playbackRate follows).
 #35 tapping « mesure N · v× » opens « Aller à la mesure… » and seeks the audio to that bar.
+#36 help line under Piano + 🎹 button toggling the keyboard card.
 #33 drag on the bar band chooses loop A/B (engine a,b; audio stays inside; tap still seeks)."""
 import sys
 from playwright.sync_api import sync_playwright
@@ -61,6 +62,23 @@ with sync_playwright() as p:
     t1 = SE(pg,'S.audio.currentTime'); lp = eng()
     check(abs(t1 - last[3]) < 0.6 and t0 > 90 and lp is None, tag + f"plain tap on the last segment still seeks to its start ({t0:.1f}s -> {t1:.1f}s, segment starts {last[3]:.1f}s), no loop armed")
     pg.screenshot(path=f"/tmp/lot2_drag_{name}.png")
+    # ---- #36 piano button + help
+    card = lambda: pg.evaluate("()=>!![...document.querySelectorAll('div')].find(d=>d.textContent.startsWith('piano : gauche'))")
+    pb = pg.locator('[data-role=piano-toggle]')
+    check(pb.count() == 1 and pb.bounding_box()["width"] >= 44, tag + "🎹 button on the screen, >= 44 px")
+    check(SE(pg,'S.piano') == "never" and not card(), tag + "starts at Jamais, no keyboard card")
+    pb.tap(); pg.wait_for_timeout(1000)
+    check(SE(pg,'S.piano') == "tap" and card(), tag + f"🎹 -> Au tap, keyboard card appears (S.piano={SE(pg,'S.piano')})")
+    pg.screenshot(path=f"/tmp/lot2_piano_on_{name}.png")
+    pg.locator('[data-role=piano-toggle]').tap(); pg.wait_for_timeout(1000)
+    check(SE(pg,'S.piano') == "never" and not card(), tag + "🎹 again -> Jamais, card gone")
+    pg.locator('button[aria-label="Réglages"]').first.tap(); pg.wait_for_timeout(500)
+    ph = pg.locator('[data-role=piano-help]'); txt = ph.inner_text() if ph.count() else ""
+    check("Jamais" in txt and "Au tap" in txt and "Suit" in txt and "clavier" in txt, tag + f"help line under Piano explains the three choices")
+    pg.screenshot(path=f"/tmp/lot2_piano_help_{name}.png")
+    pg.keyboard.press("Escape"); pg.evaluate("localStorage.removeItem('harmPiano');localStorage.removeItem('harmCoach');localStorage.removeItem('harmPianoLast')")
+    pg.reload(); pg.wait_for_selector("[data-bar]", timeout=20000, state="attached"); pg.wait_for_timeout(1200)
+    pg.evaluate("async()=>{const {go}=await import('/static/router.js'); go('prompter');}"); pg.wait_for_timeout(1200)
     # ---- #35 go to bar
     g = SE(pg,'S.model.barGrid'); SE(pg,'(S.audio.currentTime=3)')
     sub = pg.locator('[data-where]').first
