@@ -58,7 +58,10 @@ with sync_playwright() as p:
         rect(bi); pg.wait_for_timeout(200); r = rect(bi)
         for k in range(3):
             mid = (edges[k] + edges[k+1]) / 2 / bpb
-            pg.mouse.click(r["x"] + r["w"]*mid, r["y"] + r["h"]/2); pg.wait_for_timeout(300)
+            # 3+ accords : mesure serrée automatique (UX #9), les accords sont empilés à
+            # gauche — on tape au milieu de chaque glyphe, pas à la position du temps.
+            fx = pg.evaluate("""([bi,k])=>{const it=[...document.querySelector(`[data-bar="${bi}"]`).querySelectorAll('[data-fit]')]; if(!it[k]) return null; const q=it[k].getBoundingClientRect(); return q.left+q.width/2;}""", [bi, k])
+            pg.mouse.click(fx if fx is not None else r["x"] + r["w"]*mid, r["y"] + r["h"]/2); pg.wait_for_timeout(300)
             check(editor_idx() == idxs[k], f"3-chord bar {bi} (beats {beats}): tap in zone #{k+1} opens chord #{k+1}")
             close()
     # 3. zone height >= 44px

@@ -49,6 +49,21 @@ with sync_playwright() as p:
             check(r[0] >= 0 and r[1] <= r[2], "bar %d scrolled into view (%s)" % (target, r))
             check((ev("return S.playBar") == target - 1), "playhead on bar %d" % target)
             pg.screenshot(path=f"{PRE}_{name}_goto.png")
+        # --- #9 mesures serrées : tout tient dans la cellule, rien ne se chevauche
+        res = pg.evaluate("""()=>{
+          const cells=[...document.querySelectorAll('[data-bar]')].filter(c=>c.querySelector('[data-fit]'));
+          let over=0, ovl=0;
+          cells.forEach(c=>{ const cr=c.getBoundingClientRect(); const rs=[...c.querySelectorAll('[data-fit]')].map(i=>i.getBoundingClientRect());
+            rs.forEach((r,k)=>{ if(r.right>cr.right-1||r.left<cr.left) over++; if(k&&r.left<rs[k-1].right-0.5) ovl++; }); });
+          return [cells.length,over,ovl]; }""")
+        check(res[0] > 0, "dense bars found (%d)" % res[0]); check(res[1] == 0, "no chord overflows its bar (%d)" % res[1]); check(res[2] == 0, "no chord overlaps its neighbour (%d)" % res[2])
+        # Annotate : zones disjointes dans chaque mesure
+        pg.locator('button:text-is("Corriger")').first.click(); pg.wait_for_timeout(800)
+        zs = pg.evaluate("""()=>{ let bad=0,n=0; document.querySelectorAll('[data-bar]').forEach(c=>{ const rs=[...c.querySelectorAll('[data-tapzone]')].map(z=>z.getBoundingClientRect()).sort((a,b)=>a.left-b.left);
+            n+=rs.length; rs.forEach((r,k)=>{ if(k&&r.left<rs[k-1].right-0.5) bad++; }); }); return [n,bad]; }""")
+        check(zs[0] > 0 and zs[1] == 0, "Annotate tap zones disjoint (%d zones, %d overlaps)" % tuple(zs))
+        pg.evaluate("()=>{const c=document.querySelector('[data-fit]'); c&&c.scrollIntoView({block:'center'})}"); pg.wait_for_timeout(300)
+        pg.screenshot(path=f"{PRE}_{name}_annotate_dense.png")
         check(not errs, "no page errors " + str(errs)); check(not posts, "no POST " + str(posts))
         b.close()
 print("FAILS:", fails); sys.exit(1 if fails else 0)

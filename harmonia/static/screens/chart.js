@@ -1679,8 +1679,18 @@ export function buildIReal(){
       // régulier (beat non entier) garde la grille proportionnelle, sinon le
       // chart ment. Le mode normal garde la grille de temps — le serrage est
       // le contrat de l'écriture compacte, pas un changement global.
-      const tight = PREF.notation==="compact" && b.chords.length>=2 &&
+      // ÉCRITURE SERRÉE AUTOMATIQUE (UX #9, 2026-10-01) : à 3-4 accords,
+      // « Gm⁷Cm⁷Fm⁷ » se collait en un seul mot à 390 px. Une mesure à 3 accords
+      // ou plus passe donc en disposition serrée (empilée à gauche, écart fixe)
+      // même en notation Normale, puis RÉTRÉCIT d'un bloc (`zoom`, plancher
+      // 55 %, voir plus bas) jusqu'à tenir dans sa cellule. La police reste
+      // celle du chart : essayé avec glyphTight (« Serrée », en gras, G₋₇C₋₇F₋₇),
+      // il débordait encore et jurait avec le reste de la grille. 1-2 accords
+      // ne changent pas d'un pixel ; la notation Serrée choisie à la main non plus.
+      const compactPref = PREF.notation==="compact";
+      const tight = (compactPref ? b.chords.length>=2 : b.chords.length>=3) &&
         b.chords.every(({ch})=>ch.beat==null || ch.beat===Math.round(ch.beat));
+      const autoTight = tight && !compactPref;
       const tightPad = endingOwnRow ? leftPad : (b.chords.length>=4?7:9);
       const layoutCss = tight
         ? `display:flex;align-items:center;gap:${tightGap(b.chords.length)}px;padding:0 ${narrow?3:8}px 0 ${tightPad}px;`
@@ -1876,7 +1886,7 @@ export function buildIReal(){
         // smaller size tier — SZ1/SZ2 alone only split 1 vs >1 (2026-07-21).
         // En serré (§7) la taille suit le nombre d'accords: 30/25/22/19,
         // plancher dur à 19 — la seule échelle, quel que soit narrow.
-        const size=tight?tightSize(b.chords.length):(b.chords.length>=3?SZ3:(b.chords.length>1?SZ2:SZ1));
+        const size=autoTight?(b.chords.length>=4?18:20):tight?tightSize(b.chords.length):(b.chords.length>=3?SZ3:(b.chords.length>1?SZ2:SZ1));
         // Learn mode relabels through the ladder (dispQ); slash bass is an
         // L3 concept and hides below it. The tiny amber tag marks cells whose
         // label genuinely simplified, so Learn never silently lies.
@@ -1902,7 +1912,7 @@ export function buildIReal(){
               // (la capture) — ça ne ment sur aucun temps.
               ? "grid-column:1/-1;grid-row:1;justify-self:center;"
               : `grid-column:${q4+1};grid-row:1;justify-self:start;`)}`;
-        const item=el(S.mode==="annotate"?"button":"div",`${place}min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;background:none;border:none;cursor:${ch.nc&&S.mode!=="annotate"?"default":"pointer"};padding:0 ${tight||pendu?0:2}px;${S.mode==="annotate"?"pointer-events:none;":""}${ch.carry?"opacity:.72;":""}`);
+        const item=el(S.mode==="annotate"?"button":"div",`${place}min-width:0;${autoTight&&!pendu?"flex:0 0 auto;":""}display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;background:none;border:none;cursor:${ch.nc&&S.mode!=="annotate"?"default":"pointer"};padding:0 ${tight||pendu?0:2}px;${S.mode==="annotate"?"pointer-events:none;":""}${ch.carry?"opacity:.72;":""}`);
 
         // No-chord (N.C.) cell: music-x-lab detected silence/no harmony here.
         // Render a faint "N.C." rather than an invented glyph (the intro/outro
@@ -2023,8 +2033,26 @@ export function buildIReal(){
             } else openChordSheet(idx);
           };
         }
+        if(autoTight && !pendu) item.dataset.fit="1";
         cell.appendChild(item);
         lastCh=ch;
+      });
+      // Mesure serrée automatique : tout le bloc d'accords rétrécit du MÊME
+      // facteur jusqu'à tenir entre les retraits de la cellule. Posé AVANT le
+      // calcul des zones d'Annotate (même requestAnimationFrame, enregistré
+      // plus tôt) : les zones suivent les glyphes rétrécis.
+      if(autoTight) requestAnimationFrame(()=>{
+        const its=[...cell.querySelectorAll("[data-fit]")]; if(its.length<2) return;
+        its.forEach(i=>{ i.style.zoom=""; });
+        const cs=getComputedStyle(cell);
+        const avail=cell.clientWidth-(parseFloat(cs.paddingLeft)||0)-(parseFloat(cs.paddingRight)||0)-2;
+        const need=its.reduce((a,i)=>a+i.getBoundingClientRect().width,0)+tightGap(b.chords.length)*(its.length-1);
+        const k=Math.max(.55,Math.min(1,avail/need));
+        if(k<1) its.forEach(i=>{ i.style.zoom=String(k); });
+        // WebKit arrondit les largeurs zoomées : on remesure et on corrige une fois.
+        const lim=cell.getBoundingClientRect().right-(parseFloat(cs.paddingRight)||0)-1;
+        const f=its[0].getBoundingClientRect().left, l=its[its.length-1].getBoundingClientRect().right;
+        if(l>lim && k>.55){ const k2=Math.max(.55,k*(lim-f)/(l-f)); its.forEach(i=>{ i.style.zoom=String(k2); }); }
       });
       // Held bar: no chord of its own — the previous chord sounds through it.
       // A faint "%" (simile) reads fine when the bar it repeats is right

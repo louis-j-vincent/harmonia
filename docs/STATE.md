@@ -236,6 +236,20 @@ défauts vus au rendu 390px, et le look qui les corrige :
 - Le dernier accord du chart qui ferme une reprise ne porte pas en plus la
   barre finale (le « :|| » est déjà une barre fine-épaisse).
 
+**Numéros de mesure et mesures serrées (2026-10-01, liste UX #4 et #9).**
+- Un petit numéro de mesure (9px, `T.faint`, 75 %) en bas à gauche de la 1re
+  mesure de chaque rangée — pas de chaque mesure. Le haut reste libre
+  (étiquette de section, ×N, crochets). « Aller à la mesure… » : l'étiquette
+  « mesure N » du dock (zone 44px) ouvre une feuille avec un champ numérique ;
+  la grille défile jusqu'à la mesure et le curseur s'y place sans lancer la lecture.
+- **Écriture serrée automatique à 3-4 accords** (UX audit A8) : la mesure passe
+  en disposition serrée (accords empilés à gauche, écart fixe) puis rétrécit
+  d'un bloc (`zoom`, plancher 55 %) jusqu'à tenir dans sa cellule. Écart assumé
+  au brief : on n'emploie PAS `glyphTight` (« Serrée », gras, G₋₇C₋₇F₋₇) — essayé
+  au rendu 390px, il débordait encore et jurait avec la police du chart ; on garde
+  la typographie du chart, plus petite (20/18px avant rétrécissement). Les mesures
+  à 1-2 accords et la notation Serrée choisie à la main ne changent pas.
+
 **Le curseur « Section merging » pilote aussi la boucle (2026-10-01, Louis :
 « mets-moi le curseur qui permet de choisir à quel point tu factorises »).**
 Un seul curseur, une seule question — à quel point deux passages peuvent
