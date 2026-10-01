@@ -220,6 +220,34 @@ export function renderPrompter(){
       topBar._sub.textContent="mesure "+Math.max(1,curBar>0?curBar:1)+" · "+rateLbl();
       if(typeof speedChip!=="undefined") speedChip.firstChild.nodeValue=rateLbl(); };
     w.appendChild(topBar);
+    /* « mesure 3 · 1× » est aussi le bouton « Aller à la mesure… » (UX #35),
+       comme sur le chart (UX #4). La zone de tap déborde du texte (≥ 44 px de
+       haut) sans agrandir la barre : padding + marge négative. La mesure est
+       celle que dit le sous-titre — la grille de mesures jouées (S.model.barGrid),
+       pas les lignes écrites du chart. */
+    if(topBar._sub){
+      const sb=topBar._sub;
+      sb.style.cssText+=`cursor:pointer;padding:15px 24px 15px 0;margin:-13px 0 -15px;text-decoration:underline dotted;text-underline-offset:3px;-webkit-tap-highlight-color:transparent;`;
+      sb.setAttribute("role","button"); sb.setAttribute("aria-label","Aller à la mesure…"); sb.dataset.where="1";
+      sb.onclick=()=>openGoto();
+    }
+    function openGoto(){
+      const N=Math.max(1,(m.nBars||grid.length-1)); if(grid.length<2) return;
+      const back=overlay(), sheet=sheetBox(); sheet.appendChild(handle());
+      sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:12px;`,"Aller à la mesure…"));
+      const row=el("div","display:flex;gap:10px;align-items:center;justify-content:center;");
+      const inp=el("input",`width:96px;height:${SZ.control}px;box-sizing:border-box;text-align:center;border:1.5px solid ${T.line};border-radius:12px;background:${T.paper};color:${T.ink};font:600 18px ${UI};`);
+      inp.type="number"; inp.min="1"; inp.max=String(N); inp.inputMode="numeric"; inp.placeholder="1–"+N;
+      inp.setAttribute("aria-label","Numéro de mesure");
+      const ok=el("button",`min-height:${SZ.control}px;padding:0 22px;border:none;border-radius:12px;background:${T.accent};color:#fff;font:700 15px ${UI};cursor:pointer;`,"Aller");
+      const go1=()=>{ const v=parseInt(inp.value,10); if(!(v>=1)) return; closeOverlay(back);
+        seekTo(grid[Math.min(v,N,grid.length-1)-1]); };
+      ok.onclick=go1; inp.onkeydown=e=>{ if(e.key==="Enter") go1(); };
+      row.appendChild(inp); row.appendChild(ok); sheet.appendChild(row);
+      sheet.appendChild(el("div",`text-align:center;font:italic 12px ${SERIF};color:${T.faint};margin-top:10px;`,"le morceau compte "+N+" mesures"));
+      back.appendChild(sheet); root.appendChild(back);
+      setTimeout(()=>inp.focus(),60);
+    }
     const chords=prompterData().slice().sort((a,b)=>a.t0-b.t0);
     const grid=(m.barGrid||[]).slice();
     ensureLoopEls();   // warm the loop pair so the first LOOP tap costs nothing
