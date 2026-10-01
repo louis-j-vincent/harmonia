@@ -5,7 +5,7 @@
 
 
 import { api } from "../api.js";
-import { PLAYHEAD_LEAD_S, hitAtTime, hitChordAtTime, loopEngineDispose, nowTime, paintCoachChord, seekFrac, seekToBar, stopPlayback, togglePlay, totalDur } from "../audio.js";
+import { PLAYHEAD_LEAD_S, hitAtTime, hitChordAtTime, loopEngineDispose, nowTime, paintCoachChord, playSpan, seekFrac, seekToBar, stopPlayback, stopSpan, togglePlay, totalDur } from "../audio.js";
 import { appBar, go, screenWrap } from "../router.js";
 import { paintLoading, pollJob } from "../screens/analyse.js";
 import { openAnnotateTools, relancerAnalyse } from "../screens/annotate.js";
@@ -1316,9 +1316,9 @@ export function openBar1Sheet(){
     const grid=(m.barGrid||[]).slice();
     const beats=(m.beatTimes||[]).slice();
     if(grid.length<2) { toast("Pas de grille de temps sur ce chart"); return; }
-    let live=true, raf=null, pxs=0, W=0;
+    let live=true, raf=null, pxs=0, W=0, tickIv=null, tickAC=null;
     const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
-    const close=()=>{ live=false; if(raf) cancelAnimationFrame(raf); closeOverlay(back); };
+    const close=()=>{ live=false; if(raf) cancelAnimationFrame(raf); stopSpan(); clearInterval(tickIv); closeOverlay(back); };
     back.onclick=e=>{ if(e.target===back) close(); };
     sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,"Caler la mesure 1"));
     sheet.appendChild(el("div",`text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:12px;`,
@@ -1341,7 +1341,47 @@ export function openBar1Sheet(){
     ctr.appendChild(play);
     sheet.appendChild(ctr);
 
+    /* ÉCOUTER UN CLIC SUR CE TEMPS (UX #31, audit C4) : vérifier le calage à
+       l'oreille avant de relancer toute l'analyse. On joue un court extrait de
+       la musique (1,5 s avant, 1 s après le repère) et UN clic tombe pile sur le
+       temps marqué : s'il tombe sur un vrai premier temps, c'est bon. Jamais
+       lancé tout seul. Le repère ne bouge pas : l'extrait fini (ou arrêté), la
+       lecture revient là où elle était.
+       Le clic a son propre AudioContext, créé ICI dans le geste : audio.js
+       `playTick` crée le sien au premier appel, donc dans le minuteur — et
+       WebKit/iOS refuse de démarrer un son hors geste. Même forme de clic. */
+    let clicking=false;
+    const clickB=kitButton("Écouter un clic sur ce temps", ()=>{
+      if(clicking){ stopSpan(); return; }
+      const ref=nowTime(), t=ref+PLAYHEAD_LEAD_S;
+      try{ tickAC=tickAC||new (window.AudioContext||window.webkitAudioContext)(); tickAC.resume(); }catch(e){}
+      const paintClick=on=>{ clicking=on; clickB.firstChild.textContent=on?"■ Arrêter":"Écouter un clic sur ce temps"; };
+      if(S._loopEngine) loopEngineDispose(false);
+      const ok=playSpan(Math.max(0,t-1.5), t+1.0, ()=>{
+        clearInterval(tickIv); paintClick(false);
+        const d=totalDur(); if(d>0) seekFrac(ref/d);          // le repère reste où il était
+        playGlyph(play,false,16);
+      });
+      if(!ok){ toast("Pas d'enregistrement ici"); return; }
+      paintClick(true); haptic(5);
+      let fired=false;
+      clearInterval(tickIv);
+      tickIv=setInterval(()=>{
+        if(fired || !S.audio || S.audio.currentTime<t) return;
+        fired=true; clearInterval(tickIv);
+        try{
+          const c=tickAC, n=c.currentTime, o=c.createOscillator(), g=c.createGain();
+          o.type="square"; o.frequency.setValueAtTime(1500,n); o.frequency.exponentialRampToValueAtTime(650,n+0.018);
+          g.gain.setValueAtTime(0.12,n); g.gain.exponentialRampToValueAtTime(0.0001,n+0.04);
+          o.connect(g); g.connect(c.destination); o.start(n); o.stop(n+0.05);
+        }catch(e){}
+      }, 5);
+    }, {small:true});
+    clickB.setAttribute("data-bar1-click","1");
+    clickB.style.cssText+="width:100%;margin-top:10px;flex:0 0 auto;";
+    sheet.appendChild(clickB);
     const apply=kitButton("La mesure 1 commence ici", async()=>{
+      stopSpan(); clearInterval(tickIv);        // revient au repère avant de le lire
       const t=nowTime()+PLAYHEAD_LEAD_S;
       stopPlayback();
       close();
