@@ -1322,6 +1322,9 @@ export function buildFormRail(opts){
         (nAlt?(" — "+nAlt+(nAlt>1?" passes finissent":" passe finit")+" en « "+g.label+" alt »"):"");
       seg.title=name;
 
+      // Le plus étroit passe AU-DESSUS (UX #22) : sa zone élargie déborde sur
+      // ses voisins et ne doit pas être mangée par leur zone à eux.
+      const zRank=2+groups.filter(h=>((timed?Math.max(spanOf(h),.001):h.n))>grow).length;
       // ONE TAP ZONE PER PASS, not one per group: three A's must still let you
       // jump to the second one. 22px of drawing, 44px of finger — and the
       // zones sit OUTSIDE the clipped drawing, or `overflow:hidden` would eat
@@ -1329,10 +1332,15 @@ export function buildFormRail(opts){
       for(let i=0;i<g.n;i++){
         const t0=(g.t0!=null && g.t1!=null) ? g.t0+(g.t1-g.t0)*i/g.n : g.t0;
         const b=el("button",
-          `position:absolute;top:0;bottom:0;left:${i*100/g.n}%;width:${100/g.n}%;`+
-          `padding:${PAD}px 0;margin:-${PAD}px 0;border:0;background:transparent;z-index:2;`+
+          // UX #22 : zone de tap ≥ 44 px aussi en LARGEUR (le segment « intro »
+          // n'en avait que 14). Le dessin garde sa taille ; la zone déborde de
+          // part et d'autre, centrée sur la passe.
+          `position:absolute;top:0;bottom:0;`+
+          `left:calc(${i*100/g.n}% + (${100/g.n}% - max(${100/g.n}%, ${SZ.control}px))/2);`+
+          `width:max(${100/g.n}%, ${SZ.control}px);`+
+          `padding:${PAD}px 0;margin:-${PAD}px 0;border:0;background:transparent;z-index:${zRank};`+
           `cursor:pointer;-webkit-tap-highlight-color:transparent;`);
-        b.setAttribute("aria-label", name+(g.n>1?(" — pass "+(i+1)):""));
+        b.setAttribute("aria-label", name+(g.n>1?(" — passage "+(i+1)):""));
         b.onclick=()=>{
           haptic();
           const dur=totalDur()||1;

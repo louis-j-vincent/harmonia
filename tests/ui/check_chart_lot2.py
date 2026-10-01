@@ -51,6 +51,14 @@ def run(p, name):
     pg.screenshot(path=pre + "_21_after.png")
     ev("S.playRate=1")
     pg.evaluate("async()=>{const {go}=await import('/static/router.js'); go('chart',{push:false});}"); pg.wait_for_timeout(400)
+    # ---- #22
+    zs = pg.evaluate("""()=>[...document.querySelectorAll('[data-form-band] button')].map(b=>{const r=b.getBoundingClientRect(); return [Math.round(r.width),Math.round(r.height)]})""")
+    segs = pg.evaluate("""()=>[...document.querySelectorAll('[data-form-band] > div')].map(b=>Math.round(b.getBoundingClientRect().width))""")
+    print("     form zones", zs, "visible", segs)
+    check(len(zs) >= 2 and all(w >= 44 and h >= 44 for w, h in zs), f"{name} #22 every form-rail zone >= 44x44")
+    hit = pg.evaluate("""()=>{const r=document.querySelectorAll('[data-form-band] button')[0].getBoundingClientRect(); const e=document.elementFromPoint(r.right-3, r.top+r.height/2); return e===document.querySelectorAll('[data-form-band] button')[0]}""")
+    check(hit, f"{name} #22 the narrow segment keeps its widened zone (on top of its neighbour)")
+    pg.screenshot(path=pre + "_22_rail.png", clip={"x": 0, "y": 40, "width": 390, "height": 60})
     check(not errs, f"{name} no page errors: {errs}")
     return pg, tap, ev, pre
 
