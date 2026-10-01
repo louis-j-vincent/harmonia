@@ -9,7 +9,8 @@ import { FOLDERS_KEY, folderCount, fusionnerDossiersServeur, loadFolders,
          ranger, saveFolders } from "../folders.js";
 import { chercherPartout } from "../recherche.js";
 import { go, screenWrap } from "../router.js";
-import { HTTPS_HOST, micDispo } from "../screens/analyse.js";
+import { HTTPS_HOST, micDispo, startFileImport } from "../screens/analyse.js";
+import { runSearch } from "../screens/search.js";
 import { openChart } from "../screens/chart.js";
 import { S } from "../state.js";
 import { SERIF, SZ, T, UI, clear, closeOverlay, el, handle, kitButton, kitIcon, note, overlay, resetSpelling, sheetBox, toast } from "../ui/kit.js";
@@ -93,40 +94,6 @@ export function renderLibrary(){
       `flex:1;min-height:0;overflow-y:auto;padding:0 20px;display:flex;flex-direction:column;gap:14px;`);
     body.className="ap-scroll";
 
-    // porte 1 — chercher. Le champ est DANS la carte: on ne fait pas taper
-    // l'utilisateur sur un écran pour l'emmener sur un autre où il retape.
-    const seek=el("div",
-      `background:${T.card};border:1.5px solid ${T.accent};border-radius:20px;padding:18px 18px 20px;cursor:pointer;`);
-    seek.appendChild(el("div",
-      `font:700 11px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.accent};`,"Chercher"));
-    seek.appendChild(el("div",`font:600 22px ${UI};margin-top:6px;`,"Une nouvelle chanson"));
-    seek.appendChild(el("div",`font:italic 13.5px/1.5 ${SERIF};color:${T.faint};margin-top:5px;`,
-      "un titre, un artiste"));
-    const sfield=el("div",
-      `margin-top:14px;height:52px;border-radius:14px;background:${T.paper};`+
-      `border:1px solid ${T.line};display:flex;align-items:center;gap:10px;padding:0 16px;`);
-    sfield.appendChild(el("span",`font:400 17px ${UI};color:${T.rule};`,"⌕"));
-    sfield.appendChild(el("span",`font:500 15px ${UI};color:${T.rule};`,"Autumn Leaves"));
-    seek.appendChild(sfield);
-    seek.onclick=()=>go("search");
-    body.appendChild(seek);
-
-    // porte 2 — mes charts
-    const mine=el("div",
-      `background:${T.card};border:1px solid ${T.line};border-radius:20px;padding:18px;`+
-      `display:flex;align-items:center;gap:14px;cursor:pointer;`);
-    const mt=el("div","flex:1;min-width:0;");
-    mt.appendChild(el("div",
-      `font:700 11px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};`,"Consulter"));
-    mt.appendChild(el("div",`font:600 22px ${UI};margin-top:6px;`,"Mes charts"));
-    const nf=(S.folders.order||[]).length;
-    mt.appendChild(el("div",`font:italic 13.5px/1.5 ${SERIF};color:${T.faint};margin-top:5px;`,
-      S.library.length+" chanson"+(S.library.length>1?"s":"")+(nf?(" · "+nf+" dossier"+(nf>1?"s":"")):"")));
-    mine.appendChild(mt);
-    mine.appendChild(el("span",`flex:0 0 auto;font:400 26px ${UI};color:${T.rule};`,"›"));
-    mine.onclick=()=>go("charts");
-    body.appendChild(mine);
-
     // reprendre — statistiquement le premier geste. Le dernier chart OUVERT
     // (harmLastChart, comme l'ancien Continue), pas le premier de la liste.
     const lastFile=(()=>{ try{return localStorage.getItem("harmLastChart");}catch(e){return null;} })();
@@ -145,6 +112,56 @@ export function renderLibrary(){
       cont.onclick=()=>openChart(last.file);
       body.appendChild(cont);
     }
+    // porte 1 — chercher. Le champ est DANS la carte: on ne fait pas taper
+    // l'utilisateur sur un écran pour l'emmener sur un autre où il retape.
+    const seek=el("div",
+      `background:${T.card};border:1.5px solid ${T.accent};border-radius:20px;padding:18px 18px 16px;`);
+    seek.appendChild(el("div",
+      `font:700 11px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.accent};`,"Chercher"));
+    seek.appendChild(el("div",`font:600 22px ${UI};margin-top:6px;`,"Une nouvelle chanson"));
+    const sfield=el("div",
+      `margin-top:14px;height:52px;border-radius:14px;background:${T.paper};`+
+      `border:1px solid ${T.line};display:flex;align-items:center;gap:10px;padding:0 16px;`);
+    sfield.appendChild(el("span",`font:400 17px ${UI};color:${T.rule};`,"⌕"));
+    const sinp=el("input",
+      `flex:1;min-width:0;height:100%;border:none;background:none;outline:none;font:500 15px ${UI};color:${T.ink};`);
+    sinp.type="text";
+    sinp.placeholder="Titre, artiste ou lien YouTube";
+    sinp.setAttribute("enterkeyhint","search");
+    sinp.onkeydown=e=>{
+      if(e.key!=="Enter" || !sinp.value.trim()) return;
+      const q=sinp.value.trim(); sinp.blur();
+      S.searchQuery=q; S.results=[]; go("search"); runSearch(q);
+    };
+    sfield.appendChild(sinp);
+    seek.appendChild(sfield);
+    // importer un fichier audio : un lien discret, pas une 4e carte
+    const fin=document.createElement("input");
+    fin.type="file"; fin.accept="audio/*,.mp3,.m4a,.wav,.flac,.ogg,.aac"; fin.style.display="none";
+    fin.onchange=()=>{ const f=fin.files&&fin.files[0]; if(f) startFileImport(f); };
+    seek.appendChild(fin);
+    const imp=el("div",`font:600 13.5px ${UI};color:${T.accent};margin-top:12px;cursor:pointer;min-height:${SZ.control}px;display:flex;align-items:center;`,
+      "Importer un fichier audio");
+    imp.onclick=()=>fin.click();
+    seek.appendChild(imp);
+    body.appendChild(seek);
+
+    // porte 2 — mes charts
+    const mine=el("div",
+      `background:${T.card};border:1px solid ${T.line};border-radius:20px;padding:18px;`+
+      `display:flex;align-items:center;gap:14px;cursor:pointer;`);
+    const mt=el("div","flex:1;min-width:0;");
+    mt.appendChild(el("div",
+      `font:700 11px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};`,"Consulter"));
+    mt.appendChild(el("div",`font:600 22px ${UI};margin-top:6px;`,"Mes charts"));
+    const nf=(S.folders.order||[]).length;
+    mt.appendChild(el("div",`font:italic 13.5px/1.5 ${SERIF};color:${T.faint};margin-top:5px;`,
+      S.library.length+" chanson"+(S.library.length>1?"s":"")+(nf?(" · "+nf+" dossier"+(nf>1?"s":"")):"")));
+    mine.appendChild(mt);
+    mine.appendChild(el("span",`flex:0 0 auto;font:400 26px ${UI};color:${T.rule};`,"›"));
+    mine.onclick=()=>go("charts");
+    body.appendChild(mine);
+
     w.appendChild(body);
 
     const foot=el("div",

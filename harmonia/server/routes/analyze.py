@@ -187,39 +187,57 @@ def _ffmpeg(src: Path, dest: Path, args: list[str], *, timeout: int) -> bool:
         return False
 
 
-@bp.post("/api/record-analyze")
-def api_record_analyze():
-    """Un enregistrement micro entre dans la bibliothèque comme un morceau.
-
-    Le fichier atterrit dans docs/audio/ sous un stem UNIQUE et repart dans le
-    MÊME `_run_job` que YouTube : même écran de chargement, même chart, et
-    l'audio est rejouable sous la tête de lecture (`/audio/<stem>.m4a`).
+def _ingerer_audio(prefixe: str, titre_defaut: str):
+    """Reçoit un champ multipart `audio`, le transcode en m4a sous un stem
+    UNIQUE (`<prefixe>_<ms>`) dans docs/audio/ et lance le MÊME `_run_job`
+    que YouTube : même écran de chargement, même chart, audio rejouable sous
+    la tête de lecture (`/audio/<stem>.m4a`).
 
     Le stem unique n'est pas cosmétique : battues, CQT et postérieures musx
-    sont TOUS cachés par stem de fichier. Deux enregistrements sous le même nom
-    et le second se verrait servir les accords du premier (mesuré en juillet
-    sur l'ancienne app — un clip de 45 s avait tronqué l'analyse d'un morceau
-    de 283 s).
+    sont TOUS cachés par stem de fichier. Deux fichiers sous le même nom et le
+    second se verrait servir les accords du premier (mesuré en juillet sur
+    l'ancienne app — un clip de 45 s avait tronqué l'analyse d'un morceau de
+    283 s).
+
+    Ne fait PAS : borner la taille ou la durée du fichier (ffmpeg décide si
+    c'est lisible, rien d'autre).
     """
     f = request.files.get("audio")
     if f is None:
         return jsonify({"error": "Aucun audio reçu"}), 400
-    stem = f"rec_{int(time.time() * 1000)}"
+    stem = f"{prefixe}_{int(time.time() * 1000)}"
     AUDIO_DIR.mkdir(parents=True, exist_ok=True)
     raw = AUDIO_DIR / f"{stem}.upload"
     f.save(raw)
     dest = AUDIO_DIR / f"{stem}.m4a"
     ok = _ffmpeg(raw, dest, ["-ac", "1", "-ar", "44100", "-c:a", "aac",
-                             "-b:a", "128k"], timeout=120)
+                             "-b:a", "128k"], timeout=600)
     raw.unlink(missing_ok=True)
     if not ok:
-        return jsonify({"error": "Enregistrement illisible (transcodage "
+        dest.unlink(missing_ok=True)
+        return jsonify({"error": "Fichier audio illisible (transcodage "
                                  "impossible)"}), 400
-
-    title = (request.form.get("title") or "").strip() or \
-        "Enregistrement du " + time.strftime("%d/%m à %H:%M")
+    title = (request.form.get("title") or "").strip() or titre_defaut
     job_id = start_job(stem, title=title)
     return jsonify({"job_id": job_id})
+
+
+@bp.post("/api/record-analyze")
+def api_record_analyze():
+    """Un enregistrement micro entre dans la bibliothèque comme un morceau."""
+    return _ingerer_audio("rec", "Enregistrement du "
+                          + time.strftime("%d/%m à %H:%M"))
+
+
+@bp.post("/api/import-audio")
+def api_import_audio():
+    """Un fichier audio choisi dans les Fichiers du téléphone (mp3, m4a, wav…)
+    entre comme un morceau. Titre = `title` du formulaire, sinon le nom du
+    fichier sans extension."""
+    f = request.files.get("audio")
+    nom = Path(f.filename or "").stem.replace("_", " ").strip() if f else ""
+    return _ingerer_audio("imp", nom or "Fichier importé du "
+                          + time.strftime("%d/%m à %H:%M"))
 
 
 @bp.post("/api/yt-search")

@@ -103,6 +103,20 @@ export async function startRecordAnalysis(blob, title){
       pollJob(r.job_id);
     }catch(e){ S.job.error=String(e); go("analysing"); }
   }
+  // Un fichier audio choisi dans les Fichiers (2026-10-01) : même job, même
+  // écran de chargement que le micro, route `/api/import-audio`.
+export async function startFileImport(file){
+    const title=(file.name||"").replace(/\.[^.]+$/,"").replace(/_/g," ").trim();
+    S.job={title, stage:0, phase:"listening", error:null, file:null};
+    go("analysing");
+    try{
+      const fd=new FormData();
+      fd.append("audio", file, file.name||"audio");
+      const r=await fetch("/api/import-audio", {method:"POST", body:fd}).then(x=>x.json());
+      if(r.error){ S.job.error=r.error; go("analysing"); return; }
+      pollJob(r.job_id);
+    }catch(e){ S.job.error=String(e); go("analysing"); }
+  }
 export function renderRecord(){
     const w=screenWrap();
     w.appendChild(appBar(null,"Enregistrer","library"));
