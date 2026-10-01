@@ -9,7 +9,7 @@ import { playSpan, stopSpan } from "../audio.js";
 import { go } from "../router.js";
 import { paintLoading, pollJob } from "../screens/analyse.js";
 import { deleteChart, showUndoSnackbar } from "../screens/library.js";
-import { buildIReal, renderChart } from "../screens/chart.js";
+import { buildIReal, loadModel, renderChart } from "../screens/chart.js";
 import { openBar1Sheet, openSectionTool } from "../screens/sections_editor.js";
 import { S } from "../state.js";
 import { buildCascade } from "./cascade.js";
@@ -90,6 +90,43 @@ function restoreAnnot(sn){
   }
 function offrirAnnuler(msg, sn){
     showUndoSnackbar(msg, ()=>restoreAnnot(sn), {ms:6000});
+  }
+
+/* DÉVERROUILLER (UX #1, 2026-10-01) : un accord gardé redevient celui du
+   modèle. Le client ne garde pas l'accord d'origine (le sidecar l'a écrasé au
+   chargement) : on retire donc l'accord du sidecar, puis on relit le chart
+   cuit — c'est le serveur qui rend l'accord du modèle, et le repli des
+   sections (qui ne touche pas une mesure verrouillée) se recalcule avec lui.
+   « Annuler » repose l'accord tel qu'il était (même route, même relecture). */
+async function relireChart(){
+    const m=await api.get("/api/chart-model/"+S.model.file);
+    loadModel(m,{keepTool:true}); go("chart",{push:false});
+  }
+function trouverChord(bar,beat){
+    return S.chords.findIndex(c=>c.bar===bar && (c.beat||0)===(beat||0) && !c.removed);
+  }
+export async function deverrouillerChord(idx){
+    const c=S.chords[idx]; if(!c||!c.confirmed) return;
+    const avant={bar:c.bar, beat:c.beat||0, root:c.root, q:c.q, bass:c.bass, bassPicked:c.bassPicked};
+    if(S._closeEditor) S._closeEditor();
+    c.confirmed=false;                 // saveAnnotations n'écrit que les gardés
+    await saveAnnotations();
+    try{ await relireChart(); }catch(e){ toast("Rechargement impossible"); return; }
+    showUndoSnackbar("Déverrouillé", async()=>{
+      const j=trouverChord(avant.bar, avant.beat); if(j<0) return;
+      const k=S.chords[j]; k.root=avant.root; k.q=avant.q; k.confirmed=true; k.c=1;
+      if(avant.bassPicked && avant.bass>=0){ k.bass=avant.bass; k.bassPicked=true; }
+      if(S.pending.indexOf(j)<0) S.pending.push(j);
+      S._vlBump=(S._vlBump||0)+1;
+      await saveAnnotations(); go("chart"); toast("Annulé");
+    }, {ms:6000});
+  }
+/* L'ordre dans lequel ‹ › parcourent les accords : celui du chart (mesure par
+   mesure, temps par temps). On saute les accords retirés et « N.C. » : il n'y
+   a rien à y corriger. */
+function ordreEditable(){
+    return S.bars.flatMap(b=>b.idxs.slice().sort((x,y)=>(S.chords[x].beat||0)-(S.chords[y].beat||0)))
+      .filter(i=>!S.chords[i].removed && !S.chords[i].nc);
   }
 
 export function openAnnotateTools(){
@@ -252,6 +289,24 @@ export function openEditor(idx,opts){
       hd.appendChild(sp);
     }
     sheet.appendChild(hd);
+    /* ‹ › : l'accord d'avant / d'après, sans fermer (UX #1). On rouvre
+       l'éditeur sur lui — ce qui coupe le ▶ Original en cours. Absent sur un
+       accord neuf (brouillon : on ne le quitte pas sans le garder ou l'annuler). */
+    if(!opts.isNew){
+      const ord=ordreEditable(), at=ord.indexOf(idx);
+      const nav=el("div","flex:0 0 auto;display:flex;gap:8px;margin-bottom:10px;");
+      const mk=(dir,j)=>{
+        const lab=j>=0&&j<ord.length ? (()=>{ const c=S.chords[ord[j]]; return note(c.root)+(TOK[c.q]!=null?TOK[c.q]:c.q); })() : "";
+        const b=el("button",`flex:1 1 0;min-width:0;min-height:44px;border:1.5px solid ${T.rule};border-radius:12px;background:transparent;color:${T.ink};`+
+          `font:600 13px ${UI};cursor:pointer;-webkit-tap-highlight-color:transparent;display:flex;align-items:center;justify-content:${dir<0?"flex-start":"flex-end"};gap:8px;padding:0 14px;`,
+          dir<0?"‹ "+lab:lab+" ›");
+        b.setAttribute("aria-label",(dir<0?"Accord précédent":"Accord suivant")+(lab?" : "+lab:""));
+        if(j<0||j>=ord.length){ b.disabled=true; b.style.opacity=".35"; b.style.cursor="default"; b.textContent=dir<0?"‹":"›"; b.setAttribute("aria-label",dir<0?"Accord précédent (aucun)":"Accord suivant (aucun)"); }
+        else b.onclick=()=>{ haptic(6); stopSpan(); if(S._closeEditor) S._closeEditor(); openEditor(ord[j],{}); };
+        return b;
+      };
+      if(at>=0){ nav.appendChild(mk(-1,at-1)); nav.appendChild(mk(1,at+1)); sheet.appendChild(nav); }
+    }
     const tabs=el("div",`flex:0 0 auto;display:inline-flex;background:${T.line};border-radius:10px;padding:3px;gap:2px;margin-bottom:12px;align-self:flex-start;`);
     [["compass","Roue"],["cascade","Extensions"],["guide","Propositions"],["hand","À la main"]].forEach(([k,lbl])=>{
       const b=el("button",`border:none;border-radius:8px;padding:7px 10px;font:600 12.5px ${UI};cursor:pointer;`,lbl);
@@ -338,6 +393,11 @@ export function openEditor(idx,opts){
     cutBtn.onclick=()=>{ stopSpan(); if(S._closeEditor) S._closeEditor(); openCutBar(_cutBi); };
     foot.appendChild(preview); foot.appendChild(lockBtn);
     if(canCut) foot.appendChild(cutBtn);
+    if(!opts.isNew && ch.confirmed){
+      const ub=el("button",`width:100%;margin-top:8px;border:1.5px solid ${T.rule};border-radius:12px;min-height:44px;padding:10px;font:600 13px ${UI};cursor:pointer;background:transparent;color:${T.ink};`,"Déverrouiller (revenir à l'accord du modèle)");
+      ub.onclick=()=>{ haptic(); deverrouillerChord(idx); };
+      foot.appendChild(ub);
+    }
     const cancel=el("button",`width:100%;margin-top:6px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:44px;cursor:pointer;`,(opts.isNew?"Annuler":"Fermer"));
     cancel.onclick=()=>{ stopSpan(); if(opts.onCancel) opts.onCancel(); closeOverlay(back); }; foot.appendChild(cancel);
     sheet.appendChild(foot);
