@@ -226,7 +226,7 @@ export function openAnnotateTools(){
   }
 
   // ── EDITOR (Compass + Guide + By hand) ──────────────────────────────────
-export let editTab="compass", handTab="cylinder";
+export let editTab="guide", handTab="cylinder";
   // `opts.isNew` (2026-09-16, bar-expanded add-a-chord): the sheet opens on a
   // freshly pushed, UNCONFIRMED draft chord (see annotate.js openNewChord) —
   // same shell, same tabs, same lockBtn wiring, just: no cut tool (you
@@ -235,13 +235,13 @@ export let editTab="compass", handTab="cylinder";
   // if the user backs out without locking anything.
 export function openEditor(idx,opts){
     opts=opts||{};
-    // Always open on Compass, regardless of which tab was last selected for a
+    // Always open on Propositions (the Wheel/Extensions sit under « Plus… »), regardless of which tab was last selected for a
     // previous chord — editTab is otherwise sticky across opens (only its
     // module-level initializer sets "compass", so after a user picks Guide or
     // By hand once, every subsequent chord silently reopened on that tab).
     // Except with no model ranking to show (see candList): Compass and Guide
     // are both empty then, so the editor opens straight on the tab that works.
-    editTab=candList(idx).length?"compass":"hand";
+    editTab=candList(idx).length?"guide":"hand";
     const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
     // overlay()'s own backdrop-tap-to-close bypasses onCancel — a tap outside
     // the sheet is just as much a "back out" as the Cancel button below, and
@@ -307,13 +307,25 @@ export function openEditor(idx,opts){
       };
       if(at>=0){ nav.appendChild(mk(-1,at-1)); nav.appendChild(mk(1,at+1)); sheet.appendChild(nav); }
     }
-    const tabs=el("div",`flex:0 0 auto;display:inline-flex;background:${T.line};border-radius:10px;padding:3px;gap:2px;margin-bottom:12px;align-self:flex-start;`);
-    [["compass","Roue"],["cascade","Extensions"],["guide","Propositions"],["hand","À la main"]].forEach(([k,lbl])=>{
-      const b=el("button",`border:none;border-radius:8px;padding:7px 10px;font:600 12.5px ${UI};cursor:pointer;`,lbl);
-      b.onclick=()=>{ editTab=k; renderPane(); };
-      tabs.appendChild(b);
-    });
-    sheet.appendChild(tabs);
+    /* DEUX ONGLETS (UX #2, 2026-10-01) : « Propositions » (ce que le modèle
+       pense) et « À la main ». La Roue et les Extensions restent là, repliées
+       sous « Plus… » — même geste que dans les Réglages. Le code des deux
+       vues n'a pas bougé. */
+    const tabBtn=(k,lbl,extra)=>{
+      const b=el("button",`border:none;border-radius:8px;padding:7px 10px;min-height:36px;font:600 12.5px ${UI};cursor:pointer;${extra||""}`,lbl);
+      b.dataset.k=k; b.onclick=()=>{ editTab=k; renderPane(); };
+      return b;
+    };
+    const tabs=el("div",`flex:0 0 auto;display:inline-flex;background:${T.line};border-radius:10px;padding:3px;gap:2px;`);
+    tabs.appendChild(tabBtn("guide","Propositions")); tabs.appendChild(tabBtn("hand","À la main"));
+    const plus=el("details",`flex:0 0 auto;margin:6px 0 10px;`);
+    plus.appendChild(el("summary",`font:600 12.5px ${UI};color:${T.faint};cursor:pointer;min-height:36px;display:flex;align-items:center;`,"Plus…"));
+    const plusRow=el("div",`display:inline-flex;background:${T.line};border-radius:10px;padding:3px;gap:2px;margin:2px 0 4px;`);
+    plusRow.appendChild(tabBtn("compass","Roue")); plusRow.appendChild(tabBtn("cascade","Extensions"));
+    plus.appendChild(plusRow);
+    const tabsBox=el("div","flex:0 0 auto;");
+    tabsBox.appendChild(tabs); tabsBox.appendChild(plus);
+    sheet.appendChild(tabsBox);
     // the ONLY scrolling region — the footer below it is always on screen
     const pane=el("div","flex:1 1 auto;min-height:0;overflow-y:auto;"); pane.className="ap-scroll";
     sheet.appendChild(pane);
@@ -367,7 +379,8 @@ export function openEditor(idx,opts){
     }
     function renderPane(){
       clear(pane); selBtn=null;
-      [...tabs.children].forEach((b,j)=>{ const k=["compass","cascade","guide","hand"][j]; const on=editTab===k;
+      if(editTab==="compass"||editTab==="cascade") plus.open=true;   // la vue active ne reste jamais cachée
+      tabsBox.querySelectorAll("button[data-k]").forEach(b=>{ const on=editTab===b.dataset.k;
         b.style.background=on?T.card:"transparent"; b.style.color=on?T.ink:T.faint; b.style.boxShadow=on?"0 1px 2px rgba(0,0,0,.12)":"none"; });
       const bassOpts={onPickBass, picked:pickedBass};
       if(editTab==="compass") pane.appendChild(buildCompass(idx,onPick,bassOpts));
@@ -411,7 +424,7 @@ export function openEditor(idx,opts){
     // passe au compas, puisque c'est là que le classement se lit.
     S._editorRefresh=()=>{
       if(!root.contains(back)) return;            // feuille déjà fermée
-      if(editTab==="hand" && candList(idx).length) editTab="compass";
+      if(editTab==="hand" && candList(idx).length) editTab="guide";
       renderPane();
     };
   }
