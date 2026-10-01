@@ -587,7 +587,7 @@ export function chartToolbar(){
     // floor) without adding visual height to the toolbar.
     const meta=el("button",
       `display:inline-flex;align-items:center;gap:6px;border:none;min-height:${SZ.control}px;`+
-      `margin:-9px 0 -11px;background:none;padding:0;font:500 13px ${UI};color:${T.faint};cursor:pointer;`);
+      `margin:-9px 0 -11px;background:none;padding:0;font:500 13px ${UI};color:${T.faint};cursor:pointer;white-space:nowrap;`);
     meta.appendChild(el("span",`color:${T.ink};font-weight:600;`, note(S.key)+" "+(S.keyMode==="minor"?"mineur":"majeur")));   // comme la bibliothèque (« B♭ majeur »), UX #13a
     if(m && m.form){ meta.appendChild(el("span","","·")); meta.appendChild(el("span","",m.form)); }
     meta.appendChild(el("span",`color:${T.accent};`,"↻ Transposer"));   // UX #20 : le ↻ seul ressemblait à « rafraîchir »
@@ -596,7 +596,10 @@ export function chartToolbar(){
     meta.style.minWidth="0"; meta.style.overflow="hidden";
     // « Partager ce chart » (UX #23) : sort des Réglages — c'est une action.
     // Une icône 44 px à droite de « Transposer », seulement s'il y a un chart.
-    if(m && m.file){
+    // En Corriger, le « ··· » prend la place : pas d'icône de partage (on ne
+    // partage pas un chart en pleine correction) — sinon la ligne de tonalité
+    // se cassait en « G / mineur Transpos » (vérif. visuelle lot 2, 2026-10-01).
+    if(m && m.file && S.mode!=="annotate"){
       const metaRow=el("div","display:flex;align-items:center;gap:2px;");
       const share=el("button",
         `flex:0 0 auto;width:${SZ.control}px;height:${SZ.control}px;margin:-9px 0 -11px;border:none;background:none;`+

@@ -300,13 +300,18 @@ export function openEditor(idx,opts){
       // both the reason the chord is doubtful and something the reader can
       // check by eye. The percentage it replaces was uninformative (see
       // buildIReal).
-      const played=ch.confirmed?"gardé par toi":playedLabel(ch);
+      // Sur une case repliée, « joué 20 fois » (le morceau entier) à côté de
+      // « Garder corrige les 9 passages » (cette case) se contredisaient à
+      // l'œil (vérif. visuelle lot 2, 2026-10-01) : on ne garde que la phrase
+      // qui dit ce que fait le geste.
+      const nPass=(ch.spans||[]).filter(sp=>sp&&sp.length>=2).length;
+      const played=ch.confirmed?"gardé par toi":(nPass>1?null:playedLabel(ch));
       if(played) meta.appendChild(el("div",`font:600 12px ${UI};color:${ch.confirmed?T.green:confColor(ch.c)};`, played));
       // The "never plays again" line is a claim about the COUNT, so it needs
       // the count: it used to fire on low confidence alone, which on a chart
       // with no `n` meant it fired on chords the song plays throughout.
-      meta.appendChild(el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:2px;`,
-        (ch.c<.42 && (ch.n|0)===1)?"un accord que le morceau ne rejoue jamais est souvent faux":"choisis une proposition, ou corrige à la main"));
+      const hint=el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:2px;`,
+        (ch.c<.42 && (ch.n|0)===1)?"un accord que le morceau ne rejoue jamais est souvent faux":"choisis une proposition, ou corrige à la main");
       /* CE QUE « GARDER » CHANGE (UX #28, audit B10). « joué 9 fois » compte les
          accords identiques de tout le morceau, il ne dit PAS ce que le geste
          corrige. Ce qui est vrai : un chart replié écrit ce temps UNE fois pour
@@ -320,6 +325,7 @@ export function openEditor(idx,opts){
         meta.appendChild(el("div",`font:600 11.5px ${UI};color:${T.ink};margin-top:2px;`,
           "Garder corrige les "+passes.length+" passages ("+dep+")"));
       }
+      meta.appendChild(hint);   // après : d'abord ce que fait le geste, puis comment
     }
     hd.appendChild(meta);
     /* ÉCOUTER L'ENREGISTREMENT, seulement quand on le demande (Louis,
