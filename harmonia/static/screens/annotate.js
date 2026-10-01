@@ -172,21 +172,21 @@ export function openEditor(idx,opts){
     hd.appendChild(glyph(ch.root,ch.q,32,"exact",ch.confirmed?T.ink:confColor(ch.c)));
     const meta=el("div","");
     if(opts.isNew){
-      meta.appendChild(el("div",`font:600 12px ${UI};color:${T.accent};`,"new chord"));
+      meta.appendChild(el("div",`font:600 12px ${UI};color:${T.accent};`,"nouvel accord"));
       meta.appendChild(el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:2px;`,
-        "pick a reading, or set it by hand"));
+        "choisis une proposition, ou règle-le à la main"));
     } else {
       // Say the OBSERVABLE, not a percentage: "played once in this song" is
       // both the reason the chord is doubtful and something the reader can
       // check by eye. The percentage it replaces was uninformative (see
       // buildIReal).
-      const played=ch.confirmed?"locked by you":playedLabel(ch);
+      const played=ch.confirmed?"gardé par toi":playedLabel(ch);
       if(played) meta.appendChild(el("div",`font:600 12px ${UI};color:${ch.confirmed?T.green:confColor(ch.c)};`, played));
       // The "never plays again" line is a claim about the COUNT, so it needs
       // the count: it used to fire on low confidence alone, which on a chart
       // with no `n` meant it fired on chords the song plays throughout.
       meta.appendChild(el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:2px;`,
-        (ch.c<.42 && (ch.n|0)===1)?"a chord the song never plays again is usually wrong":"choose a reading, or fix it by hand"));
+        (ch.c<.42 && (ch.n|0)===1)?"un accord que le morceau ne rejoue jamais est souvent faux":"choisis une proposition, ou corrige à la main"));
     }
     hd.appendChild(meta);
     /* ÉCOUTER L'ENREGISTREMENT, seulement quand on le demande (Louis,
@@ -209,8 +209,8 @@ export function openEditor(idx,opts){
     }
     sheet.appendChild(hd);
     const tabs=el("div",`flex:0 0 auto;display:inline-flex;background:${T.line};border-radius:10px;padding:3px;gap:2px;margin-bottom:12px;align-self:flex-start;`);
-    [["compass","Compass"],["cascade","Cascade"],["guide","Guide"],["hand","By hand"]].forEach(([k,lbl])=>{
-      const b=el("button",`border:none;border-radius:8px;padding:7px 13px;font:600 12.5px ${UI};cursor:pointer;`,lbl);
+    [["compass","Roue"],["cascade","Extensions"],["guide","Propositions"],["hand","À la main"]].forEach(([k,lbl])=>{
+      const b=el("button",`border:none;border-radius:8px;padding:7px 10px;font:600 12.5px ${UI};cursor:pointer;`,lbl);
       b.onclick=()=>{ editTab=k; renderPane(); };
       tabs.appendChild(b);
     });
@@ -220,8 +220,8 @@ export function openEditor(idx,opts){
     sheet.appendChild(pane);
     const foot=el("div",`flex:0 0 auto;padding-top:10px;background:${T.card};`);
     let picked=null, selBtn=null;
-    const preview=el("div",`display:flex;align-items:center;justify-content:center;gap:10px;min-height:24px;font:italic 12.5px ${SERIF};color:${T.faint};`,"Tap a chord to hear it");
-    const lockBtn=el("button",`width:100%;margin-top:8px;border:none;border-radius:12px;padding:14px;font:600 14px ${UI};cursor:pointer;background:${T.line};color:${T.faint};pointer-events:none;transition:all .15s;`,"Lock this chord");
+    const preview=el("div",`display:flex;align-items:center;justify-content:center;gap:10px;min-height:24px;font:italic 12.5px ${SERIF};color:${T.faint};`,"Touche un accord pour l'entendre au piano");
+    const lockBtn=el("button",`width:100%;margin-top:8px;border:none;border-radius:12px;padding:14px;font:600 14px ${UI};cursor:pointer;background:${T.line};color:${T.faint};pointer-events:none;transition:all .15s;`,"Choisis un accord pour le garder");
     /* COUPER LA MESURE (Louis, 2026-10-01) : un seul outil, une règle des temps
        (voir openCutBar), à la place de l'ancien « Split into two » grisé qui
        coupait toujours au milieu et verrouillait la 2e moitié sans l'avoir
@@ -240,7 +240,7 @@ export function openEditor(idx,opts){
     function armerLock(){
       const r=picked?picked.root:ch.root, q=picked?picked.q:ch.q;
       lockBtn.style.background=T.accent; lockBtn.style.color="#fff"; lockBtn.style.pointerEvents="auto";
-      lockBtn.textContent="Lock "+note(r)+(TOK[q]!=null?TOK[q]:q)
+      lockBtn.textContent="Garder "+note(r)+(TOK[q]!=null?TOK[q]:q)
         +(pickedBass!=null?"/"+note(pickedBass):"");
     }
     function onPickBass(pc){
@@ -253,7 +253,7 @@ export function openEditor(idx,opts){
       const r=picked?picked.root:ch.root, q=picked?picked.q:ch.q;
       play(r,q);
       clear(preview);
-      preview.appendChild(el("span","","▶ previewing"));
+      preview.appendChild(el("span","","▶ piano"));
       preview.appendChild(glyph(r,q,20,"exact",T.ink,pickedBass!=null?pickedBass:-1));
       armerLock();
       renderPane();                     // redessiner l'anneau choisi
@@ -262,7 +262,7 @@ export function openEditor(idx,opts){
       stopSpan(); picked=cand; play(cand.root,cand.q); haptic(6);
       if(selBtn){ selBtn.style.outline=""; selBtn.style.outlineOffset=""; }
       if(btn){ btn.style.outline=`2.5px solid ${T.accent}`; btn.style.outlineOffset="2px"; selBtn=btn; }
-      clear(preview); preview.appendChild(el("span","","▶ previewing"));
+      clear(preview); preview.appendChild(el("span","","▶ piano"));
       preview.appendChild(glyph(cand.root,cand.q,20,"exact",T.ink,pickedBass!=null?pickedBass:-1));
       armerLock();
     }
@@ -280,15 +280,21 @@ export function openEditor(idx,opts){
       else pane.appendChild(buildHand(idx,onPick,renderPane));
     }
     renderPane();
+    /* « GARDER Gm » ACTIF DÈS L'OUVERTURE (audit UX B5) : confirmer un accord
+       déjà bon était 4 taps, dont un « hub » qui ne ressemble pas à un bouton.
+       Sur un accord qui existe, le bouton garde l'accord courant tout de suite ;
+       sur un accord NEUF (`isNew`, amorcé par le précédent) il reste grisé :
+       on ne verrouille pas ce qu'on n'a pas choisi. */
+    if(!opts.isNew) armerLock();
     // Verrouiller marche aussi quand SEULE la basse a changé : l'accord
     // reste celui qui est écrit, et c'est la basse qui devient une
     // affirmation de Louis.
-    lockBtn.onclick=()=>{ if(picked||pickedBass!=null)
+    lockBtn.onclick=()=>{ if(!opts.isNew||picked||pickedBass!=null)
       confirmChord(idx,(picked||ch).root,(picked||ch).q,pickedBass); };
     cutBtn.onclick=()=>{ stopSpan(); if(S._closeEditor) S._closeEditor(); openCutBar(_cutBi); };
     foot.appendChild(preview); foot.appendChild(lockBtn);
     if(canCut) foot.appendChild(cutBtn);
-    const cancel=el("button",`width:100%;margin-top:6px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:44px;cursor:pointer;`,"Cancel");
+    const cancel=el("button",`width:100%;margin-top:6px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:44px;cursor:pointer;`,(opts.isNew?"Annuler":"Fermer"));
     cancel.onclick=()=>{ stopSpan(); if(opts.onCancel) opts.onCancel(); closeOverlay(back); }; foot.appendChild(cancel);
     sheet.appendChild(foot);
     back.appendChild(sheet); root.appendChild(back);
@@ -312,7 +318,7 @@ export function openEditor(idx,opts){
   // 2026-08-17 (Louis: « l'option annotate semble utiliser les mauvais
   // accords »). This used to INVENT a list when `sug` was missing — the chord
   // itself, its fifth as a dom7, its major second as a m7, at hardcoded 30% /
-  // 22% — and the editor captioned it "candidates the model considered". On a
+  // 22% — and the editor captioned it "propositions du modèle". On a
   // chart written without `sug` (the ten `retour_*` ones: 0 chords out of 244
   // carried any) EVERY chord opened on two chords the model never scored,
   // labelled as its ranking: on This Love's Cm it offered G7 and Dm7 while
@@ -487,9 +493,9 @@ function byArea(p, rMin, rMax){ return rMin + Math.sqrt(Math.max(0,Math.min(1,p)
   // model was unsure here", and points at the tab that still works.
 export function noCandBox(){
     const box=el("div","padding:26px 8px;text-align:center;");
-    box.appendChild(el("div",`font:600 13px ${UI};color:${T.ink};margin-bottom:7px;`,"No candidates on this chart"));
+    box.appendChild(el("div",`font:600 13px ${UI};color:${T.ink};margin-bottom:7px;`,"Aucune proposition pour ce chart"));
     box.appendChild(el("div",`font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.55;`,
-      "It was written without the model's ranking, so there is nothing honest to show here. By hand sets any chord you want."));
+      "Il a été écrit sans le classement du modèle : rien d'honnête à montrer ici. « À la main » règle n'importe quel accord."));
     return box;
   }
 export function buildCompass(idx,onPick,bassOpts){
@@ -693,9 +699,9 @@ export function buildCompass(idx,onPick,bassOpts){
       // l'accord d'avant, pas par leur probabilité brute (`sugFrom`) : c'est
       // un autre ordre, et le laisser passer pour l'ordinaire ferait lire de
       // travers un chiffre qui, lui, reste la probabilité du créneau.
-      sure?`the model is sure — ${Math.round(all[0].c*100)}% on this chord`
-        :(chord.sugFrom==="delta"?"what comes IN here — ranked by what each gains"
-                                 :"candidates the model considered")));
+      sure?`le modèle est sûr — ${Math.round(all[0].c*100)} % sur cet accord`
+        :(chord.sugFrom==="delta"?"ce qui ENTRE ici — classé par ce que chacun gagne"
+                                 :"propositions du modèle")));
     // AU-DESSUS de la roue, pas sous elle. La légende historique (taille /
     // couleur / angle) vit sous la roue, donc SOUS LA LIGNE DE FLOTTAISON du
     // panneau, qui scrolle : acceptable pour une convention que Louis connaît
@@ -703,7 +709,7 @@ export function buildCompass(idx,onPick,bassOpts){
     // marque nouvelle s'explique là où on la voit.
     if(bass.length){
       const bl=el("div",`text-align:center;font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.blue};margin:-4px 0 8px;`);
-      bl.textContent="bass heard: "+bass.map(b=>`${note(b.pc)} ${Math.round(b.c*100)}%`).join(" · ");
+      bl.textContent="basse entendue : "+bass.map(b=>`${note(b.pc)} ${Math.round(b.c*100)}%`).join(" · ");
       box.appendChild(bl);
     }
     // Ce que la roue n'a pas pu montrer, EN HAUT : les orbes ne se chevauchent
@@ -716,14 +722,14 @@ export function buildCompass(idx,onPick,bassOpts){
       const nr=el("div",`font:italic 11.5px ${SERIF};color:${T.faint};text-align:center;margin:-2px 0 6px;`);
       nr.textContent=(retires===1?"1 candidat plus faible ne tient pas dans la roue"
                                  :`${retires} candidats plus faibles ne tiennent pas dans la roue`)
-                     +" — Guide les montre tous";
+                     +" — « Propositions » les montre tous";
       box.appendChild(nr);
     }
     box.appendChild(wrap);
     const cap=el("div",`text-align:center;font:italic 12px ${SERIF};color:${T.faint};margin-top:10px;line-height:1.5;`);
     cap.innerHTML=sure
-      ? "nothing else cleared the floor — <b>By hand</b> still sets any chord you want"
-      : "<b>size</b> = how sure · <b>colour</b> = its key on the circle of fifths · <b>angle</b> groups related keys";
+      ? "rien d'autre n'atteint le seuil — <b>À la main</b> règle n'importe quel accord"
+      : "<b>taille</b> = sûreté · <b>couleur</b> = sa tonalité sur le cycle des quintes · <b>angle</b> regroupe les tonalités voisines";
     // Ce que la roue n'a pas pu montrer. Les orbes ne se chevauchent jamais
     // (règle de Louis) : quand les candidats tombent sur des rayons voisins,
     // les plus faibles sortent plutôt que tout le monde rétrécisse. Le dire,
@@ -735,7 +741,7 @@ export function buildCompass(idx,onPick,bassOpts){
     // mesure, et qu'elle n'écrit rien dans le chart.
     if(bass.length){
       const bcap=el("div",`text-align:center;font:italic 12px ${SERIF};color:${T.blue};margin-top:6px;line-height:1.5;`);
-      bcap.innerHTML="<b>blue rings</b> = the bass we hear at this chord's attack — shown, never written into the chart";
+      bcap.innerHTML="<b>anneaux bleus</b> = la basse entendue à l'attaque de l'accord — montrée, jamais écrite dans le chart";
       box.appendChild(bcap);
     }
     return box;
@@ -750,10 +756,10 @@ function bassStrip(idx,bassOpts){
     if(!bass.length) return null;
     const box=el("div",`display:flex;align-items:center;gap:10px;background:${T.card};border:1.5px solid ${T.line};border-radius:12px;padding:10px 13px;`);
     const cap=el("div","min-width:0;flex:1 1 auto;");
-    cap.appendChild(el("div",`font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};`,"the bass we hear"));
+    cap.appendChild(el("div",`font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};`,"la basse entendue"));
     cap.appendChild(el("div",`font:italic 11.5px ${SERIF};color:${T.faint};margin-top:3px;`,
-      bassOpts.onPickBass?"read at this chord's attack — tap one to write it"
-                         :"read at this chord's attack — not written into the chart"));
+      bassOpts.onPickBass?"lue à l'attaque de l'accord — touches-en une pour l'écrire"
+                         :"lue à l'attaque de l'accord — pas écrite dans le chart"));
     box.appendChild(cap);
     const row=el("div","display:flex;align-items:center;gap:7px;flex:0 0 auto;");
     // Mêmes cercles que le compas, mêmes tailles proportionnelles, et tapables
@@ -788,7 +794,7 @@ export function buildGuide(idx,onPick,bassOpts){
       const mid=el("div","min-width:0;");
       const t1=el("div","display:flex;align-items:baseline;gap:8px;");
       t1.appendChild(glyph(s.root,s.q,22,"exact",T.ink));
-      if(s===top) t1.appendChild(el("span",`font:700 8.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.accent};border:1px solid ${T.accent};border-radius:5px;padding:2px 5px;`,"Top pick"));
+      if(s===top) t1.appendChild(el("span",`font:700 8.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.accent};border:1px solid ${T.accent};border-radius:5px;padding:2px 5px;`,"Favori"));
       mid.appendChild(t1);
       mid.appendChild(el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,role.text));
       const right=el("div","display:flex;flex-direction:column;align-items:flex-end;gap:5px;width:70px;");
@@ -808,10 +814,10 @@ export const QS=[["","maj"],["^7","maj7"],["6","6"],["-","m"],["-7","m7"],["7","
   // shipped chart's cylinder uses) ──
 export const FAMILIES=[{id:"maj",label:"Maj"},{id:"min",label:"Min"},{id:"dim",label:"Dim"},{id:"aug",label:"Aug"},{id:"sus",label:"Sus"}];
 export const SEVENTHS_BY_FAMILY={
-    maj:[{q:"",label:"Triad"},{q:"6",label:"6"},{q:"^7",label:"Maj7"},{q:"7",label:"Dom7"}],
-    min:[{q:"-",label:"Triad"},{q:"-7",label:"Min7"},{q:"-^7",label:"MinMaj7"}],
-    dim:[{q:"o",label:"Triad"},{q:"h7",label:"m7♭5"},{q:"o7",label:"Dim7"}],
-    aug:[{q:"+",label:"Triad"},{q:"+7",label:"Aug7"},{q:"+^7",label:"AugMaj7"}],
+    maj:[{q:"",label:"Triade"},{q:"6",label:"6"},{q:"^7",label:"Maj7"},{q:"7",label:"Dom7"}],
+    min:[{q:"-",label:"Triade"},{q:"-7",label:"Min7"},{q:"-^7",label:"MinMaj7"}],
+    dim:[{q:"o",label:"Triade"},{q:"h7",label:"m7♭5"},{q:"o7",label:"Dim7"}],
+    aug:[{q:"+",label:"Triade"},{q:"+7",label:"Aug7"},{q:"+^7",label:"AugMaj7"}],
     sus:[{q:"sus4",label:"Sus4"},{q:"sus2",label:"Sus2"},{q:"7sus",label:"7Sus4"}],
   };
 export const EXTENSIONS_BY_SEVENTH={
@@ -822,7 +828,7 @@ export const EXTENSIONS_BY_SEVENTH={
     "-7":[{q:"-7",label:"7"},{q:"-9",label:"9"},{q:"-11",label:"11"},{q:"-13",label:"13"}],
     "-^7":[{q:"-^7",label:"—"}], "o":[{q:"o",label:"—"}], "h7":[{q:"h7",label:"—"}], "o7":[{q:"o7",label:"—"}],
     "+":[{q:"+",label:"—"}], "+7":[{q:"+7",label:"—"}], "+^7":[{q:"+^7",label:"—"}],
-    "sus4":[{q:"sus4",label:"Triad"},{q:"9sus",label:"9"}], "sus2":[{q:"sus2",label:"—"}],
+    "sus4":[{q:"sus4",label:"Triade"},{q:"9sus",label:"9"}], "sus2":[{q:"sus2",label:"—"}],
     "7sus":[{q:"7sus",label:"7"},{q:"9sus",label:"9"}],
   };
 export function extensionsFor(q){ return EXTENSIONS_BY_SEVENTH[q]||[{q,label:"—"}]; }
@@ -847,7 +853,7 @@ export function buildCylinder(ch,onChange){
 
     const box=el("div","");
     const labels=el("div","display:flex;width:100%;padding:0 1px 6px;");
-    ["Root","Family","7th","Ext"].forEach(l=>labels.appendChild(el("span",`flex:1;text-align:center;font:700 10px ${UI};text-transform:uppercase;letter-spacing:.04em;color:${T.faint};`,l)));
+    ["Note","Famille","7e","Ext."].forEach(l=>labels.appendChild(el("span",`flex:1;text-align:center;font:700 10px ${UI};text-transform:uppercase;letter-spacing:.04em;color:${T.faint};`,l)));
     box.appendChild(labels);
 
     const picker=el("div",`position:relative;display:flex;width:100%;height:${CYL_H*5}px;background:#efe9d9;border-radius:10px;border:1px solid #e2dac4;overflow:hidden;`);
@@ -896,14 +902,14 @@ export function buildCylinder(ch,onChange){
     // two frames: one for the columns to get a height, one for the parking
     // scroll to land — only then does a scroll event mean the user rolled it
     requestAnimationFrame(()=>requestAnimationFrame(()=>{ ready=true; }));
-    box.appendChild(el("div",`text-align:center;font:italic 11.5px ${SERIF};color:${T.faint};margin-top:10px;`,"roll the columns — hear it, then lock below"));
+    box.appendChild(el("div",`text-align:center;font:italic 11.5px ${SERIF};color:${T.faint};margin-top:10px;`,"fais rouler les colonnes — écoute, puis garde en bas"));
     return box;
   }
 export function buildHand(idx,onPick,rerender){
     const ch=S.chords[idx];
     const box=el("div","");
     const sub=el("div",`display:inline-flex;background:${T.line};border-radius:9px;padding:3px;gap:2px;margin-bottom:12px;`);
-    [["cylinder","Cylinder"],["grid","Grid"]].forEach(([k,lbl])=>{
+    [["cylinder","Cylindre"],["grid","Grille"]].forEach(([k,lbl])=>{
       const on=handTab===k;
       const b=el("button",`border:none;border-radius:7px;padding:6px 12px;font:600 11.5px ${UI};cursor:pointer;background:${on?T.card:"transparent"};color:${on?T.ink:T.faint};box-shadow:${on?"0 1px 2px rgba(0,0,0,.12)":"none"};`,lbl);
       b.onclick=()=>{ handTab=k; rerender&&rerender(); };
@@ -927,21 +933,21 @@ export function buildChipGrid(idx,onPick){
     const preview=el("div","display:flex;justify-content:center;margin-bottom:12px;");
     const refresh=()=>{ clear(preview); preview.appendChild(glyph(selRoot,selQ,30,"exact",T.ink)); };
     box.appendChild(preview);
-    box.appendChild(el("div",`font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin:2px 0 6px;`,"Root"));
+    box.appendChild(el("div",`font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin:2px 0 6px;`,"Note"));
     const rg=el("div","display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:12px;");
     ROOTS.forEach(r=>{ const b=el("button",`padding:10px 0;border-radius:8px;border:1.5px solid ${T.line};background:${T.card};font:italic 600 15px ${SERIF};cursor:pointer;`,note(r));
       b.onclick=()=>{ selRoot=r; [...rg.children].forEach((c,j)=>{ const on=ROOTS[j]===selRoot; c.style.borderColor=on?T.accent:T.line; c.style.background=on?T.accent:T.card; c.style.color=on?"#fff":T.ink;}); refresh(); onPick&&onPick({root:selRoot,q:selQ}); };
       rg.appendChild(b); });
     [...rg.children].forEach((c,j)=>{ const on=ROOTS[j]===selRoot; c.style.borderColor=on?T.accent:T.line; c.style.background=on?T.accent:T.card; c.style.color=on?"#fff":T.ink; });
     box.appendChild(rg);
-    box.appendChild(el("div",`font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin:2px 0 6px;`,"Quality"));
+    box.appendChild(el("div",`font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin:2px 0 6px;`,"Qualité"));
     const qg=el("div","display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;");
     QS.forEach(([q,lbl])=>{ const b=el("button",`padding:10px 0;border-radius:8px;border:1.5px solid ${T.line};background:${T.card};font:600 12px ${UI};cursor:pointer;`,lbl);
       b.onclick=()=>{ selQ=q; [...qg.children].forEach((c,j)=>{ const on=QS[j][0]===selQ; c.style.borderColor=on?T.accent:T.line; c.style.background=on?T.accent:T.card; c.style.color=on?"#fff":T.ink;}); refresh(); onPick&&onPick({root:selRoot,q:selQ}); };
       qg.appendChild(b); });
     [...qg.children].forEach((c,j)=>{ const on=QS[j][0]===selQ; c.style.borderColor=on?T.accent:T.line; c.style.background=on?T.accent:T.card; c.style.color=on?"#fff":T.ink; });
     box.appendChild(qg);
-    box.appendChild(el("div",`text-align:center;font:italic 11.5px ${SERIF};color:${T.faint};`,"pick a root & quality — hear it, then lock below"));
+    box.appendChild(el("div",`text-align:center;font:italic 11.5px ${SERIF};color:${T.faint};`,"choisis une note et une qualité — écoute, puis garde en bas"));
     refresh(); return box;
   }
 export function confirmChord(idx,root,q,bass){

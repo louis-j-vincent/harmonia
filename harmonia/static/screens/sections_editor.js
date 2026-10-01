@@ -968,7 +968,7 @@ export function setPlayhead(bi, rep, t){
       S._cells.forEach(c=>{ c.el.style.background=""; c.ph.style.display="none"; });
       if(bi>=0) S._cells.forEach(c=>{ if(c.bar===bi){ if(!c.epure) c.el.style.background="rgba(138,43,43,.09)"; c.ph.style.display="block"; } });
     }
-    if(S._dockWhere) S._dockWhere.textContent = bi>=0 ? ("bar "+(bi+1)+((rep!=null&&rep>0)?" · ×"+(rep+1):"")) : "";
+    if(S._dockWhere) S._dockWhere.textContent = bi>=0 ? ("mesure "+(bi+1)+((rep!=null&&rep>0)?" · ×"+(rep+1):"")) : "";
     paintFormRail(S.playTime);
     // The coach follows ANY playhead move, not just playback — scrubbing or
     // tapping a form chip while paused should show that spot's voicing.
@@ -1266,20 +1266,20 @@ export function openBar1Sheet(){
     const chords=prompterData().slice().sort((a,b)=>a.t0-b.t0);
     const grid=(m.barGrid||[]).slice();
     const beats=(m.beatTimes||[]).slice();
-    if(grid.length<2) { toast("No beat grid on this chart"); return; }
+    if(grid.length<2) { toast("Pas de grille de temps sur ce chart"); return; }
     let live=true, raf=null, pxs=0, W=0;
     const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
     const close=()=>{ live=false; if(raf) cancelAnimationFrame(raf); closeOverlay(back); };
     back.onclick=e=>{ if(e.target===back) close(); };
-    sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,"Set bar 1"));
+    sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,"Caler la mesure 1"));
     sheet.appendChild(el("div",`text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:12px;`,
-      "drag the tape — when a real downbeat sits on the marker, lock it in"));
+      "fais glisser la bande — quand un vrai premier temps tombe sur le repère, valide"));
 
     const reel=el("div",`position:relative;height:110px;background:${T.paper};border:1px solid ${T.line};border-radius:14px;overflow:hidden;touch-action:pan-y;cursor:grab;flex:0 0 auto;`);
     const strip=el("div","position:absolute;top:0;bottom:0;left:0;width:0;will-change:transform;");
     reel.appendChild(strip);
     reel.appendChild(el("div",`position:absolute;top:0;bottom:0;left:50%;width:2px;background:${T.accent};z-index:5;box-shadow:0 0 8px ${T.accent}55;`));
-    reel.appendChild(el("div",`position:absolute;top:3px;left:50%;transform:translateX(-50%);color:${T.accent};font:700 9px ${UI};letter-spacing:.06em;z-index:5;background:${T.paper};padding:0 4px;border-radius:4px;`,"BAR 1"));
+    reel.appendChild(el("div",`position:absolute;top:3px;left:50%;transform:translateX(-50%);color:${T.accent};font:700 9px ${UI};letter-spacing:.06em;z-index:5;background:${T.paper};padding:0 4px;border-radius:4px;`,"MESURE 1"));
     sheet.appendChild(reel);
     const info=el("div",`text-align:center;font:600 12px ${UI};color:${T.faint};margin-top:9px;min-height:15px;flex:0 0 auto;`,"");
     sheet.appendChild(info);
@@ -1287,12 +1287,12 @@ export function openBar1Sheet(){
     const ctr=el("div","display:flex;align-items:center;justify-content:center;gap:14px;margin-top:10px;flex:0 0 auto;");
     const play=el("button",`width:${SZ.primary}px;height:${SZ.primary}px;border-radius:50%;border:none;background:${T.accent};color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;`);
     playGlyph(play,S.playing,16);
-    play.setAttribute("aria-label","Play / pause");
+    play.setAttribute("aria-label","Lecture / pause");
     play.onclick=()=>{ if(S._loopEngine) loopEngineDispose(false); togglePlay(); playGlyph(play,S.playing,16); };
     ctr.appendChild(play);
     sheet.appendChild(ctr);
 
-    const apply=kitButton("Bar 1 starts here", async()=>{
+    const apply=kitButton("La mesure 1 commence ici", async()=>{
       const t=nowTime()+PLAYHEAD_LEAD_S;
       stopPlayback();
       close();
@@ -1306,7 +1306,7 @@ export function openBar1Sheet(){
     }, {height:SZ.primary, state:"on"});
     apply.style.cssText+="width:100%;margin-top:14px;flex:0 0 auto;";
     sheet.appendChild(apply);
-    const cancel=el("button",`flex:0 0 auto;width:100%;margin-top:6px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:${SZ.control}px;cursor:pointer;`,"Cancel");
+    const cancel=el("button",`flex:0 0 auto;width:100%;margin-top:6px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:${SZ.control}px;cursor:pointer;`,"Annuler");
     cancel.onclick=close;
     sheet.appendChild(cancel);
     back.appendChild(sheet); root.appendChild(back);
@@ -1343,7 +1343,7 @@ export function openBar1Sheet(){
         while(lo<=hi){ const mid=(lo+hi)>>1; if(beats[mid]<=t){ k=mid; lo=mid+1; } else hi=mid-1; }
         if(k+1<beats.length && Math.abs(beats[k+1]-t)<Math.abs(beats[k]-t)) k=k+1;
         bd=Math.abs(beats[k]-t);
-        info.textContent=fmt(t)+" — snaps to the beat "+Math.round(bd*1000)+" ms away";
+        info.textContent=fmt(t)+" — se cale sur le temps à "+Math.round(bd*1000)+" ms";
       }
       playGlyph(play,S.playing,16);
       raf=requestAnimationFrame(frame);

@@ -118,10 +118,10 @@ export function depthOf(c){ return c>=.66?"exact":(c>=.42?"seventh":"family"); }
 export function playedLabel(ch){
     const n=ch.n|0;
     if(!n) return "";
-    if(n<=1) return "played once in this song";
-    if(n<=3) return "played "+n+" times in this song";
-    if(n<=7) return "played "+n+" times";
-    return "played "+n+" times — a chord of the song";
+    if(n<=1) return "joué une seule fois dans le morceau";
+    if(n<=3) return "joué "+n+" fois dans le morceau";
+    if(n<=7) return "joué "+n+" fois";
+    return "joué "+n+" fois — un accord du morceau";
   }
   // The Georgia italic "♭"/"♯" glyph carries a lot of built-in side-bearing —
   // at bold+italic it reads as a visible GAP between the letter and the
@@ -345,12 +345,12 @@ export function qClass(q){ if(q===""||q.startsWith("^")||q.startsWith("6")) retu
 export const ROMAN=["I","♭II","II","♭III","III","IV","♭V","V","♭VI","VI","♭VII","VII"];
 export function romanFor(deg,cls){ let n=ROMAN[deg]; if(cls==="min"||cls==="m7b5"||cls==="dim") n=n.toLowerCase(); if(cls==="m7b5") n+="ø"; else if(cls==="dim") n+="°"; else if(cls==="dom") n+="⁷"; return n; }
 export function roleOf(home,root,q,next){ const cls=qClass(q); const deg=mod(root-home,12); const num=romanFor(deg,cls); const nRoot=next?next.root:null, nCls=next?qClass(next.q):null; const resolvesTo=t=>nRoot!==null&&nRoot===t; let text;
-    if(cls==="dom"){ const target=mod(root+5,12), tdeg=mod(target-home,12); if(deg===1) text="Tritone sub of V⁷ — slides down a half-step to I"; else if(deg===7) text="V⁷ — the dominant, pulls home to I"+(resolvesTo(target)?" (resolves)":""); else if(target===home) text="V⁷ — dominant, resolves home"; else text="V⁷ of "+ROMAN[tdeg]+" — secondary dominant"+(resolvesTo(target)?" (resolves down a 5th)":""); }
-    else if(cls==="min"||cls==="m7b5"){ const v=mod(root+5,12); if(nCls==="dom"&&resolvesTo(v)) text=(cls==="m7b5"?"iiø":"ii")+" — sets up the V into "+note(mod(v+5,12)); else if(deg===2) text=(cls==="m7b5"?"iiø":"ii")+" — pre-dominant, leads to the V"; else if(deg===9) text="vi — the relative minor"; else if(deg===5) text="iv — borrowed minor subdominant, strong pull"; else if(deg===0) text="i — the tonic (minor)"; else text=num+" — minor colour"; }
-    else if(cls==="maj"){ if(deg===0) text="I — home, the tonic"; else if(deg===5) text="IV — subdominant"; else if(deg===7) text="V — dominant degree"; else if(deg===9) text="VI — submediant"; else if(deg===2) text="II — supertonic"; else if(deg===10) text="♭VII — borrowed from Mixolydian"; else if(deg===8) text="♭VI — modal-interchange borrow"; else if(deg===3) text="♭III — modal-interchange borrow"; else text=num+" — chromatic colour"; }
-    else if(cls==="dim"){ text="° — passing / leading-tone diminished"; }
-    else if(cls==="sus"){ text="sus — suspended, the 3rd held open"; }
-    else { text="augmented — raised 5th, unstable"; }
+    if(cls==="dom"){ const target=mod(root+5,12), tdeg=mod(target-home,12); if(deg===1) text="substitut de triton de V⁷ — descend d'un demi-ton vers I"; else if(deg===7) text="V⁷ — la dominante, tire vers I"+(resolvesTo(target)?" (résout)":""); else if(target===home) text="V⁷ — dominante, résout à la maison"; else text="V⁷ de "+ROMAN[tdeg]+" — dominante secondaire"+(resolvesTo(target)?" (résout une quinte plus bas)":""); }
+    else if(cls==="min"||cls==="m7b5"){ const v=mod(root+5,12); if(nCls==="dom"&&resolvesTo(v)) text=(cls==="m7b5"?"iiø":"ii")+" — prépare le V vers "+note(mod(v+5,12)); else if(deg===2) text=(cls==="m7b5"?"iiø":"ii")+" — pré-dominante, mène au V"; else if(deg===9) text="vi — le relatif mineur"; else if(deg===5) text="iv — emprunté au mineur, tire vers la tonique"; else if(deg===0) text="i — la tonique (mineur)"; else text=num+" — couleur mineure"; }
+    else if(cls==="maj"){ if(deg===0) text="I — la maison, la tonique"; else if(deg===5) text="IV — sous-dominante"; else if(deg===7) text="V — degré de dominante"; else if(deg===9) text="VI — sus-dominante"; else if(deg===2) text="II — sus-tonique"; else if(deg===10) text="♭VII — emprunté au mixolydien"; else if(deg===8) text="♭VI — emprunt modal"; else if(deg===3) text="♭III — emprunt modal"; else text=num+" — couleur chromatique"; }
+    else if(cls==="dim"){ text="° — diminué de passage / de sensible"; }
+    else if(cls==="sus"){ text="sus — suspendu, la tierce reste ouverte"; }
+    else { text="augmenté — quinte haussée, instable"; }
     return { num, text }; }
 export const CE_IV={ "":[0,4,7],"6":[0,4,7,9],"^7":[0,4,7,11],"^":[0,4,7,11],"7":[0,4,7,10],"-":[0,3,7],"-7":[0,3,7,10],"-^7":[0,3,7,11],"-6":[0,3,7,9],
                 "-7b5":[0,3,6,10],"h7":[0,3,6,10],"h":[0,3,6,10],"o":[0,3,6],"o7":[0,3,6,9],
@@ -519,9 +519,9 @@ export function withBass(midis,root,bass){
 export function voicingCards(root,q,level,bass){
     const close=voClose(root,q);
     let cards;
-    if(level<=1) cards=[["Close",close],["Low",close.map(m=>m-12)],["1st inversion",voInv1(root,q)]];
-    else if(level===2) cards=[["Close",close],["Shell",voShell(root,q)],["1st inversion",voInv1(root,q)]];
-    else cards=[["Close",close],["Shell",voShell(root,q)],["Rootless",voRootlessA(root,q)],["Drop-2",voDrop2(root,q)]];
+    if(level<=1) cards=[["Serré",close],["Grave",close.map(m=>m-12)],["1er renversement",voInv1(root,q)]];
+    else if(level===2) cards=[["Serré",close],["Shell",voShell(root,q)],["1er renversement",voInv1(root,q)]];
+    else cards=[["Serré",close],["Shell",voShell(root,q)],["Rootless",voRootlessA(root,q)],["Drop-2",voDrop2(root,q)]];
     const seen=new Set(), out=[];
     cards.forEach(([lb,m])=>{
       if(!m) return;

@@ -252,7 +252,7 @@ export async function openChart(file,opts){
       loadModel(m);
       go("chart",{push});
       try{ localStorage.setItem("harmLastChart",file); }catch(e){}
-    }catch(e){ toast("Could not open that chart"); go("library",{push}); }
+    }catch(e){ toast("Impossible d'ouvrir ce chart"); go("library",{push}); }
   }
   // Flatten the ChartModel's sections→bars→chords into the working list the
   // renderer walks, and give every chord its time span in EACH pass of a
@@ -577,7 +577,7 @@ export function chartToolbar(){
     const bar=el("div",
       `flex:0 0 auto;display:flex;align-items:center;gap:12px;`+
       `padding:calc(6px + env(safe-area-inset-top)) 14px 8px;background:${T.paper};`);
-    bar.appendChild(kitIcon("‹", ()=>go("library"), "Back"));
+    bar.appendChild(kitIcon("‹", ()=>go("library"), "Retour"));
 
     const tw=el("div","flex:1;min-width:0;");
     tw.appendChild(el("div",
@@ -591,7 +591,7 @@ export function chartToolbar(){
     meta.appendChild(el("span",`color:${T.ink};font-weight:600;`, note(S.key)+" "+(S.keyMode||"major")));
     if(m && m.form){ meta.appendChild(el("span","","·")); meta.appendChild(el("span","",m.form)); }
     meta.appendChild(el("span",`color:${T.accent};`,"↻"));
-    meta.setAttribute("aria-label","Change key");
+    meta.setAttribute("aria-label","Transposer");
     meta.onclick=openRotor;
     tw.appendChild(meta);
     bar.appendChild(tw);
@@ -603,7 +603,7 @@ export function chartToolbar(){
     if(S.mode==="annotate")
       bar.appendChild(kitIcon("···", openAnnotateTools, "Outils",
                               {style:`border:1px solid ${T.accent};color:${T.accent};`}));
-    bar.appendChild(kitIcon("Aa", openPrefsSheet, "Preferences", {serif:true}));
+    bar.appendChild(kitIcon("Aa", openPrefsSheet, "Réglages", {serif:true}));
     return bar;
   }
 
@@ -621,14 +621,14 @@ export function annotateHint(){
 export function analyseLens(){
     const wrap=el("div",`flex:0 0 auto;padding:0 14px 10px;background:${T.paper};`);
     wrap.appendChild(kitSegmented(
-      [["function","Role"],["key","Local keys"],["global","Home key"]],
+      [["function","Rôle"],["key","Tonalités locales"],["global","Tonalité d'origine"]],
       ()=>S.colorMode,
       v=>{ S.colorMode=v; go("chart",{push:false}); },
       {height:SZ.control}));
     const L={
-      function:[T.green, "colour marks what each chord does — home, setting up, pulling"],
-      key:[lensBand(210,false), "colour marks where the tune borrows another key"],
-      global:[lensBand(keyHue(collOf(S.key,S.keyMode)), S.keyMode==="minor"), "one wash — the whole song in its home key"]
+      function:[T.green, "la couleur dit ce que fait chaque accord — maison, préparation, tension"],
+      key:[lensBand(210,false), "la couleur marque les emprunts à une autre tonalité"],
+      global:[lensBand(keyHue(collOf(S.key,S.keyMode)), S.keyMode==="minor"), "un seul lavis — tout le morceau dans sa tonalité d'origine"]
     }[S.colorMode] || [null,""];
     wrap.appendChild(kitLegend(L[0], L[1]));
     return wrap;
@@ -684,7 +684,7 @@ export function chartDock(){
       `background:${T.accent};color:#fff;cursor:pointer;`+
       `display:flex;align-items:center;justify-content:center;font:400 22px ${UI};`);
     playGlyph(play, S.playing, 18);
-    play.setAttribute("aria-label", S.playing?"Pause":"Play");
+    play.setAttribute("aria-label", S.playing?"Pause":"Lecture");
     play.onclick=()=>{ if(S._loopEngine) loopEngineToggle(); else togglePlay(); setPlayBtn(); };
     S._playBtn=play;
     row.appendChild(play);
@@ -713,8 +713,8 @@ export function chartDock(){
       `cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;`+
       ctlSkin(S._loopEngine?"on":"off"));
     loop.appendChild(el("div",`font:700 15px ${UI};`,"A–B"));
-    loop.appendChild(el("div",`font:500 10px ${UI};opacity:.7;`,"loop"));
-    loop.setAttribute("aria-label","Loop the four-bar phrase you are in");
+    loop.appendChild(el("div",`font:500 10px ${UI};opacity:.7;`,"boucle"));
+    loop.setAttribute("aria-label","Boucler la phrase de quatre mesures en cours");
     loop.onclick=()=>{ chartLoopToggle(); go("chart",{push:false}); };
     // A–B loop : seulement dans Practise (Louis, 2026-10-01, UX minimaliste).
     // Read reste une page à lire ; la boucle de Practise est le même moteur.
@@ -724,7 +724,7 @@ export function chartDock(){
 
     if(!PREF.analyse && S.mode==="analyse") S.mode="read";
     const modes=kitSegmented(
-      [["read","Read"], ...(PREF.analyse?[["analyse","Analyse"]]:[]), ["annotate","Annotate"], ...(audible?[["practise","Practise"]]:[])],
+      [["read","Lire"], ...(PREF.analyse?[["analyse","Analyse"]]:[]), ["annotate","Corriger"], ...(audible?[["practise","S'entraîner"]]:[])],
       ()=>S.mode,
       v=>{
         // QUITTER L'OUTIL DE SECTIONS PAR CE BOUTON REND AUSSI LA VUE REPLIÉE
@@ -832,7 +832,7 @@ export function immersiveHandle(){
     const b=el("button",
       `width:72px;height:${SZ.control}px;margin:-14px 0 -10px;border:none;background:none;`+
       `cursor:pointer;display:flex;align-items:center;justify-content:center;`);
-    b.setAttribute("aria-label","Show the controls");
+    b.setAttribute("aria-label","Afficher les commandes");
     b.appendChild(el("span",`width:38px;height:4px;border-radius:2px;background:${T.rule};`));
     b.onclick=immersiveWake;
     row.appendChild(b);
@@ -875,7 +875,7 @@ export function openVoicingCard(idx, anchorEl){
     head.appendChild(glyph(ch.root, q, 30, chordDepth(ch), T.ink, (lv>=3)?ch.bass:-1));
     const names=el("div",`flex:1;min-width:0;font:600 13px ${UI};color:${T.faint};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`);
     head.appendChild(names);
-    head.appendChild(kitIcon("×", closeVoicingCard, "Close"));
+    head.appendChild(kitIcon("×", closeVoicingCard, "Fermer"));
     card.appendChild(head);
     const body=el("div","display:flex;flex-direction:column;gap:8px;");
     card.appendChild(body);
@@ -1238,7 +1238,7 @@ export function buildFormRail(opts){
       seg.appendChild(vis);
 
       const nAlt=(g.ks||[]).filter(k=>alt.has(k)).length;
-      const name=g.label+(g.n>1?(" ×"+g.n):"")+", bars "+(g.b0+1)+"–"+(g.b1+1)+
+      const name=g.label+(g.n>1?(" ×"+g.n):"")+", mesures "+(g.b0+1)+"–"+(g.b1+1)+
         (nAlt?(" — "+nAlt+(nAlt>1?" passes finissent":" passe finit")+" en « "+g.label+" alt »"):"");
       seg.title=name;
 
@@ -1346,9 +1346,9 @@ export function paintFormChip(t){
   // kitLegend inside analyseLens(), and the annotate confidence line lives in
   // buildRibbon(). LEVEL_CAPTION stays — the Aa sheet prints it.
 export const LEVEL_CAPTION={
-    1:"Level 1 — triads only: the skeleton of the harmony, nothing to trip on.",
-    2:"Level 2 — the three everyday 7th chords; added tones and inversions drop away.",
-    3:"Level 3 — the full picture, exactly as detected."
+    1:"Niveau 1 — triades seulement : le squelette de l'harmonie, rien pour trébucher.",
+    2:"Niveau 2 — les trois septièmes courantes ; notes ajoutées et renversements disparaissent.",
+    3:"Niveau 3 — le tableau complet, tel que détecté."
   };
 export function chordColor(ch){
     if(S.mode==="read") return T.ink;
@@ -1916,7 +1916,7 @@ export function buildIReal(){
             (ch.var.bass==null?-1:ch.var.bass)));
           gw.appendChild(vw);
         }
-        if(S.learn&&(dq!==ch.q||bassHidden)) item.appendChild(el("span",`font:600 8px ${UI};color:${T.amber};`,"simpler"));
+        if(S.learn&&(dq!==ch.q||bassHidden)) item.appendChild(el("span",`font:600 8px ${UI};color:${T.amber};`,"simplifié"));
         // LA RANGÉE DE MARQUE (T4, 2026-08-19). Une seule rangée sous le
         // glyphe, 5 px, TOUJOURS présente en Annotate même vide : réservée, elle
         // ne fait sauter aucune ligne de base quand une case gagne ou perd sa

@@ -140,7 +140,7 @@ export function openPrefsSheet(){
       const vs=el("div","");
       vs.appendChild(el("div",`font:600 13px ${UI};color:${T.ink};margin-bottom:8px;`,"Style de voicing"));
       vs.appendChild(kitSegmented(
-        [["close","Close"],["shell","Shell"],["rootless","Rootless"],["drop2","Drop-2"],["smooth","Smooth"]],
+        [["close","Serré"],["shell","Shell"],["rootless","Rootless"],["drop2","Drop-2"],["smooth","Smooth"]],
         ()=>S.coachStyle,
         v=>{ S.coachStyle=v; try{ localStorage.setItem("harmCoachStyle",v); }catch(e){}
              closeOverlay(back); rebuildChrome(); },
@@ -207,23 +207,23 @@ export function classifyExtensions(root,q){
       const pc=mod(root+semi,12);
       if(name==="11" && majThird){
         return {name, kind:"avoid", label:"♯11", note:spellAs(mod(root+6,12),true),
-                why:"the natural 11 sits a semitone above the 3rd — raise it to ♯11"};
+                why:"la onzième naturelle frotte la tierce d'un demi-ton — hausse-la en ♯11"};
       }
       if(scale.has(pc)) return {name, kind:"diatonic", label:name, note:note(pc),
-                                why:"in the key — a safe added colour"};
+                                why:"dans la tonalité — une couleur ajoutée sans risque"};
       const dn=mod(pc-1,12), up=mod(pc+1,12);
       const to = scale.has(dn)?dn:(scale.has(up)?up:null);
-      if(to===null) return {name, kind:"diatonic", label:name, note:note(pc), why:"outside the key"};
+      if(to===null) return {name, kind:"diatonic", label:name, note:note(pc), why:"hors de la tonalité"};
       const down = (to===dn);
       const label = name==="9" ? (down?"♭9":"♯9") : name==="11" ? "♯11" : (down?"♭13":"♯13");
       return {name, kind:"altered", label, note:spellAs(to,label.indexOf("♯")>=0),
-              why:"borrowed to fit the key — the tension it actually wants here"};
+              why:"empruntée pour coller à la tonalité — la tension que l'accord réclame ici"};
     });
   }
 export function buildExtensions(root,q){
     if(!sev4(q)) return null;
     const box=el("div","flex:0 0 auto;");
-    box.appendChild(el("div",`font:600 9px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin:14px 0 8px;`,"Colours you can add"));
+    box.appendChild(el("div",`font:600 9px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin:14px 0 8px;`,"Couleurs à ajouter"));
     const row=el("div","display:flex;gap:8px;");
     const COL={diatonic:T.green, altered:T.amber, avoid:T.faint};
     classifyExtensions(root,q).forEach(x=>{
@@ -252,13 +252,13 @@ export function openChordSheet(idx){
     hd.appendChild(glyph(ch.root,q,26,"exact",T.ink,bass));
     const close=voClose(ch.root,q);
     const names=close.map(m=>note(mod(m,12))).join(" · ");
-    const bassTxt=(bass!=null&&bass>=0&&mod(bass,12)!==mod(ch.root,12))?note(bass)+" in the bass":"root in the bass";
+    const bassTxt=(bass!=null&&bass>=0&&mod(bass,12)!==mod(ch.root,12))?note(bass)+" à la basse":"fondamentale à la basse";
     hd.appendChild(el("span",`font:italic 12px ${SERIF};color:${T.faint};`,names+" — "+bassTxt));
     sheet.appendChild(hd);
     const kb=el("div","flex:0 0 auto;"); sheet.appendChild(kb);
     const capBox=el("div",`min-height:16px;font:italic 11.5px ${SERIF};color:${T.faint};margin-top:8px;`,"");
     sheet.appendChild(capBox);
-    sheet.appendChild(el("div",`flex:0 0 auto;font:600 9px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin:12px 0 8px;`,"A few ways to play it"));
+    sheet.appendChild(el("div",`flex:0 0 auto;font:600 9px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin:12px 0 8px;`,"Quelques façons de le jouer"));
     const strip=el("div","flex:0 0 auto;display:flex;gap:8px;");
     const cards=voicingCards(ch.root,q,lv,bass);
     let selCard=null;
@@ -266,7 +266,7 @@ export function openChordSheet(idx){
       selCard=card;
       const m=card.rootless?card.midis:withBass(card.midis,ch.root,bass);
       renderVoicing(kb,m,92,true);
-      capBox.textContent=card.rootless?"Root omitted — a bassist plays it; the lowest note here is the 3rd or 7th.":"";
+      capBox.textContent=card.rootless?"Fondamentale omise — c'est le bassiste qui la joue ; la note la plus grave est la tierce ou la septième.":"";
       [...strip.children].forEach(c=>{ c.style.outline=(c._card===card)?`2.5px solid ${T.accent}`:""; c.style.outlineOffset=(c._card===card)?"1px":""; });
       playMidis(m); haptic(6);
     }
@@ -281,7 +281,7 @@ export function openChordSheet(idx){
     });
     sheet.appendChild(strip);
     if(lv>=3){ const ext=buildExtensions(ch.root,q); if(ext) sheet.appendChild(ext); }
-    const closeBtn=el("button",`flex:0 0 auto;width:100%;margin-top:12px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:44px;cursor:pointer;`,"Close");
+    const closeBtn=el("button",`flex:0 0 auto;width:100%;margin-top:12px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:44px;cursor:pointer;`,"Fermer");
     closeBtn.onclick=()=>closeOverlay(back);
     sheet.appendChild(closeBtn);
     back.appendChild(sheet); root.appendChild(back);
@@ -303,7 +303,7 @@ export function openChordSheet(idx){
 export function openShareSheet(){
     if(!S.model || !S.model.file) return;
     const back=overlay(); const sheet=sheetBox(); sheet.appendChild(handle());
-    sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,"Share this chart"));
+    sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,"Partager ce chart"));
     sheet.appendChild(el("div",`text-align:center;font:italic 12px ${SERIF};color:${T.faint};margin-bottom:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`, S.model.title));
 
     const rows=el("div","display:flex;flex-direction:column;gap:10px;");
@@ -319,23 +319,23 @@ export function openShareSheet(){
     };
 
     const chartUrl=location.origin+"/?open="+encodeURIComponent(S.model.file);
-    mkRow("Share link","Opens straight into this chart",async()=>{
+    mkRow("Lien de partage","S'ouvre directement sur ce chart",async()=>{
       if(navigator.share){ try{ await navigator.share({title:S.model.title,url:chartUrl}); closeOverlay(back); return; }catch(e){ return; } }
-      try{ await navigator.clipboard.writeText(chartUrl); toast("Link copied"); }catch(e){ toast("Could not copy"); }
+      try{ await navigator.clipboard.writeText(chartUrl); toast("Lien copié"); }catch(e){ toast("Copie impossible"); }
       closeOverlay(back);
     });
-    mkRow("Export to iReal Pro","Opens in the app if installed, else copies the link",async()=>{
+    mkRow("Exporter vers iReal Pro","S'ouvre dans l'app si elle est installée, sinon copie le lien",async()=>{
       closeOverlay(back);
       try{
         const r=await api.get("/api/irealb-export/"+S.model.file);
-        if(r.error){ toast("Could not export"); return; }
+        if(r.error){ toast("Export impossible"); return; }
         window.location=r.url;
-        setTimeout(()=>{ navigator.clipboard?.writeText(r.url).then(()=>toast("iReal Pro not found — link copied instead")).catch(()=>{}); },900);
-      }catch(e){ toast("Could not export"); }
+        setTimeout(()=>{ navigator.clipboard?.writeText(r.url).then(()=>toast("iReal Pro introuvable — lien copié à la place")).catch(()=>{}); },900);
+      }catch(e){ toast("Export impossible"); }
     });
     sheet.appendChild(rows);
 
-    const cancel=el("button",`width:100%;margin-top:14px;border:none;background:transparent;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:44px;cursor:pointer;`,"Cancel");
+    const cancel=el("button",`width:100%;margin-top:14px;border:none;background:transparent;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:44px;cursor:pointer;`,"Annuler");
     cancel.onclick=()=>closeOverlay(back);
     sheet.appendChild(cancel);
 
@@ -343,8 +343,8 @@ export function openShareSheet(){
   }
 export function openRotor(){
     const back=overlay(); const sheet=sheetBox(); sheet.appendChild(handle());
-    sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,"Change key"));
-    sheet.appendChild(el("div",`text-align:center;font:italic 12px ${SERIF};color:${T.faint};margin-bottom:14px;`,"spin the circle of fifths — the whole chart transposes"));
+    sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,"Transposer"));
+    sheet.appendChild(el("div",`text-align:center;font:italic 12px ${SERIF};color:${T.faint};margin-bottom:14px;`,"tourne le cycle des quintes — tout le chart se transpose"));
 
     const size=250, R=size*0.40;
     const wheel=el("div",`position:relative;width:${size}px;height:${size}px;margin:0 auto;touch-action:none;cursor:grab;`);
@@ -419,7 +419,7 @@ export function openRotor(){
     wheel.addEventListener("pointerup",endDrag);
     wheel.addEventListener("pointercancel",endDrag);
 
-    const cancel=el("button",`width:100%;margin-top:16px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:44px;cursor:pointer;`,"Cancel");
+    const cancel=el("button",`width:100%;margin-top:16px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:44px;cursor:pointer;`,"Annuler");
     cancel.onclick=()=>closeOverlay(back); sheet.appendChild(cancel);
     back.appendChild(sheet); root.appendChild(back);
   }

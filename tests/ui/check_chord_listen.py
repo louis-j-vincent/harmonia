@@ -50,7 +50,7 @@ with sync_playwright() as p:
         s3 = st(); check(s3["paused"] and s3["t"] <= ch["t1"] + .4, f"stops by itself at t1 (t={s3['t']:.2f}, t1={ch['t1']:.2f}) - no loop")
         check("Original" in btn.inner_text(), "button back to play after the end")
         btn.click(); pg.wait_for_timeout(400)
-        pg.get_by_text("Cancel").or_(pg.get_by_text("Annuler")).first.click(); pg.wait_for_timeout(300)
+        pg.get_by_text(re.compile("^(Cancel|Annuler|Fermer)$")).first.click(); pg.wait_for_timeout(300)
         s4 = st(); check(s4["paused"] and not s4["span"], "closing the editor stops the recording")
     check(not [u for u in posts if "annotations" in u], "nothing saved")
     check(not errs, f"no console errors {errs[:2]}")

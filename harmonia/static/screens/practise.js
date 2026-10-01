@@ -91,13 +91,13 @@ export function buildHandsCard(getTwo, getOne, onPlay, ranges){
           r.appendChild(el("span",`font:600 13px ${UI};color:${T.ink};`,label));
           r.appendChild(seg); return r;
         };
-        body.appendChild(row("Hands", kitSegmented([[2,"Two"],[1,"One"]],
+        body.appendChild(row("Mains", kitSegmented([[2,"Deux"],[1,"Une"]],
           ()=>hands,
           v=>{ hands=v; try{ localStorage.setItem("harmPrompterHands",String(v)); }catch(e){}
                paintSheet(); repaint(); },
           {inline:true, height:SZ.control, font:13})));
         if(hands===2){
-          body.appendChild(row("Keyboards", kitSegmented([["split","One per hand"],["joined","One for both"]],
+          body.appendChild(row("Claviers", kitSegmented([["split","Un par main"],["joined","Un pour deux"]],
             ()=>split?"split":"joined",
             v=>{ split=(v==="split");
                  try{ localStorage.setItem("harmPrompterSplit", split?"1":"0"); }catch(e){}
@@ -106,7 +106,7 @@ export function buildHandsCard(getTwo, getOne, onPlay, ranges){
         }
       }
       paintSheet();
-      const closeBtn=el("button",`width:100%;margin-top:14px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:${SZ.control}px;cursor:pointer;`,"Close");
+      const closeBtn=el("button",`width:100%;margin-top:14px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:${SZ.control}px;cursor:pointer;`,"Fermer");
       closeBtn.onclick=()=>closeOverlay(back);
       sheet.appendChild(closeBtn);
       back.appendChild(sheet); root.appendChild(back);
@@ -151,8 +151,8 @@ export function buildHandsCard(getTwo, getOne, onPlay, ranges){
         const r=el("span",`color:#2a6fb0;`,"R "+right.map(m=>note(m%12)).join(" "));
         names.appendChild(l); names.appendChild(el("span",""," · ")); names.appendChild(r);
         const rh=el("div",""), lh=el("div","");
-        body.appendChild(row("R", rh));
-        body.appendChild(row("L", lh));
+        body.appendChild(row("MD", rh));
+        body.appendChild(row("MG", lh));
         renderHand(rh, right, 64, "chord", ranges&&ranges.rh);
         renderHand(lh, left, 64, "bass", ranges&&ranges.lh);
         rh.style.flex="1"; lh.style.flex="1";   // renderHand's cssText reset drops it
@@ -259,7 +259,7 @@ export function renderPrompter(){
     reel.appendChild(strip);
     const marker=el("div",`position:absolute;top:0;bottom:0;width:2px;background:${T.accent};z-index:5;box-shadow:0 0 8px ${T.accent}55;`);
     const markerCap=el("div",`position:absolute;top:2px;transform:translateX(-50%);color:${T.accent};font:700 10px ${UI};z-index:5;`,"▼");
-    const markerLbl=el("div",`position:absolute;bottom:3px;color:${T.accent};font:600 8.5px ${UI};letter-spacing:.05em;opacity:.75;z-index:5;`,"now");
+    const markerLbl=el("div",`position:absolute;bottom:3px;color:${T.accent};font:600 8.5px ${UI};letter-spacing:.05em;opacity:.75;z-index:5;`,"ici");
     reel.appendChild(marker); reel.appendChild(markerCap); reel.appendChild(markerLbl);
     reelInner.appendChild(reel);
     reelWrap.appendChild(reelInner); w.appendChild(reelWrap);
@@ -306,7 +306,7 @@ export function renderPrompter(){
       const on=!!loop;
       loopBtn.style.background=on?T.accent:T.card; loopBtn.style.color=on?"#fff":T.ink;
       loopBtn.style.borderColor=on?T.accent:T.line;
-      if(on) loopBars.textContent="bars "+(barAt(loop.a+0.01)+1)+"–"+(barAt(loop.b-0.01)+1);
+      if(on) loopBars.textContent="mesures "+(barAt(loop.a+0.01)+1)+"–"+(barAt(loop.b-0.01)+1);
       // le calage de seam vit dans la feuille « ··· » (T5) : si elle est
       // ouverte pendant qu'on arme la boucle, elle se repeint ; sinon rien.
       if(S._practiseSeamPaint) S._practiseSeamPaint();
@@ -409,19 +409,19 @@ export function renderPrompter(){
     // — what you touch while playing never scrolls away.
     const ctrl=el("div","flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:10px;");
     const jumpStyle=`flex:0 0 auto;width:52px;height:52px;border-radius:50%;border:1px solid ${T.line};background:${T.card};color:${T.ink};font:600 15px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;`;
-    const back4=el("button",jumpStyle,"‹‹4"); back4.title="Back four bars (left arrow)";
+    const back4=el("button",jumpStyle,"‹‹4"); back4.title="Reculer de quatre mesures (flèche gauche)";
     back4.onclick=()=>jumpBars(-4);
     const bigPlay=el("button",`flex:0 0 auto;width:64px;height:64px;border-radius:50%;border:none;background:${T.accent};color:#fff;font:600 26px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 12px 28px -10px ${T.accent}aa;`);
     playGlyph(bigPlay, S.playing, 22);
-    bigPlay.title="Play / pause (space)";
+    bigPlay.title="Lecture / pause (espace)";
     bigPlay.onclick=()=>{ if(S._loopEngine) loopEngineToggle(); else togglePlay(); };
-    const fwd4=el("button",jumpStyle,"4››"); fwd4.title="Forward four bars (right arrow)";
+    const fwd4=el("button",jumpStyle,"4››"); fwd4.title="Avancer de quatre mesures (flèche droite)";
     fwd4.onclick=()=>jumpBars(4);
     const loopBtn=el("button",`flex:0 0 auto;height:52px;padding:0 14px;border-radius:${SZ.radiusLg}px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;${ctlSkin("off")}`);
-    const loopLbl=el("div",`font:700 13px ${UI};`,"loop");
+    const loopLbl=el("div",`font:700 13px ${UI};`,"boucle");
     const loopBars=el("div",`font:500 11px ${UI};opacity:.75;`,"");
     loopBtn.appendChild(loopLbl); loopBtn.appendChild(loopBars);
-    loopBtn.title="Loop the four-bar phrase you are in";
+    loopBtn.title="Boucler la phrase de quatre mesures en cours";
     loopBtn.onclick=()=>{
       if(loop){ loop=null; loopEngineDispose(true); }
       else{
@@ -475,7 +475,7 @@ export function renderPrompter(){
                try{ localStorage.setItem("harmPiano",v); localStorage.setItem("harmCoach",S.coach?"1":"0"); }catch(e){}
                close(); go("prompter",{push:false}); },   // la carte apparaît/disparaît
           {inline:true, height:SZ.control, font:13})));
-        body.appendChild(row("Clic sur les accords", kitSegmented([["on","On"],["off","Off"]],
+        body.appendChild(row("Clic sur les accords", kitSegmented([["on","Oui"],["off","Non"]],
           ()=>S.metronome?"on":"off",
           v=>{ S.metronome=(v==="on"); try{ localStorage.setItem("harmMetronome",S.metronome?"1":"0"); }catch(e){} paint(); },
           {inline:true, height:SZ.control, font:13})));
@@ -579,7 +579,7 @@ export function renderPrompter(){
         paintSub();
         if(!loop){
           const g=Math.min(Math.floor(Math.max(0,bi)/4)*4, Math.max(0,grid.length-2));
-          loopBars.textContent="bars "+(g+1)+"–"+Math.min(g+4,Math.max(1,grid.length-1));
+          loopBars.textContent="mesures "+(g+1)+"–"+Math.min(g+4,Math.max(1,grid.length-1));
         }
       }
       // la bande de forme (T1) tient la position dans le morceau entier —

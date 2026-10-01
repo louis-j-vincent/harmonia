@@ -32,6 +32,14 @@ Page avant/après : `docs/plots/ux_5_changements_2026-10-01.html`. Tests Playwri
    moins un accord ; les mesures tenues (« % ») ajoutent seulement au temps 1.
    Trouvé en route : les tests `test_annotations.py` écrivaient dans le registre
    tracké `state/human/corrections/` (corrigé : le fixture le redirige).
+4. **Tout en français.** Dock : Lire / Corriger / S'entraîner ; éditeur : Roue /
+   Extensions / Propositions / À la main, « Garder Gm » actif dès l'ouverture
+   (grisé sur un accord NEUF : il est amorcé par le précédent, on ne le garde pas
+   sans choix). Laissés tels quels exprès : les noms de voicings Shell / Rootless /
+   Drop-2 (jargon jazz courant), « tab » et « chart ». **Pas fait** : replier Roue
+   et Extensions sous « Plus… » (le P2 de l'audit veut 2 onglets seulement) ;
+   les mots internes du serveur (messages d'erreur d'API) ne sont pas traduits ;
+   les pages `/soudure`, `/ssm` (hors de ces écrans) non revues.
 
 ## Transposer puis verrouiller un accord réécrivait les annotations (2026-10-01, RÉSOLU)
 
