@@ -770,6 +770,17 @@ export function chartDock(){
     // On garde l'ancien bouton si une boucle tourne déjà, pour pouvoir l'arrêter.
     if(S._loopEngine) row.appendChild(loop);
     if(audible) dock.appendChild(row);
+    // UX #26 : sans audio (chart iReal) la rangée du dock n'existe pas, donc
+    // « Aller à la mesure… » non plus. Un bouton pleine largeur la remplace,
+    // seulement quand le chart est assez long pour s'y perdre.
+    if(!audible && (S.bars||[]).length>=8){
+      const gb=el("button",
+        `display:block;width:100%;min-height:${SZ.control}px;margin-bottom:10px;border:1px solid ${T.line};`+
+        `border-radius:${SZ.radius}px;background:${T.paper};color:${T.ink};cursor:pointer;font:600 14px ${UI};`,
+        "Aller à la mesure…");
+      gb.dataset.role="goto-bar"; gb.onclick=openGotoBar;
+      dock.appendChild(gb);
+    }
 
     if(!PREF.analyse && S.mode==="analyse") S.mode="read";
     const modes=kitSegmented(

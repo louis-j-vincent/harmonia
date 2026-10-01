@@ -97,6 +97,16 @@ def run(p, name):
     tap(pg.get_by_role("button", name="Complet", exact=True)); pg.wait_for_timeout(500)
     check(ev("return S.learn") is False, f"{name} #25 Complet = learn off")
     check(not errs, f"{name} no page errors: {errs}")
+    # ---- #26 : a chart without audio
+    pg.goto("http://localhost:7772/?open=ireal_autumn_leaves"); pg.wait_for_selector("[data-bar]", timeout=20000, state="attached"); pg.wait_for_timeout(1500)
+    gb = pg.locator('[data-role="goto-bar"]')
+    check(gb.count() == 1 and gb.bounding_box()["height"] >= 44, f"{name} #26 « Aller à la mesure… » on an audio-less chart")
+    pg.screenshot(path=pre + "_26_noaudio.png")
+    tap(gb); pg.wait_for_timeout(400)
+    inp = pg.get_by_label("Numéro de mesure"); inp.fill("20"); pg.keyboard.press("Enter"); pg.wait_for_timeout(1200)
+    pg.screenshot(path=pre + "_26_after.png")
+    check(ev("return S.playBar") == 19, f"{name} #26 goto 20 -> bar index 19, got " + str(ev("return S.playBar")))
+    check(not errs, f"{name} no page errors (ireal): {errs}")
     return pg, tap, ev, pre
 
 with sync_playwright() as p:
