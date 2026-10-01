@@ -1,5 +1,6 @@
 """UX Lot 2 rows #33-#38 (S'entraîner). Chromium AND WebKit, 390x844, touch, POSTs intercepted.
     .venv/bin/python tests/ui/check_practise_lot2.py [file]
+#34 speeds 0,5 0,6 0,75 0,9 1 (comma; audio.playbackRate follows).
 #33 drag on the bar band chooses loop A/B (engine a,b; audio stays inside; tap still seeks)."""
 import sys
 from playwright.sync_api import sync_playwright
@@ -59,6 +60,22 @@ with sync_playwright() as p:
     t1 = SE(pg,'S.audio.currentTime'); lp = eng()
     check(abs(t1 - last[3]) < 0.6 and t0 > 90 and lp is None, tag + f"plain tap on the last segment still seeks to its start ({t0:.1f}s -> {t1:.1f}s, segment starts {last[3]:.1f}s), no loop armed")
     pg.screenshot(path=f"/tmp/lot2_drag_{name}.png")
+    # ---- #34 speeds
+    sp = pg.locator('button[title^="Vitesse"]'); seen = []
+    for _ in range(6):
+        sp.click(); pg.wait_for_timeout(120)
+        seen.append((sp.inner_text().strip(), SE(pg,'S.playRate'), SE(pg,'S.audio.playbackRate')))
+    labs = [x[0] for x in seen]
+    check(labs[:5] == ["0,5×", "0,6×", "0,75×", "0,9×", "1×"] or labs[1:6] == ["0,5×", "0,6×", "0,75×", "0,9×", "1×"], tag + f"chip cycles 0,5 0,6 0,75 0,9 1 with commas {labs}")
+    check(all(abs(r - a) < 1e-6 for _, r, a in seen), tag + "audio.playbackRate follows S.playRate at every step")
+    check("0.5" not in pg.locator("body").inner_text() and "0.75" not in pg.locator("body").inner_text(), tag + "no decimal point shown on the screen")
+    sp.click(); pg.wait_for_timeout(100)   # leave at a non-1 speed for the sheet check
+    pg.locator('button[aria-label="Réglages"]').first.click(); pg.wait_for_timeout(500)
+    sheet = pg.evaluate("()=>{const o=document.querySelector('[data-overlay]'); return o? o.innerText:''}")
+    check("0,6×" in sheet and "0,9×" in sheet and "0.6" not in sheet, tag + "Réglages sheet offers the five speeds with commas")
+    pg.screenshot(path=f"/tmp/lot2_speed_sheet_{name}.png")
+    pg.keyboard.press("Escape"); pg.reload(); pg.wait_for_selector("[data-bar]", timeout=20000, state="attached"); pg.wait_for_timeout(1200)
+    pg.evaluate("async()=>{const {go}=await import('/static/router.js'); go('prompter');}"); pg.wait_for_timeout(1200)
     check(not errs, tag + f"no page error {errs}")
     b.close()
 print("FAILED" if fails else "ALL OK"); sys.exit(1 if fails else 0)

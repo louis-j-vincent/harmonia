@@ -9,7 +9,7 @@ import { appBar, go, screenWrap } from "../router.js";
 import { buildFormRail, lensBand, paintFormRail } from "../screens/chart.js";
 import { openPrefsSheet } from "../screens/prefs.js";
 import { S } from "../state.js";
-import { NOTES, PREF, SERIF, SZ, T, UI, assignCost, clear, closeOverlay, ctlSkin, dispQ, el, glyph, handle, haptic, kitButton, kitIcon, kitSegmented, learnLevel, meanOf, mod, note, overlay, play, playGlyph, renderHand, renderKeys, renderVoicing, roleOf, rootHue, sheetBox, sheetCol, splitHands, vlCandidates, voClose, voicingByStyle, withBass } from "../ui/kit.js";
+import { NOTES, PLAY_RATES as RATES, PREF, SERIF, SZ, T, UI, assignCost, clear, closeOverlay, ctlSkin, dispQ, el, glyph, handle, haptic, kitButton, kitIcon, kitSegmented, learnLevel, meanOf, mod, note, overlay, play, playGlyph, rateLabel, renderHand, renderKeys, renderVoicing, roleOf, rootHue, sheetBox, sheetCol, splitHands, vlCandidates, voClose, voicingByStyle, withBass } from "../ui/kit.js";
 
 // The single DOM host div (`<div id="app">`) — there is exactly one call
 // site, `window.APP.build(document.getElementById("app"))` in main.js, so
@@ -209,9 +209,10 @@ export function renderPrompter(){
     if(!m){ setTimeout(()=>go("library",{push:false}),0); return w; }
     // T5 (2026-08-19) : la vitesse se LIT dans le sous-titre et se règle dans
     // la feuille — la rangée « SPEED » qui la portait a quitté l'écran.
-    const RATES=[[0.5,"0.5×"],[0.75,"0.75×"],[1,"1×"]];
-    const rateLbl=()=>{ const r=S.playRate||1; let best="1×", bd=9;
-      RATES.forEach(([v,l])=>{ const d=Math.abs(v-r); if(d<bd){ bd=d; best=l; } }); return best; };
+    // Les vitesses (PLAY_RATES, rateLabel) viennent de kit.js : une seule liste
+    // pour tout le site (UX #34), virgule française.
+    const nextRate=r=>{ const i=RATES.findIndex(([v])=>Math.abs(v-(r||1))<1e-6); return RATES[((i<0?RATES.length-1:i)+1)%RATES.length][0]; };
+    const rateLbl=()=>rateLabel(S.playRate);
     const dots=kitIcon("···", ()=>openPractiseTools(), "Réglages",
       {style:`border:1px solid ${T.accent};color:${T.accent};`});
     const topBar=appBar(m.title, "mesure 1 · "+rateLbl(), "chart", dots);
@@ -464,7 +465,7 @@ export function renderPrompter(){
     const lenChip=hitZone(el("button",chipStyle,loopN+" mes."),true);
     lenChip.title="Longueur de la boucle : 1, 2, 4 ou 8 mesures";
     const speedChip=hitZone(el("button",chipStyle,rateLbl()),false);
-    speedChip.title="Vitesse de lecture : 0,5×, 0,75× ou 1×";
+    speedChip.title="Vitesse de lecture : 0,5×, 0,6×, 0,75×, 0,9× ou 1×";
     const chips=el("div","flex:0 0 auto;display:flex;flex-direction:column;gap:4px;");
     chips.appendChild(lenChip); chips.appendChild(speedChip);
     const loopBtn=el("button",`flex:0 0 auto;height:52px;padding:0 14px;border-radius:${SZ.radiusLg}px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;${ctlSkin("off")}`);
@@ -484,8 +485,7 @@ export function renderPrompter(){
       curBar=-1; paintLoop(); if(!loop) sync(true);
     };
     speedChip.onclick=()=>{
-      const cur=RATES.findIndex(([v])=>v===(S.playRate||1));
-      S.playRate=RATES[(cur+1)%RATES.length][0]; applyPlayRate(); paintSub();
+      S.playRate=nextRate(S.playRate); applyPlayRate(); paintSub();
     };
     loopBtn.onclick=()=>{
       if(loop){ loop=null; loopEngineDispose(true); }
@@ -544,11 +544,17 @@ export function renderPrompter(){
         let calage=null;
         function paint(){
           clear(host);
-          host.appendChild(row("Vitesse", kitSegmented(RATES,
+          // cinq vitesses ne tiennent pas à côté du libellé (390 px) : la rangée
+          // passe en colonne, le sélecteur prend toute la largeur (UX #34).
+          const vit=row("Vitesse", kitSegmented(RATES,
             ()=>{ const r=S.playRate||1; let best=1,bd=9;
                   RATES.forEach(([v])=>{ const d=Math.abs(v-r); if(d<bd){bd=d;best=v;} }); return best; },
             v=>{ S.playRate=v; applyPlayRate(); paintSub(); paint(); },
-            {inline:true, height:SZ.control, font:13})));
+            {inline:true, height:SZ.control, font:13}));
+          vit.style.cssText="display:flex;flex-direction:column;align-items:stretch;gap:6px;";
+          vit.firstChild.style.cssText=`font:600 13px ${UI};color:${T.ink};`;
+          vit.lastChild.style.width="100%";
+          host.appendChild(vit);
           // « Mains » a quitté cette feuille (Louis, 2026-10-01, UX minimaliste) :
           // doublon exact du réglage de la carte clavier (bouton « setup »).
           host.appendChild(row("Piano", kitSegmented([["never","Jamais"],["tap","Au tap"],["follow","Suit"]],

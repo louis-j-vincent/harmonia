@@ -41,11 +41,11 @@ with sync_playwright() as p:
     pg.screenshot(path=f"/tmp/practise_{name}_loop.png")
     # speed chip
     sp = pg.locator("button[title^=\"Vitesse\"]")
-    for _ in range(4):
+    for _ in range(6):
         sp.click()
         rate = pg.evaluate("async()=>(await import('/static/state.js')).S.playRate")
         lab = sp.inner_text(); sub = pg.locator("body").inner_text()
-        if lab.replace(",", ".") != {0.5: "0.5×", 0.75: "0.75×", 1: "1×"}[rate]: bad.append((name, "speed", rate, lab))
+        if lab != {0.5: "0,5×", 0.6: "0,6×", 0.75: "0,75×", 0.9: "0,9×", 1: "1×"}[rate]: bad.append((name, "speed", rate, lab))
     ls = pg.evaluate("localStorage.getItem('harmLoopBars')")
     if ls != "2": bad.append((name, "persist", ls))
     if errs: bad.append((name, "console", errs[:3]))
