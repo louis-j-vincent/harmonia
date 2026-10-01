@@ -189,6 +189,10 @@ MERGE_LETTERS_MIN_BARS = 4
 #: Gardé pour la page de mesure `tools/page_sections.py`, qui montre les deux
 #: substrats côte à côte. N'est plus consulté par la production.
 MERGE_LETTERS_COS = 0.93
+#: Règle 2 du 2026-10-01 (`dernier_tour_partiel`) : quand la 1re mesure d'un
+#: dernier tour ne colle pas au A, il en faut au moins autant qui collent
+#: juste après pour croire que c'est le début du A.
+DERNIER_TOUR_MIN_COLLE = 2
 
 
 def _sig_repli(bar) -> tuple | None:
@@ -1952,13 +1956,18 @@ def _ireal_endings(blk: dict, bars, grid, fusion: int = FUSION_DEFAUT) -> None:
                 len(variants))
 
 
-def _ireal_cascade(out: list[dict], bars, grid, fold_report) -> list[dict]:
+def _ireal_cascade(out: list[dict], bars, grid, fold_report,
+                   tonique: tuple[int, str] | None = None) -> list[dict]:
     """Règles 3 et 5 + l'invariant : jamais deux blocs sous la même étiquette.
 
     Règle 3 — un passage COUPÉ (il s'arrête en cours de boucle) rejoint le
     bloc long : même lettre, `reps` augmenté, et il n'allume que les mesures
     qu'il joue réellement. C'est le cas de Sunny Afternoon, dont le « A de 6
     mesures » est la cellule de 4 jouée une fois et demie.
+
+    Règle 2 de Louis du 2026-10-01 — la dernière section du morceau qui joue
+    le début de la lettre puis tient la tonique et s'éteint en est le dernier
+    tour (`_merge_dernier_tour`) ; `tonique` = (hauteur, mode) du morceau.
 
     Règle 5 — tout ce que la cascade n'a pas réduit prend un prime (A′, A″).
     Un deuxième « A » nu ne sort jamais d'ici.
@@ -1967,6 +1976,8 @@ def _ireal_cascade(out: list[dict], bars, grid, fold_report) -> list[dict]:
     for blk in out:
         by_label.setdefault(blk["label"], []).append(blk)
     drop: set[int] = set()
+    fin_morceau = max((r[1] for b in out for r in b.get("barRanges") or []),
+                      default=-1)
     for label, blks in by_label.items():
         if len(blks) < 2:
             continue
@@ -1993,7 +2004,9 @@ def _ireal_cascade(out: list[dict], bars, grid, fold_report) -> list[dict]:
             if blk is host:
                 continue
             if _merge_muet(host, blk) or _merge_boucle(host, blk, grid) or \
-                    _merge_coupe(host, blk, cell, P, grid):
+                    _merge_coupe(host, blk, cell, P, grid) or \
+                    _merge_dernier_tour(host, blk, bars, grid, fin_morceau,
+                                        tonique):
                 drop.add(id(blk))
                 continue
             rank += 1
@@ -2033,6 +2046,165 @@ def meme_moment(a, b) -> bool:
     return (meme_harmonie(a, b)
             or _compat(_barsig(a), _barsig(b), "famille")
             or _accord_de_passage(a, b))
+
+
+def dernier_tour_partiel(fin, ref, tonique: tuple[int, str] | None = None
+                         ) -> dict | None:
+    """La section finale `fin` est-elle le DERNIER TOUR, partiel, du passage
+    `ref` ? Rend {ouverture, premiere_toleree, tenue, fondu, tonique_aux}
+    ou None.
+
+    Louis, 2026-10-01 (Lost Without U, mes. 83-89) : « quand une section est
+    la dernière du morceau, qu'elle joue le début du A puis tient la tonique
+    et s'éteint, la traiter comme le dernier tour du A ».
+
+    LA RÈGLE, mesure par mesure (`meme_moment`, donc `roles.meme_lecture`) :
+      1. le fondu muet final (N.C.) est mis de côté ;
+      2. l'OUVERTURE : les premières mesures collent à celles de `ref`, en
+         phase 0. La 1re peut ne pas coller (Lost Without U joue G7sus4 là
+         où le A joue D-7 : la même cadence sur la pédale de dominante, que
+         la mesure de similarité apprise saura lire ; d'ici là on la
+         tolère) — mais il faut alors au moins `DERNIER_TOUR_MIN_COLLE`
+         mesures qui collent APRÈS elle ;
+      3. la TENUE : ce qui suit l'ouverture commence par l'accord sur lequel
+         l'ouverture est arrivée, et cet accord est la tonique (`tonique` =
+         (hauteur, "major"|"minor") ; sans tonalité connue, un accord majeur
+         ou mineur, jamais une dominante). Elle ne dure pas plus longtemps
+         que l'ouverture ;
+      4. le tout est plus court que `ref` (sinon c'est un passage entier),
+         et il y a une tenue ou un fondu (sinon c'est un passage coupé, que
+         `_merge_coupe` sait déjà raccorder).
+
+    CE QUE ÇA NE RÉSOUT PAS : une section finale qui joue le MILIEU du A
+    (phase ≠ 0) ; une tenue sur un autre degré que la tonique (une fin sur
+    le IV) ; une fin plus longue que son ouverture ; un tag répété trois fois.
+    """
+    fin, ref = list(fin or []), list(ref or [])
+    T = list(fin)
+    fondu = 0
+    while T and _muette(T[-1]):
+        T.pop()
+        fondu += 1
+    if not T or len(fin) >= len(ref) or len(T) > len(ref):
+        return None
+    colle = [meme_moment(T[i], ref[i]) for i in range(len(T))]
+    toleree = not colle[0]
+    k = 1
+    while k < len(T) and colle[k]:
+        k += 1
+    if sum(colle[1:k]) < (DERNIER_TOUR_MIN_COLLE if toleree else 1):
+        return None
+    tenue = len(T) - k
+    if tenue == 0:
+        return ({"ouverture": k, "premiere_toleree": toleree, "tenue": 0,
+                 "fondu": fondu, "tonique_aux": []} if fondu else None)
+    if tenue > k:
+        return None
+    arrivee = next((c for c in reversed(T[k - 1]) if not c.get("nc")), None)
+    tenu = next((c for c in T[k] if not c.get("nc")), None)
+    if arrivee is None or tenu is None or \
+            not meme_lecture(arrivee, tenu, grain="famille"):
+        return None
+    if tonique is not None:
+        mode = "m" if str(tonique[1]).startswith("min") else "M"
+        if not meme_lecture(tenu, {"root": int(tonique[0]) % 12,
+                                   "q": "-" if mode == "m" else ""},
+                            grain="famille"):
+            return None
+    elif _role_family_de(tenu) not in ("maj", "min"):
+        return None
+    aux = [i for i in range(k, len(T))
+           if T[i] and not T[i][0].get("nc")
+           and meme_lecture(T[i][0], tenu, grain="famille")]
+    return {"ouverture": k, "premiere_toleree": toleree, "tenue": tenue,
+            "fondu": fondu, "tonique_aux": aux}
+
+
+def dernier_tour_des_passes(fin, refs, tonique=None) -> dict | None:
+    """`dernier_tour_partiel` contre TOUS les passages entiers d'une lettre
+    (décodage brut) : il faut que la section finale soit le dernier tour
+    d'au moins la moitié d'entre eux. Rend le verdict du premier qui dit
+    oui, avec `passes` = (oui, total).
+
+    Pourquoi pas le seul bloc écrit : sur Lost Without U, la passe que la
+    façade choisit d'écrire (mes. 17-24) décode `G7sus4 D-7 | D-7 G7 | C |
+    C G-7` — l'harmonie décalée d'un demi-temps — et la fin ne colle pas à
+    elle ; elle colle à 7 des 9 passages du A."""
+    refs = [r for r in refs or [] if r]
+    if not refs:
+        return None
+    oui = [r for r in (dernier_tour_partiel(fin, ref, tonique) for ref in refs)
+           if r is not None]
+    if not oui or 2 * len(oui) < len(refs):
+        return None
+    return dict(oui[0], passes=(len(oui), len(refs)))
+
+
+def _role_family_de(c: dict) -> str:
+    from harmonia.roles import family
+    return family(c.get("q") or "")
+
+
+def _merge_dernier_tour(host: dict, blk: dict, bars, grid, fin_morceau: int,
+                        tonique) -> bool:
+    """La règle 2 de Louis du 2026-10-01 (`dernier_tour_partiel`) : la
+    DERNIÈRE section du morceau, de la même lettre, qui joue le début du
+    bloc puis tient la tonique et s'éteint, rejoint le bloc comme son
+    dernier tour partiel.
+
+    Le test se fait sur le décodage BRUT, contre chaque passage entier de la
+    lettre (`dernier_tour_des_passes` : au moins la moitié).
+
+    Comme un passage coupé (`_merge_coupe`) : `reps` augmenté, et elle
+    n'allume que les rangées qu'elle joue — ouverture et tenue, jamais le
+    fondu muet. Là où elle TIENT la tonique au lieu de jouer la rangée
+    écrite, la tonique se pose en petite lecture `var` de la case (si la
+    case n'en a pas déjà une : une seule variante par case, comme partout),
+    sur une copie de la mesure écrite.
+
+    NE S'APPLIQUE PAS à un bloc écrit en 1re/2e fin (les rangées de
+    `barSpans` y sont tronc puis variantes).
+    """
+    if bars is None or host.get("endings") or len(blk.get("barRanges") or []) != 1:
+        return False
+    c0, c1 = blk["barRanges"][0]
+    if c1 != fin_morceau or not host.get("bars"):
+        return False
+    W = len(host["bars"])
+    L_host = max(b - a + 1 for a, b in host["barRanges"])
+    refs = [bars[a:b + 1] for a, b in host["barRanges"] if b - a + 1 == L_host]
+    r = dernier_tour_des_passes(bars[c0:c1 + 1], refs, tonique)
+    if r is None:
+        return False
+    n_rows = len(host["barSpans"])
+    for i in range(r["ouverture"] + r["tenue"]):
+        if i % W < n_rows:
+            host["barSpans"][i % W].append(
+                [grid[c0 + i], grid[min(len(grid) - 1, c0 + i + 1)]])
+    for i in r["tonique_aux"]:
+        t = bars[c0 + i][0]
+        row = i % W
+        mesure = [dict(c) for c in host["bars"][row]]
+        if not mesure or any(meme_lecture(c, t, grain="famille") for c in mesure
+                             if not c.get("nc")):
+            continue
+        cible = mesure[0]
+        if "var" in cible:
+            continue
+        cible["var"] = {"root": int(t["root"]) % 12, "q": t.get("q", ""),
+                        "bass": t.get("bass", -1), "c": t.get("c", 0.0), "n": 1}
+        host["bars"][row] = mesure
+    host["barRanges"].append([c0, c1])
+    host["spans"] += [list(sp) for sp in blk["spans"]]
+    host["reps"] += blk["reps"]
+    bcl = host.get("boucle")
+    if bcl is not None:
+        bcl["tours_par_passe"] = bcl.get("tours_par_passe", []) + [0]
+    logger.info("ireal: dernier tour mes. %d-%d rejoint %s (ouverture %d%s, "
+                "tenue %d, fondu %d)", c0, c1, host["label"], r["ouverture"],
+                ", 1re tolérée" if r["premiere_toleree"] else "", r["tenue"],
+                r["fondu"])
+    return True
 
 
 def _merge_muet(host: dict, blk: dict) -> bool:

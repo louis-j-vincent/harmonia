@@ -1135,7 +1135,49 @@ def remplir_par_algo(chart: dict, occ: list[dict], audio_dir) -> list[dict]:
             source = "algo"
         out.append({"m0": bornes[b["j0"]], "m1": bornes[b["j1"]] - 1,
                     "label": nom, "source": source, "mot": b["type"]})
+    from harmonia.roles import parse_key_name
+    from harmonia.soudure import accords_par_mesure
+    nommer_dernier_tour(out, accords_par_mesure(chart),
+                        parse_key_name(chart.get("keyName")))
     return out
+
+
+def nommer_dernier_tour(out: list[dict], bars: list,
+                        tonique: tuple[int, str] | None = None) -> None:
+    """La règle 2 de Louis du 2026-10-01, côté NOMMAGE (mute `out`) : la
+    zone libre qui finit le morceau, si elle joue le début d'une lettre puis
+    tient la tonique et s'éteint (`folding.dernier_tour_partiel`), prend la
+    lettre de ce passage — elle en est le dernier tour, et `_ireal_cascade`
+    (`_merge_dernier_tour`) l'écrit comme tel.
+
+    Seulement un bloc de l'algorithme (source "algo", pas l'intro) : une
+    section que Louis a posée lui-même (« outro » comprise) garde SON nom
+    — ses étiquettes sont la vérité terrain. Les lettres candidates sont
+    essayées de la plus jouée à la moins jouée, contre leurs passages les
+    plus longs (`folding.dernier_tour_des_passes` : la moitié au moins)."""
+    from harmonia.folding import dernier_tour_des_passes
+    if len(out) < 2:
+        return
+    dernier = max(out, key=lambda o: (o["m1"], o["m0"]))
+    if dernier.get("source") != "algo" or dernier["label"] == "intro":
+        return
+    lettres: dict[str, list[dict]] = {}
+    for o in out:
+        if o is dernier or o["label"] in JAMAIS_REJOUEES \
+                or str(o["label"]).startswith("queue"):
+            continue
+        lettres.setdefault(o["label"], []).append(o)
+    if dernier["label"] in lettres:
+        return          # sa lettre est déjà jouée ailleurs : une reprise
+    fin = bars[dernier["m0"]:dernier["m1"] + 1]
+    for lab, occ in sorted(lettres.items(),
+                           key=lambda kv: (-len(kv[1]), kv[1][0]["m0"])):
+        lg = max(o["m1"] - o["m0"] for o in occ)
+        refs = [bars[o["m0"]:o["m1"] + 1] for o in occ if o["m1"] - o["m0"] == lg]
+        if dernier_tour_des_passes(fin, refs, tonique) is not None:
+            dernier["label"] = lab
+            dernier["regle"] = "dernier tour"
+            return
 
 
 def remplir_par_songformer(chart: dict, occ: list[dict],

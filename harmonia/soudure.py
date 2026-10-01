@@ -1031,7 +1031,9 @@ def sections_pour_chart(chart: dict, secs: list[dict],
     for blk in out:
         _ireal_endings(blk, bars, grid,
                        FUSION_DEFAUT if fusion is None else fusion)
-    return _ireal_cascade(out, bars, grid, None)
+    from harmonia.roles import parse_key_name
+    return _ireal_cascade(out, bars, grid, None,
+                          tonique=parse_key_name(chart.get("keyName")))
 
 
 def sections_et_fusions(chart: dict, secs: list[dict], bars=None,
