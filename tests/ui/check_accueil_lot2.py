@@ -90,6 +90,25 @@ def run(name, launcher, **ctx):
         job.update(eta_s=e_, elapsed_s=t_); pg.wait_for_timeout(1700)
         got = pg.locator("[data-eta=reste]").inner_text()
         check(got == want, f"eta {e_} écoulé {t_} -> « {want} » (reçu « {got} »)")
+
+    # ---- #43 : écran de recherche vide
+    pg.evaluate("localStorage.removeItem('harmRecherches')")
+    pg.evaluate("async()=>{const {go}=await import('/static/router.js');const {S}=await import('/static/state.js');S.searchQuery='';S.results=[];go('search')}"); pg.wait_for_timeout(700)
+    check(pg.locator("[data-astuce=lien]").count() == 1 and "lien YouTube" in pg.locator("[data-astuce=lien]").inner_text(), "astuce « colle un lien YouTube »")
+    check(pg.locator("[data-recente]").count() == 0, "pas de récentes au départ")
+    pg.evaluate("localStorage.setItem('harmRecherches', JSON.stringify(['autumn leaves','blue bossa']))")
+    pg.evaluate("async()=>{const {go}=await import('/static/router.js');go('search',{push:false})}"); pg.wait_for_timeout(500)
+    rows = pg.locator("[data-recente]")
+    check(rows.count() == 2 and rows.first.get_attribute("data-recente") == "autumn leaves", "récentes affichées")
+    check(rows.first.bounding_box()["height"] >= 44, "ligne ≥ 44 px")
+    pg.screenshot(path=f"{PRE}_{name}_recentes.png")
+    rows.nth(1).click(); pg.wait_for_timeout(600)
+    check(pg.locator("input").first.input_value() == "blue bossa", "toucher une récente relance la recherche")
+    r0 = pg.evaluate("JSON.parse(localStorage.getItem('harmRecherches'))")
+    check(r0[0] == "blue bossa" and len(r0) == 2, f"la dernière remonte en tête {r0}")
+    pg.evaluate("async()=>{const {go}=await import('/static/router.js');const {S}=await import('/static/state.js');S.searchQuery='';S.results=[];go('search',{push:false})}"); pg.wait_for_timeout(400)
+    pg.get_by_text("Effacer", exact=True).first.click(); pg.wait_for_timeout(300)
+    check(pg.locator("[data-recente]").count() == 0, "Effacer vide la liste")
     b.close()
 
 with sync_playwright() as p:

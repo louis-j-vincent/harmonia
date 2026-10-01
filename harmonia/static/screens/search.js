@@ -51,7 +51,7 @@ export function renderSearch(){
     const inp=el("input",
       `flex:1;min-width:0;border:none;background:none;outline:none;`+
       `font:500 15px ${UI};color:${T.ink};`);
-    inp.placeholder="Un titre, un artiste";
+    inp.placeholder="Un titre, un artiste, un lien YouTube";
     inp.value=S.searchQuery||"";
     inp.setAttribute("enterkeyhint","search");
     inp.onkeydown=e=>{ if(e.key==="Enter"){ inp.blur(); runSearch(inp.value); } };
@@ -90,12 +90,28 @@ export function renderSearch(){
     setTimeout(()=>{ if(!S.searchQuery) inp.focus(); },120);
     return w;
   }
+// ── recherches récentes (UX #43, audit F5) ───────────────────────────────────
+// Par appareil, jamais envoyées au serveur. Les liens collés n'y entrent pas :
+// ils partent directement en analyse et ne se « re-cherchent » pas.
+export const RECENTES_KEY="harmRecherches";
+export function lireRecentes(){
+    try{ const a=JSON.parse(localStorage.getItem(RECENTES_KEY)||"[]");
+         return Array.isArray(a) ? a.filter(x=>typeof x==="string").slice(0,8) : []; }
+    catch(e){ return []; }
+  }
+export function noterRecente(q){
+    try{
+      const a=lireRecentes().filter(x=>x.toLowerCase()!==q.toLowerCase());
+      a.unshift(q); localStorage.setItem(RECENTES_KEY, JSON.stringify(a.slice(0,8)));
+    }catch(e){}
+  }
 export async function runSearch(q){
     q=(q||"").trim(); if(!q) return;
     // les collages restent des raccourcis (flux historiques, gardés): un lien
     // YouTube part direct en analyse, un irealb:// s'importe direct
     if(/youtu\.?be/.test(q)){ startAnalysis(q, "your link"); return; }
     if(/^irealb:\/\//i.test(q)){ importIrealChart({irealb_url:q}); return; }
+    noterRecente(q);
     S.searchQuery=q; S.searching=true; S.searchPage=0; S.searchMore=false; paintResults();
     const src=S.searchMode||"youtube";
     try{
@@ -225,6 +241,36 @@ export function searchCard(r){
     };
     return card;
   }
+// L'écran vide ne reste pas vide : un conseil (le lien YouTube marche, et
+// personne ne le sait) puis les dernières recherches, une ligne chacune.
+function videRecentes(body){
+    const hint=el("div",
+      `font:italic 14px/1.6 ${SERIF};color:${T.faint};padding:6px 6px 14px;`,
+      "Astuce : colle un lien YouTube dans le champ, la chanson s’analyse directement.");
+    hint.dataset.astuce="lien"; body.appendChild(hint);
+    const rec=lireRecentes(); if(!rec.length) return;
+    const h=el("div","display:flex;align-items:center;justify-content:space-between;margin:6px 4px 6px;");
+    h.appendChild(el("span",
+      `font:700 11px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};`,"Récentes"));
+    const eff=el("button",
+      `border:none;background:none;min-height:${SZ.control}px;padding:0 4px;margin:-12px -4px;`+
+      `font:600 13px ${UI};color:${T.accent};cursor:pointer;`,"Effacer");
+    eff.onclick=()=>{ try{ localStorage.removeItem(RECENTES_KEY); }catch(e){} paintResults(); };
+    h.appendChild(eff); body.appendChild(h);
+    const list=el("div","display:flex;flex-direction:column;gap:8px;");
+    rec.forEach(q=>{
+      const row=el("div",
+        `min-height:${SZ.control}px;border-radius:14px;background:${T.card};border:1px solid ${T.line};`+
+        `display:flex;align-items:center;gap:10px;padding:0 14px;cursor:pointer;`);
+      row.dataset.recente=q;
+      row.appendChild(el("span",`font:400 16px ${UI};color:${T.rule};`,"⌕"));
+      row.appendChild(el("span",
+        `flex:1;min-width:0;font:500 15px ${UI};color:${T.ink};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`,q));
+      row.onclick=()=>{ S.searchQuery=q; S.results=[]; go("search",{push:false}); runSearch(q); };
+      list.appendChild(row);
+    });
+    body.appendChild(list);
+  }
 export function paintResults(){
     const body=S._searchBody; if(!body) return;
     clear(body);
@@ -245,6 +291,7 @@ export function paintResults(){
       if(S.searchQuery) body.appendChild(el("div",
         `font:italic 13.5px/1.7 ${SERIF};color:${T.faint};padding:28px 6px;text-align:center;`,
         "rien trouvé — essaie le nom de l'artiste"));
+      else videRecentes(body);
       return;
     }
 
