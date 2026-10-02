@@ -116,6 +116,19 @@ Page avant/après : `docs/plots/ux_5_changements_2026-10-01.html`. Tests Playwri
    l'écran de chargement (`analyse.js`) est encore en anglais (« listening to the
    track », « Open the chart ») — hors des cinq écrans demandés, pas touché.
 
+## Sections : suggestions pâles des reprises (2026-10-02)
+
+Louis : « dès qu'on sélectionne une section, les autres apparaissent suggérées
+en pâle, on clique pour confirmer ». Fait (04a728d, 8f95ae7) sur
+`/api/section-repeats`, **même tonalité seulement** (son choix sur mesures) :
+sur ses 26 morceaux aux sections validées, en conditions réelles (lettres dans
+l'ordre, mesures déjà prises exclues), 60 % des suggestions justes, 79 % des
+vraies reprises trouvées ; avec les transposés : 46 % / 92 %.
+**Non résolu** : les « jumeaux harmoniques » — quand un C a les mêmes accords
+que A (The Lazy Song, mes. 27–30), la suggestion peut tomber décalée de 4
+mesures (27–34 au lieu de 31–38) ; seule la mélodie départagerait. Les
+reprises transposées (modulation du dernier refrain) ne sont plus proposées.
+
 ## UX — la liste du 2026-10-01 est faite et vérifiée (2026-10-01)
 
 Toutes les propositions de l'audit (`docs/plots/ux_audit_2026-10-01.html`),

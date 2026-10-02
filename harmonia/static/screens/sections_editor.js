@@ -410,8 +410,8 @@ export function buildSectionTool(){
       c.onclick=()=>{ haptic();
         clearSugg();                      // changer de lettre ignore les propositions
         st.label=on?null:lb; st.pendingStart=null;
-        if(on){ st.sel=null; st.note="aucune lettre : le tap déplace la lecture"; }
-        else st.note="";
+        if(on) st.sel=null;
+        st.note="";   // l'étape en tête du bandeau le dit déjà — elle s'affichait deux fois
         go("chart"); };
       chips.appendChild(c);
     });
