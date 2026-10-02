@@ -264,6 +264,81 @@ def _chart_ou_404(file: str):
     return json.loads(p.read_text(encoding="utf-8")), None
 
 
+@bp.route("/paroles/<file>", methods=("GET", "POST"))
+def paroles_a_la_main(file):
+    """Écrire soi-même les paroles d'un morceau (Louis, 2026-10-02).
+
+    POURQUOI CETTE PAGE EXISTE. Quatre morceaux de la bibliothèque n'ont AUCUN
+    tab sur Ultimate Guitar (Bora Bora, Bein Green, American Boy,
+    Claustrophobic) ; d'autres en ont un dont le texte est approximatif. Une
+    API sous licence ne règle pas le cas : son palier gratuit ne rend qu'un
+    tiers du texte. Le texte de Louis, lui, est complet, juste, et ne dépend de
+    personne.
+
+    DÈS QU'IL EST LÀ, LA FEUILLE SE PASSE ENTIÈREMENT DE TAB : les accords sont
+    les nôtres, mesurés sur l'audio ; le tab ne servait qu'au texte.
+
+    Le fichier vit dans `state/human/paroles/`, à côté des sections faites
+    main — donc suivi par git, comme tout travail manuel de ce projet.
+    """
+    from harmonia.integrations import paroles_maison as PM
+    chart, err = _chart_ou_404(file)
+    if err:
+        return err
+    stem = Path(chart.get("audio_url") or "").stem
+    titre = chart.get("title") or stem
+
+    if request.method == "POST":
+        texte = (request.form.get("texte") or "")
+        n = PM.ecrire(stem, texte)
+        # on invalide l'alignement : il a été calculé sur l'ancien texte
+        try:
+            from harmonia import cache
+            f = cache.path("paroles", SETTINGS.audio_dir / f"{stem}.m4a")
+            if f and Path(f).exists():
+                Path(f).unlink()
+                log.info("paroles : alignement de %s effacé, le texte a changé",
+                         stem)
+        except Exception:                                    # noqa: BLE001
+            log.exception("paroles : impossible d'effacer l'alignement de %s",
+                          stem)
+        return Response(
+            f'<!doctype html><meta charset=utf-8><meta name=viewport '
+            f'content="width=device-width,initial-scale=1">'
+            f'<div style="font:16px/1.6 -apple-system,system-ui,sans-serif;'
+            f'max-width:30rem;margin:18vh auto;padding:0 1.5rem">'
+            f'<p><b>{n} ligne(s) enregistrée(s).</b></p>'
+            f'<p>L\'alignement du chant va être recalculé à la première '
+            f'ouverture — compte une quinzaine de secondes.</p>'
+            f'<p><a href="/tab-paroles/{file}">Voir la feuille</a></p></div>',
+            mimetype="text/html")
+
+    actuel = PM.lire(stem)
+    return Response(
+        f'<!doctype html><html lang=fr><meta charset=utf-8>'
+        f'<meta name=viewport content="width=device-width,initial-scale=1">'
+        f'<title>Paroles — {html.escape(titre)}</title>'
+        f'<style>:root{{color-scheme:light dark}}'
+        f'body{{font:16px/1.6 -apple-system,system-ui,sans-serif;'
+        f'max-width:40rem;margin:0 auto;padding:20px 16px}}'
+        f'textarea{{width:100%;min-height:58vh;font:15px/1.7 ui-monospace,'
+        f'Menlo,monospace;padding:12px;border-radius:10px;'
+        f'border:1px solid #ccc;background:transparent;color:inherit}}'
+        f'button{{margin-top:12px;padding:12px 20px;border:0;border-radius:10px;'
+        f'background:#8c2f2f;color:#fff;font:600 15px inherit;cursor:pointer}}'
+        f'.a{{color:#7a7268;font-size:13.5px}}</style>'
+        f'<h2>{html.escape(titre)}</h2>'
+        f'<p class=a>Une ligne par ligne chantée. Une ligne vide entre deux '
+        f'strophes. <code>[Refrain]</code> seul sur sa ligne pour nommer une '
+        f'section. Tes paroles passent avant toute autre source, et le morceau '
+        f'n\'a alors plus besoin de tab.</p>'
+        f'<form method=post><textarea name=texte placeholder="Colle ou écris '
+        f'les paroles ici…">{html.escape(actuel)}</textarea>'
+        f'<button type=submit>Enregistrer</button></form>'
+        f'<p class=a><a href="/tab-paroles/{file}">← la feuille</a></p></html>',
+        mimetype="text/html")
+
+
 @bp.get("/tab-paroles/<file>")
 def tab_paroles(file):
     """La feuille « accords sur les mots » de CE morceau, en HTML.
@@ -302,15 +377,29 @@ def tab_paroles(file):
             f'Recherche : « {requete} »</p></div>',
             status=code, mimetype="text/html")
 
-    try:
-        pose = poser(chart, requete,
-                     artiste=_artiste_de(file, chart))
-    except Exception:                                        # noqa: BLE001
-        # Jamais muet : une page blanche ferait croire à un morceau sans tab.
-        log.exception("tab-paroles : la pose a échoué pour %s", stem)
-        return _dire("La recherche de tab a échoué — voir le journal.", 502)
-    if pose is None:
-        return _dire("Aucun tab utilisable pour ce morceau.", 404)
+    # TES PROPRES PAROLES PASSENT AVANT TOUT (Louis, 2026-10-02 : « comment
+    # faire pour mettre nous-mêmes nos paroles quand elles n'existent pas »).
+    #
+    # Et surtout : quand elles sont là, ON N'A PLUS BESOIN DE TAB DU TOUT. Le
+    # tab ne servait qu'à fournir le TEXTE — les accords, eux, sont les nôtres,
+    # mesurés sur l'audio. Un morceau sans aucun tab sur Ultimate Guitar (Bora
+    # Bora, Bein Green…) devient donc lisible dès que Louis colle ses paroles.
+    from harmonia.integrations import paroles_maison as PM
+    maison = PM.lire(stem)
+
+    pose = None
+    if not maison:
+        try:
+            pose = poser(chart, requete, artiste=_artiste_de(file, chart))
+        except Exception:                                    # noqa: BLE001
+            # Jamais muet : une page blanche ferait croire à un morceau sans tab.
+            log.exception("tab-paroles : la pose a échoué pour %s", stem)
+            return _dire("La recherche de tab a échoué — voir le journal.", 502)
+        if pose is None:
+            return _dire(
+                "Aucun tab ne correspond vraiment à ce morceau. Tu peux "
+                "coller tes propres paroles : "
+                f'<a href="/paroles/{file}">les écrire ici</a>.', 404)
 
     # LE TAB DOIT ÊTRE VRAIMENT CE MORCEAU (Louis, 2026-09-30 : « il faut que
     # ça matche sur titre + artiste + accords, à transpo près, sinon c'est pas
@@ -321,22 +410,31 @@ def tab_paroles(file):
     from harmonia.integrations.tab_chart import tab_du_morceau
     from harmonia.server.jobs import _load_chart_meta
     _meta = (_load_chart_meta() or {}).get(file) or {}
+    _saute_le_tab = bool(maison)
     _titre = _meta.get("title") or chart.get("title") or requete
     _artiste = _meta.get("artist") or chart.get("artist") or ""
     # la voix isolée sert d'arbitre quand plusieurs tabs passent les deux
     # premières portes — elle ne coûte un alignement qu'en cas d'ambiguïté
     _voix = SETTINGS.data_cache / "stems" / "htdemucs" / stem / "vocals.wav"
-    _trouve = tab_du_morceau(chart, _titre, _artiste,
-                             voix=_voix if _voix.exists() else None)
-    if _trouve is None:
-        return _dire(
-            "Aucun tab ne correspond vraiment à ce morceau — même titre, même "
-            "artiste, et mêmes accords à transposition près. Mieux vaut ne "
-            "rien poser que poser les paroles d'une autre chanson.", 404)
-    brut = _trouve["brut"]
-    log.info("tab-paroles %s : tab %r de %r, accords %.0f %%", stem,
-             _trouve["tab"].song_name, _trouve["tab"].artist_name,
-             100 * _trouve["accords"])
+    _trouve = None
+    if _saute_le_tab:
+        brut = ""
+        log.info("tab-paroles %s : paroles écrites à la main (%d ligne(s))",
+                 stem, len(PM.en_lignes(maison)))
+    else:
+        _trouve = tab_du_morceau(chart, _titre, _artiste,
+                                 voix=_voix if _voix.exists() else None)
+        if _trouve is None:
+            return _dire(
+                "Aucun tab ne correspond vraiment à ce morceau — même titre, "
+                "même artiste, et mêmes accords à transposition près. Mieux "
+                "vaut ne rien poser que poser les paroles d'une autre "
+                f'chanson. Tu peux <a href="/paroles/{file}">écrire les '
+                "tiennes</a>.", 404)
+        brut = _trouve["brut"]
+        log.info("tab-paroles %s : tab %r de %r, accords %.0f %%", stem,
+                 _trouve["tab"].song_name, _trouve["tab"].artist_name,
+                 100 * _trouve["accords"])
 
     # LE TEXTE PEUT VENIR D'UNE API SOUS LICENCE (2026-09-24, choix de Louis).
     # Sans clé, ou si elle ne rend qu'un extrait tronqué, on garde celui du
@@ -345,6 +443,8 @@ def tab_paroles(file):
     # vraiment (environ 30 % du texte chez Musixmatch).
     from harmonia.integrations import paroles_api as PApi
     structure, d_source = None, "tab"
+    if maison:
+        structure, d_source = PM.en_lignes(maison), "tes paroles"
     _p = PApi.paroles(chart.get("title") or stem,
                       (chart.get("artist") or ""))
     if _p and _p.get("complet"):
@@ -416,25 +516,36 @@ def tab_paroles(file):
     if align and not feuille:
         feuille = TP.feuille_calee(chart, brut, align)
         source, par_mots = "nos instants", bool(feuille)
-    if not feuille:
+    if not feuille and pose is not None:
         # Repli ASSUMÉ et DIT : sans voix isolée il n'y a pas d'alignement, et
         # les colonnes du tabbeur restent la seule information de placement.
+        # SANS TAB, CE REPLI N'EXISTE PAS : il n'y a pas de colonnes à lire,
+        # et l'appeler avec `pose=None` plantait (vécu).
         feuille = TP.feuille(chart, pose, brut)
         source = "colonnes du tab"
     if not feuille:
+        if pose is None:
+            return _dire(
+                "Tes paroles sont là, mais le chant n'a pas pu être aligné "
+                "dessus — il faut la voix isolée de ce morceau, et elle "
+                "manque. Lance une analyse, puis rouvre cette page.", 409)
         return _dire("Les colonnes du tab et ses accords ne concordent pas : "
                      "rien n'a été posé.", 409)
     n_acc = (sum(len(w["accords"]) for l in feuille for w in l["mots"])
              if (par_barres or par_mots)
              else sum(len(l["accords"]) for l in feuille))
+    # SANS TAB, PAS DE CRÉDIT DE TAB. La page porte alors la mention de ce
+    # qu'elle est : un texte écrit à la main, qu'aucun tabbeur n'a fourni.
+    credit = (pose["tab"] if pose else
+              {"titre": "tes paroles", "artiste": "", "url": ""})
     log.info("tab-paroles %s : %d ligne(s), %d accord(s), placement par %s, "
-             "transposition %+d", stem, len(feuille), n_acc, source,
-             int(pose.get("decalage") or 0))
+             "texte par %s, transposition %+d", stem, len(feuille), n_acc,
+             source, d_source, int(pose.get("decalage") or 0) if pose else 0)
     if par_barres:
         n_mots = sum(len(l["mots"]) for l in feuille)
         n_acc = sum(len(w["accords"]) for l in feuille for w in l["mots"])
         return Response(
-            TP.page_barres(chart.get("title") or stem, feuille, pose["tab"],
+            TP.page_barres(chart.get("title") or stem, feuille, credit,
                            f"{len(feuille)} ligne(s) · {n_mots} mot(s) · "
                            f"{n_acc} changement(s)",
                            # LA FEUILLE DÉFILE AVEC LE MORCEAU : on lui passe
@@ -452,12 +563,12 @@ def tab_paroles(file):
         # `tab_paroles.page_mots`).
         n_mots = sum(len(l["mots"]) for l in feuille)
         return Response(
-            TP.page_mots(chart.get("title") or stem, feuille, pose["tab"],
+            TP.page_mots(chart.get("title") or stem, feuille, credit,
                          f"{len(feuille)} ligne(s) · {n_mots} mot(s) · "
                          f"{n_acc} accord(s)"),
             mimetype="text/html")
     return Response(
-        TP.page(chart.get("title") or stem, feuille, pose["tab"],
+        TP.page(chart.get("title") or stem, feuille, credit,
                 int(pose.get("decalage") or 0)),
         mimetype="text/html")
 
