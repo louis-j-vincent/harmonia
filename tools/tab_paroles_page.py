@@ -43,8 +43,13 @@ def main(requete: str, stem: str, sortie: str) -> int:
     if pose is None:
         print("aucun tab utilisable — voir le journal", file=sys.stderr)
         return 3
-    res = search_tabs(requete, tab_types=("Chords",), max_results=6)
-    brut = fetch_tab_chords(res[0]).raw_content
+    # LE MÊME TAB QUE CELUI SUR LEQUEL ON S'EST CALÉ. Ce script refaisait une
+    # recherche APRÈS `poser` : il pouvait donc caler la grille sur un tab et
+    # lire le texte d'un autre. `poser` expose son choix, on le reprend.
+    brut = pose.get("brut") or ""
+    if not brut:
+        print("le tab calé n'expose pas son texte", file=sys.stderr)
+        return 3
     feuille = TP.feuille(chart, pose, brut)
     if not feuille:
         print("les colonnes et les accords ne concordent pas — rien posé",

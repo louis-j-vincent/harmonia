@@ -79,7 +79,22 @@ def texte_du_chart(ch: dict) -> str:
     return s
 
 
-def poser(chart: dict, requete: str, url: str | None = None) -> dict | None:
+def _voix_de(chart: dict):
+    """La voix isolée de ce morceau, si elle existe — sinon None.
+
+    Elle sert au quatrième critère (le chant départage deux tabs à égalité sur
+    les accords) ; son absence ne bloque rien.
+    """
+    from harmonia.settings import SETTINGS
+    stem = Path(str(chart.get("audio_url") or "")).stem
+    if not stem:
+        return None
+    v = SETTINGS.data_cache / "stems" / "htdemucs" / stem / "vocals.wav"
+    return v if v.exists() else None
+
+
+def poser(chart: dict, requete: str, url: str | None = None, *,
+          artiste: str = "") -> dict | None:
     """Le tab le mieux noté, posé sur la ligne du temps de ce chart.
 
     Rend None — et DIT pourquoi dans le journal — si rien n'est utilisable :
@@ -97,19 +112,33 @@ def poser(chart: dict, requete: str, url: str | None = None) -> dict | None:
         return None
 
     if url:
+        # URL EXPLICITE = CHOIX DE LOUIS. On ne la discute pas : il a vu le tab
+        # et l'a désigné. La porte à quatre critères ne s'applique qu'à ce que
+        # NOUS choisissons à sa place.
         trouve = next((r for r in search_tabs(requete, tab_types=("Chords",),
                                               max_results=12)
                        if r.tab_url == url), None)
         res = [trouve] if trouve else []
+        if not res or res[0] is None:
+            log.info("tab : l'URL demandée est introuvable pour %r", requete)
+            return None
+        brut_txt = fetch_tab_chords(res[0]).raw_content
     else:
-        res = [r for r in search_tabs(requete, tab_types=("Chords",),
-                                      max_results=6) if r.rating >= NOTE_MINI]
-    if not res or res[0] is None:
-        log.info("tab : rien au-dessus de %.1f étoiles pour %r",
-                 NOTE_MINI, requete)
-        return None
-    brut = fetch_tab_chords(res[0])
-    seq = compresser(sequence_du_tab(brut.raw_content))
+        # LA MÊME PORTE QUE PARTOUT AILLEURS (2026-10-02). `poser` cherchait
+        # par TITRE SEUL et ne filtrait que sur la note — il pouvait donc
+        # aligner la grille d'une AUTRE chanson, et `tab-doutes` contestait
+        # alors nos accords au nom d'un morceau sans rapport. Titre, artiste,
+        # accords à transposition près, puis le chant pour départager.
+        choix = tab_du_morceau(chart, requete, artiste, voix=_voix_de(chart))
+        if choix is None:
+            log.info("tab : aucun tab ne correspond vraiment à %r de %r",
+                     requete, artiste or "?")
+            return None
+        res = [choix["tab"]]
+        brut_txt = choix["brut"]
+    # on ne manipule que le TEXTE du tab : reconstruire l'objet du fetcher
+    # cassait dès qu'il gagnait un champ (vécu deux fois)
+    seq = compresser(sequence_du_tab(brut_txt))
     if not seq:
         log.info("tab : aucun accord lisible dans %s", res[0].tab_url)
         return None
@@ -139,7 +168,11 @@ def poser(chart: dict, requete: str, url: str | None = None) -> dict | None:
             "section": c.get("section") or ""})
 
     mots = TS.mots_par_mesure(segments, grille, temps)
-    return {"segments": segments, "seq": seq, "decalage": dec,
+    # LE TEXTE DU TAB VOYAGE AVEC LA POSE. Sans lui, un appelant qui veut les
+    # paroles refait une recherche et peut tomber sur un AUTRE tab que celui
+    # sur lequel on vient de se caler (c'était le cas de tools/tab_paroles_page).
+    return {"brut": brut_txt,
+            "segments": segments, "seq": seq, "decalage": dec,
             "marge": round(scores[0][0] - scores[1][0], 3),
             "grille": grille, "temps": temps, "bpb": bpb,
             "forme": TS.forme(mots), "mots": mots,

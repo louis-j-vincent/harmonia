@@ -46,6 +46,21 @@ VERS_TAB = {"": "", "-": "m", "-7": "m7", "o": "dim", "h7": "m7b5",
             "^7": "maj7", "7": "7", "^": "maj7", "+": "", "sus": "sus4"}
 
 
+
+def _artiste(cle: str) -> str:
+    """L'artiste du morceau, pour la porte à quatre critères de `tab_chart`."""
+    import json
+    from pathlib import Path
+    try:
+        m = json.loads(Path("state/human/chart_meta.json").read_text())
+    except Exception:                                        # noqa: BLE001
+        return ""
+    for k in (cle, "min_" + cle):
+        v = m.get(k)
+        if v:
+            return v.get("artist") or ""
+    return ""
+
 def texte_du_chart(ch: dict) -> str:
     """L'accord tel que le chart l'écrit, en toutes lettres."""
     if ch.get("nc"):
@@ -111,12 +126,14 @@ def etudier(cle: str, requete: str) -> dict | None:
         print(f"   {cle} : pas d'audio ou grille trop courte")
         return None
 
-    res = [r for r in search_tabs(requete, tab_types=("Chords",), max_results=6)
-           if r.rating >= 4.5]
-    if not res:
-        print(f"   {cle} : aucun tab au-dessus de 4,5★")
+    # la porte à quatre critères, comme partout (2026-10-02)
+    from harmonia.integrations.tab_chart import tab_du_morceau
+    choix = tab_du_morceau(chart, requete, _artiste(cle))
+    if choix is None:
+        print(f"   {cle} : aucun tab ne correspond vraiment à ce morceau")
         return None
-    seq = compresser(sequence_du_tab(fetch_tab_chords(res[0]).raw_content))
+    res = [choix["tab"]]
+    seq = compresser(sequence_du_tab(choix["brut"]))
     P = priors_musx(audio, grille)
     dec, _ = meilleure_transposition(seq, P)
     Pt = priors_musx(audio, temps)

@@ -41,6 +41,21 @@ POC = [("min_maroon_5_this_love", "Maroon 5 This Love"),
        ("min_bruno_mars_grenade_official_music_video", "Bruno Mars Grenade")]
 
 
+
+def _artiste(cle: str) -> str:
+    """L'artiste du morceau, pour la porte à quatre critères de `tab_chart`."""
+    import json
+    from pathlib import Path
+    try:
+        m = json.loads(Path("state/human/chart_meta.json").read_text())
+    except Exception:                                        # noqa: BLE001
+        return ""
+    for k in (cle, "min_" + cle):
+        v = m.get(k)
+        if v:
+            return v.get("artist") or ""
+    return ""
+
 def etudier(cle: str, requete: str) -> dict | None:
     from harmonia.integrations.tab_fetcher import fetch_tab_chords, search_tabs
 
@@ -57,12 +72,15 @@ def etudier(cle: str, requete: str) -> dict | None:
         print(f"   {cle} : pas d'audio ou grille trop courte")
         return None
 
-    res = [r for r in search_tabs(requete, tab_types=("Chords",), max_results=6)
-           if r.rating >= 4.5]
-    if not res:
-        print(f"   {requete} : aucun tab au-dessus de 4,5 étoiles")
+    # LA PORTE À QUATRE CRITÈRES, comme partout (2026-10-02) : titre, artiste,
+    # accords à transposition près, puis le chant pour départager. Chercher au
+    # titre seul rendait parfois une AUTRE chanson.
+    from harmonia.integrations.tab_chart import tab_du_morceau
+    choix = tab_du_morceau(chart, requete, _artiste(cle))
+    if choix is None:
+        print(f"   {requete} : aucun tab ne correspond vraiment à ce morceau")
         return None
-    tab = fetch_tab_chords(res[0])
+    res, tab = [choix["tab"]], choix
     if not tab:
         print(f"   {requete} : tab illisible")
         return None

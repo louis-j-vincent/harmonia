@@ -243,6 +243,20 @@ def _requete(stem: str, chart: dict) -> str:
     return f"{artiste} {titre}".strip() if artiste else titre
 
 
+def _artiste_de(file: str, chart: dict) -> str:
+    """L'artiste de ce morceau, pour la porte à quatre critères.
+
+    Sans lui, la recherche de tab se fait au titre seul et peut rendre une
+    autre chanson — mesuré : le mauvais artiste 8 fois sur 22 morceaux.
+    """
+    try:
+        from harmonia.server.jobs import _load_chart_meta
+        m = (_load_chart_meta() or {}).get(file) or {}
+    except Exception:                                        # noqa: BLE001
+        m = {}
+    return m.get("artist") or chart.get("artist") or ""
+
+
 def _chart_ou_404(file: str):
     p = CHARTS_DIR / f"{Path(str(file)).stem}.json"
     if not p.exists():
@@ -289,7 +303,8 @@ def tab_paroles(file):
             status=code, mimetype="text/html")
 
     try:
-        pose = poser(chart, requete)
+        pose = poser(chart, requete,
+                     artiste=_artiste_de(file, chart))
     except Exception:                                        # noqa: BLE001
         # Jamais muet : une page blanche ferait croire à un morceau sans tab.
         log.exception("tab-paroles : la pose a échoué pour %s", stem)
@@ -631,13 +646,24 @@ def karaoke(file):
     if not garde or garde.get("requete") != requete:
         from harmonia.integrations.tab_fetcher import fetch_tab_chords, search_tabs
         try:
-            res = search_tabs(requete, tab_types=("Chords",), max_results=6)
+            # LA MÊME PORTE QUE PARTOUT (2026-10-02). Cette route ÉCRIT le
+            # cache d'alignement que la feuille de tab relit : un tab d'une
+            # autre chanson y empoisonnerait tout l'aval, pas seulement cette
+            # page. Titre + artiste + accords, puis le chant pour départager.
+            from harmonia.integrations.tab_chart import tab_du_morceau
+            _art = _artiste_de(file, chart)
+            _ch = tab_du_morceau(chart, requete, _art,
+                                 voix=TC._voix_de(chart)
+                                 if hasattr(TC, "_voix_de") else None)
+            res = [_ch["tab"]] if _ch else []
         except Exception:                                     # noqa: BLE001
             log.exception("karaoke : la recherche de tab a échoué pour %s", stem)
             return _dire("La recherche de tab a échoué — voir le journal.", 502)
         if not res:
-            return _dire("Aucun tab trouvé : sans texte il n'y a rien à "
-                         "aligner.", 404)
+            return _dire("Aucun tab ne correspond vraiment à ce morceau — "
+                         "même titre, même artiste, mêmes accords. Mieux vaut "
+                         "ne rien aligner que d'aligner les mots d'une autre "
+                         "chanson.", 404)
         try:
             brut = fetch_tab_chords(res[0]).raw_content
         except Exception:                                     # noqa: BLE001
@@ -675,7 +701,8 @@ def karaoke(file):
     # première ouverture, sans être invalidé.
     if "accords_tab" not in garde:
         try:
-            pose = TC.poser(chart, garde.get("requete") or requete)
+            pose = TC.poser(chart, garde.get("requete") or requete,
+                            artiste=_artiste_de(file, chart))
             garde["accords_tab"] = PA.accords_du_tab(pose) if pose else []
         except Exception:                                     # noqa: BLE001
             # Jamais muet, et jamais bloquant : sans la voie du tab la page

@@ -41,6 +41,21 @@ from harmonia.settings import SETTINGS
 DEFAUT = ("min_bruno_mars_grenade_official_music_video", "Bruno Mars Grenade")
 
 
+
+def _artiste(cle: str) -> str:
+    """L'artiste du morceau, pour la porte à quatre critères de `tab_chart`."""
+    import json
+    from pathlib import Path
+    try:
+        m = json.loads(Path("state/human/chart_meta.json").read_text())
+    except Exception:                                        # noqa: BLE001
+        return ""
+    for k in (cle, "min_" + cle):
+        v = m.get(k)
+        if v:
+            return v.get("artist") or ""
+    return ""
+
 def rassembler(cle: str, requete: str) -> dict | None:
     """Refait l'alignement du POC et garde de quoi l'expliquer."""
     from harmonia.integrations.tab_fetcher import fetch_tab_chords, search_tabs
@@ -58,12 +73,13 @@ def rassembler(cle: str, requete: str) -> dict | None:
         print(f"   {cle} : pas d'audio ou grille trop courte")
         return None
 
-    res = [r for r in search_tabs(requete, tab_types=("Chords",), max_results=6)
-           if r.rating >= 4.5]
-    if not res:
-        print(f"   {cle} : aucun tab au-dessus de 4,5★")
+    # la porte à quatre critères, comme partout (2026-10-02)
+    from harmonia.integrations.tab_chart import tab_du_morceau
+    choix = tab_du_morceau(chart, requete, _artiste(cle))
+    if choix is None:
+        print(f"   {cle} : aucun tab ne correspond vraiment à ce morceau")
         return None
-    tab = fetch_tab_chords(res[0])
+    res, tab = [choix["tab"]], choix
     seq = compresser(sequence_du_tab(tab.raw_content))
     P = priors_musx(audio, grille)
     dec, scores = meilleure_transposition(seq, P)
