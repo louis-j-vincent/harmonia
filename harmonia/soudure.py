@@ -1047,6 +1047,48 @@ def _sections_pour_chart(chart: dict, secs: list[dict],
                           tonique=parse_key_name(chart.get("keyName")))
 
 
+def scinder_multiples(secs: list[dict]) -> list[dict]:
+    """Une occurrence tracée sur k× la longueur habituelle de sa lettre devient
+    k passages de cette lettre (Louis, 2026-10-02, Go Thru Your Phone : A tracé
+    partout sur 2 mesures, une fois sur 4 → l'écriture en faisait un A′ qu'aucun
+    cran du curseur de fusion ne rejoignait ; « le A et le A′ sont équivalents »).
+    C'est la règle de la boucle minimale (2026-09-30) appliquée au tracé : il
+    surligne parfois plusieurs passages d'un coup.
+
+    Ne touche qu'aux lettres seules (A, B…) ayant une longueur majoritaire
+    portée par ≥ 2 occurrences, et seulement aux multiples exacts. Ce que ça ne
+    fait PAS : vérifier l'harmonie des morceaux coupés (il a donné la même
+    lettre — c'est son verdict), ni toucher un A′ qu'il a nommé lui-même.
+
+    `secs` : [{label, mesure_debut, mesure_fin}], 1-indexées, fin incluse."""
+    import re
+    from collections import Counter
+    longueurs: dict = {}
+    for s_ in secs:
+        lab = s_.get("label") or ""
+        if re.fullmatch(r"[A-Z]", lab):
+            longueurs.setdefault(lab, []).append(
+                int(s_["mesure_fin"]) - int(s_["mesure_debut"]) + 1)
+    base = {}
+    for lab, ls in longueurs.items():
+        (L, nb), = Counter(ls).most_common(1)
+        if nb >= 2 and all(c <= nb for c in Counter(ls).values()):
+            base[lab] = L
+    out = []
+    for s_ in secs:
+        lab = s_.get("label") or ""
+        d, f = int(s_["mesure_debut"]), int(s_["mesure_fin"])
+        L = base.get(lab)
+        n = f - d + 1
+        if L and n > L and n % L == 0:
+            for k in range(n // L):
+                out.append({**s_, "mesure_debut": d + k * L,
+                            "mesure_fin": d + (k + 1) * L - 1})
+        else:
+            out.append(s_)
+    return out
+
+
 def sections_et_fusions(chart: dict, secs: list[dict], bars=None,
                         fold_report: dict | None = None) -> tuple[list, dict]:
     """(sections au défaut, `sectionsFusion`) — `sections_pour_chart` à

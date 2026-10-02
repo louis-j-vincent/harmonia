@@ -198,6 +198,13 @@ def soudure_valider(file):
     secs = (request.get_json(silent=True) or {}).get("sections") or []
     if not secs:
         return jsonify({"error": "aucune section"}), 400
+    # A tracé sur 4 quand il fait 2 partout ailleurs = deux A, pas un A′
+    # (Louis, 2026-10-02) — avant le ré-empilement, qui lit ce découpage.
+    from harmonia.soudure import scinder_multiples
+    try:
+        secs = scinder_multiples(secs)
+    except (KeyError, TypeError, ValueError):
+        return jsonify({"error": "sections mal formées"}), 400
     chart = json.loads(p.read_text(encoding="utf-8"))
     n = chart.get("nBars") or 0
     try:
