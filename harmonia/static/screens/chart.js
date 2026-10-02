@@ -21,6 +21,14 @@ import { PLAY_RATES, PREF, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor
 // report: root/S design choice).
 const root = document.getElementById("app");
 
+// La petite lecture (l'accord suggéré, en gris au-dessus d'un accord écrit)
+// est cachée pour l'instant (2026-10-02, Louis, après 4 réglages visuels en
+// un jour : « cachez les suggestions, c'est quand même bien moche »). Le
+// signal serveur et le code de rendu restent en place (voir `ch.var` dans
+// `buildIReal`) — seul CE commutateur change quand une vraie maquette
+// remplace ce rendu-là.
+const SHOW_CHORD_SUGGESTIONS = false;
+
   // Full-cell lens band colour (handoff #5). Light pastel on light theme,
   // deep tint on dark; minor collections slightly duller than major. With
   // "Key colours" OFF the bands fall back to one neutral maroon wash.
@@ -2043,7 +2051,14 @@ export function buildIReal(){
         // proportion de SA propre largeur — ni collée à l'arête (le defaut
         // d'avant), ni fixée en pixels (qui aurait recréé l'incohérence
         // selon la largeur du glyphe, cette fois dans l'autre sens).
-        if(ch.var) {
+        // CACHÉE POUR L'INSTANT (2026-10-02, Louis, après 4 réglages en un
+        // jour : « cachez les suggestions, c'est quand même bien moche »).
+        // Pas supprimée : le signal serveur (`ch.var`), le raisonnement et
+        // l'historique des essais restent ci-dessus pour la prochaine
+        // tentative — seul l'affichage s'arrête. Prochaine fois, repartir
+        // d'une vraie maquette (comme la taille de glyphe ci-dessous),
+        // pas d'un réglage de plus sur CE rendu-là.
+        if(SHOW_CHORD_SUGGESTIONS && ch.var) {
           const vw=el("span","position:absolute;right:20%;bottom:calc(100% + 3px);opacity:1;pointer-events:none;line-height:1;white-space:nowrap;text-align:right;z-index:2;");
           vw.appendChild(G(ch.var.root,dispQ(ch.var.q),narrow?15:17,"exact",T.faint,
             (ch.var.bass==null?-1:ch.var.bass)));
