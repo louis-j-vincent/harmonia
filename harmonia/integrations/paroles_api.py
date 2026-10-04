@@ -127,3 +127,42 @@ def en_lignes(texte: str) -> list[dict]:
                     "strophe": saut})
         saut = False
     return out
+
+
+def verifier(cle: str = "", fournisseur: str = "", *,
+             essai=("Yesterday", "The Beatles")) -> dict:
+    """Cette clé donne-t-elle le TEXTE ENTIER, ou seulement un extrait ?
+
+    À lancer le jour où Louis obtient une clé, pour savoir en cinq secondes ce
+    qu'elle vaut — plutôt que de le découvrir morceau par morceau :
+
+        .venv/bin/python -c "from harmonia.integrations.paroles_api import \\
+            verifier; print(verifier())"
+
+    Rend `{etat, complet, lignes, source, pourquoi}`. `etat` vaut « ok »
+    (texte entier), « tronque » (le palier gratuit : environ 30 % du texte,
+    inutilisable pour poser des accords sur un morceau complet), « sans_cle »,
+    ou « echec ».
+
+    Le morceau d'essai est un titre très répandu : s'il ne rend rien, c'est la
+    clé ou le réseau qui est en cause, pas le catalogue.
+    """
+    from harmonia.settings import SETTINGS
+    cle = cle or getattr(SETTINGS, "paroles_cle", "") or ""
+    if not cle:
+        return {"etat": "sans_cle", "complet": False, "lignes": 0,
+                "source": fournisseur or DEFAUT,
+                "pourquoi": "aucune clé dans HARMONIA_PAROLES_CLE"}
+    r = paroles(essai[0], essai[1], fournisseur=fournisseur, cle=cle)
+    if r is None:
+        return {"etat": "echec", "complet": False, "lignes": 0,
+                "source": fournisseur or DEFAUT,
+                "pourquoi": "l'API n'a rien rendu — clé invalide, quota, "
+                            "ou réseau ; voir le journal"}
+    n = len(en_lignes(r["texte"]))
+    return {"etat": "ok" if r["complet"] else "tronque",
+            "complet": r["complet"], "lignes": n, "source": r["source"],
+            "pourquoi": ("le texte entier arrive" if r["complet"] else
+                         "l'API marque le texte comme tronqué : c'est le "
+                         "palier gratuit, il faut un contrat commercial pour "
+                         "le texte complet")}

@@ -445,8 +445,15 @@ def tab_paroles(file):
     structure, d_source = None, "tab"
     if maison:
         structure, d_source = PM.en_lignes(maison), "tes paroles"
-    _p = PApi.paroles(chart.get("title") or stem,
-                      (chart.get("artist") or ""))
+    # TES PAROLES GAGNENT TOUJOURS. L'API ne s'interroge que si tu n'as rien
+    # écrit : elle s'appliquait APRÈS et écrasait donc ton propre texte, ce qui
+    # est l'inverse de l'ordre voulu (tes paroles > API > tab).
+    #
+    # ET ELLE REÇOIT L'ARTISTE. Sans lui, un matcher de catalogue rend une
+    # autre chanson — c'est exactement l'erreur qui a fait comparer « Bora
+    # Bora » de Henri Salvador à « Electric Love » de BØRNS côté tabs.
+    _p = None if maison else PApi.paroles(
+        chart.get("title") or stem, _artiste_de(file, chart))
     if _p and _p.get("complet"):
         structure = PApi.en_lignes(_p["texte"])
         d_source = _p["source"]
