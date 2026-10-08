@@ -812,8 +812,16 @@ export function comblerTrous(sections, nBars){
     if(!n) return vrais;
     // les groupes déjà pris, pour ne pas replier un trou sur une vraie section
     const pris=new Set(vrais.map(x=>x.label+"|"+(x.mesure_fin-x.mesure_debut+1)));
-    const nom=(d,f)=>{
-      const base=(d===1)?"intro":"queue", lg=f-d+1;
+    // `suivant` = le label de la VRAIE section qui suit immédiatement ce
+    // trou. Si c'est déjà « intro » (Louis a lui-même tracé la sienne plus
+    // loin que la mesure 1), le trou de tête ne peut PAS porter le même nom
+    // : deux « intro » adjacentes, même de longueurs différentes, sont
+    // reconstituées comme UNE seule section au tour suivant (barRanges
+    // touchants, même label) — le N.C. de tête se retrouve alors avalé dans
+    // l'intro que Louis a pourtant commencée après lui (2026-10-08, La Jupe
+    // En Laine : intro tracée mesure 2–17, mesure 1 ajoutée dans son dos).
+    const nom=(d,f,suivant)=>{
+      const base=(d===1&&suivant!=="intro")?"intro":"queue", lg=f-d+1;
       let lab=base, k=1;
       while(pris.has(lab+"|"+lg)){ k++; lab=base+" "+k; }
       pris.add(lab+"|"+lg);
@@ -822,7 +830,7 @@ export function comblerTrous(sections, nBars){
     const out=[]; let cur=1;
     for(const s of vrais){
       if(s.mesure_debut>cur)
-        out.push({label:nom(cur,s.mesure_debut-1),
+        out.push({label:nom(cur,s.mesure_debut-1,s.label),
                   mesure_debut:cur, mesure_fin:s.mesure_debut-1});
       out.push(s);
       cur=Math.max(cur, s.mesure_fin+1);

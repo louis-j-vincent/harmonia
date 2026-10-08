@@ -1109,12 +1109,11 @@ def remplir_par_algo(chart: dict, occ: list[dict], audio_dir) -> list[dict]:
     # prend toujours la première lettre libre. Pas de règle si rien n'est
     # posé (pas de « première section »), ni si Louis a déjà posé une intro.
     tete = min((o["m0"] for o in occ), default=0)
-    if any(str(o["label"]).lower() == "intro" for o in occ):
-        tete = 0
+    a_deja_une_intro = any(str(o["label"]).lower() == "intro" for o in occ)
     renom, k, out = {}, 0, []
     for b in blocs:
         sien = par_jeton.get((b["j0"], b["j1"]))
-        if sien is None and bornes[b["j1"]] - 1 < tete:
+        if sien is None and not a_deja_une_intro and bornes[b["j1"]] - 1 < tete:
             if out and out[-1]["label"] == "intro":
                 out[-1]["m1"] = bornes[b["j1"]] - 1
             else:
