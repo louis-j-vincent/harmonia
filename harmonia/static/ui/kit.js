@@ -298,6 +298,34 @@ function epureAcc(parent,s){
       if(t==="♭"||t==="♯") parent.appendChild(el("span","font-size:.6em;margin-left:-.05em;position:relative;top:-.62em;",t));
       else parent.appendChild(document.createTextNode(t)); });
   }
+// LA FORME DE CHAQUE LETTRE (Louis, 2026-10-09 : « le bas du C finit plus à
+// droite que le bas du D ou du F ») : l'avance typographique d'une lettre
+// ne dit pas où son ENCRE s'arrête. Pour A…G, on dessine la lettre une fois
+// dans la police réelle de l'appareil (canvas) et on lit, par balayage de
+// pixels, jusqu'où va l'encre dans sa bande HAUTE (là où se pose ♭/♯) et dans
+// sa bande BASSE (là où démarre le bloc m7 / 6 / sus…). Résultat en em, mesuré
+// depuis l'origine de la lettre. Sans canvas : {} → pas de décalage.
+let _ink=null;
+function letterInk(){
+  if(_ink) return _ink;
+  _ink={};
+  try{
+    const W=260, H=220, X0=30, BASE=160;
+    const cv=document.createElement("canvas"); cv.width=W; cv.height=H;
+    const cx=cv.getContext("2d",{willReadFrequently:true});
+    for(const L of "ABCDEFG"){
+      cx.clearRect(0,0,W,H); cx.font=`italic 100px ${SERIF}`; cx.textBaseline="alphabetic"; cx.fillStyle="#000";
+      cx.fillText(L,X0,BASE);
+      const adv=cx.measureText(L).width, d=cx.getImageData(0,0,W,H).data;
+      const right=new Array(H).fill(-1); let top=-1, bot=-1;
+      for(let y=0;y<H;y++) for(let x=W-1;x>=0;x--) if(d[(y*W+x)*4+3]>60){ right[y]=x; if(top<0) top=y; bot=y; break; }
+      if(top<0) continue;
+      const h=bot-top, band=(y0,y1)=>{ let r=-1; for(let y=Math.round(y0);y<=Math.round(y1);y++) r=Math.max(r,right[y]); return (r+1-X0)/100; };
+      _ink[L]={adv:adv/100, top:band(top,top+.38*h), bot:band(bot-.38*h,bot)};
+    }
+  }catch(e){ _ink={}; }
+  return _ink;
+}
 export function glyphEpure(root,q,size,depth,color,bass){
     let tail=q||"";
     if(depth==="family") tail=(isHalfDim(tail)||isDim(tail))?"o":(tail.startsWith("-")?"-":(tail.startsWith("+")?"+":""));
@@ -316,13 +344,18 @@ export function glyphEpure(root,q,size,depth,color,bass){
     let [base,sup,after]=epureQuality(tail);
     if(sup.startsWith("△")){ base+="△"; sup=sup.slice(1); }   // △ est un symbole de qualité : même bloc
     const bas=base+sup+after;
+    // décalages d'après la forme de la lettre : ♭/♯ part du bord droit de son
+    // HAUT, le bloc du bas du bord droit de son BAS (+ un petit jour constant)
+    const ink=letterInk()[letter];
+    const accDx=ink ? (ink.top-ink.adv)*size+.09*size : .02*size;
+    const botDx=ink ? (ink.bot-ink.adv)*size+.06*size : 0;
     if(acc||bas){
-      const col=el("span",`display:inline-block;position:relative;font-size:${size}px;line-height:1;min-width:.3em;`);
+      const col=el("span",`display:inline-block;position:relative;font-size:${size}px;line-height:1;min-width:${acc?(accDx+.28*size).toFixed(1):0}px;`);
       // une colonne sans texte en flux n'a pas de ligne de base : l'altération
       // seule (D♭) glissait sous la lettre. Un espace de largeur nulle en donne une.
       if(!bas) col.appendChild(document.createTextNode("\u200b"));
-      if(acc) col.appendChild(el("span","position:absolute;left:.02em;top:-.06em;font-size:.6em;line-height:1;",acc));
-      if(bas) col.appendChild(el("span",`font-size:${(size*.5).toFixed(1)}px;position:relative;top:${(size*.24).toFixed(1)}px;`,bas));
+      if(acc) col.appendChild(el("span",`position:absolute;left:${accDx.toFixed(1)}px;top:-.06em;font-size:.6em;line-height:1;`,acc));
+      if(bas) col.appendChild(el("span",`font-size:${(size*.5).toFixed(1)}px;position:relative;top:${(size*.24).toFixed(1)}px;margin-left:${botDx.toFixed(1)}px;`,bas));
       w.appendChild(col);
     }
     if(bass!=null && bass>=0 && mod(bass,12)!==mod(root,12)){

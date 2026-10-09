@@ -1,0 +1,26 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Démo : le jour entre la lettre et son bloc</title>
+<style>body{margin:0 auto;max-width:430px;padding:14px 12px 30px;background:#f6f2e7;color:#222;font:14px system-ui}
+h1{font-size:17px;margin:0 0 4px}.n{color:#8a8371;font-size:12px;margin-bottom:10px}
+table{border-collapse:collapse;width:100%}td{height:58px;padding:0 6px;border-bottom:1px solid #e3dcc6;white-space:nowrap}
+th{font-size:11px;color:#8a8371;font-weight:600;text-align:left;padding:4px 6px}td.l{width:26px;color:#8a8371;font-size:12px}</style>
+<div id="app" style="display:none"></div>
+<h1>Chaque lettre a sa forme</h1>
+<div class="n">♭/♯ part du bord droit du HAUT de la lettre ; le bloc du bas (m7, 6, sus…) part du bord droit de son BAS. Le jour est le même pour toutes les lettres.</div>
+<table id="t"><tr><th></th><th>m7</th><th>♭ m7</th><th>♯ 7</th><th>6</th></tr></table>
+<script type="module">
+await import("/static/screens/chart.js");
+const K = await import("/static/ui/kit.js");
+const PC={C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+const FLAT={D:1,E:3,G:6,A:8,B:10}, SHARP={C:1,D:3,F:6,G:8,A:10};
+const t=document.getElementById("t");
+const cell=(tr,pc,q,sharp)=>{ const td=document.createElement("td"); tr.appendChild(td);
+  if(pc==null){ td.textContent="—"; td.style.color="#bbb"; return; }
+  if(sharp) K.setSpelling(2,"major"); else K.resetSpelling();      // ♯ : tonalité à dièses ; sinon bémols
+  td.appendChild(K.glyphEpure(pc,q,27,"exact","#1c1c1c",-1)); K.resetSpelling(); };
+for(const L of "CDEFGAB"){
+  const tr=document.createElement("tr"); t.appendChild(tr);
+  const h=document.createElement("td"); h.className="l"; h.textContent=L; tr.appendChild(h);
+  cell(tr,PC[L],"-7",false); cell(tr,FLAT[L],"-7",false); cell(tr,SHARP[L],"7",true); cell(tr,PC[L],"6",false);
+}
+</script>
