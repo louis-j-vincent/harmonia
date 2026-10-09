@@ -292,7 +292,10 @@ export function epureQuality(q){
 function epureAcc(parent,s){
     // ♭/♯ en `.acc` de juillet, le reste en texte
     s.split(/([♭♯])/).forEach(t=>{ if(!t) return;
-      if(t==="♭"||t==="♯") parent.appendChild(el("span","font-size:.6em;margin-left:-.1em;vertical-align:.12em;",t));
+      // ♭ ♯ EN HAUT à droite de la lettre (Louis, 2026-10-09). `position:relative`
+      // plutôt que `vertical-align` : l'altération monte sans agrandir la ligne
+      // (donc sans changer la hauteur de la cellule).
+      if(t==="♭"||t==="♯") parent.appendChild(el("span","font-size:.6em;margin-left:-.05em;position:relative;top:-.62em;",t));
       else parent.appendChild(document.createTextNode(t)); });
   }
 export function glyphEpure(root,q,size,depth,color,bass){
@@ -302,11 +305,15 @@ export function glyphEpure(root,q,size,depth,color,bass){
     const qs=Math.round(size*17/27);
     const w=el("span",`display:inline-block;font-family:${SERIF};font-style:italic;font-weight:400;line-height:1;white-space:nowrap;color:${color};`);
     const r=el("span",`font-size:${size}px;`); epureAcc(r,note(root)); w.appendChild(r);
-    const [base,sup,after]=epureQuality(tail);
+    let [base,sup,after]=epureQuality(tail);
+    // LES EXTENSIONS EN BAS (Louis, 2026-10-09) : le △ est un symbole de
+    // qualité, il reste à la ligne avec m ø ° ; le chiffre (7, 9, 13) et les
+    // altérations qui l'accompagnent (7♭9, 7♯11) descendent en un seul bloc.
+    if(sup.startsWith("△")){ base+="△"; sup=sup.slice(1); }
     if(base||sup||after){
       const qu=el("span",`font-size:${qs}px;`);
       if(base) epureAcc(qu,base);
-      if(sup) qu.appendChild(el("sup","font-size:.62em;",sup));
+      if(sup) qu.appendChild(el("span","font-size:.72em;position:relative;top:.5em;",sup));
       if(after) qu.appendChild(document.createTextNode(after));
       w.appendChild(qu);
     }
