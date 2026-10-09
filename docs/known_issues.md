@@ -66,6 +66,36 @@ American Boy et 9jLDZjMF3tk (basse une mesure+ à côté), Julia et
 rec_1787243982182 (basse sur le 3, pas le 1 — la demi-mesure ne tranche pas
 ça), Stand By Me (phase du traqueur).
 
+## Accords épurés : taille constante, ♭ ♯ en haut, bloc en bas (2026-10-09, EN PROD)
+
+Demandes de Louis, toutes validées sur captures : (1) un accord a la même
+hauteur qu'il y en ait 1 ou 4 par mesure — seule la largeur se comprime
+(`scaleX`, mesurée après mise en page, plancher 45 %) ; (2) ♭ ♯ en haut à droite
+de la lettre, hors flux, donc sans rien décaler en bas ; (3) tout le reste
+(m △ ø ° + 6 sus, chiffres, altérations 7♭9 / 7♯11) en UN bloc en bas collé à la
+lettre ; (4) la position dépend de la FORME de chaque lettre (le bas du C avance
+plus que celui du F) ; (5) la barre oblique de la basse ne coupe plus le bloc
+(C7/E). Code : `ui/kit.js` (`glyphEpure`, `letterInk`), `screens/chart.js`
+(`PROTO_ON`, fit des mesures 2 et 3-4 accords, mesures de reprise en `scaleX`).
+Démos : `docs/plots/demo_accords_2026-10-09.html`, `demo_lettres_…`.
+
+Mesuré : 56 accords de la démo, une seule hauteur (27 px) ; 6 morceaux réels à
+390 px, une seule hauteur (This Love avait un « Fm/A♭ » à 70 % en mesure de
+reprise : corrigé), zéro erreur console.
+
+**CE QUE ÇA NE RÉSOUT PAS**
+- Les notations « Cellules » et « Serrée » gardent l'ancien dessin (`glyph`,
+  `glyphTight`) : rien n'y a été porté.
+- La forme des lettres est lue par balayage de pixels dans la police de
+  l'APPAREIL (canvas) : validé sur Mac/Chromium, pas vu sur iPhone. Sans canvas :
+  placement sans correction par lettre.
+- Le ♯/♭ d'une note de BASSE (D9/F♯) chevauche encore un peu la lettre.
+- Georgia : la cellule « C♯ø7 » (dernière de sa rangée) dépasse de 1,9 px le
+  viewport. Identique avec `PROTO_ON=false` : antérieur, sans défilement
+  horizontal de page.
+- Les suggestions de petite lecture restent cachées (`SHOW_CHORD_SUGGESTIONS`).
+- Hook `show-illustration` : ne voit pas les modifications d'un sous-agent.
+
 ## Accords « 6 » : vocabulaire branché, mais le réseau ne dit presque jamais « 6te » (2026-10-09)
 
 Louis entend Eb6 et Db6 sur La Jupe En Laine (mes. 24 et 19) là où le chart

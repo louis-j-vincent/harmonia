@@ -2342,7 +2342,7 @@ export function buildIReal(){
       const rs=gl.map(g=>g.getBoundingClientRect());
       gl.forEach((g,i)=>{
         const r=rs[i], stop=(i+1<gl.length)?rs[i+1].left-3:lim;
-        if(r.width && r.right>stop) g.style.transform=`scale(${Math.max(.7,(stop-r.left)/r.width).toFixed(3)})`;
+        if(r.width && r.right>stop) g.style.transform=`scaleX(${Math.max(PROTO_ON?.45:.7,(stop-r.left)/r.width).toFixed(3)})`;   // largeur seule : la hauteur d'un accord ne change jamais (Louis, 2026-10-09)
       });
     }));
     return frame;
