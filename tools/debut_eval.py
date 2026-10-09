@@ -141,7 +141,7 @@ def page(rows: list[dict], out: Path) -> None:
         k0 = max(0, min(x["avant"], x["apres"], x["vrai"]) - 3)
         k1 = min(len(bt) - 1, k0 + 16)
         W = 34
-        svg = [f'<div style="overflow-x:auto"><svg width="{W * (k1 - k0) + 20}" height="96">']
+        svg = [f'<div style="overflow-x:auto;position:relative"><svg width="{W * (k1 - k0) + 20}" height="96">']
         for k in range(k0, k1):
             xx = 10 + W * (k - k0)
             svg.append(f'<line x1="{xx}" y1="30" x2="{xx}" y2="62" stroke="#bbb"/>'
@@ -161,15 +161,20 @@ def page(rows: list[dict], out: Path) -> None:
                            f'stroke="{coul}" stroke-width="2.5"/>'
                            f'<text x="{xx + 3}" y="{y}" font-size="11" font-weight="700" '
                            f'fill="{coul}">{nom}</text>')
-        svg.append("</svg></div>")
+        svg.append('<div class="tete" style="position:absolute;top:0;left:0;width:2px;'
+                   'height:96px;background:#222;opacity:0;pointer-events:none;'
+                   'transition:transform .22s linear"></div></div>')
         ok = lambda b: "✓" if b else "✗"
+        dep = lambda k: bt[max(0, k - 2)]          # deux temps d'élan
         cartes.append(
-            f'<div class="c"><b>{_h.escape(x["titre"])}</b> <span class="n">{x["stem"]}</span>'
+            f'<div class="c" data-stem="{x["stem"]}" data-w="{W}" data-k0="{k0}" '
+            f'data-bt="{",".join(f"{t:.3f}" for t in bt[k0:k1 + 1])}">'
+            f'<b>{_h.escape(x["titre"])}</b> <span class="n">{x["stem"]}</span>'
             f'<div class="n">au temps : avant {ok(x["avant_temps"])} · après {ok(x["apres_temps"])}'
             f' — les chiffres sous la bande comptent les temps depuis la mesure 1 de Louis</div>'
             f'{"".join(svg)}<div>'
-            f'<button onclick="joue(\'{x["stem"]}\',{bt[x["avant"]]:.2f})">▶ depuis l’ancienne mesure 1</button> '
-            f'<button onclick="joue(\'{x["stem"]}\',{bt[x["apres"]]:.2f})">▶ depuis la nouvelle</button>'
+            f'<button onclick="joue(this,{dep(x["avant"]):.3f})">▶ depuis l’ancienne mesure 1</button> '
+            f'<button onclick="joue(this,{dep(x["apres"]):.3f})">▶ depuis la nouvelle</button>'
             f'</div></div>')
     out.write_text(f"""<!doctype html><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -184,12 +189,33 @@ faible, c'est une levée et la mesure 1 est le temps fort suivant.
 Rouge = mesure 1 d'avant, bleu = d'après, vert = ta marque.</p>
 {''.join(cartes)}
 <script>
-let A=null,cur=null;
-async function joue(stem,t){{
-  if(cur!==stem){{ if(A)A.pause(); const r=await fetch('../audio/'+stem+'.m4a');
-    A=new Audio(URL.createObjectURL(await r.blob())); cur=stem; }}
-  A.currentTime=Math.max(0,t-2); A.play();
+// Tout le son est chargé AVANT le premier clic (un blob par morceau) : « ▶ »
+// démarre sur-le-champ. La tête de lecture suit `timeupdate` (pas de boucle
+// rAF : elle empêche le moteur audio de WebKit de démarrer sur iPhone).
+const AUD={{}}, PRET={{}};
+function charge(stem){{
+  return PRET[stem]||(PRET[stem]=fetch('../audio/'+stem+'.m4a').then(r=>r.blob()).then(b=>new Promise(ok=>{{
+    const a=new Audio(); a.preload='auto'; a.src=URL.createObjectURL(b);
+    a.addEventListener('loadedmetadata',()=>{{AUD[stem]=a; a.addEventListener('timeupdate',()=>{{ if(stem===EN_COURS) tete(stem,a); }}); ok(a);}},{{once:true}});
+    a.addEventListener('ended',()=>cache(stem)); a.load();}})));
 }}
+function carte(stem){{return document.querySelector('.c[data-stem="'+stem+'"]');}}
+function cache(stem){{const t=carte(stem).querySelector('.tete'); t.style.opacity=0;}}
+function tete(stem,a){{
+  const c=carte(stem), bt=c.dataset.bt.split(',').map(Number), W=+c.dataset.w, t=a.currentTime;
+  let k=0; while(k<bt.length-2&&bt[k+1]<=t) k++;
+  const f=Math.max(0,Math.min(1,(t-bt[k])/(bt[k+1]-bt[k]||1)));
+  const el=c.querySelector('.tete'); el.style.opacity=(t<bt[0]||t>bt[bt.length-1])?0:1;
+  el.style.transform='translateX('+(10+W*(k+f))+'px)';
+}}
+let EN_COURS=null;
+async function joue(btn,t){{
+  const stem=btn.closest('.c').dataset.stem;
+  const a=await charge(stem), avant=EN_COURS; EN_COURS=stem;
+  if(avant&&avant!==stem&&AUD[avant]){{AUD[avant].pause(); cache(avant);}}
+  a.currentTime=Math.max(0,t); tete(stem,a); a.play();
+}}
+document.querySelectorAll('.c[data-stem]').forEach(c=>charge(c.dataset.stem));
 </script>""", encoding="utf-8")
 
 
