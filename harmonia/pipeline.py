@@ -627,9 +627,15 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
                             Path(audio_path).name)
                 raise _DebutArbitre
             _mesure = _bpb_early * float(np.median(np.diff(beat_times)))
-            _d = debut_du_morceau(audio_path, beat_times, probs_basse=probs[1])
-            if (_d["t"] is not None
-                    and _d["t"] - float(beat_times[0]) > 0.5 * _mesure):
+            # 2026-10-09 : `probs`/`bpb` posent la détection sur un temps fort
+            # de l'harmonie (une basse en levée ne fait plus la mesure 1 —
+            # La Jupe En Laine). Le SEUIL lit `t_basse`, la détection d'avant
+            # l'harmonie : l'harmonie choisit le temps, jamais s'il faut agir.
+            _d = debut_du_morceau(audio_path, beat_times, probs_basse=probs[1],
+                                  probs=probs, beat_times=beat_times,
+                                  bpb=_bpb_early)
+            if (_d.get("t_basse") is not None
+                    and _d["t_basse"] - float(beat_times[0]) > 0.5 * _mesure):
                 bar1_time = _d["t"]
                 logger.info("pipeline: début détecté à %.2fs (1re battue "
                             "%.2fs, trou %s) — la mesure 1 s'y cale",

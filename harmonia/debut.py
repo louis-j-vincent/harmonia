@@ -316,6 +316,108 @@ def cale_sur_grille(t: float | None, grille) -> tuple[float | None, bool]:
     return t, False
 
 
+#: sur combien de mesures après la basse on lit la grille des changements
+#: d'accords. 8 et 16 donnent le même score ; 4 perd un gain (trop peu de
+#: changements pour une intro lente).
+MESURES_HARMONIE = 8
+
+
+def changements_d_accord(segments, beat_times) -> list[int]:
+    """Les indices de battue où un accord COMMENCE, silence (N) exclu.
+
+    `segments` = `musx.redecode(...)` : [(t0, t1, label)], bornes sur les
+    battues. Deux segments consécutifs de même label n'en font qu'un.
+    """
+    bt = np.asarray(beat_times, dtype=float)
+    out, prev = [], None
+    for t0, _t1, lab in segments:
+        if lab != prev and lab != "N":
+            out.append(int(np.abs(bt - float(t0)).argmin()))
+        prev = lab
+    return out
+
+
+def cale_sur_harmonie(t, beat_times, segments, bpb: int,
+                      mesures: int = MESURES_HARMONIE) -> tuple:
+    """La basse dit QUELLE mesure ; l'harmonie dit sur quel TEMPS elle tombe.
+
+    Louis, 2026-10-09, sur La Jupe En Laine : « le morceau commence au premier
+    accord qui dure n temps comme tous ceux d'après ». La basse entre en levée
+    à 2,93 s ; la battue la plus proche (2,70 s) est un temps faible, et la
+    mesure 1 s'y posait — un temps avant le Fm7 qui ouvre vraiment la grille.
+
+    LA LOI. On compte, sur `mesures` mesures après la basse, où tombent les
+    changements d'accord, modulo la DEMI-mesure (deux temps en 4/4 ; la mesure
+    entière dans une mesure impaire, 3/4 ou 6/8 non — voir plus bas). Si une
+    position domine strictement, ce sont les temps forts de la chanson. Une
+    basse déjà sur un temps fort ne bouge pas. Une basse sur un temps faible
+    est une LEVÉE : la mesure 1 est le temps fort SUIVANT.
+
+    Pourquoi la demi-mesure et pas la mesure : la pop change d'accord sur le
+    1 ET sur le 3. Lue à la mesure, la grille hésitait entre les deux (Sam
+    Smith 0/6/1/6, nDUVEUjOKMw 0/8/0/7) et déplaçait de deux temps quatre
+    morceaux justes. Le 1 contre le 3, c'est la basse qui le tranche — elle
+    avait raison sur les quatre.
+
+    Les accords viennent d'un décodage musx SANS phase de mesure
+    (`downbeat_times=None` : changement permis sur chaque battue, au même
+    prix). Un décodage calé sur les temps forts du traqueur — ou sur une
+    marque de Louis — lirait la réponse dans la question.
+
+    MESURÉ (`python -m tools.debut_eval`), la mesure 1 au temps près, chemin
+    du pipeline rejoué (battues, pas lignes de mesure) :
+        debuts.json (41 avec audio)         34 → 35
+        marques posées depuis (7)            2 → 4
+    gagnés : La Jupe En Laine, 0ZNnJvVJNmU, The Walk (trois levées d'un
+    temps) ; perdus : aucun. Au score officiel (ligne de mesure la plus
+    proche) rien ne bouge — 38/41 — parce qu'un temps d'écart y est arrondi :
+    ce score-là ne pouvait pas voir le défaut.
+
+    CE QUE ÇA NE RÉSOUT PAS
+    * Un mauvais choix de MESURE : la basse entre une ou plusieurs mesures
+      trop tôt ou trop tard (American Boy +12 temps, 9jLDZjMF3tk −11, Chain of
+      Fools, h_D3VFfhvs4 à la grille trouée). La loi ne bouge jamais de plus
+      d'une demi-mesure.
+    * Julia et rec_1787243982182 : la basse tombe sur un temps fort, mais le
+      3 et non le 1 (−3 temps à l'arrivée) — c'est le cas que la demi-mesure
+      ne sait pas trancher, par construction.
+    * Une harmonie qui ne change pas (vamp à un accord) ou change à chaque
+      temps : pas de preuve, la basse est rendue telle quelle.
+    * La règle « le premier accord qui dure n temps » prise à la lettre fait
+      15/41 : musx entend le PREMIER accord en retard d'un ou deux temps
+      (gbO7qQliXT8 : D à +2, 3 temps), il est donc presque toujours trop
+      court et la règle saute une mesure. La grille, elle, est propre dès le
+      deuxième accord — d'où la loi par la grille et pas par la durée.
+
+    Rend `(t, info)` ; `info["decale"]` est le nombre de battues ajoutées.
+    """
+    if t is None:
+        return None, {"raison": "pas de début"}
+    bt = np.asarray(beat_times, dtype=float)
+    if len(bt) < 4 or not bpb:
+        return t, {"raison": "pas de battues"}
+    k0 = int(np.abs(bt - float(t)).argmin())
+    cell = bpb // 2 if bpb % 2 == 0 else bpb
+    ch = np.asarray(changements_d_accord(segments, bt), dtype=int)
+    w = ch[(ch >= k0 - bpb) & (ch < k0 + mesures * bpb)]
+    if len(w) == 0:
+        return t, {"raison": "pas de preuve"}
+    h = np.bincount(w % cell, minlength=cell)
+    # Un seul changement ne fait pas une grille (il faut deux points pour une
+    # période) ; une égalité non plus.
+    if int(h.max()) < 2 or int((h == h.max()).sum()) > 1:
+        return t, {"raison": "pas de preuve", "histo": h.tolist()}
+    fort = int(h.argmax())
+    if k0 % cell == fort:
+        return t, {"raison": "sur un temps fort", "decale": 0, "histo": h.tolist()}
+    k = k0 + 1
+    while k % cell != fort:
+        k += 1
+    if k >= len(bt):
+        return t, {"raison": "fin des battues"}
+    return float(bt[k]), {"raison": "levée", "decale": k - k0, "histo": h.tolist()}
+
+
 def arbitrage(stem: str) -> str | None:
     """Ce que Louis a tranché pour ce morceau — « confirmé bon », « déplacé »,
     ou None s'il ne s'est pas prononcé.
@@ -342,7 +444,8 @@ def arbitrage(stem: str) -> str | None:
 
 
 def debut_du_morceau(audio: Path, grille, probs_basse=None,
-                     chroma=None, times=None) -> dict:
+                     chroma=None, times=None, *, probs=None,
+                     beat_times=None, bpb: int | None = None) -> dict:
     """Où commence le morceau : `{t, mesure, sur_une_ligne, son}`.
 
     `t` est en secondes, `mesure` l'index de la ligne de `grille` retenue.
@@ -353,6 +456,12 @@ def debut_du_morceau(audio: Path, grille, probs_basse=None,
 
     Rend `{"t": None}` si la basse ne se déclare jamais : un silence n'a pas
     de début, et inventer la ligne 0 serait un repli muet.
+
+    Avec `probs` (les trois têtes musx), `beat_times` et `bpb`, la détection
+    est ensuite posée sur un temps fort de l'harmonie (`cale_sur_harmonie`,
+    2026-10-09) ; `harmonie` dans le résultat dit ce qui s'est passé. Sans
+    eux, comportement d'avant — c'est ce que lit l'évaluation à la ligne de
+    mesure (`tools.debut_rates`).
     """
     env = enveloppe(Path(audio))
     son = premier_son(env) if env else 0.0
@@ -377,8 +486,26 @@ def debut_du_morceau(audio: Path, grille, probs_basse=None,
         log.info("debut: aucune basse déclarée dans %s", Path(audio).name)
         return {"t": None, "mesure": None, "sur_une_ligne": False, "son": son}
     t, sur = cale_sur_grille(brut, grille)
+    t_basse, harmonie = t, None
+    if probs is not None and beat_times is not None and bpb:
+        from harmonia import musx as _musx
+        # SANS phase de mesure : un décodage calé sur des temps forts déjà
+        # choisis lirait la réponse dans la question (voir cale_sur_harmonie).
+        segments = _musx.redecode(beat_times, probs, downbeat_times=None)
+        t2, harmonie = cale_sur_harmonie(t, beat_times, segments, int(bpb))
+        if harmonie.get("decale"):
+            log.info("debut: basse à %.2fs sur une levée — mesure 1 poussée "
+                     "de %d temps, à %.2fs", t, harmonie["decale"], t2)
+            t, sur = t2, True
     g = np.asarray(grille, dtype=float)
-    return {"t": t, "son": son, "trou": trou, "sur_une_ligne": sur,
+    # `t_basse` : la détection AVANT l'harmonie. C'est elle qui décide SI on
+    # déplace la mesure 1 (pipeline : « au moins une demi-mesure après la 1re
+    # battue ») ; l'harmonie ne fait que choisir le temps. Sinon une basse sur
+    # la 1re battue, poussée de deux temps par une harmonie hésitante (Autumn
+    # Leaves au piano, 3/4, 7/6/8), franchissait le seuil et déplaçait un
+    # morceau juste.
+    return {"t": t, "t_basse": t_basse, "son": son, "trou": trou,
+            "sur_une_ligne": sur, "harmonie": harmonie,
             "mesure": (int(np.abs(g - t).argmin()) if len(g) else None)}
 
 

@@ -5,6 +5,36 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Mesure 1 posée sur une levée, un temps trop tôt (2026-10-09, CORRIGÉ pour les nouveaux morceaux)
+
+Louis, sur La Jupe En Laine : la mesure 1 tombait un temps avant le Fm7.
+**Cause (bug d'unité, règle 1)** : le pipeline appelle `debut_du_morceau`
+avec les BATTUES comme grille ; `cale_sur_grille` y prend l'écart médian pour
+« une mesure », donc ne cale qu'à ¼ de TEMPS. La basse en levée (2,93 s) ne se
+cale pas, et la battue la plus proche (2,70 s) devient la mesure 1.
+`tools.debut_rates` évalue sur `barGrid` (¼ de mesure) : **son score ne
+pouvait pas voir le défaut** — 38/41 avant comme après.
+
+**Correctif** (`debut.cale_sur_harmonie`) : la basse dit quelle mesure, les
+changements d'accords (musx re-décodé SANS phase de mesure, sinon on lit la
+marque) disent quels temps sont forts, à la demi-mesure ; une basse sur un
+temps faible est une levée → temps fort suivant. Au temps près
+(`python -m tools.debut_eval`) : debuts.json 34→35/41, marques récentes
+2→4/7, aucun perdu ; aucun des 16 morceaux de la bibliothèque sans marque ni
+arbitrage ne bouge. Page : `docs/plots/debut_levee_2026-10-09.html`.
+
+Essayé et rejeté : « 1er accord qui dure n temps comme les suivants » à la
+lettre, en temps : 15/41 — musx entend le PREMIER accord 1-2 temps en retard
+(gbO7qQliXT8 : D à +2), donc trop court ; la grille entière à la mesure
+(pas à la demi) : 25-27/41, confond le 1 et le 3 (Sam Smith 0/6/1/6) ;
+caler sur les barres du traqueur : 2 des 3 gains.
+
+**Reste faux**, aucun n'est lisible dans l'harmonie : Chain of Fools (un
+seul accord), Be My Baby (break de batterie), h_D3VFfhvs4 (grille trouée),
+American Boy et 9jLDZjMF3tk (basse une mesure+ à côté), Julia et
+rec_1787243982182 (basse sur le 3, pas le 1 — la demi-mesure ne tranche pas
+ça), Stand By Me (phase du traqueur).
+
 ## Accords « 6 » : vocabulaire branché, mais le réseau ne dit presque jamais « 6te » (2026-10-09)
 
 Louis entend Eb6 et Db6 sur La Jupe En Laine (mes. 24 et 19) là où le chart
