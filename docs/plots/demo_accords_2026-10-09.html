@@ -1,0 +1,58 @@
+<!doctype html><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Démo : le dessin des accords</title>
+<style>
+body{margin:0 auto;max-width:430px;padding:14px 12px 40px;background:#f6f2e7;color:#222;font:14px system-ui}
+h1{font-size:17px;margin:0 0 4px} h2{font-size:13px;margin:22px 0 6px;color:#8a2b2b;letter-spacing:.03em}
+.n{color:#8a8371;font-size:12px;margin-bottom:8px}
+.row{display:grid;grid-template-columns:repeat(4,1fr);border-left:1px solid #c9c0a6}
+.bar{position:relative;height:64px;border-right:1px solid #c9c0a6;border-bottom:1px solid #e3dcc6;display:flex;align-items:center;padding:0 6px;box-sizing:border-box}
+.bar.grille{display:grid;grid-template-columns:repeat(4,1fr);padding:0 3px 0 8px}
+.bar.serre{gap:4px}
+.cap{font-size:10.5px;color:#8a8371;margin-top:2px}
+.fixe{display:inline-block}
+</style>
+<div id="app" style="display:none"></div>
+<h1>Le dessin des accords</h1>
+<div class="n">♭ ♯ en haut à droite de la lettre · m △ ø ° à la ligne · chiffres et altérations d'extension en bas · même hauteur partout, seule la largeur se comprime. Rendu par la fonction réelle du chart (<code>glyphEpure</code>).</div>
+<div id="demo"></div>
+<script type="module">
+// kit.js et chart.js s'importent l'un l'autre : on entre par chart.js pour garder l'ordre qui marche.
+await import("/static/screens/chart.js");
+const { glyphEpure } = await import("/static/ui/kit.js");
+const INK="#1c1c1c", SZ=27;
+const R={C:0,Db:1,D:2,Eb:3,E:4,F:5,"F#":6,G:7,Ab:8,A:9,Bb:10,B:11,"C#":1};
+const g=(r,q,bass)=>glyphEpure(R[r],q,SZ,"exact",INK,bass==null?-1:R[bass]);
+const demo=document.getElementById("demo");
+function section(titre,note,bars,mode){
+  const h=document.createElement("h2"); h.textContent=titre; demo.appendChild(h);
+  if(note){const n=document.createElement("div"); n.className="n"; n.textContent=note; demo.appendChild(n);}
+  const row=document.createElement("div"); row.className="row"; demo.appendChild(row);
+  bars.forEach(chs=>{
+    const bar=document.createElement("div"); bar.className="bar"+(chs.length===2?" grille":chs.length>2?" serre":""); row.appendChild(bar);
+    const items=chs.map((c,i)=>{ const it=document.createElement("div"); const w=document.createElement("span");
+      w.className="fixe"; w.style.cssText="position:relative;transform-origin:left center;"; w.appendChild(g(...c)); it.appendChild(w);
+      if(chs.length===2) it.style.cssText=`grid-column:${i*2+1};justify-self:start`; bar.appendChild(it); return w; });
+    if(chs.length>1) requestAnimationFrame(()=>{                    // même mesure que chart.js : on comprime la largeur seule
+      const cs=getComputedStyle(bar), right=bar.getBoundingClientRect().right-parseFloat(cs.paddingRight)-2; let k=1;
+      items.forEach((w,i)=>{ const r=w.getBoundingClientRect();
+        const lim=i+1<items.length? items[i+1].getBoundingClientRect().left-3 : right; if(r.width) k=Math.min(k,(lim-r.left)/r.width); });
+      k=Math.max(.45,k); if(k<1) items.forEach(w=>w.style.transform=`scaleX(${k.toFixed(3)})`); });
+  });
+}
+const B=x=>x;
+section("Altérations de la fondamentale","♭ ♯ montent à droite de la lettre",[[B(["Bb","7"])],[B(["Eb","-7"])],[B(["F#","h7"])],[B(["Db",""])],[B(["Ab","^7"])],[B(["C#","-"])],[B(["F#","7"])],[B(["Bb","-"])]]);
+section("Extensions en bas","7 · 9 · 13 · △7 · 69",[[B(["C","7"])],[B(["G","9"])],[B(["D","13"])],[B(["C","^7"])],[B(["A","-9"])],[B(["F","^9"])],[B(["C","69"])],[B(["E","-^7"])]]);
+section("Altérations dans l'extension","♭9 ♯11 ♭5 ♯5 en bas avec le chiffre",[[B(["G","7b9"])],[B(["C","7#11"])],[B(["B","-7b5"])],[B(["D","7#5"])],[B(["Bb","7b9"])],[B(["F#","7#9"])],[B(["Ab","7b13"])],[B(["E","13b9"])]]);
+section("Les 6 (nouveau vocabulaire)","Db6 · Eb6 · Am6",[[B(["Db","6"])],[B(["Eb","6"])],[B(["A","-6"])],[B(["F#","-6"])]]);
+section("Sus, dim, aug, barre oblique","",[[B(["D","sus4"])],[B(["G","7sus4"])],[B(["C","o7"])],[B(["Eb","+"])],[B(["G","","D"])],[B(["C","7","E"])],[B(["Bb","-","Db"])],[B(["F#","","Bb"])]]);
+section("1, 2, 3 et 4 accords par mesure : même hauteur","la largeur se comprime, jamais la hauteur",[
+  [B(["G","^7"])],
+  [B(["A","-7"]),B(["D","7"])],
+  [B(["Eb","-7"]),B(["Ab","7"]),B(["Db","^7"])],
+  [B(["G",""]),B(["F#","7"]),B(["G",""]),B(["G","-7"])],
+  [B(["C","-7"]),B(["F","7"])],
+  [B(["Bb","^7"]),B(["Eb","7"])],
+  [B(["E","-7"]),B(["A","7b9"]),B(["D","-7"]),B(["G","7"])],
+  [B(["Eb","+"]),B(["G","","D"])]]);
+</script>
