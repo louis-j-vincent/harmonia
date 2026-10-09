@@ -359,7 +359,7 @@ export function glyphEpure(root,q,size,depth,color,bass){
       w.appendChild(col);
     }
     if(bass!=null && bass>=0 && mod(bass,12)!==mod(root,12)){
-      const b=el("span",`font-size:${qs}px;`); epureAcc(b,"/"+note(bass)); w.appendChild(b);
+      const b=el("span",`font-size:${qs}px;${bas?`margin-left:${(size*.1).toFixed(1)}px;`:""}`); epureAcc(b,"/"+note(bass)); w.appendChild(b);   // la barre oblique descend : un jour devant elle quand un bloc pend (C7/E)
     }
     return w;
   }
