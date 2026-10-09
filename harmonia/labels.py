@@ -1,7 +1,8 @@
 """Étiquettes musx → les champs d'accord de l'UI. Une table, rien d'autre.
 
-The re-decode emits labels from the clone's submission_chord_list.txt: 25
-C-rooted templates × 12 roots + "N". Verified against the actual file
+The re-decode emits labels from the vocabulary named by
+`SETTINGS.chord_dict` — since 2026-10-09 submission_plus6_chord_list.txt, the
+25 templates below plus maj(6)/min(6), × 12 roots + "N". Verified against the actual file
 (third_party/musx_ismir2019/data/submission_chord_list.txt, 2026-07-30):
 
     min/b7 min/2 maj/b7 maj/2 sus4(b7) sus2 sus4 13 11 min9 9 maj9
@@ -35,6 +36,8 @@ _QUAL = {
     "maj9":     ("^9",   None),
     "11":       ("7sus4", None),   # C11 sounds as C9sus — nearest iReal tail
     "13":       ("13",   None),
+    "maj(6)":   ("6",    None),    # vocab submission_plus6 (2026-10-09)
+    "min(6)":   ("-6",   None),
     "maj/3":    ("",     4),
     "maj/5":    ("",     7),
     "maj/b7":   ("7",    10),      # maj triad over its b7 ≈ dominant inversion
@@ -60,7 +63,7 @@ def parse_root(sym: str) -> int:
 def to_chord(label: str) -> dict | None:
     """musx label -> {root, q, bass} (bass=-1 when root position), or None for N.
 
-    Unknown qualities raise: the vocabulary is closed (26 entries, verified),
+    Unknown qualities raise: the vocabulary is closed (28 entries, verified),
     so an unknown here means the decoder changed under us — fail loudly, never
     default to maj (the pop909 parser did exactly that, silently, until
     2026-07-30).
@@ -87,6 +90,7 @@ _TAIL_PCS = {
     "o7": (0, 3, 6, 9), "h7": (0, 3, 6, 10), "7sus4": (0, 5, 7, 10),
     "9": (0, 4, 7, 10, 2), "-9": (0, 3, 7, 10, 2), "^9": (0, 4, 7, 11, 2),
     "13": (0, 4, 7, 10, 2, 9),
+    "6": (0, 4, 7, 9), "-6": (0, 3, 7, 9),
 }
 
 

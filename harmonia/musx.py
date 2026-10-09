@@ -386,9 +386,9 @@ def posteriors_from_cqt(cqt: np.ndarray) -> list[np.ndarray]:
 # musx triad-plane family index (1-based; see frame_posteriors above) for each
 # label quality the decoder can emit.
 TRIAD_FAMILY = {
-    "maj": 1, "maj7": 1, "7": 1, "9": 1, "maj9": 1, "13": 1,
+    "maj": 1, "maj7": 1, "7": 1, "9": 1, "maj9": 1, "13": 1, "maj(6)": 1,
     "maj/3": 1, "maj/5": 1, "maj/b7": 1, "maj/2": 1,
-    "min": 2, "min7": 2, "min9": 2, "min/b3": 2, "min/5": 2,
+    "min": 2, "min7": 2, "min9": 2, "min(6)": 2, "min/b3": 2, "min/5": 2,
     "min/b7": 2, "min/2": 2,
     "sus4": 3, "sus4(b7)": 3, "11": 3,
     "sus2": 4,
@@ -472,8 +472,9 @@ def decode_window(triad: np.ndarray, t0: float, t1: float) -> tuple[str, float]:
 
 
 def _decoder(penalty: float, beat_trans_penalty=(15.0, 45.0, 100.0),
-             chord_dict: str = "submission"):
+             chord_dict: str | None = None):
     from extractors.xhmm_ismir import XHMMDecoder
+    chord_dict = chord_dict or SETTINGS.chord_dict
     return XHMMDecoder(template_file=f'data/{chord_dict}_chord_list.txt',
                        diff_trans_penalty=float(penalty),
                        beat_trans_penalty=tuple(beat_trans_penalty))
@@ -493,7 +494,7 @@ def redecode(beat_times, probs: list[np.ndarray], *, downbeat_times,
              penalty: float = DEFAULT_PENALTY,
              beats_per_bar: int = 4,
              beat_trans_penalty=(15.0, 45.0, 100.0),
-             chord_dict: str = "submission",
+             chord_dict: str | None = None,
              quarter_beats=None,
              ) -> list[tuple[float, float, str]]:
     """Beat-aware re-decode -> [(t0, t1, label)]; boundaries land exactly on

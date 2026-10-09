@@ -87,6 +87,12 @@ class Settings:
     fold_loop: str = "occurrence"     # l'occurrence entière se replie (2026-08-08)
     fold_gate: str = "letter"         # veto de cohérence par lettre entière
     fold_transpose: bool = False      # pas de transposition avant l'empilement
+    #: Vocabulaire du décodeur musx (third_party/.../data/<nom>_chord_list.txt).
+    #: « submission » + maj6/min6 depuis le 2026-10-09 (Louis : « branche le
+    #: vocab d'accords » — il entend Eb6/Db6 là où le chart écrivait Eb+/Db).
+    #: Les 24 états ajoutés sont notés sur le plan 13e/6te (s13) que le réseau
+    #: sort déjà ; 9/11/13 passaient déjà par ce mécanisme.
+    chord_dict: str = "submission_plus6"
     #: FUSIONNER LES LETTRES QUI SONT LE MÊME PASSAGE — loi depuis le
     #: 2026-09-18. songformer (supprimé) nommait par le RÔLE (couplet/refrain/instrumental),
     #: pas par la musique : sur Fallin', qui est une seule boucle E-…B- du
