@@ -20,8 +20,10 @@ Deux scores :
   et la battue la plus proche devient la mesure 1. Un temps d'erreur (une
   levée) n'existe que dans ce score — c'est le défaut de La Jupe En Laine.
 
-« avant » = `debut_du_morceau` sans harmonie ; « après » = avec
-(`cale_sur_harmonie`). Rien ici n'écrit dans `state/`.
+Trois armes (`ARMES`) : la basse seule (2026-09-17), la basse reportée au
+temps fort (d657e0c), l'harmonie reportée au temps fort (règle de Louis,
+2026-10-09, celle du pipeline). Gagnés/perdus : harmonie contre basse+report.
+Rien ici n'écrit dans `state/`.
 """
 from __future__ import annotations
 
@@ -53,18 +55,26 @@ def verites() -> list[tuple[str, dict, str]]:
     return out
 
 
-def mesure_un(stem: str, audio: Path, bt, bpb: int, probs, harmonie: bool) -> int:
+def mesure_un(stem: str, audio: Path, bt, bpb: int, probs, arme: str) -> int:
     """L'indice de battue que le pipeline prendrait pour la mesure 1."""
     if arbitrage(stem) == "confirmé bon":
         db = _beats.track(audio)["downbeats"]
         return _near(bt, db[0]) if db else 0
-    kw = dict(probs=probs, beat_times=bt, bpb=bpb) if harmonie else {}
+    kw = ({} if arme == "basse" else
+          dict(probs=probs, beat_times=bt, bpb=bpb,
+               entree="basse" if arme == "basse+report" else "harmonie"))
     d = debut_du_morceau(audio, bt, probs_basse=probs[1], **kw)
-    t_dec = d.get("t_basse", d["t"])        # même test que pipeline.py
+    t_dec = d.get("t_entree", d["t"])        # même test que pipeline.py
     if t_dec is not None and t_dec - bt[0] > 0.5 * bpb * float(np.median(np.diff(bt))):
         return _near(bt, d["t"])
     db = _beats.track(audio)["downbeats"]
     return _near(bt, db[0]) if db else 0
+
+
+#: (nom de colonne, arme). « avant » = la règle de d657e0c (entrée = basse,
+#: report au temps fort) ; « apres » = celle de Louis du 2026-10-09 (entrée =
+#: harmonie, même report) ; « basse » = la règle du 2026-09-17, sans report.
+ARMES = (("basse", "basse"), ("avant", "basse+report"), ("apres", "harmonie"))
 
 
 def _chart(stem):
@@ -88,8 +98,8 @@ def evalue() -> list[dict]:
         vrais_t = [v["t"]] + ([v["aussi_acceptable"]]
                               if v.get("aussi_acceptable") is not None else [])
         row = {"stem": stem, "jeu": jeu, "titre": c.get("title") or stem}
-        for nom, h in (("avant", False), ("apres", True)):
-            k = mesure_un(stem, audio, bt, bpb, probs, h)
+        for nom, arme in ARMES:
+            k = mesure_un(stem, audio, bt, bpb, probs, arme)
             row[nom] = k
             row[nom + "_temps"] = k in {_near(bt, t) for t in vrais_t}
             row[nom + "_mesure"] = _near(g, bt[k]) in {_near(g, t) for t in vrais_t}
@@ -114,8 +124,8 @@ def bibliotheque() -> list[dict]:
         bpb = int(c.get("bpb") or 4)
         try:
             probs = _musx.frame_posteriors(audio)
-            a = mesure_un(stem, audio, bt, bpb, probs, False)
-            b = mesure_un(stem, audio, bt, bpb, probs, True)
+            a = mesure_un(stem, audio, bt, bpb, probs, "basse+report")
+            b = mesure_un(stem, audio, bt, bpb, probs, "harmonie")
         except Exception as exc:                          # noqa: BLE001
             print(f"  ! {stem}: {exc}")
             continue
@@ -236,7 +246,9 @@ def main(argv=None) -> int:
             ap_ = sum(x["apres_" + sc] for x in r)
             gagnes = [x["stem"] for x in r if x["apres_" + sc] and not x["avant_" + sc]]
             perdus = [x["stem"] for x in r if x["avant_" + sc] and not x["apres_" + sc]]
-            print(f"{jeu:8s} au {sc:7s} avant {av}/{len(r)}  après {ap_}/{len(r)}"
+            b0 = sum(x["basse_" + sc] for x in r)
+            print(f"{jeu:8s} au {sc:7s} basse seule {b0}/{len(r)}  basse+report {av}/{len(r)}"
+                  f"  harmonie+report {ap_}/{len(r)}"
                   f"  gagnés {gagnes}  perdus {perdus}")
     print("\nencore faux au temps (après) :")
     for x in rows:

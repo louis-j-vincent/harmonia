@@ -84,3 +84,32 @@ def test_une_mesure_a_trois_temps_lit_la_mesure_entiere():
 
 def test_pas_de_detection_rend_none():
     assert cale_sur_harmonie(None, BEATS, JUPE, 4) == (None, {"raison": "pas de début"})
+
+
+# ── l'entrée : l'harmonie, pas la basse (Louis, 2026-10-09) ─────────────────
+# « je dis commence le chart quand l'harmonie commence, et on reporte sur la
+# mesure du temps fort suivant ».
+
+def _tete(f0, n=900, masse=0.9):
+    """Une tête musx dont la colonne 0 (« rien ») tombe à partir de f0."""
+    p = np.zeros((n, 13), dtype=np.float32)
+    p[:, 0] = 1.0
+    p[f0:, 0] = 1.0 - masse
+    p[f0:, 1] = masse
+    return p
+
+
+def test_une_basse_seule_en_intro_ne_fait_pas_le_debut():
+    """9jLDZjMF3tk : la basse joue dix temps avant le premier accord ; le
+    morceau commence avec l'harmonie."""
+    from harmonia.debut import premiere_harmonie
+    from harmonia.musx import FRAME_DT
+    basse, accords = _tete(100), _tete(500)
+    t = premiere_harmonie(accords, apres=0.0)
+    assert abs(t - 500 * FRAME_DT) < 1e-6
+    assert t > 100 * FRAME_DT             # pas la basse
+
+
+def test_pas_dharmonie_du_tout_rend_none():
+    from harmonia.debut import premiere_harmonie
+    assert premiere_harmonie(np.tile([1.0] + [0.0] * 12, (400, 1)), apres=0.0) is None

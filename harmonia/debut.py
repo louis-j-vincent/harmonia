@@ -149,6 +149,34 @@ def premiere_basse(probs_basse, apres: float = 0.0) -> float | None:
     return None
 
 
+def premiere_harmonie(probs_accords, apres: float = 0.0) -> float | None:
+    """Le premier instant où la tête ACCORDS de musx sort de « rien » et y reste.
+
+    Louis, 2026-10-09 : « je dis commence le chart quand l'harmonie commence,
+    et on reporte sur la mesure du temps fort suivant ». `probs_accords` est
+    `musx.frame_posteriors(audio)[0]`, colonne 0 = pas d'accord ; mêmes
+    seuil et tenue que la basse (`premiere_basse`), sans rien régler de plus.
+
+    MESURÉ (`python -m tools.debut_eval`, 2026-10-09), à chemin égal (dernier
+    trou, temps le plus proche, report au temps fort suivant) : la tête
+    accords et la tête basse s'allument au même instant (moins d'un
+    demi-temps d'écart) sur 25 des 31 morceaux où la règle agit — musx entend
+    rarement l'une sans l'autre. Résultat : debuts.json 35/41 au temps et
+    38/41 à la mesure, comme la basse ; marques récentes 5/7 contre 4/7
+    (gagné 9jLDZjMF3tk, la basse y joue dix temps seule) ; aucun perdu.
+
+    CE QUE ÇA NE RÉSOUT PAS — et où la vérité de Louis contredit sa règle :
+    Stand By Me ouvre sur la ligne de basse seule, et SA réponse (0,6 s) est
+    la basse ; l'harmonie n'arrive qu'à 8,4 s, douze temps plus tard. La
+    règle d'avant y était fausse aussi (+2 temps), donc ce n'est pas compté
+    comme une perte, mais l'écart grandit. Une basse-riff qui EST le morceau
+    n'est pas distinguable ici d'une basse qui « joue pendant l'intro ».
+    Ne PAS prendre l'onset du décodage (1er segment non-N) à la place : il
+    arrive 0,5 à 10 s plus tard que la tête elle-même (29/41 au temps).
+    """
+    return premiere_basse(probs_accords, apres=apres)
+
+
 def melodie(chroma, times, liss: float = 1.0) -> np.ndarray:
     """La présence d'une VRAIE mélodie, image par image.
 
@@ -445,7 +473,8 @@ def arbitrage(stem: str) -> str | None:
 
 def debut_du_morceau(audio: Path, grille, probs_basse=None,
                      chroma=None, times=None, *, probs=None,
-                     beat_times=None, bpb: int | None = None) -> dict:
+                     beat_times=None, bpb: int | None = None,
+                     entree: str = "harmonie") -> dict:
     """Où commence le morceau : `{t, mesure, sur_une_ligne, son}`.
 
     `t` est en secondes, `mesure` l'index de la ligne de `grille` retenue.
@@ -462,6 +491,10 @@ def debut_du_morceau(audio: Path, grille, probs_basse=None,
     2026-10-09) ; `harmonie` dans le résultat dit ce qui s'est passé. Sans
     eux, comportement d'avant — c'est ce que lit l'évaluation à la ligne de
     mesure (`tools.debut_rates`).
+
+    `entree` (avec `probs` seulement) : « harmonie » — la tête accords de
+    musx, la règle de Louis du 2026-10-09 et celle du pipeline — ou « basse »,
+    la règle de d657e0c, gardée pour que `tools.debut_eval` compare les deux.
     """
     env = enveloppe(Path(audio))
     son = premier_son(env) if env else 0.0
@@ -481,12 +514,19 @@ def debut_du_morceau(audio: Path, grille, probs_basse=None,
                         "trou ne sera jugé que sur la basse", Path(audio).name, exc)
             chroma = times = None
     trou = dernier_trou(probs_basse, chroma, times, apres=son)
-    brut = premiere_basse(probs_basse, apres=trou if trou is not None else son)
+    plancher = trou if trou is not None else son
+    if probs is not None and entree == "harmonie":
+        # Louis, 2026-10-09 : « commence le chart quand l'harmonie commence ».
+        brut = premiere_harmonie(probs[0], apres=plancher)
+        quoi = "harmonie"
+    else:
+        brut = premiere_basse(probs_basse, apres=plancher)
+        quoi = "basse"
     if brut is None:
-        log.info("debut: aucune basse déclarée dans %s", Path(audio).name)
+        log.info("debut: aucune %s déclarée dans %s", quoi, Path(audio).name)
         return {"t": None, "mesure": None, "sur_une_ligne": False, "son": son}
     t, sur = cale_sur_grille(brut, grille)
-    t_basse, harmonie = t, None
+    t_entree, harmonie = t, None
     if probs is not None and beat_times is not None and bpb:
         from harmonia import musx as _musx
         # SANS phase de mesure : un décodage calé sur des temps forts déjà
@@ -494,17 +534,17 @@ def debut_du_morceau(audio: Path, grille, probs_basse=None,
         segments = _musx.redecode(beat_times, probs, downbeat_times=None)
         t2, harmonie = cale_sur_harmonie(t, beat_times, segments, int(bpb))
         if harmonie.get("decale"):
-            log.info("debut: basse à %.2fs sur une levée — mesure 1 poussée "
-                     "de %d temps, à %.2fs", t, harmonie["decale"], t2)
+            log.info("debut: entrée à %.2fs sur un temps faible — mesure 1 "
+                     "reportée de %d temps, à %.2fs", t, harmonie["decale"], t2)
             t, sur = t2, True
     g = np.asarray(grille, dtype=float)
-    # `t_basse` : la détection AVANT l'harmonie. C'est elle qui décide SI on
+    # `t_entree` : la détection AVANT le report. C'est elle qui décide SI on
     # déplace la mesure 1 (pipeline : « au moins une demi-mesure après la 1re
     # battue ») ; l'harmonie ne fait que choisir le temps. Sinon une basse sur
     # la 1re battue, poussée de deux temps par une harmonie hésitante (Autumn
     # Leaves au piano, 3/4, 7/6/8), franchissait le seuil et déplaçait un
     # morceau juste.
-    return {"t": t, "t_basse": t_basse, "son": son, "trou": trou,
+    return {"t": t, "t_entree": t_entree, "entree": quoi, "son": son, "trou": trou,
             "sur_une_ligne": sur, "harmonie": harmonie,
             "mesure": (int(np.abs(g - t).argmin()) if len(g) else None)}
 

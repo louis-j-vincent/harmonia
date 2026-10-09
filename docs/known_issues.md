@@ -5,6 +5,37 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Le chart commence quand l'harmonie commence (2026-10-09, BRANCHÉ)
+
+Louis : « commence le chart quand l'harmonie commence, et on reporte sur la
+mesure du temps fort suivant ». `debut_du_morceau(..., probs=…)` prend
+maintenant l'entrée de la tête ACCORDS de musx (`premiere_harmonie`, mêmes
+seuil/tenue que la basse), après le dernier trou, puis le report au temps
+fort de la section ci-dessous. `python -m tools.debut_eval` :
+
+| arme | debuts au temps | debuts à la mesure | marques temps / mesure |
+|---|---|---|---|
+| basse seule (09-17) | 34/41 | 38/41 | 2/7 · 4/7 |
+| basse + report (d657e0c) | 35/41 | 38/41 | 4/7 · 4/7 |
+| **harmonie + report** | **35/41** | **38/41** | **5/7 · 5/7** |
+| 1er segment non-N du décodage + report | 29/41 | 32/41 | 5/7 · 5/7 |
+| harmonie, plancher = 1er son (sans trou) | 34/41 | 37/41 | 3/7 · 3/7 |
+| harmonie, report strict (≥ l'entrée, 0 temps) | 31/41 | 37/41 | 5/7 · 5/7 |
+
+Gagné : 9jLDZjMF3tk (la basse joue 10 temps seule avant les accords). Perdu :
+aucun. **Pourquoi si peu de différence** : sur 25 des 31 morceaux où la règle
+agit, tête accords et tête basse de musx s'allument au même instant (< ½
+temps) — musx n'entend presque jamais l'une sans l'autre. Le report strict
+perd 4 morceaux parce que l'entrée mesurée tremble de ~0,1 s autour du
+temps : on arrondit au temps le plus proche, puis on reporte. Le décodage
+perd parce que son 1er accord arrive 0,5 à 10 s après la tête.
+
+**La vérité de Louis contredit sa règle sur un morceau** : Stand By Me ouvre
+sur la basse seule, sa réponse est 0,6 s (la basse) ; l'harmonie n'arrive
+qu'à 8,4 s → +12 temps (la règle d'avant : +2, faux aussi, donc pas compté
+perdu). Une basse-riff qui EST le morceau ne se distingue pas ici d'une
+basse qui joue pendant l'intro.
+
 ## Mesure 1 posée sur une levée, un temps trop tôt (2026-10-09, CORRIGÉ pour les nouveaux morceaux)
 
 Louis, sur La Jupe En Laine : la mesure 1 tombait un temps avant le Fm7.
