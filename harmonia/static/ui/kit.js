@@ -355,7 +355,7 @@ export function glyphEpure(root,q,size,depth,color,bass){
       // seule (D♭) glissait sous la lettre. Un espace de largeur nulle en donne une.
       if(!bas) col.appendChild(document.createTextNode("\u200b"));
       if(acc) col.appendChild(el("span",`position:absolute;left:${accDx.toFixed(1)}px;top:-.06em;font-size:.6em;line-height:1;`,acc));
-      if(bas) col.appendChild(el("span",`font-size:${(size*.5).toFixed(1)}px;position:relative;top:${(size*.24).toFixed(1)}px;margin-left:${botDx.toFixed(1)}px;`,bas));
+      if(bas) col.appendChild(el("span",`font-size:${(size*.5).toFixed(1)}px;position:relative;top:${(size*.30).toFixed(1)}px;margin-left:${botDx.toFixed(1)}px;`,bas));
       w.appendChild(col);
     }
     if(bass!=null && bass>=0 && mod(bass,12)!==mod(root,12)){
