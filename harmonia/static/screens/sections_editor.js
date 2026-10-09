@@ -1533,7 +1533,7 @@ export function openBar1Sheet(){
     back.onclick=e=>{ if(e.target===back) close(); };
     sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,"Caler la mesure 1"));
     sheet.appendChild(el("div",`text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:12px;`,
-      "fais glisser la bande — quand un vrai premier temps tombe sur le repère, valide"));
+      "fais glisser la bande — au relâché le repère se cale sur le temps le plus proche ; quand un vrai premier temps est dessus, valide"));
 
     const reel=el("div",`position:relative;height:110px;background:${T.paper};border:1px solid ${T.line};border-radius:14px;overflow:hidden;touch-action:pan-y;cursor:grab;flex:0 0 auto;`);
     const strip=el("div","position:absolute;top:0;bottom:0;left:0;width:0;will-change:transform;");
@@ -1649,16 +1649,33 @@ export function openBar1Sheet(){
       raf=requestAnimationFrame(frame);
     }
     // drag = scrub, same gesture as the prompter's tape
-    let dragX=null, dragT0=0, lastSeekTs=0;
-    reel.addEventListener("pointerdown",e=>{ dragX=e.clientX; dragT0=nowTime();
+    let dragX=null, dragT0=0, lastSeekTs=0, moved=false;
+    reel.addEventListener("pointerdown",e=>{ dragX=e.clientX; dragT0=nowTime(); moved=false;
       try{ reel.setPointerCapture(e.pointerId); }catch(err){} });
     reel.addEventListener("pointermove",e=>{
       if(dragX==null||!pxs) return;
+      if(Math.abs(e.clientX-dragX)>2) moved=true;
       const now=performance.now();
       if(now-lastSeekTs>60){ lastSeekTs=now;
         const d=totalDur(); if(d>0) seekFrac(Math.max(0,Math.min(1,(dragT0-(e.clientX-dragX)/pxs)/d))); }
     });
-    const endDrag=()=>{ dragX=null; };
+    /* AU RELÂCHÉ, LE REPÈRE SE CALE SUR LE TEMPS LE PLUS PROCHE (Louis,
+       2026-10-09). Le repère lit `nowTime()+PLAYHEAD_LEAD_S` : on cherche la
+       battue la plus proche de CE temps-là, calculé depuis la position exacte
+       du doigt (le dernier `pointermove` est limité à 60 ms et peut être en
+       retard), et on place la lecture pour que le repère tombe dessus. Un
+       simple appui, sans glisser, ne bouge rien. */
+    const endDrag=e=>{
+      const was=dragX!=null && moved && e && e.type==="pointerup" && pxs && beats.length;
+      const x0=dragX; dragX=null;
+      if(!was) return;
+      const d=totalDur(); if(!(d>0)) return;
+      const tMark=dragT0-(e.clientX-x0)/pxs+PLAYHEAD_LEAD_S;
+      let k=0, bd=Infinity;
+      for(let i=0;i<beats.length;i++){ const dd=Math.abs(beats[i]-tMark); if(dd<bd){ bd=dd; k=i; } }
+      seekFrac(Math.max(0,Math.min(1,(beats[k]-PLAYHEAD_LEAD_S)/d)));
+      haptic(5);
+    };
     reel.addEventListener("pointerup",endDrag);
     reel.addEventListener("pointercancel",endDrag);
     try{ new ResizeObserver(layout).observe(reel); }catch(e){ setTimeout(layout,0); }
