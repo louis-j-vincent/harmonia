@@ -12,6 +12,12 @@
             "type": "command",
             "command": "sh \"$CLAUDE_PROJECT_DIR/.claude/hooks/uncommitted_check.sh\" 2>/dev/null || true",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/show_illustration.py\" 2>/dev/null || true",
+            "timeout": 10,
+            "statusMessage": "show-illustration : une image a-t-elle suivi le visuel ?"
           }
         ]
       }

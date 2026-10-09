@@ -50,3 +50,15 @@ Audio-only results: send the clip (`SendUserFile`) the same way. Server-side
 only changes with nothing visual (a rebake that changed 0 bars): say "rien à
 voir : 0 mesure changée" and give the diff page if one exists. Never silently
 fall back to prose.
+
+## Le hook qui l'impose (2026-10-09, « make it a hook »)
+
+`.claude/hooks/show_illustration.py`, branché en `Stop` dans
+`.claude/settings.json`. Si, depuis le dernier message de Louis, un fichier
+visuel a été modifié (Edit/Write sur `harmonia/static/`, `docs/plots/*.html`,
+`tools/*page*.py`, `tools/*demo*.py`) sans `SendUserFile` ensuite, la fin du
+tour est REFUSÉE une fois, avec la consigne de capturer, regarder, envoyer.
+Garde-fous : `stop_hook_active` (pas de boucle), toute erreur → on laisse finir.
+Ne couvre PAS les modifications d'un sous-agent ni un `git commit` seul : là, le
+skill reste la seule garantie. Rejoué sur les 79 tours de la session qui l'a vu
+naître : 8 blocages, tous sur du visuel livré sans image.
