@@ -70,7 +70,7 @@ SCORE_DOUTEUX = 0.30
 #: orange) que jeter une vraie ligne mal chantée.
 LIGNE_MUETTE = 0.15
 
-_MOT = re.compile(r"[A-Za-z']+")
+_MOT = re.compile(r"(?:[^\W\d_]|')+")
 _BALISE = re.compile(r"\[/?(?:ch|tab)\]")
 _CROCHET = re.compile(r"^\s*\[.*\]\s*$")
 

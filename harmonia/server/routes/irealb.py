@@ -490,14 +490,18 @@ def tab_paroles(file):
         voix = SETTINGS.data_cache / "stems" / "htdemucs" / stem / "vocals.wav"
         if voix.exists():
             try:
-                mots_al = PA.mots_a_aligner(PA.lignes_de_paroles(brut))
+                mots_al = PA.mots_a_aligner(
+                    structure if maison else PA.lignes_de_paroles(brut))
                 if mots_al:
                     align = PA.aligner(voix, mots_al)
                     cache.save_json("paroles", audio, {
                         "requete": requete, "align": align,
-                        "tab": {"titre": res[0].song_name,
-                                "artiste": res[0].artist_name,
-                                "url": res[0].tab_url}})
+                        "tab": ({"titre": _trouve["tab"].song_name,
+                                 "artiste": _trouve["tab"].artist_name,
+                                 "url": _trouve["tab"].tab_url}
+                                if _trouve else
+                                {"titre": _titre, "artiste": _artiste,
+                                 "url": ""})})
                     log.info("tab-paroles %s : alignement calculé ici "
                              "(%d mots)", stem, len(align))
             except Exception:                                # noqa: BLE001
