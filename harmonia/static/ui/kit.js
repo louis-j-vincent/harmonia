@@ -304,18 +304,26 @@ export function glyphEpure(root,q,size,depth,color,bass){
     else if(depth==="seventh") tail=seventhOf(tail);
     const qs=Math.round(size*17/27);
     const w=el("span",`display:inline-block;font-family:${SERIF};font-style:italic;font-weight:400;line-height:1;white-space:nowrap;color:${color};`);
-    const r=el("span",`font-size:${size}px;`); epureAcc(r,note(root)); w.appendChild(r);
+    // LA LETTRE, puis UNE colonne à sa droite (Louis, 2026-10-09) :
+    //   · en haut, ♭ ou ♯ — sorti du flux (`position:absolute`), il ne pousse
+    //     donc RIEN en bas ; la colonne garde juste de quoi le loger quand il
+    //     n'y a rien dessous (D♭ tout seul) ;
+    //   · en bas, TOUT le reste en un seul bloc collé à la lettre : m △ ø ° +
+    //     sus 5, le 6, le chiffre (7 9 13) et ses altérations (7♭9, 7♯11).
+    //     Même place pour tous, que l'accord ait une altération ou non.
+    const rn=note(root), letter=rn.replace(/[♭♯]/g,""), acc=rn.replace(/[^♭♯]/g,"");
+    w.appendChild(el("span",`font-size:${size}px;`,letter));
     let [base,sup,after]=epureQuality(tail);
-    // LES EXTENSIONS EN BAS (Louis, 2026-10-09) : le △ est un symbole de
-    // qualité, il reste à la ligne avec m ø ° ; le chiffre (7, 9, 13) et les
-    // altérations qui l'accompagnent (7♭9, 7♯11) descendent en un seul bloc.
-    if(sup.startsWith("△")){ base+="△"; sup=sup.slice(1); }
-    if(base||sup||after){
-      const qu=el("span",`font-size:${qs}px;`);
-      if(base) epureAcc(qu,base);
-      if(sup) qu.appendChild(el("span","font-size:.72em;position:relative;top:.5em;",sup));
-      if(after) qu.appendChild(document.createTextNode(after));
-      w.appendChild(qu);
+    if(sup.startsWith("△")){ base+="△"; sup=sup.slice(1); }   // △ est un symbole de qualité : même bloc
+    const bas=base+sup+after;
+    if(acc||bas){
+      const col=el("span",`display:inline-block;position:relative;font-size:${size}px;line-height:1;min-width:.3em;`);
+      // une colonne sans texte en flux n'a pas de ligne de base : l'altération
+      // seule (D♭) glissait sous la lettre. Un espace de largeur nulle en donne une.
+      if(!bas) col.appendChild(document.createTextNode("\u200b"));
+      if(acc) col.appendChild(el("span","position:absolute;left:.02em;top:-.06em;font-size:.6em;line-height:1;",acc));
+      if(bas) col.appendChild(el("span",`font-size:${(size*.5).toFixed(1)}px;position:relative;top:${(size*.24).toFixed(1)}px;`,bas));
+      w.appendChild(col);
     }
     if(bass!=null && bass>=0 && mod(bass,12)!==mod(root,12)){
       const b=el("span",`font-size:${qs}px;`); epureAcc(b,"/"+note(bass)); w.appendChild(b);
