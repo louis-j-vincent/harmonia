@@ -348,7 +348,7 @@ export function glyphEpure(root,q,size,depth,color,bass){
     // HAUT, le bloc du bas du bord droit de son BAS (+ un petit jour constant)
     const ink=letterInk()[letter];
     const accDx=ink ? (ink.top-ink.adv)*size+.09*size : .02*size;
-    const botDx=ink ? (ink.bot-ink.adv)*size+.06*size : 0;
+    const botDx=ink ? (ink.bot-ink.adv)*size-.13*size : 0;   // sous le pied de la lettre, pas après elle (Louis : « pas assez collé sous le F »)
     if(acc||bas){
       const col=el("span",`display:inline-block;position:relative;font-size:${size}px;line-height:1;min-width:${acc?(accDx+.28*size).toFixed(1):0}px;`);
       // une colonne sans texte en flux n'a pas de ligne de base : l'altération
