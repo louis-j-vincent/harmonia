@@ -165,7 +165,7 @@ def page(rows: list[dict], out: Path) -> None:
                    'height:96px;background:#222;opacity:0;pointer-events:none;'
                    'transition:transform .22s linear"></div></div>')
         ok = lambda b: "✓" if b else "✗"
-        dep = lambda k: bt[max(0, k - 2)]          # deux temps d'élan
+        dep = lambda k: bt[k]                    # exactement sur la battue
         cartes.append(
             f'<div class="c" data-stem="{x["stem"]}" data-w="{W}" data-k0="{k0}" '
             f'data-bt="{",".join(f"{t:.3f}" for t in bt[k0:k1 + 1])}">'
