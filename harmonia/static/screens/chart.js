@@ -28,6 +28,11 @@ const root = document.getElementById("app");
 // `buildIReal`) — seul CE commutateur change quand une vraie maquette
 // remplace ce rendu-là.
 const SHOW_CHORD_SUGGESTIONS = false;
+// Accords de TAILLE CONSTANTE (2026-10-02, validé par Louis le 2026-10-09 :
+// « c'est très bien ») : un accord a toujours la hauteur d'un accord seul, 1 ou
+// 4 par mesure ; seule la LARGEUR se comprime (scaleX). `false` = l'ancienne
+// échelle SZ1/SZ2/SZ3 (la taille suit le nombre d'accords).
+const PROTO_ON = true;
 
   // Full-cell lens band colour (handoff #5). Light pastel on light theme,
   // deep tint on dark; minor collections slightly duller than major. With
@@ -1970,6 +1975,10 @@ export function buildIReal(){
         // En serré (§7) la taille suit le nombre d'accords: 30/25/22/19,
         // plancher dur à 19 — la seule échelle, quel que soit narrow.
         const size=autoTight?(b.chords.length>=4?18:20):tight?tightSize(b.chords.length):(b.chords.length>=3?SZ3:(b.chords.length>1?SZ2:SZ1));
+        // Taille constante (Louis, 2026-10-02 : « les accords aient toujours la
+        // même taille... hauts mais pas grands horizontalement »), validée le
+        // 2026-10-09. La largeur est comprimée plus bas, après mesure.
+        const PROTO_SIZE=SZ1;
         // Learn mode relabels through the ladder (dispQ); slash bass is an
         // L3 concept and hides below it. The tiny amber tag marks cells whose
         // label genuinely simplified, so Learn never silently lies.
@@ -2014,8 +2023,8 @@ export function buildIReal(){
         const gw=el("span","position:relative;display:inline-block;line-height:1;transform-origin:left center;");
         if(!pendu) gw.dataset.gl="1";
         gw.appendChild(pedale
-          ? pedalGlyph(ch.bass,size,chordColor(ch))
-          : G(ch.root,dq,size,chordDepth(ch),chordColor(ch),bassHidden?-1:ch.bass,b.chords.length===1));
+          ? pedalGlyph(ch.bass,PROTO_ON?PROTO_SIZE:size,chordColor(ch))
+          : G(ch.root,dq,PROTO_ON?PROTO_SIZE:size,chordDepth(ch),chordColor(ch),bassHidden?-1:ch.bass,b.chords.length===1));
         item.appendChild(gw);
         // LA VARIANTE, en petit au-dessus — comme iRealb (Louis, 2026-08-17 :
         // « indiquer le moins commun comme une variation, en petit en haut de
@@ -2142,7 +2151,8 @@ export function buildIReal(){
             } else openChordSheet(idx);
           };
         }
-        if(autoTight && !pendu) item.dataset.fit="1";
+        if(autoTight && !pendu){ if(PROTO_ON) item.dataset.protofit="1"; else item.dataset.fit="1"; }
+        else if(PROTO_ON && !tight && !pendu && b.chords.length>1) item.dataset.protofit="1";
         cell.appendChild(item);
         lastCh=ch;
       });
@@ -2150,7 +2160,7 @@ export function buildIReal(){
       // facteur jusqu'à tenir entre les retraits de la cellule. Posé AVANT le
       // calcul des zones d'Annotate (même requestAnimationFrame, enregistré
       // plus tôt) : les zones suivent les glyphes rétrécis.
-      if(autoTight) requestAnimationFrame(()=>{
+      if(autoTight && !PROTO_ON) requestAnimationFrame(()=>{
         const its=[...cell.querySelectorAll("[data-fit]")]; if(its.length<2) return;
         its.forEach(i=>{ i.style.zoom=""; });
         const cs=getComputedStyle(cell);
@@ -2162,6 +2172,46 @@ export function buildIReal(){
         const lim=cell.getBoundingClientRect().right-(parseFloat(cs.paddingRight)||0)-1;
         const f=its[0].getBoundingClientRect().left, l=its[its.length-1].getBoundingClientRect().right;
         if(l>lim && k>.55){ const k2=Math.max(.55,k*(lim-f)/(l-f)); its.forEach(i=>{ i.style.zoom=String(k2); }); }
+      });
+      // Taille constante (2026-10-02) — même mesure que ci-dessus (largeur dispo vs.
+      // largeur demandée), mais on compresse la LARGEUR SEULE (`scaleX`, pas
+      // `zoom`) pour que la hauteur du glyphe reste celle d'un accord seul.
+      // `item.style.width` est réduit d'autant pour que la rangée flex se
+      // resserre réellement (`scaleX` seul ne change pas l'encombrement).
+      // Mesures à 2 accords (grille de temps, pas de rangée serrée) : chaque
+      // accord garde sa colonne ; on comprime la largeur (même facteur pour tous
+      // les accords de la mesure) jusqu'à ce que chacun tienne avant le suivant.
+      if(PROTO_ON && !tight) requestAnimationFrame(()=>{
+        const its=[...cell.querySelectorAll("[data-protofit]")]; if(its.length<2) return;
+        const gs=its.map(i=>i.querySelector("[data-gl]"));
+        gs.forEach(g=>{ if(g) g.style.transform=""; });
+        const cs=getComputedStyle(cell);
+        const right=cell.getBoundingClientRect().right-(parseFloat(cs.paddingRight)||0)-2;
+        let k=1;
+        its.forEach((i,ii)=>{
+          const g=gs[ii]; if(!g) return;
+          const r=g.getBoundingClientRect();
+          const lim=ii+1<its.length ? its[ii+1].getBoundingClientRect().left-3 : right;
+          if(r.width>0) k=Math.min(k,(lim-r.left)/r.width);
+        });
+        k=Math.max(.45,k);
+        if(k<1) gs.forEach(g=>{ if(g) g.style.transform=`scaleX(${k.toFixed(3)})`; });
+      });
+      if(autoTight && PROTO_ON) requestAnimationFrame(()=>{
+        const its=[...cell.querySelectorAll("[data-protofit]")]; if(!its.length) return;
+        its.forEach(i=>{ i.style.width=""; const g=i.querySelector("[data-gl]"); if(g) g.style.transform=""; });
+        if(its.length<2) return;
+        const cs=getComputedStyle(cell);
+        const avail=cell.clientWidth-(parseFloat(cs.paddingLeft)||0)-(parseFloat(cs.paddingRight)||0)-2;
+        const gap=tightGap(b.chords.length);
+        const widths=its.map(i=>{ const g=i.querySelector("[data-gl]"); return g?g.getBoundingClientRect().width:0; });
+        const need=widths.reduce((a,w)=>a+w,0)+gap*(its.length-1);
+        const k=Math.max(.45,Math.min(1,avail/need));
+        if(k<1) its.forEach((i,ii)=>{
+          const g=i.querySelector("[data-gl]");
+          if(g) g.style.transform=`scaleX(${k})`;
+          i.style.width=Math.ceil(widths[ii]*k)+"px";
+        });
       });
       // Held bar: no chord of its own — the previous chord sounds through it.
       // A faint "%" (simile) reads fine when the bar it repeats is right
