@@ -5,6 +5,37 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Accords « 6 » : vocabulaire branché, mais le réseau ne dit presque jamais « 6te » (2026-10-09)
+
+Louis entend Eb6 et Db6 sur La Jupe En Laine (mes. 24 et 19) là où le chart
+écrit Eb+ et Db. `SETTINGS.chord_dict = "submission_plus6"` : le décodeur porte
+maintenant maj(6)/min(6) (24 états, notés sur le plan 13e/6te `s13`), et toute
+la chaîne les accepte (`tests/test_vocab_sixte.py`).
+
+**Ça ne change aucun accord** — mesuré en re-décodant les 64 morceaux : 0 s.
+Mécanisme : un état 6 ne diffère de la triade nue que par le plan s13, donc il
+ne gagne que si p(6te) > p(aucune). Sur 555 762 trames avec accord, c'est vrai
+0,04 % du temps ; le prior moyen du plan est [aucune 0,955 · 6te 0,043 · b13
+0,003] — un déséquilibre d'apprentissage.
+
+**Correctif mesuré, PAS branché** : diviser la postérieure s13 par ce prior
+(vraisemblance mise à l'échelle, l'usage standard d'un décodeur NN + HMM).
+Le Db de la mesure 19 devient Db6 (comme l'oreille de Louis) ; le Eb reste
+Eb+. Mais sur la bibliothèque : 14,3 % du temps change sur 63/64 morceaux,
+dont 7→6 (235 s) et maj7→6 (194 s) — un dominant qui devient 6 (Autumn
+Leaves C#7→C#6) est très probablement faux. À arbitrer à l'oreille avant
+de brancher. Script : `vocab_diff2.py` du scratchpad de la session, à
+reverser dans `tools/` si on y donne suite.
+
+**Le Eb+ de la mesure 24 n'est pas un Eb6 dans le signal.** Chroma NNLS de la
+mesure (vérifié sur G7/Fm7/Bb7 voisins) : B 1,00 · G 0,64 · Eb 0,64 · D 0,47,
+et C (la 6te) à 0,01, Bb à 0,07. Retirer le G7 d'avant efface le B (note
+commune tenue de G7) ; retirer le G/D d'après le laisse à 0,58. Le B ne vient
+donc pas du G/D qui suit mais du G7 qui précède. La différence avec les
+voisins faite sur les POSTÉRIEURES (catégorielles) est dégénérée (N à 99,6 %) :
+soustraire deux distributions sur des classes différentes n'a pas de sens.
+Il faut la faire sur le contenu en hauteurs (chroma).
+
 ## Sections : la queue optionnelle (2026-10-09, La Jupe En Laine)
 
 Louis : « La mesure pleine de Cm est un accord de fin de A qui se répète
