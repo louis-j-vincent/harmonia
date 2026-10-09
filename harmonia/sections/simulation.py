@@ -1049,7 +1049,177 @@ def _prefixe_et_queue(blocs: list[dict], par_jeton: dict) -> list[dict]:
     return out
 
 
-def remplir_par_algo(chart: dict, occ: list[dict], audio_dir) -> list[dict]:
+#: la queue optionnelle ne dépasse pas ça (Louis, 2026-10-09 : « un ajout
+#: optionnel à la fin d'une section »), en mesures
+QUEUE_OPT_MAX = 2
+
+
+def _meme_mesure(a: list, b: list) -> bool:
+    """Deux mesures disent-elles la même chose ? Même suite d'accords, chacun
+    lu par `roles.meme_lecture` (le cran de fusion en vigueur)."""
+    from harmonia.roles import meme_lecture
+
+    def suite(m):
+        out = []
+        for c in m:
+            if not out or not meme_lecture(out[-1], c):
+                out.append(c)
+        return out
+    a, b = suite(a), suite(b)
+    return len(a) == len(b) and all(meme_lecture(x, y) for x, y in zip(a, b))
+
+
+def _meme_suite(a: list, b: list) -> bool:
+    return len(a) == len(b) and all(_meme_mesure(x, y) for x, y in zip(a, b))
+
+
+def queue_optionnelle(blocs: list[dict], mesures: list, souverains=(),
+                      propositions: list | None = None) -> list[dict]:
+    """Une QUEUE : un court bloc (1 ou 2 mesures) que CERTAINES occurrences
+    d'une section ont à leur fin et pas les autres.
+
+    Louis, 2026-10-09, sur La Jupe En Laine : « La mesure pleine de Cm est un
+    accord de fin de A qui se répète souvent mais pas toujours, c'est la
+    définition d'une queue (un ajout optionnel à la fin d'une section, qui
+    n'arrive pas toujours) ». B finit sur un turnaround ; trois fois il se
+    résout sur une mesure de Cm puis A (F-7 …), trois fois il enchaîne
+    directement sur F-7. Les briques (longueur fixe) et les quatre mots
+    comptaient ce Cm comme la 1re mesure de A : 9 mesures deux fois, 8 la
+    troisième.
+
+    LA RÈGLE, en musique : si une section L est suivie, dans au moins deux
+    de ses occurrences, de la MÊME courte mesure X (≤ `QUEUE_OPT_MAX`) qui
+    n'est pas la suite normale, et si, dans au moins une AUTRE occurrence, L
+    va droit à ce qui vient après X (la mesure qui suit X chez les premières
+    = la mesure qui suit L chez les secondes), alors X est une queue de L :
+    on la détache de la section qui la porte et elle sort « queue », une
+    entrée à part, collée à la fin de l'occurrence. La section garde UNE
+    longueur. X doit être de la matière NEUVE pour L (aucune de ses mesures
+    ne se retrouve dans L) : sinon c'est un tour de boucle de plus. Deux
+    queues de contenu différent sortent « queue », « queue 2 »
+    (`sections_pour_chart` groupe sur label + longueur : même nom = replié).
+
+    SOUVERAINETÉ : un bloc que Louis a tracé (`souverains`, [(m0, m1)]) ne
+    perd jamais une mesure ; la queue est alors seulement PROPOSÉE (ajoutée à
+    `propositions`). On ne coupe que dans les blocs de l'algo ou les reprises
+    retrouvées, jamais en dessous de 2 mesures restantes.
+
+    CE QUE ÇA NE RÉSOUT PAS : une queue de plus de 2 mesures ; une queue qui
+    REMPLACE la fin de la section (1re/2e fin) au lieu de la prolonger ; une
+    queue présente à CHAQUE occurrence (rien ne dit alors qu'elle est
+    optionnelle — elle reste dans le bloc qui la suit) ; une section qui
+    n'a qu'une occurrence « sans » douteuse (il faut ≥ 2 « avec » et ≥ 1
+    « sans »). Une queue dont le suivant commence par la même mesure que la
+    queue elle-même n'est pas détectée."""
+    souverains = {tuple(x) for x in souverains}
+    blocs = [dict(b) for b in sorted(blocs, key=lambda b: (b["m0"], b["m1"]))]
+    n = len(mesures)
+    pris: list[tuple[list, str]] = []              # (contenu, nom)
+
+    def nom_pour(contenu):
+        for c, nom in pris:
+            if _meme_suite(c, contenu):
+                return nom
+        deja = {str(b["label"]) for b in blocs}
+        k = 1
+        while True:
+            nom = "queue" if k == 1 else f"queue {k}"
+            if nom not in deja and all(nom != x for _c, x in pris):
+                break
+            k += 1
+        pris.append((contenu, nom))
+        return nom
+
+    def apres(i):
+        """Le bloc qui commence juste après le bloc i, ou None."""
+        for b in blocs:
+            if b["m0"] == blocs[i]["m1"] + 1:
+                return b
+        return None
+
+    labels = []
+    for b in blocs:
+        if (str(b["label"]).lower() not in JAMAIS_REJOUEES
+                and not str(b["label"]).startswith("queue")
+                and b["label"] not in labels):
+            labels.append(b["label"])
+    for label in labels:
+        for k in range(1, QUEUE_OPT_MAX + 1):
+            occ = [b for b in blocs if b["label"] == label]
+            if len(occ) < 3:
+                break
+            hotes = []                       # (occurrence, hôte, contenu, f)
+            for o in occ:
+                s = apres(blocs.index(o))
+                if (s is None or s["label"] == label
+                        or str(s["label"]).startswith("queue")
+                        or s["m1"] - s["m0"] + 1 < k):
+                    continue
+                reste = s["m1"] - s["m0"] + 1 - k
+                if reste == 1:               # il ne resterait qu'une mesure
+                    continue
+                f = s["m0"] + k if reste else s["m1"] + 1
+                if f >= n:
+                    continue
+                hotes.append((o, s, mesures[o["m1"] + 1:o["m1"] + 1 + k],
+                              mesures[f]))
+            groupes: list[list] = []
+            for h in hotes:
+                for g in groupes:
+                    if (_meme_suite(g[0][2], h[2]) and _meme_mesure(g[0][3], h[3])
+                            and g[0][1]["label"] == h[1]["label"]):
+                        g.append(h)
+                        break
+                else:
+                    groupes.append([h])
+            # X ne doit pas être la suite normale : f est ce qui vient APRÈS
+            # (et X doit être une MATIÈRE NEUVE pour L : une mesure de X qui
+            # se retrouve dans L est un tour de boucle de plus, pas une
+            # queue — sur une boucle de 4 accords tout « suit » tout)
+            corps = [m for o in occ for m in mesures[o["m0"]:o["m1"] + 1]]
+            groupes = [g for g in groupes if len(g) >= 2
+                       and not _meme_mesure(g[0][2][0], g[0][3])
+                       and not any(_meme_mesure(x, c) for x in g[0][2]
+                                   for c in corps)]
+            if not groupes:
+                continue
+            avec = {id(h[0]) for g in groupes for h in g}
+            retenus = []
+            for g in groupes:
+                f = g[0][3]
+                sans = [o for o in occ if id(o) not in avec
+                        and o["m1"] + 1 < n
+                        and _meme_mesure(mesures[o["m1"] + 1], f)
+                        and not _meme_mesure(mesures[o["m1"] + 1], g[0][2][0])]
+                if sans:
+                    retenus.append(g)
+            for g in retenus:
+                nom = None
+                for o, s, contenu, _f in g:
+                    a, z = o["m1"] + 1, o["m1"] + k
+                    if (s["m0"], s["m1"]) in souverains:
+                        if propositions is not None:
+                            propositions.append(
+                                {"label": label, "m0": a, "m1": z,
+                                 "hote": (s["m0"], s["m1"]),
+                                 "raison": "frontière tracée par Louis"})
+                        continue
+                    nom = nom or nom_pour(contenu)
+                    if s["m1"] == z:         # le trou EST la queue
+                        s["label"], s["source"] = nom, "algo"
+                        s["queue_de"] = label
+                    else:                    # on la détache de la tête de s
+                        s["m0"] = z + 1
+                        blocs.append({"m0": a, "m1": z, "label": nom,
+                                      "source": "algo", "queue_de": label})
+                blocs.sort(key=lambda b: (b["m0"], b["m1"]))
+            if retenus:
+                break
+    return blocs
+
+
+def remplir_par_algo(chart: dict, occ: list[dict], audio_dir,
+                     propositions: list | None = None) -> list[dict]:
     """Les trous, remplis par l'algorithme des quatre mots.
 
     Toutes les occurrences entrent comme unités GELÉES — pas seulement celles
@@ -1136,8 +1306,13 @@ def remplir_par_algo(chart: dict, occ: list[dict], audio_dir) -> list[dict]:
                     "label": nom, "source": source, "mot": b["type"]})
     from harmonia.roles import parse_key_name
     from harmonia.soudure import accords_par_mesure
-    nommer_dernier_tour(out, accords_par_mesure(chart),
-                        parse_key_name(chart.get("keyName")))
+    bars = accords_par_mesure(chart)
+    # LA QUEUE OPTIONNELLE (Louis, 2026-10-09) : voir `queue_optionnelle`.
+    # Les traits de Louis sont souverains ; le reste se découpe.
+    out = queue_optionnelle(
+        out, bars, {(o["m0"], o["m1"]) for o in occ if o.get("trace")},
+        propositions)
+    nommer_dernier_tour(out, bars, parse_key_name(chart.get("keyName")))
     return out
 
 

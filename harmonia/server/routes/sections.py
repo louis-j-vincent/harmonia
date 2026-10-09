@@ -486,7 +486,11 @@ def sections_inferer(file):
         # dire (voir `soudure.traits_propres`).
         log.warning("sections %s: %d trait(s) écarté(s) — %s", file, len(perdus),
                     "; ".join(f"{t.get('label')}: {t['raison']}" for t in perdus))
-    blocs = remplir_par_algo(chart, occ, AUDIO_DIR)
+    # Les queues optionnelles (Louis, 2026-10-09) qui tomberaient dans un
+    # bloc qu'il a tracé ne sont pas coupées : elles reviennent en PROPOSITIONS.
+    queues_proposees: list = []
+    blocs = remplir_par_algo(chart, occ, AUDIO_DIR,
+                             propositions=queues_proposees)
     tracees = {(o["m0"], o["m1"]) for o in occ if o["trace"]}
     # Un candidat EN SUSPENS tranché par la cohérence du morceau (règle 5b,
     # 2026-09-30) sort « ressemble » : une proposition, en pointillés, que
@@ -513,6 +517,10 @@ def sections_inferer(file):
              "%d transposée(s)", file, len(occ), len(out),
              sum(1 for o in occ if o.get("rot")))
     return jsonify({"sections": out,
+                    "queues_proposees": [
+                        {"label": q["label"], "mesure_debut": q["m0"] + 1,
+                         "mesure_fin": q["m1"] + 1, "raison": q["raison"]}
+                        for q in queues_proposees],
                     "ecartes": [{"label": t.get("label"), "raison": t["raison"]}
                                 for t in perdus],
                     "abstentions": [d for d in diagnostics

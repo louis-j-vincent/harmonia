@@ -5,6 +5,28 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Sections : la queue optionnelle (2026-10-09, La Jupe En Laine)
+
+Louis : « La mesure pleine de Cm est un accord de fin de A qui se répète
+souvent mais pas toujours, c'est la définition d'une queue ». Mesuré : B (8
+mesures, turnaround Eb+ / G/D) se résout 3 fois sur UNE mesure de Cm puis A
+(mesures 25, 50, 83), 3 fois droit sur F-7 (42, 67, 75). Le Cm était compté
+comme la 1re mesure de A (A = 9, 9 puis 8 mesures).
+`simulation.queue_optionnelle` (appelée par `remplir_par_algo`) : si une
+section L est suivie, dans >= 2 occurrences, de la même mesure X (<= 2) et
+que, dans >= 1 autre, L va droit à ce qui suit X chez les premières, et que
+X est de la matière neuve pour L, X sort « queue » (A = 8, 8, 7). Contenus
+différents = « queue », « queue 2 » (jamais repliés ensemble). Un bloc tracé
+par Louis n'est jamais coupé : la queue sort en `queues_proposees` (route
+`/api/sections/inferer`, pas encore affichée). Contrôle : 28 morceaux à
+sections à la main, aucun bloc ne bouge ; The Lazy Song reçoit 2 propositions
+(son B de 2 mesures vu comme queue de A, bloc tracé donc intact).
+NE RÉSOUT PAS : queue de plus de 2 mesures ; queue qui REMPLACE la fin (1re/2e
+fin) ; queue présente à CHAQUE occurrence (rien ne la dit optionnelle, elle
+reste dans le bloc suivant) ; il faut >= 2 occurrences « avec » et >= 1
+« sans » ; les propositions ne sont pas encore montrées dans l'écran
+(chart.js / sections_editor.js non touchés). Tests : `tests/test_queue_optionnelle.py`.
+
 ## Outil des sections : les autres passages arrivent en pâle (2026-10-01)
 
 Après le 2e tap (ou un trait glissé), `/api/section-repeats` (lecture seule)
