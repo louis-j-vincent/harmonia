@@ -491,40 +491,43 @@ def sections_inferer(file):
     queues_proposees: list = []
     blocs = remplir_par_algo(chart, occ, AUDIO_DIR,
                              propositions=queues_proposees)
-    tracees = {(o["m0"], o["m1"]) for o in occ if o["trace"]}
-    # Un candidat EN SUSPENS tranché par la cohérence du morceau (règle 5b,
-    # 2026-09-30) sort « ressemble » : une proposition, en pointillés, que
-    # l'écran ne renvoie PAS comme contrainte — elle est donc retranchée à
-    # chaque « Valider », avec les briques que Louis a ajoutées entre-temps.
-    devinees = {(o["m0"], o["m1"]) for o in occ if o.get("suspens")}
-
-    # `rot` par plage, pour que le rendu puisse dire « A, monté d'un ton »
-    rotations = {(o["m0"], o["m1"]): o.get("rot", 0) for o in occ}
-
-    out = []
-    for b in blocs:
-        if b["source"] == "brique":
-            source = ("humain" if (b["m0"], b["m1"]) in tracees
-                      else "ressemble" if (b["m0"], b["m1"]) in devinees
-                      else "propage")
-        else:
-            source = "algo"
-        out.append({"label": b["label"],
-                    "mesure_debut": b["m0"] + 1, "mesure_fin": b["m1"] + 1,
-                    "source": source, "reste": False, "type": "",
-                    "rot": rotations.get((b["m0"], b["m1"]), 0)})
+    # Le corps de la réponse est construit par UNE fonction partagée avec
+    # l'écran « Pourquoi ? » (`explication.reponse_inferer`) : l'explication
+    # ne peut pas décrire autre chose que ce que Valider rend.
+    from harmonia.sections.explication import reponse_inferer
+    rep = reponse_inferer(occ, blocs, queues_proposees, perdus, diagnostics)
     log.info("sections %s : %d brique(s) de Louis, %d bloc(s) rendus, "
-             "%d transposée(s)", file, len(occ), len(out),
+             "%d transposée(s)", file, len(occ), len(rep["sections"]),
              sum(1 for o in occ if o.get("rot")))
-    return jsonify({"sections": out,
-                    "queues_proposees": [
-                        {"label": q["label"], "mesure_debut": q["m0"] + 1,
-                         "mesure_fin": q["m1"] + 1, "raison": q["raison"]}
-                        for q in queues_proposees],
-                    "ecartes": [{"label": t.get("label"), "raison": t["raison"]}
-                                for t in perdus],
-                    "abstentions": [d for d in diagnostics
-                                    if d.get("raison") == "sans_contraste"]})
+    return jsonify(rep)
+
+
+@bp.post("/api/sections/expliquer/<file>")
+def sections_expliquer(file):
+    """« Pourquoi ? » — le calcul de `sections_inferer`, étape par étape.
+
+    Même corps (`{humain: [{label, mesure_debut, mesure_fin}]}`), même chemin
+    de code (voir `harmonia.sections.explication`), plus l'écriture du chart
+    À BLANC (comblement des trous, scission, ré-empilement, sections écrites).
+    N'ÉCRIT RIEN. Rend un objet par chapitre de l'écran « Pourquoi ? » de
+    l'outil des sections (`static/screens/pourquoi_sections.js`).
+    """
+    p = CHARTS_DIR / f"{Path(file).stem}.json"
+    if not p.exists():
+        return jsonify({"error": "no such chart"}), 404
+    chart = json.loads(p.read_text(encoding="utf-8"))
+    stem = Path(chart.get("audio_url") or "").stem
+    grid = chart.get("barGrid") or []
+    if len(grid) < 3 or not stem or not (AUDIO_DIR / f"{stem}.m4a").exists():
+        return jsonify({"error": "chart trop court ou audio manquant"}), 400
+    humain = (request.get_json(silent=True) or {}).get("humain") or []
+    try:
+        from harmonia.sections.explication import expliquer
+        return jsonify(expliquer(chart, humain, AUDIO_DIR))
+    except Exception as exc:                                 # noqa: BLE001
+        # Jamais muet : l'écran dit que l'explication a échoué, et pourquoi.
+        log.exception("explication des sections impossible pour %s", file)
+        return jsonify({"error": f"explication impossible : {exc}"}), 500
 
 
 # La page /sections/<file> a vécu une heure le 2026-08-15 : Louis voulait

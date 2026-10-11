@@ -207,7 +207,7 @@ def cout(nom, cible) -> float:
     return d + p + pr + r
 
 
-def phrases(word, depart=None, cibles=CIBLES, geles=None):
+def phrases(word, depart=None, cibles=CIBLES, geles=None, trace=None):
     """Le chemin complet : agglomérer, nommer, regrouper, puis ARBITRER.
 
     C'est ce que le bouton « Appliquer » de l'outil Soudure appelle, avec les
@@ -225,12 +225,20 @@ def phrases(word, depart=None, cibles=CIBLES, geles=None):
     à coût égal on garde donc la plus petite cible. Louis a nommé deux morceaux
     exactement à égalité (Let It Be et Bein' Green, 29 contre 29) : sur
     ceux-là, et sur eux seuls, l'app peut choisir autrement que sa page.
+
+    `trace` (2026-10-11, écran « Pourquoi ? ») : une liste qui reçoit, pour
+    chaque cible essayée, {cible, cout, steps, nom}. Sans effet sur le
+    résultat.
     """
     essais = []
     for c in cibles:
         steps = merges4(word, cible=c, depart=depart, geles=geles)
         nom = grouper_restes(nommer(steps[-1]["jetons"], c, geles=geles), word, c)
         essais.append((cout(nom, c), c, nom))
+        if trace is not None:
+            import copy
+            trace.append({"cible": c, "cout": essais[-1][0],
+                          "steps": copy.deepcopy(steps), "nom": copy.deepcopy(nom)})
     essais.sort(key=lambda e: (e[0], e[1]))
     return essais[0][2], {"cible": essais[0][1],
                           "couts": {c: k for k, c, _ in essais}}

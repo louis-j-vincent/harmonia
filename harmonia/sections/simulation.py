@@ -114,6 +114,13 @@ MANGE_NETTEMENT = True
 SUSPENS_MAX_ALT = 16
 
 
+def _tr(trace) -> dict:
+    """`{"trace": trace}` seulement quand on trace (écran « Pourquoi ? ») : sans
+    trace, chaque appel garde EXACTEMENT sa forme d'avant — les tests qui
+    remplacent une fonction par un double sans ce paramètre restent valides."""
+    return {} if trace is None else {"trace": trace}
+
+
 def _chevauche(a: int, b: int, pris) -> bool:
     return any(not (b < x or a > y) for x, y in pris)
 
@@ -128,24 +135,36 @@ def _niveau_brique(S, b0: int, L: int) -> float:
     return (1.0 + float(np.median(vals))) / 2.0 if vals else 1.0
 
 
-def _periode(S, b0: int, L: int, tau: float, lo: int, hi: int):
+def _periode(S, b0: int, L: int, tau: float, lo: int, hi: int,
+             trace: list | None = None):
     """(l, T) — le plus petit décalage l de [lo, hi] auquel la brique se répète
     elle-même, ou (None, None). Les mesures doivent coller à leur partenaire
     l mesures plus loin (≥ tau) depuis le DÉBUT de la brique, sans trou, sur
     une suite de T mesures ; il faut T ≥ 2 l (au moins deux passages) et ce qui
     reste après la suite ne dépasse pas un passage — la dernière fois peut
-    avoir une autre fin (« modulo la dernière »)."""
+    avoir une autre fin (« modulo la dernière »).
+
+    `trace` (2026-10-11, l'écran « Pourquoi ? ») : une liste qui reçoit, pour
+    chaque décalage l ESSAYÉ, {l, r, T, ok, S} — S = la ressemblance de chaque
+    mesure à sa partenaire l plus loin. Ne change rien au calcul ; les
+    décalages au-delà du premier qui réussit ne sont jamais essayés, donc
+    jamais tracés."""
     for l in range(lo, hi + 1):
         r = 0
         while r < L - l and S[b0 + r, b0 + r + l] >= tau:
             r += 1
         T = l + r
-        if T >= 2 * l and L - T <= l:
+        ok = T >= 2 * l and L - T <= l
+        if trace is not None:
+            trace.append({"l": l, "r": r, "T": T, "ok": bool(ok),
+                          "S": [round(float(S[b0 + i, b0 + i + l]), 3)
+                                for i in range(L - l)]})
+        if ok:
             return l, T
     return None, None
 
 
-def boucle_minimale(S, b0: int, b1: int) -> dict:
+def boucle_minimale(S, b0: int, b1: int, trace: dict | None = None) -> dict:
     """RÈGLE 2 de Louis (2026-09-30) : « Quand je donne une section, il faut
     regarder si elle-même est une répétition d'une boucle minimale [...] C'est
     la boucle minimale qui définit la section qui devra ensuite être
@@ -170,15 +189,21 @@ def boucle_minimale(S, b0: int, b1: int) -> dict:
     brique qui est un vamp (un seul accord, tout se ressemble) donne une boucle
     de 4 et une sous-période de 1 : la phase est alors indécidable, et la
     recherche s'abstient (aucun fond).
+
+    `trace` (écran « Pourquoi ? ») : reçoit `periode` et `sous_periode`, les
+    décalages essayés par `_periode` (voir là). Sans effet sur le résultat.
     """
     L = b1 - b0 + 1
     tau = _niveau_brique(S, b0, L)
     Lb, T = L, L
+    tp = ts = None
+    if trace is not None:
+        tp, ts = trace.setdefault("periode", []), trace.setdefault("sous_periode", [])
     if L >= 2 * MIN_BOUCLE:
-        l, t = _periode(S, b0, L, tau, MIN_BOUCLE, L // 2)
+        l, t = _periode(S, b0, L, tau, MIN_BOUCLE, L // 2, tp)
         if l is not None:
             Lb, T = l, t
-    p0, _ = _periode(S, b0, min(L, 2 * Lb), tau, 1, Lb) if Lb < L else (None, None)
+    p0, _ = _periode(S, b0, min(L, 2 * Lb), tau, 1, Lb, ts) if Lb < L else (None, None)
     if p0 is None or Lb % p0:
         p0 = Lb
     return {"boucle": Lb, "suite": T, "sous_periode": p0, "tau": tau}
@@ -458,18 +483,26 @@ def _passages(p: int, Lb: int, T: int, L: int) -> list[tuple[int, int]]:
     return out
 
 
-def cherche_sur_matrices(S, V, b0: int, b1: int) -> tuple[list[tuple], dict]:
+def cherche_sur_matrices(S, V, b0: int, b1: int,
+                         trace: dict | None = None) -> tuple[list[tuple], dict]:
     """Le cœur de `cherche_brique`, sur des matrices déjà calculées (la page
     de diagnostic l'appelle directement). Rend (reprises, détail) ; chaque
     reprise est `(m0, m1, score, rot)`, triées, la brique (ou ses passages)
     comprise. `détail` porte la courbe, le fond et chaque pic jugé — tout ce
-    qu'il faut pour le dessiner. Voir `cherche_brique` pour la loi."""
+    qu'il faut pour le dessiner. Voir `cherche_brique` pour la loi.
+
+    `trace` (2026-10-11, écran « Pourquoi ? ») : un dict qui reçoit ce que
+    `détail` ne porte pas — les décalages de la boucle (`boucle`), les groupes
+    de départs voisins (`comps`), chaque essai de fin de brique (`fins` : st,
+    sl), les onze courbes transposées et leur meilleur départ
+    (`transposees`). Rien de ce qui est calculé ne change."""
     import numpy as np
 
     from harmonia.sections import similarity as VS
     n = S.shape[0]
     L = b1 - b0 + 1
-    b = boucle_minimale(S, b0, b1)
+    b = boucle_minimale(S, b0, b1,
+                        **_tr(trace.setdefault("boucle", {}) if trace is not None else None))
     Lb, T, p0 = b["boucle"], b["suite"], b["sous_periode"]
     detail = dict(b, mode="relatif", L=L, seuil=None, mediane=None, sigma=None,
                   pics=[], courbe=[])
@@ -518,8 +551,12 @@ def cherche_sur_matrices(S, V, b0: int, b1: int) -> tuple[list[tuple], dict]:
         if L >= MIN_MESURES_TRANSPOSE:
             for k in range(1, 12):
                 Sk = V @ np.roll(V, k, axis=1).T
-                moissonne(np.asarray(VS._slide(Sk, b0, L, n))[:len(c)],
-                          min(PLAFOND_REPRISE, seuil + BONUS_TRANSPOSE), k)
+                ck = np.asarray(VS._slide(Sk, b0, L, n))[:len(c)]
+                if trace is not None:
+                    trace.setdefault("transposees", []).append(
+                        {"k": k, "courbe": [round(float(x), 3) for x in ck],
+                         "seuil": round(min(PLAFOND_REPRISE, seuil + BONUS_TRANSPOSE), 4)})
+                moissonne(ck, min(PLAFOND_REPRISE, seuil + BONUS_TRANSPOSE), k)
         return sorted(set(out)), detail
 
     # RÈGLE 3 : chaque départ jugé contre SON fond local.
@@ -572,6 +609,8 @@ def cherche_sur_matrices(S, V, b0: int, b1: int) -> tuple[list[tuple], dict]:
                 comps[-1].append(p)
             else:
                 comps.append([p])
+        if trace is not None:
+            trace["comps"] = [list(x) for x in comps]
         for comp in comps:
             sels = _selections(comp, Lb, SUSPENS_MAX_ALT)
             if len(sels) > SUSPENS_MAX_ALT:
@@ -618,6 +657,11 @@ def cherche_sur_matrices(S, V, b0: int, b1: int) -> tuple[list[tuple], dict]:
                 continue
             st = float(np.mean([S[t0 + i, q + i] for i in range(t)]))
             sl = float(np.mean([S[b0 + i, q + i] for i in range(t)]))
+            if trace is not None:
+                trace.setdefault("fins", []).append(
+                    {"apres": [a, z], "q": q, "t": t, "st": round(st, 4),
+                     "sl": round(sl, 4),
+                     "prise": bool(st >= PLANCHER_REPRISE and st > sl)})
             if st >= PLANCHER_REPRISE and st > sl:
                 pris_ici.append((q, q + t - 1))
                 neuves.append((q, q + t - 1, st, 0))
@@ -640,6 +684,14 @@ def cherche_sur_matrices(S, V, b0: int, b1: int) -> tuple[list[tuple], dict]:
     for k in range(1, 12):
         Sk = V @ np.roll(V, k, axis=1).T
         ck = np.asarray(VS._slide(Sk, b0, L, n))[:len(c_brique)]
+        if trace is not None and len(ck):
+            qm = int(np.argmax(ck))
+            trace.setdefault("transposees", []).append(
+                {"k": k, "courbe": [round(float(x), 3) for x in ck],
+                 "meilleur": qm, "score": round(float(ck[qm]), 4),
+                 "droite": round(float(c_brique[qm]), 4),
+                 "seuil": PLANCHER_REPRISE + BONUS_TRANSPOSE,
+                 "trouvees": []})
         for q in sorted(range(len(ck)), key=lambda x: -ck[x]):
             if ck[q] < PLANCHER_REPRISE + BONUS_TRANSPOSE:
                 break
@@ -649,6 +701,8 @@ def cherche_sur_matrices(S, V, b0: int, b1: int) -> tuple[list[tuple], dict]:
             if fond is None or (ck[q] - fond) / max(1.0 - fond, ECART_FOND_MIN) < PROEMINENCE_MIN:
                 continue
             pris.append((q, q + L - 1))
+            if trace is not None and trace.get("transposees"):
+                trace["transposees"][-1]["trouvees"].append(q)
             for a, z in _passages(q, Lb, T, L):
                 out.append((a, z, float(ck[q]), k))
 
@@ -663,7 +717,7 @@ def cherche_sur_matrices(S, V, b0: int, b1: int) -> tuple[list[tuple], dict]:
 
 
 def cherche_brique(chart: dict, b0: int, b1: int, audio_dir,
-                   label: str = "") -> tuple[list[tuple], dict]:
+                   label: str = "", trace: dict | None = None) -> tuple[list[tuple], dict]:
     """(reprises, diagnostic) pour la brique [b0, b1] — mesures 0-indexées,
     fin incluse.
 
@@ -801,6 +855,11 @@ def cherche_brique(chart: dict, b0: int, b1: int, audio_dir,
     RAISONS possibles dans le diagnostic : `"role"` (une intro ne se rejoue
     pas), `"pas_d_audio"`, `"trop_court"`, `"sans_contraste"` (rien ne dépasse
     le seuil du morceau), ou `None` quand des reprises ont été trouvées.
+
+    `trace` (2026-10-11, écran « Pourquoi ? ») : un dict qui reçoit le détail
+    complet de `cherche_sur_matrices` (`detail` : courbe, pics, référence…),
+    les matrices `S` et `V`, et la trace de `cherche_sur_matrices`. Ne change
+    rien au résultat.
     """
     import numpy as np
 
@@ -834,7 +893,9 @@ def cherche_brique(chart: dict, b0: int, b1: int, audio_dir,
     if n - L + 1 < 3:
         info["raison"] = "trop_court"
         return seule, info
-    out, d = cherche_sur_matrices(np.asarray(S), np.asarray(V), b0, b1)
+    out, d = cherche_sur_matrices(np.asarray(S), np.asarray(V), b0, b1, **_tr(trace))
+    if trace is not None:
+        trace["detail"], trace["S"], trace["V"] = d, S, V
     info.update(seuil=d["seuil"], mediane=d["mediane"], sigma=d["sigma"],
                 boucle=d["boucle"], sous_periode=d["sous_periode"],
                 mode=d["mode"], suspens=d.get("suspens") or [])
@@ -852,8 +913,8 @@ def cherche_brique(chart: dict, b0: int, b1: int, audio_dir,
     return out, info
 
 
-def occurrences_de_tous(chart: dict, traits: list[dict],
-                        audio_dir) -> tuple[list[dict], list[dict], list[dict]]:
+def occurrences_de_tous(chart: dict, traits: list[dict], audio_dir,
+                        trace: dict | None = None) -> tuple[list[dict], list[dict], list[dict]]:
     """(occurrences, traits écartés, diagnostics) — chaque trait de Louis, plus
     ses reprises, sans que deux briques se marchent dessus.
 
@@ -882,6 +943,12 @@ def occurrences_de_tous(chart: dict, traits: list[dict],
     par trait gardé — DE QUOI DIRE À L'ÉCRAN pourquoi une brique n'a pas
     trouvé de reprise, au lieu de laisser croire à une panne. Louis,
     2026-09-19 : un morceau sans contraste doit se DIRE, pas se taire.
+
+    `trace` (2026-10-11, écran « Pourquoi ? ») : reçoit `gardes`, une trace de
+    `cherche_brique` par trait (`briques`), le verdict de chaque reprise au
+    moment de la poser (`verdicts` : posee / chevauche / retenue), les zones
+    `tenues` par un suspens, les reprises `retenues`, et ce que deviennent
+    celles-ci (`retours`). Le calcul est inchangé.
     """
     from harmonia.soudure import traits_propres
     n = len((chart.get("barGrid") or [])) - 1
@@ -891,8 +958,18 @@ def occurrences_de_tous(chart: dict, traits: list[dict],
     diagnostics: list[dict] = []
     en_suspens: list[dict] = []
     resultats = []
+    trace_ = trace          # `trace` est repris plus bas comme drapeau local
+    if trace is not None:
+        trace["gardes"] = list(gardes)
+        trace["briques"], trace["verdicts"], trace["retours"] = [], [], []
     for i, (b0, b1, label) in enumerate(gardes):
-        reprises, info = cherche_brique(chart, b0, b1, audio_dir, label=label)
+        tb = {} if trace is not None else None
+        if tb is not None:
+            trace["briques"].append(tb)
+        reprises, info = cherche_brique(chart, b0, b1, audio_dir, label=label,
+                                        **_tr(tb))
+        if tb is not None:
+            tb["reprises"] = list(reprises)
         diagnostics.append(info)
         # LES CANDIDATS EN SUSPENS (règle 5b, 2026-09-30) : `cherche_brique`
         # les a tranchés avec ce que la brique sait seule ; on retire ce
@@ -929,6 +1006,12 @@ def occurrences_de_tous(chart: dict, traits: list[dict],
         autres = [(c, d) for c, d, _l in gardes if (c, d) != (b0, b1)]
         for x, y, sc, rot in reprises:
             if any(touche(x, y, c, d) for c, d in pris + autres):
+                if trace_ is not None:
+                    trace_["verdicts"].append(
+                        {"brique": i, "m0": x, "m1": y, "score": round(float(sc), 4),
+                         "verdict": "chevauche",
+                         "contre": [[c, d] for c, d in pris + autres
+                                    if touche(x, y, c, d)]})
                 continue
             trace = b0 <= x and y <= b1
             # (c) : une reprise sûre ne prend la zone d'un calage en suspens
@@ -938,7 +1021,15 @@ def occurrences_de_tous(chart: dict, traits: list[dict],
             if not trace and any(touche(x, y, t0, t1) and sc <= ts + tol
                                  for t0, t1, ts, tol, j in tenues if j != i):
                 retenues.append((i, x, y, sc, rot, label))
+                if trace_ is not None:
+                    trace_["verdicts"].append(
+                        {"brique": i, "m0": x, "m1": y, "score": round(float(sc), 4),
+                         "verdict": "retenue"})
                 continue
+            if trace_ is not None:
+                trace_["verdicts"].append(
+                    {"brique": i, "m0": x, "m1": y, "score": round(float(sc), 4),
+                     "verdict": "posee", "trace": bool(trace)})
             pris.append((x, y))
             out.append({"m0": x, "m1": y, "label": label,
                         "score": round(sc, 3), "rot": int(rot),
@@ -959,6 +1050,10 @@ def occurrences_de_tous(chart: dict, traits: list[dict],
                         "rot": int(rot), "trace": False, "suspens": True})
         for info in diagnostics:
             info["suspens_global"] = [g for g in en_suspens if g["label"] == info.get("label")]
+    if trace_ is not None:
+        trace_["tenues"] = [list(t) for t in tenues]
+        trace_["retenues"] = [list(r) for r in retenues]
+        trace_["en_suspens"] = en_suspens
     # (c) : les reprises retenues dont la zone est restée libre (le suspens
     # a choisi un autre calage) reviennent — dans le même ordre qu'au premier
     # passage (celui des traits dans les mesures, pas celui où Louis les a
@@ -967,7 +1062,13 @@ def occurrences_de_tous(chart: dict, traits: list[dict],
     # juste (0,935) que v5 posait.
     for _i, x, y, sc, rot, label in sorted(retenues):
         if any(touche(x, y, c, d) for c, d in pris):
+            if trace_ is not None:
+                trace_["retours"].append({"m0": x, "m1": y, "label": label,
+                                          "revient": False})
             continue
+        if trace_ is not None:
+            trace_["retours"].append({"m0": x, "m1": y, "label": label,
+                                      "revient": True})
         pris.append((x, y))
         out.append({"m0": x, "m1": y, "label": label, "score": round(sc, 3),
                     "rot": int(rot), "trace": False})
@@ -1074,7 +1175,8 @@ def _meme_suite(a: list, b: list) -> bool:
 
 
 def queue_optionnelle(blocs: list[dict], mesures: list, souverains=(),
-                      propositions: list | None = None) -> list[dict]:
+                      propositions: list | None = None,
+                      trace: list | None = None) -> list[dict]:
     """Une QUEUE : un court bloc (1 ou 2 mesures) que CERTAINES occurrences
     d'une section ont à leur fin et pas les autres.
 
@@ -1110,7 +1212,13 @@ def queue_optionnelle(blocs: list[dict], mesures: list, souverains=(),
     optionnelle — elle reste dans le bloc qui la suit) ; une section qui
     n'a qu'une occurrence « sans » douteuse (il faut ≥ 2 « avec » et ≥ 1
     « sans »). Une queue dont le suivant commence par la même mesure que la
-    queue elle-même n'est pas détectée."""
+    queue elle-même n'est pas détectée.
+
+    `trace` (2026-10-11, écran « Pourquoi ? ») : une liste qui reçoit un essai
+    par (lettre, longueur k) examiné — les hôtes (occurrence, bloc qui suit,
+    mesures X, mesure f d'après), les groupes « avec », la raison de chaque
+    groupe écarté, et pour chaque groupe gardé ses occurrences « sans ». Sans
+    effet sur le résultat."""
     souverains = {tuple(x) for x in souverains}
     blocs = [dict(b) for b in sorted(blocs, key=lambda b: (b["m0"], b["m1"]))]
     n = len(mesures)
@@ -1146,7 +1254,15 @@ def queue_optionnelle(blocs: list[dict], mesures: list, souverains=(),
     for label in labels:
         for k in range(1, QUEUE_OPT_MAX + 1):
             occ = [b for b in blocs if b["label"] == label]
+            essai = None
+            if trace is not None:
+                essai = {"label": label, "k": k,
+                         "occurrences": [[b["m0"], b["m1"]] for b in occ],
+                         "hotes": [], "groupes": [], "retenus": []}
+                trace.append(essai)
             if len(occ) < 3:
+                if essai is not None:
+                    essai["raison"] = "moins de 3 occurrences"
                 break
             hotes = []                       # (occurrence, hôte, contenu, f)
             for o in occ:
@@ -1163,6 +1279,10 @@ def queue_optionnelle(blocs: list[dict], mesures: list, souverains=(),
                     continue
                 hotes.append((o, s, mesures[o["m1"] + 1:o["m1"] + 1 + k],
                               mesures[f]))
+                if essai is not None:
+                    essai["hotes"].append({"occ": [o["m0"], o["m1"]],
+                                           "hote": [s["m0"], s["m1"], s["label"]],
+                                           "x": [o["m1"] + 1, o["m1"] + k], "f": f})
             groupes: list[list] = []
             for h in hotes:
                 for g in groupes:
@@ -1177,6 +1297,21 @@ def queue_optionnelle(blocs: list[dict], mesures: list, souverains=(),
             # se retrouve dans L est un tour de boucle de plus, pas une
             # queue — sur une boucle de 4 accords tout « suit » tout)
             corps = [m for o in occ for m in mesures[o["m0"]:o["m1"] + 1]]
+            if essai is not None:
+                for g in groupes:
+                    raison = None
+                    if len(g) < 2:
+                        raison = "une seule occurrence l'a"
+                    elif _meme_mesure(g[0][2][0], g[0][3]):
+                        raison = "c'est la suite normale"
+                    elif any(_meme_mesure(x, c) for x in g[0][2] for c in corps):
+                        raison = "déjà jouée dans la section"
+                    essai["groupes"].append({
+                        "avec": [[h[0]["m0"], h[0]["m1"]] for h in g],
+                        "x": [g[0][0]["m1"] + 1, g[0][0]["m1"] + k],
+                        "f": g[0][0]["m1"] + 1 + k if g[0][1]["m1"] - g[0][1]["m0"] + 1 - k
+                        else g[0][1]["m1"] + 1,
+                        "ecarte": raison})
             groupes = [g for g in groupes if len(g) >= 2
                        and not _meme_mesure(g[0][2][0], g[0][3])
                        and not any(_meme_mesure(x, c) for x in g[0][2]
@@ -1191,6 +1326,11 @@ def queue_optionnelle(blocs: list[dict], mesures: list, souverains=(),
                         and o["m1"] + 1 < n
                         and _meme_mesure(mesures[o["m1"] + 1], f)
                         and not _meme_mesure(mesures[o["m1"] + 1], g[0][2][0])]
+                if essai is not None:
+                    essai["retenus"].append({
+                        "avec": [[h[0]["m0"], h[0]["m1"]] for h in g],
+                        "sans": [[o["m0"], o["m1"]] for o in sans],
+                        "garde": bool(sans)})
                 if sans:
                     retenus.append(g)
             for g in retenus:
@@ -1219,7 +1359,8 @@ def queue_optionnelle(blocs: list[dict], mesures: list, souverains=(),
 
 
 def remplir_par_algo(chart: dict, occ: list[dict], audio_dir,
-                     propositions: list | None = None) -> list[dict]:
+                     propositions: list | None = None,
+                     trace: dict | None = None) -> list[dict]:
     """Les trous, remplis par l'algorithme des quatre mots.
 
     Toutes les occurrences entrent comme unités GELÉES — pas seulement celles
@@ -1240,12 +1381,22 @@ def remplir_par_algo(chart: dict, occ: list[dict], audio_dir,
     reste UNE intro imprimée avec ses N.C. de tête (la pipeline, elle, la
     coupe en deux, `pipeline._one_section`). Si l'algo avait donné à un bloc
     de tête la même lettre qu'un bloc plus loin, ce dernier garde sa lettre.
+
+    `trace` (2026-10-11, écran « Pourquoi ? ») : un dict qui reçoit chaque
+    étape intermédiaire — le mot de bi-mesures et sa matrice (`mot`), les
+    jetons de départ et gelés, les soudures pas à pas, le nommage, les blocs
+    avant/après l'intro de tête, la queue optionnelle et le dernier tour.
+    Copies : rien de ce qui est calculé ne change.
     """
+    import copy
+
     from harmonia.phrases4 import grouper_restes, merges4, nommer, phrases
     from harmonia.soudure import mot_sur_traits
 
     traits = [(o["m0"], o["m1"]) for o in occ]
-    bornes, mot, _src = mot_sur_traits(chart, traits, audio_dir=audio_dir)
+    tm = trace.setdefault("mot", {}) if trace is not None else None
+    bornes, mot, _src = mot_sur_traits(chart, traits, audio_dir=audio_dir,
+                                       **_tr(tm))
     idx = {b: j for j, b in enumerate(bornes)}
     fixes, par_jeton = [], {}
     for o in occ:
@@ -1263,11 +1414,23 @@ def remplir_par_algo(chart: dict, occ: list[dict], audio_dir,
         depart.append((j, j + 1, mot[j])); j += 1
     geles = {(j0, j1 + 1) for j0, j1 in fixes}
 
-    _secs, info = phrases(mot, depart=depart, geles=geles)
+    _secs, info = phrases(mot, depart=depart, geles=geles,
+                          **_tr(trace.setdefault("essais", []) if trace is not None else None))
     steps = merges4(mot, cible=info["cible"], depart=depart, geles=geles)
-    blocs = grouper_restes(nommer(steps[-1]["jetons"], info["cible"],
-                                  geles=geles), mot, info["cible"])
+    nommes = nommer(steps[-1]["jetons"], info["cible"], geles=geles)
+    if trace is not None:
+        trace.update(bornes=list(bornes), mot_lettres=mot, source=_src,
+                     depart=list(depart), geles=sorted(geles),
+                     par_jeton={f"{a},{b}": v for (a, b), v in par_jeton.items()},
+                     cible=info["cible"], couts=dict(info["couts"]),
+                     steps=copy.deepcopy(steps), nommes=copy.deepcopy(nommes))
+    blocs = grouper_restes(nommes, mot, info["cible"])
+    if trace is not None:
+        trace["restes"] = copy.deepcopy(blocs)
     blocs = _prefixe_et_queue(blocs, par_jeton)
+    if trace is not None:
+        trace["prefixe"] = copy.deepcopy(blocs)
+        trace["intro_avale"] = []
     siennes = {L.upper() for L in par_jeton.values()}
     libres = [c for c in ALPHABET if c not in siennes]
     # L'INTRO DE TÊTE (Louis, 2026-09-30 : « quand il manque une section avant
@@ -1284,6 +1447,11 @@ def remplir_par_algo(chart: dict, occ: list[dict], audio_dir,
     for b in blocs:
         sien = par_jeton.get((b["j0"], b["j1"]))
         if sien is None and not a_deja_une_intro and bornes[b["j1"]] - 1 < tete:
+            if trace is not None:
+                trace["intro_avale"].append(
+                    {"m0": bornes[b["j0"]], "m1": bornes[b["j1"]] - 1,
+                     "label": b["label"] + ("′" if b.get("prime") else ""),
+                     "mot": b["type"], "queue": bool(b.get("queue"))})
             if out and out[-1]["label"] == "intro":
                 out[-1]["m1"] = bornes[b["j1"]] - 1
             else:
@@ -1307,17 +1475,27 @@ def remplir_par_algo(chart: dict, occ: list[dict], audio_dir,
     from harmonia.roles import parse_key_name
     from harmonia.soudure import accords_par_mesure
     bars = accords_par_mesure(chart)
+    if trace is not None:
+        trace.update(tete=tete, a_deja_une_intro=a_deja_une_intro,
+                     avant_queue=copy.deepcopy(out), queue_opt=[])
     # LA QUEUE OPTIONNELLE (Louis, 2026-10-09) : voir `queue_optionnelle`.
     # Les traits de Louis sont souverains ; le reste se découpe.
     out = queue_optionnelle(
         out, bars, {(o["m0"], o["m1"]) for o in occ if o.get("trace")},
-        propositions)
-    nommer_dernier_tour(out, bars, parse_key_name(chart.get("keyName")))
+        propositions, **_tr(trace["queue_opt"] if trace is not None else None))
+    if trace is not None:
+        trace["apres_queue"] = copy.deepcopy(out)
+        trace["dernier_tour"] = {}
+    nommer_dernier_tour(out, bars, parse_key_name(chart.get("keyName")),
+                        **_tr(trace["dernier_tour"] if trace is not None else None))
+    if trace is not None:
+        trace["final"] = copy.deepcopy(out)
     return out
 
 
 def nommer_dernier_tour(out: list[dict], bars: list,
-                        tonique: tuple[int, str] | None = None) -> None:
+                        tonique: tuple[int, str] | None = None,
+                        trace: dict | None = None) -> None:
     """La règle 2 de Louis du 2026-10-01, côté NOMMAGE (mute `out`) : la
     zone libre qui finit le morceau, si elle joue le début d'une lettre puis
     tient la tonique et s'éteint (`folding.dernier_tour_partiel`), prend la
@@ -1328,12 +1506,19 @@ def nommer_dernier_tour(out: list[dict], bars: list,
     section que Louis a posée lui-même (« outro » comprise) garde SON nom
     — ses étiquettes sont la vérité terrain. Les lettres candidates sont
     essayées de la plus jouée à la moins jouée, contre leurs passages les
-    plus longs (`folding.dernier_tour_des_passes` : la moitié au moins)."""
+    plus longs (`folding.dernier_tour_des_passes` : la moitié au moins).
+
+    `trace` (écran « Pourquoi ? ») : reçoit le dernier bloc, la raison d'un
+    arrêt précoce, et chaque lettre essayée. Sans effet sur le résultat."""
     from harmonia.folding import dernier_tour_des_passes
+    tr = trace if trace is not None else {}
     if len(out) < 2:
+        tr["raison"] = "moins de deux blocs"
         return
     dernier = max(out, key=lambda o: (o["m1"], o["m0"]))
+    tr.update(dernier=[dernier["m0"], dernier["m1"], dernier["label"]], essais=[])
     if dernier.get("source") != "algo" or dernier["label"] == "intro":
+        tr["raison"] = "le dernier bloc n'est pas un bloc de l'algo"
         return
     lettres: dict[str, list[dict]] = {}
     for o in out:
@@ -1342,16 +1527,21 @@ def nommer_dernier_tour(out: list[dict], bars: list,
             continue
         lettres.setdefault(o["label"], []).append(o)
     if dernier["label"] in lettres:
+        tr["raison"] = "sa lettre est déjà jouée ailleurs"
         return          # sa lettre est déjà jouée ailleurs : une reprise
     fin = bars[dernier["m0"]:dernier["m1"] + 1]
     for lab, occ in sorted(lettres.items(),
                            key=lambda kv: (-len(kv[1]), kv[1][0]["m0"])):
         lg = max(o["m1"] - o["m0"] for o in occ)
         refs = [bars[o["m0"]:o["m1"] + 1] for o in occ if o["m1"] - o["m0"] == lg]
-        if dernier_tour_des_passes(fin, refs, tonique) is not None:
+        ok = dernier_tour_des_passes(fin, refs, tonique) is not None
+        tr["essais"].append({"lettre": lab, "ok": ok})
+        if ok:
             dernier["label"] = lab
             dernier["regle"] = "dernier tour"
+            tr["raison"] = f"renommé {lab}"
             return
+    tr["raison"] = "aucune lettre ne colle"
 
 
 def remplir_par_songformer(chart: dict, occ: list[dict],

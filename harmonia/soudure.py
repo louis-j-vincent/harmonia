@@ -195,7 +195,8 @@ def _mot_basse(sig: list, bornes: list[int]) -> str:
     return "".join(lettres)
 
 
-def mot_sur_traits(chart: dict, traits, audio_dir=None) -> tuple | None:
+def mot_sur_traits(chart: dict, traits, audio_dir=None,
+                   trace: dict | None = None) -> tuple | None:
     """(bornes, mot, source) pour la grille calée sur les traits de Louis.
 
     Même paire de sources que `song_du_chart` — la ressemblance harmonique
@@ -204,6 +205,10 @@ def mot_sur_traits(chart: dict, traits, audio_dir=None) -> tuple | None:
     lieu de celle que la machine s'était choisie.
 
     Rend None si le chart est trop court pour une bande.
+
+    `trace` (2026-10-11, écran « Pourquoi ? ») : reçoit la matrice bi-mesure
+    × bi-mesure `B` et ce que `_mot_depuis` décide (seuil, germes). Sans
+    effet sur le résultat.
     """
     grid = chart.get("barGrid") or []
     n = len(grid) - 1
@@ -221,7 +226,11 @@ def mot_sur_traits(chart: dict, traits, audio_dir=None) -> tuple | None:
         if stem and audio.exists() and n >= 4:
             S, _V, _M, _mute, _ch = st.substrates(
                 grid, _musx.frame_posteriors(audio)[0])
-            return bornes, _mot_depuis(_matrice_bimesures(S, bornes)), "harmonie"
+            B = _matrice_bimesures(S, bornes)
+            if trace is not None:
+                trace["B"] = B
+            return bornes, (_mot_depuis(B) if trace is None
+                            else _mot_depuis(B, trace)), "harmonie"
     except Exception:                                    # noqa: BLE001
         # Jamais muet : le repli sur la basse sous-groupe (deux fois moins de
         # paires trouvées, mesuré dans `song_du_chart`), on veut le savoir.
@@ -479,11 +488,16 @@ def _jumelles(S, n: int):
     return idx[0][ok], idx[1][ok], D[idx][ok]
 
 
-def _mot_depuis(B) -> str:
-    """Les lettres, depuis la matrice de ressemblance entre bi-mesures."""
+def _mot_depuis(B, trace: dict | None = None) -> str:
+    """Les lettres, depuis la matrice de ressemblance entre bi-mesures.
+
+    `trace` (écran « Pourquoi ? ») : reçoit le seuil d'Otsu et les germes,
+    dans l'ordre où ils ont recruté leur groupe. Sans effet sur le résultat."""
     import numpy as np
     J = B.shape[0]
     thr = _otsu(B[~np.eye(J, dtype=bool)])
+    if trace is not None:
+        trace["seuil"], trace["germes"] = float(thr), []
     used, lab, k = set(), [-1] * J, 0
     for j in sorted(range(J), key=lambda j: -(B[j] >= thr).sum()):
         if j in used:
@@ -496,6 +510,8 @@ def _mot_depuis(B) -> str:
                 mem.append(q)
         for q in mem:
             lab[q] = k
+        if trace is not None:
+            trace["germes"].append({"germe": j, "membres": list(mem)})
         used.update(mem)
         k += 1
     ren, k = {}, 0
