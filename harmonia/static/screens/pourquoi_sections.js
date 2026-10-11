@@ -482,18 +482,6 @@ function ch4() {
   return c;
 }
 
-function motDepuis(B, thr) {        // copie de soudure._mot_depuis (lettres à un seuil donné)
-  const J = B.length, used = new Set(), lab = new Array(J).fill(-1); let k = 0;
-  const ordre = [...Array(J).keys()].sort((a, b) => B[b].filter(x => x >= thr).length - B[a].filter(x => x >= thr).length);
-  ordre.forEach(j => {
-    if (used.has(j)) return;
-    const mem = [j];
-    for (let q = 0; q < J; q++) { if (used.has(q) || q === j) continue; if (mem.reduce((s, x) => s + B[q][x], 0) / mem.length >= thr) mem.push(q); }
-    mem.forEach(q => { lab[q] = k; used.add(q); }); k++;
-  });
-  const ren = {}; let r = 0; lab.forEach(l => { if (!(l in ren)) ren[l] = r++; });
-  return lab.map(l => String.fromCharCode(97 + (ren[l] % 26))).join("");
-}
 function bandeJetons(bornes, lettres, opts) {
   return bande(lettres.split("").map((L, j) => ({ m0: bornes[j], m1: bornes[j + 1] - 1, label: L, color: lettreCouleur(L) })), opts);
 }
@@ -502,7 +490,7 @@ function ch5() {
   const M = D.mot;
   if (!M.bornes || !M.lettres) { c.appendChild(texte("Pas de mot pour ce morceau.")); return c; }
   const J = M.lettres.length;
-  c.appendChild(texte(`Le morceau est découpé en ${J} « jetons » de 2 mesures, calés sur les bords de tes briques (et de leurs reprises). Deux jetons qui se ressemblent assez reçoivent la même lettre.`));
+  c.appendChild(texte(`Le morceau est découpé en ${J} « jetons » de 2 mesures, calés sur les bords de tes briques (et de leurs reprises). Deux jetons aux accords identiques ont toujours la même lettre ; deux jetons différents ne la partagent que s'ils sont presque identiques — aussi ressemblants que deux jetons identiques de ce morceau.`));
   c.appendChild(titreDessin("les jetons et leurs lettres"));
   c.appendChild(bandeJetons(M.bornes, M.lettres, { ticks: true }));
   // les lettres en clair (la bande est trop étroite pour les écrire) : un
@@ -528,37 +516,35 @@ function ch5() {
     c.appendChild(titreDessin(`ressemblance jeton × jeton (${J} × ${J})`));
     const info = petit("touche une case : les deux jetons, leur score, et on les écoute");
     c.appendChild(matrice(M.B, { onTap: (i, j) => {
-      info.textContent = `jeton ${i + 1} « ${M.lettres[i]} » (mes. ${plage(M.bornes[i], M.bornes[i + 1] - 1)}) × jeton ${j + 1} « ${M.lettres[j]} » (mes. ${plage(M.bornes[j], M.bornes[j + 1] - 1)}) : ${fr(M.B[i][j])}${M.B[i][j] >= M.seuil ? " ≥ seuil" : " < seuil"}`;
+      info.textContent = `jeton ${i + 1} « ${M.lettres[i]} » (mes. ${plage(M.bornes[i], M.bornes[i + 1] - 1)}) × jeton ${j + 1} « ${M.lettres[j]} » (mes. ${plage(M.bornes[j], M.bornes[j + 1] - 1)}) : ${fr(M.B[i][j])}${M.seuil != null ? (M.B[i][j] >= M.seuil ? " ≥ seuil" : " < seuil") : ""}`;
       jouerSuite([[M.bornes[i], M.bornes[i + 1] - 1], [M.bornes[j], M.bornes[j + 1] - 1]]);
     } }));
     c.appendChild(info);
   }
   if (M.histogramme) {
-    c.appendChild(titreDessin("toutes les ressemblances entre jetons, et la coupe d'Otsu"));
+    c.appendChild(titreDessin("toutes les ressemblances entre jetons, et le seuil mesuré sur les jetons identiques"));
     const h = M.histogramme, hh = 90, s = svg("svg", { width: W, height: hh, viewBox: `0 0 ${W} ${hh}` });
     s.style.cssText = `display:block;background:${T.paper};border:1px solid ${T.line};border-radius:6px;`;
     const lo = h.bords[0], hi = h.bords[h.bords.length - 1], X = v => (v - lo) / (hi - lo) * W, mx = Math.max(...h.comptes);
-    h.comptes.forEach((k, i) => { const hv = k / mx * (hh - 16); s.appendChild(svg("rect", { x: X(h.bords[i]) + 0.5, y: hh - 12 - hv, width: Math.max(1, X(h.bords[i + 1]) - X(h.bords[i]) - 1), height: hv, fill: h.bords[i] >= M.seuil ? T.green : T.rule })); });
-    const ln = svg("line", { x1: X(M.seuil), x2: X(M.seuil), y1: 0, y2: hh - 12, stroke: T.accent, "stroke-width": 2 }); s.appendChild(ln);
-    const curs = svg("line", { x1: X(M.seuil), x2: X(M.seuil), y1: 0, y2: hh - 12, stroke: T.blue, "stroke-width": 2, "stroke-dasharray": "3 2" }); s.appendChild(curs);
+    const sl = M.seuil == null ? 2 : M.seuil;
+    h.comptes.forEach((k, i) => { const hv = k / mx * (hh - 16); s.appendChild(svg("rect", { x: X(h.bords[i]) + 0.5, y: hh - 12 - hv, width: Math.max(1, X(h.bords[i + 1]) - X(h.bords[i]) - 1), height: hv, fill: h.bords[i] >= sl ? T.green : T.rule })); });
+    if (M.seuil != null) s.appendChild(svg("line", { x1: X(M.seuil), x2: X(M.seuil), y1: 0, y2: hh - 12, stroke: T.accent, "stroke-width": 2 }));
     [lo, (lo + hi) / 2, hi].forEach(v => { const t = svg("text", { x: Math.min(W - 14, Math.max(2, X(v))), y: hh - 2, "font-size": 9, fill: T.faint, "font-family": UI }); t.textContent = fr(v, 1); s.appendChild(t); });
     c.appendChild(s);
-    c.appendChild(petit(`Otsu choisit le seuil qui coupe le mieux cette distribution en deux paquets : ${fr(M.seuil, 3)} (trait rouge). Au-dessus (vert), deux jetons sont « la même chose ».`));
-    c.appendChild(titreDessin("et si le seuil était ailleurs ? (bouge le curseur)"));
-    const lab = el("div", `font:600 12.5px ${UI};color:${T.blue};`);
-    const zone = el("div", "");
-    const rg = el("input", `width:100%;accent-color:${T.blue};min-height:${SZ.control}px;`);
-    rg.type = "range"; rg.min = "0.3"; rg.max = "0.99"; rg.step = "0.005"; rg.value = String(M.seuil);
-    const maj = () => {
-      const t = parseFloat(rg.value), mot = motDepuis(M.B, t);
-      curs.setAttribute("x1", X(t)); curs.setAttribute("x2", X(t));
-      lab.textContent = `seuil ${fr(t, 3)} → ${new Set(mot).size} lettres` + (Math.abs(t - M.seuil) < 0.003 ? " (le vrai)" : "");
-      zone.innerHTML = ""; zone.appendChild(bandeJetons(M.bornes, mot));
-    };
-    rg.oninput = maj; maj();
-    c.appendChild(rg); c.appendChild(lab); c.appendChild(zone);
+    c.appendChild(petit(M.seuil != null
+      ? `Le trait rouge : ${fr(M.seuil, 3)}, la ressemblance la plus BASSE entre deux jetons aux accords identiques de ce morceau (${M.n_identiques} paires). C'est ce que « pareil » veut dire ici ; seules les paires au-dessus (vert) peuvent rapprocher deux jetons différents.`
+      : "Aucun jeton n'a d'accords identiques à un autre dans ce morceau : rien n'est rapproché, chaque jeton différent garde sa lettre."));
   }
-  c.appendChild(decision(2, `Le seuil d'Otsu (${fr(M.seuil, 3)}) décide quelles paires de mesures portent la même lettre : trop bas, une lettre fourre-tout (ici « ${lmax} » = ${nmax}/${J}). Et les jetons sont calés sur le début des trous${impairs.length ? ", pas sur la phrase : " + impairs.map(x => plage(x[0], x[1])).join(", ") + " font " + impairs.map(x => x[2]).join("/") + " mesures" : ""}.`));
+  const fus = M.fusions || [];
+  if (fus.length) {
+    c.appendChild(titreDessin("jetons différents rapprochés (presque identiques)"));
+    c.appendChild(tableau(fus.map(f => {
+      const a = f.a[0], b = f.b[0];
+      return [`${plage(M.bornes[a], M.bornes[a + 1] - 1)} ≈ ${plage(M.bornes[b], M.bornes[b + 1] - 1)}`, fr(f.lien, 3),
+        lien("écouter", () => jouerSuite([[M.bornes[a], M.bornes[a + 1] - 1], [M.bornes[b], M.bornes[b + 1] - 1]]))];
+    }), ["jetons", "ressemblance", ""]));
+  }
+  c.appendChild(decision(2, `Les lettres décident ce que l'algo considère comme « la même musique ». Accords identiques = même lettre ; sinon il faut être aussi ressemblant que deux passages identiques du morceau (${M.seuil != null ? fr(M.seuil, 3) : "aucun repère ici"}). Un passage que le décodeur entend un peu autrement reçoit donc une autre lettre. Et les jetons sont calés sur le début des trous${impairs.length ? ", pas sur la phrase : " + impairs.map(x => plage(x[0], x[1])).join(", ") + " font " + impairs.map(x => x[2]).join("/") + " mesures" : ""}.`));
   return c;
 }
 
@@ -700,26 +686,18 @@ const RAISON_PALE = { parite: "à une distance IMPAIRE de ta brique : la recherc
   chevauche_la_brique: "chevauche ta brique", deborde_la_fin: "déborde la fin du morceau", deja_pris: "mesures déjà à toi",
   voisin_plus_fort: "un départ plus fort juste à côté l'a pris" };
 function chBonus() {
-  const c = carte("p", "+", "À part : les suggestions pâles", "Avant Valider, l'outil propose en pâle — avec un AUTRE calcul.");
+  // Depuis le 2026-10-11 (Evening Star) les pâles passent par le MÊME calcul que
+  // Valider (`simulation.propositions_pales` → `cherche_brique`) : ce chapitre
+  // ne montre plus deux moteurs qui divergent, il montre que les deux listes
+  // sont la même — et dit ce qui peut encore les séparer (l'arbitrage).
+  const c = carte("p", "+", "À part : les suggestions pâles", "Ce que l'outil propose en pâle dès que tu traces une brique.");
   choixBrique(c, () => remplacer("p", chBonus));
   const b = brique(), p = (D.pales || []).find(x => x.m0 === b.m0 && x.m1 === b.m1);
   if (!p || p.erreur) { c.appendChild(texte("Pas de suggestions pâles pour cette brique" + (p && p.erreur ? " : " + p.erreur : "."))); return c; }
-  const vVal = (b.pics || []).filter(x => x.pris).map(x => x.p);
-  const reps = (b.reprises || []).filter(o => o[1] < b.m0 || o[0] > b.m1).map(o => o[0]);
-  const val = vVal.length ? vVal : reps;
-  c.appendChild(texte(`Valider trouve ${val.length} reprise(s) (départs ${val.map(x => x + 1).join(", ") || "—"}) ; les suggestions pâles en proposent ${p.proposees.length} (${p.proposees.map(x => x.b0 + 1).join(", ") || "—"}).`, "font-weight:600;"));
-  // même nombre de départs que la courbe de Valider (au-delà, la fenêtre
-  // déborde la fin du morceau et la recherche pâle y écrit 0)
-  const cl = (p.courbe || []).slice(0, (b.courbe || []).length || undefined).map(v => Math.min(1.3, v));
-  c.appendChild(courbe([{ vals: b.courbe || [], color: T.ink }, { vals: cl, color: T.blue, width: 1.2 }], {
-    ymin: 0, lignes: [{ v: p.seuil, label: "seuil pâle " + fr(p.seuil), color: T.blue }],
-    points: [...val.map(q => ({ p: q, v: (b.courbe || [])[q] || 1, color: T.green, r: 8, onTap: () => jouer(q, Math.min(D.n - 1, q + (b.m1 - b.m0))) })),
-      ...p.pics.filter(x => x.raison !== "chevauche_la_brique").map(x => ({ p: x.p, v: Math.min(1.3, x.score), r: 4, color: x.raison ? T.accent : T.blue, onTap: () => jouer(x.p, Math.min(D.n - 1, x.p + p.cell_bars - 1)) }))],
-    onTapX: q => jouer(q, Math.min(D.n - 1, q + (b.m1 - b.m0)))
-  }));
-  c.appendChild(legende([["Valider (ch. 3)", T.ink], ["suggestions pâles", T.blue], ["point rouge : pâle refusé", T.accent], ["anneau vert : gardé par Valider", T.green]]));
-  c.appendChild(tableau(p.pics.filter(x => x.raison !== "chevauche_la_brique").map(x => [String(x.p + 1), fr(x.score, 3), x.raison ? "✗ " + RAISON_PALE[x.raison] : "✓ proposé"]), ["départ", "score pâle", "verdict"]));
-  c.appendChild(petit(`Le calcul pâle ${p.cell_bars < b.m1 - b.m0 + 1 ? `découpe ta brique en cellules de ${p.cell_bars} mesures` : `garde ta brique entière (${p.cell_bars} mesures)`}, normalise son score par celui de ta brique (d'où des valeurs au-dessus de 1), exige un seuil de ${fr(p.seuil)} et une distance paire. Valider, lui, compare chaque départ à son fond local (chapitre 3). D'où des listes différentes.${p.inondation ? " ⚠ Repli anti-inondation : la petite cellule trouvait trop de reprises." : ""}`));
+  const prop = p.proposees || [];
+  c.appendChild(texte(`Les pâles font maintenant exactement le calcul de Valider (chapitre 3) pour ta brique seule : ${prop.length} proposition(s)${prop.length ? " — " + prop.map(x => `mesures ${x.b0 + 1}–${x.b1 + 1}`).join(", ") : ""}.`, "font-weight:600;"));
+  if (prop.length) c.appendChild(tableau(prop.map(x => [`${x.b0 + 1}–${x.b1 + 1}`, fr(x.score, 3), lien("écouter", () => jouer(x.b0, x.b1))]), ["mesures", "ressemblance", ""]));
+  c.appendChild(petit("Ce qui peut encore les séparer de la décision finale : Valider arbitre ensuite entre TOUTES tes briques (chapitre 4) — une pâle peut céder sa place à la reprise d'une autre brique. Avant le 2026-10-11 les pâles cherchaient la plus petite « cellule » cohérente de ta brique (2 mesures sur Evening Star) : d'où des bouts de 2 mesures."));
   return c;
 }
 

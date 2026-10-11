@@ -229,8 +229,8 @@ def mot_sur_traits(chart: dict, traits, audio_dir=None,
             B = _matrice_bimesures(S, bornes)
             if trace is not None:
                 trace["B"] = B
-            return bornes, (_mot_depuis(B) if trace is None
-                            else _mot_depuis(B, trace)), "harmonie"
+            return bornes, _mot_lettres(B, accords_par_mesure(chart), bornes,
+                                        trace), "harmonie"
     except Exception:                                    # noqa: BLE001
         # Jamais muet : le repli sur la basse sous-groupe (deux fois moins de
         # paires trouvées, mesuré dans `song_du_chart`), on veut le savoir.
@@ -488,6 +488,90 @@ def _jumelles(S, n: int):
     return idx[0][ok], idx[1][ok], D[idx][ok]
 
 
+def _meme_jeton(bars, a0: int, a1: int, b0: int, b1: int) -> bool:
+    """Deux jetons [a0,a1) et [b0,b1) jouent-ils les MÊMES accords, mesure par
+    mesure (même nombre d'accords, même fondamentale et même qualité : grain
+    « exact » de `roles.meme_lecture`) ?
+
+    Le grain « exact » et pas « famille » : « famille » est une RESSEMBLANCE
+    (C ≡ C^7 et C^7 ≡ C9 sans C ≡ C9), pas une égalité ; il faisait recevoir
+    deux lettres à deux jetons identiques (constaté sur La Jupe, jetons 10 et
+    30). L'égalité doit être transitive — la ressemblance, c'est l'étape ②."""
+    from harmonia import roles
+    if a1 - a0 != b1 - b0:
+        return False
+    for i in range(a1 - a0):
+        x, y = bars[a0 + i], bars[b0 + i]
+        if len(x) != len(y) or not all(roles.meme_lecture(p, q, grain="exact")
+                                       for p, q in zip(x, y)):
+            return False
+    return True
+
+
+def _mot_lettres(B, bars, bornes, trace: dict | None = None) -> str:
+    """Les lettres des jetons (Louis, 2026-10-11, Evening Star : « les petites
+    lettres ne sont pas bonnes »). Remplace `_mot_depuis` partout où les
+    accords sont connus.
+
+    ① Deux jetons aux accords IDENTIQUES (`_meme_jeton`) ont la même lettre —
+       toujours, quel que soit l'ordre.
+    ② Deux groupes différents ne se rejoignent que s'ils sont « presque
+       identiques », et le « presque » est mesuré DANS LE MORCEAU : TOUTES
+       leurs paires de jetons doivent se ressembler (`B`) au moins autant que
+       la moins ressemblante des paires aux accords identiques de ce morceau.
+       Le plus ressemblant d'abord. Pas de seuil fixé à la main, pas de
+       moyenne qui change en cours de route.
+    ③ Lettres dans l'ordre de première apparition.
+
+    Pourquoi plus `_mot_depuis` : seuil d'Otsu 0,608 SOUS la médiane (0,649)
+    sur Evening Star — dans un morceau en Fa tout ressemble à tout — et
+    appartenance par MOYENNE au groupe en cours, donc dépendante de l'ordre :
+    F | Gm recevait « b » en 15–16 et « a » en 23–24.
+
+    CE QUE ÇA NE RÉSOUT PAS : deux passages que le décodeur entend un peu
+    différemment (D♭ contre B♭m/D♭ sur La Jupe) restent deux lettres — on
+    sous-groupe plutôt que de sur-grouper. Sans aucune paire identique dans le
+    morceau, rien n'est rapproché.
+    """
+    J = len(bornes) - 1
+    unites: list[list[int]] = []
+    for j in range(J):
+        for u in unites:
+            if all(_meme_jeton(bars, bornes[j], bornes[j + 1], bornes[k], bornes[k + 1])
+                   for k in u):
+                u.append(j)
+                break
+        else:
+            unites.append([j])
+    ident = [float(B[x, y]) for u in unites for x in u for y in u if x < y]
+    seuil = min(ident) if ident else None
+    if trace is not None:
+        trace.update(regle="accords", seuil=seuil, n_identiques=len(ident),
+                     unites=[list(u) for u in unites], fusions=[])
+    while seuil is not None:
+        best = None
+        for i in range(len(unites)):
+            for k in range(i + 1, len(unites)):
+                v = min(float(B[x, y]) for x in unites[i] for y in unites[k])
+                if v >= seuil and (best is None or v > best[0]):
+                    best = (v, i, k)
+        if best is None:
+            break
+        v, i, k = best
+        if trace is not None:
+            trace["fusions"].append({"a": list(unites[i]), "b": list(unites[k]), "lien": v})
+        unites[i] += unites[k]
+        del unites[k]
+    lab = [0] * J
+    for g, u in enumerate(unites):
+        for j in u:
+            lab[j] = g
+    ren: dict[int, int] = {}
+    for j in range(J):
+        ren.setdefault(lab[j], len(ren))
+    return "".join(LETTRES[ren[lab[j]] % len(LETTRES)] for j in range(J))
+
+
 def _mot_depuis(B, trace: dict | None = None) -> str:
     """Les lettres, depuis la matrice de ressemblance entre bi-mesures.
 
@@ -674,7 +758,7 @@ def _meilleure_grille(S, n: int) -> tuple[list[int], dict]:
     return _grille(n, coutures), info
 
 
-def grille_et_mot(grid, triad, depart: int = 0):
+def grille_et_mot(grid, triad, depart: int = 0, bars=None):
     """(bornes, mot, info) — la grille de jetons ET les lettres qui vont avec.
 
     Toujours pas de second détecteur : la matrice est celle de
@@ -715,7 +799,9 @@ def grille_et_mot(grid, triad, depart: int = 0):
                                      for c, w in info.get("coutures", [])]}
     if len(bornes) < 3:
         return None, None, info
-    return bornes, _mot_depuis(_matrice_bimesures(S, bornes)), info
+    B = _matrice_bimesures(S, bornes)
+    return bornes, (_mot_lettres(B, bars, bornes) if bars is not None
+                    else _mot_depuis(B)), info
 
 
 #: sous ce quotient de la mesure, un accord qui déborde n'est qu'un éclat de
@@ -1146,7 +1232,8 @@ def song_du_chart(chart: dict, audio_dir=None) -> dict | None:
         if stem and audio.exists():
             bornes, m, info = grille_et_mot(chart["barGrid"],
                                             _musx.frame_posteriors(audio)[0],
-                                            depart=_mesure1(chart))
+                                            depart=_mesure1(chart),
+                                            bars=accords_par_mesure(chart))
             if m:
                 base["mot"] = m
                 base["jetons"] = bornes

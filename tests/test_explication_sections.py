@@ -93,13 +93,26 @@ def test_la_jupe_les_chiffres_de_la_carte():
     assert [(x["l"], x["r"]) for x in b["periode"]] == [(4, 2)]
     pris = sorted(p["p"] + 1 for p in b["pics"] if p["pris"])
     assert pris == [35, 43, 60, 68, 76]
-    assert abs(d["mot"]["seuil"] - 0.568) < 0.002
-    assert d["soudures"]["couts"] == {"4": 19, "6": 34}
+    # les lettres (2026-10-11) : accords identiques ⇒ même lettre, toujours ;
+    # le seuil est la ressemblance la plus basse entre jetons identiques
+    import json as _json
+    from harmonia import soudure
+    from harmonia.settings import SETTINGS
+    chart = _json.loads((SETTINGS.charts_dir / f"{fichier}.json").read_text())
+    M, bars = d["mot"], soudure.accords_par_mesure(chart)
+    bo, le = M["bornes"], M["lettres"]
+    for i in range(len(le)):
+        for k in range(i + 1, len(le)):
+            if soudure._meme_jeton(bars, bo[i], bo[i + 1], bo[k], bo[k + 1]):
+                assert le[i] == le[k], (i, k, le)
+    assert M["regle"] == "accords" and M["n_identiques"] > 0
+    assert d["soudures"]["couts"] == {"4": 27, "6": 38}       # lettres du 2026-10-11 (avant : 19 / 34)
     assert [x["m0"] for x in d["nommage"]["intro_avale"]] == [0, 8]
     # suggestions pâles : 3 B sur 5, 35 et 43 écartées par la parité
     pales = d["pales"][0]
-    assert [it["b0"] + 1 for it in pales["proposees"]] == [60, 68, 76]
-    assert {x["p"] + 1 for x in pales["pics"] if x["raison"] == "parite"} == {35, 43}
+    # depuis le 2026-10-11 les pâles = le calcul de Valider : les 5 reprises
+    # (avant : 60, 68, 76 seulement, 35 et 43 écartées par la parité)
+    assert [it["b0"] + 1 for it in pales["proposees"]] == [35, 43, 60, 68, 76]
 
 
 def test_trace_ne_change_rien_au_calcul():

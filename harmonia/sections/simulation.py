@@ -913,6 +913,29 @@ def cherche_brique(chart: dict, b0: int, b1: int, audio_dir,
     return out, info
 
 
+def propositions_pales(chart: dict, b0: int, b1: int, audio_dir,
+                       claimed=()) -> tuple[list[dict], dict]:
+    """Les suggestions pâles d'une brique : EXACTEMENT ce que `cherche_brique`
+    trouve pour elle seule (le calcul de Valider), sans la brique elle-même ni
+    une mesure déjà prise. `/api/section-repeats` et l'écran « Pourquoi ? »
+    passent tous les deux par ici (Louis, 2026-10-11, Evening Star).
+
+    CE QUE ÇA NE RÉSOUT PAS : Valider arbitre ensuite entre toutes les briques
+    (`occurrences_de_tous`) ; une pâle peut encore céder sa place à une autre
+    brique. Les transposées sont rendues (`rot`), le client les écarte."""
+    reprises, info = cherche_brique(chart, b0, b1, audio_dir)
+    pris = set(int(x) for x in claimed)
+    occ = []
+    for m0, m1, sc, rot in reprises:
+        if m0 <= b1 and m1 >= b0:
+            continue
+        if any(b in pris for b in range(m0, m1 + 1)):
+            continue
+        occ.append({"b0": int(m0), "b1": int(m1), "score": round(float(sc), 3),
+                    "rot": int(rot), "source": "found" if not rot else "found-transposed"})
+    return occ, info
+
+
 def occurrences_de_tous(chart: dict, traits: list[dict], audio_dir,
                         trace: dict | None = None) -> tuple[list[dict], list[dict], list[dict]]:
     """(occurrences, traits écartés, diagnostics) — chaque trait de Louis, plus

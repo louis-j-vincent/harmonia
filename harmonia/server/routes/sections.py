@@ -583,15 +583,22 @@ def api_section_repeats(file):
     stem = Path(model.get("audio_url") or "").stem or \
         Path(file).stem.removeprefix("min_")
     audio = AUDIO_DIR / f"{stem}.m4a"
+    # LE MÊME CALCUL QUE VALIDER (Louis, 2026-10-11, Evening Star : « les
+    # sections proposées en pâle c'était du n'importe quoi »). Les pâles
+    # passaient par `section_tool.find_repeats`, qui cherche la plus petite
+    # CELLULE cohérente de la brique (2 mesures sur Evening Star) et proposait
+    # donc des bouts de 2 mesures, quand Valider cherche la brique entière
+    # (`simulation.cherche_brique`) et trouvait le vrai 2ᵉ A. Désormais les deux
+    # ne font qu'un : ce qui s'affiche en pâle est ce que Valider trouvera pour
+    # cette brique seule. `thr` et `melody` sont acceptés mais sans effet.
+    # CE QUE ÇA NE RÉSOUT PAS : Valider arbitre ensuite entre TOUTES les briques
+    # (`occurrences_de_tous`) ; une pâle peut donc encore céder sa place à la
+    # reprise d'une autre brique.
     try:
-        from harmonia import musx as _musx
-        from harmonia import section_tool as st
-        triad = _musx.frame_posteriors(audio)[0]
-        out = st.find_repeats(
-            model["barGrid"], triad, b0, b1,
-            audio=audio if body.get("melody") else None,
-            melody=bool(body.get("melody")),
-            thr=thr, claimed_bars=claimed)
+        from harmonia.sections import simulation as _sim
+        occ, info = _sim.propositions_pales(model, b0, b1, AUDIO_DIR, claimed)
+        out = {"cell_bars": b1 - b0 + 1, "occurrences": occ, "moteur": "cherche_brique",
+               "raison": info.get("raison"), "boucle": info.get("boucle")}
     except Exception as exc:  # noqa: BLE001 — l'UI affiche l'erreur
         log.exception("section-repeats failed for %s", file)
         return jsonify({"error": f"repeat search failed: {exc}"}), 500

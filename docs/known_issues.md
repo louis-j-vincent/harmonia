@@ -114,7 +114,19 @@ le 2e A (21–28, 0,93) et le B. Mais :
   le seuil — le groupe change en grandissant, donc **F | Gm reçoit « b » en 15–16 et
   « a » en 23–24 et 39–40**. Figure : scratchpad `evening_star_explication.png`.
 
-Pistes, non implémentées : pâles = même calcul que Valider (`cherche_brique` sur
+**CORRIGÉ le 2026-10-11** (même jour, « Go et montre-moi ») :
+- pâles = `simulation.propositions_pales` = `cherche_brique` sur la brique seule
+  (même calcul que Valider ; Evening Star : 21–28 au lieu de quatre bouts de 2) ;
+- lettres = `soudure._mot_lettres` : accords identiques (grain « exact ») ⇒ même
+  lettre ; deux jetons différents ne se rejoignent que si toutes leurs paires se
+  ressemblent autant que la moins ressemblante des paires identiques du morceau
+  (Evening Star : seuil 0,993 ; « abcdefghijghiklmnoghi », les deux A = « ghij » /
+  « ghik »). Effet sur Valider, 25 morceaux annotés : 4 changent — deux queues
+  finales renommées, Goodbye Yellow Brick Road D 42–59 → D 42–49 · D 50–57 · E 58–59,
+  et La Jupe quand seul le A est tracé : les B se partagent en B / C (le décodeur
+  entend D♭ ou B♭m/D♭) — à arbitrer.
+
+Pistes d'origine : pâles = même calcul que Valider (`cherche_brique` sur
 la brique seule) ; lettres = classes d'égalité des accords décodés par jeton (deux
 paires identiques ont toujours la même lettre), la ressemblance chord-tone ne
 servant plus qu'à rapprocher des paires presque identiques.

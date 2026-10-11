@@ -159,74 +159,21 @@ def _j(x, nd: int = 4):
 
 
 def _pales(chart, audio, gardes, claimed) -> list[dict]:
-    """Ce que les suggestions pâles (`/api/section-repeats` → `find_repeats`)
-    proposent pour chaque brique, avec ce que le client en garde
-    (`proposerReprises` : même tonalité seulement, cellules recollées à la
-    longueur tracée, rien sur une mesure déjà à lui) et pourquoi chaque pic de
-    sa courbe a été écarté."""
-    from scipy.signal import find_peaks
-
-    from harmonia import musx as _musx
-    from harmonia import section_tool as st
-    from harmonia.sections import similarity as VS
-    grid = chart.get("barGrid") or []
-    n = len(grid) - 1
-    triad = _musx.frame_posteriors(audio)[0]
+    """Ce que les suggestions pâles proposent pour chaque brique — depuis le
+    2026-10-11, le MÊME calcul que Valider (`simulation.propositions_pales`),
+    avec ce que le client en garde (même tonalité seulement)."""
+    from harmonia.sections import simulation as sim
     out = []
     for b0, b1, label in gardes:
         try:
-            r = st.find_repeats(grid, triad, b0, b1, claimed_bars=sorted(claimed))
+            occ, _info = sim.propositions_pales(chart, b0, b1, audio.parent, claimed)
         except Exception as exc:                             # noqa: BLE001
             out.append({"label": label, "m0": b0, "m1": b1, "erreur": str(exc)})
             continue
-        L, cell = b1 - b0 + 1, max(1, int(r.get("cell_bars") or (b1 - b0 + 1)))
-        trouvees = sorted((o for o in r["occurrences"]
-                           if str(o["source"]).startswith("found") and not o["rot"]),
-                          key=lambda o: o["b0"])
-        items = []
-        if cell < L:
-            need = round(L / cell)
-            i = 0
-            while i < len(trouvees):
-                k = 1
-                while (k < need and i + k < len(trouvees)
-                       and trouvees[i + k]["b0"] == trouvees[i]["b0"] + k * cell):
-                    k += 1
-                items.append({"b0": trouvees[i]["b0"], "b1": trouvees[i + k - 1]["b1"]})
-                i += k
-        else:
-            items = [{"b0": o["b0"], "b1": o["b1"]} for o in trouvees]
-        items = [it for it in items
-                 if not any(b in claimed for b in range(it["b0"], it["b1"] + 1))]
-        # pourquoi chaque pic de la courbe est (ou n'est pas) gardé
-        sc = np.asarray(r["curve"], float)
-        par = 0 if r.get("parity") == "paire" else 1
-        thr = float(r["thr"]) + (VS.ODD_BONUS if par else 0.0)
-        idx, _ = find_peaks(sc, height=thr, distance=VS.UNIT)
-        gardes_starts = {o["b0"] for o in r["occurrences"]
-                         if str(o["source"]).startswith("found") and not o["rot"]}
-        pics = []
-        for p in (int(x) for x in idx):
-            if (p - b0) % VS.UNIT != par:
-                raison = "parite"
-            elif abs(p - b0) < cell:
-                raison = "chevauche_la_brique"
-            elif p + cell > n:
-                raison = "deborde_la_fin"
-            elif any(b in claimed for b in range(p, min(n, p + cell))) or b0 <= p <= b1:
-                raison = "deja_pris"
-            elif p in gardes_starts:
-                raison = None
-            else:
-                raison = "voisin_plus_fort"
-            pics.append({"p": p, "score": round(float(sc[p]), 3), "raison": raison})
-        out.append({"label": label, "m0": b0, "m1": b1, "cell_bars": cell,
-                    "seuil": thr, "parite": r.get("parity"),
-                    "inondation": r.get("flood_fallback"),
-                    "courbe": r["curve"], "pics": pics,
-                    "occurrences": r["occurrences"], "proposees": items})
+        out.append({"label": label, "m0": b0, "m1": b1, "moteur": "cherche_brique",
+                    "proposees": [{"b0": o["b0"], "b1": o["b1"], "score": o["score"]}
+                                  for o in occ if not o["rot"]]})
     return out
-
 
 def expliquer(chart: dict, humain: list[dict], audio_dir) -> dict:
     """Tout ce que l'écran « Pourquoi ? » dessine, pour CE morceau et CES
@@ -324,7 +271,9 @@ def expliquer(chart: dict, humain: list[dict], audio_dir) -> dict:
                       "occurrences": occ},
         "mot": {"bornes": tr_algo.get("bornes"), "lettres": tr_algo.get("mot_lettres"),
                 "source": tr_algo.get("source"), "B": None if B is None else np.round(B, 3),
-                "seuil": mot.get("seuil"), "germes": mot.get("germes", []),
+                "seuil": mot.get("seuil"), "regle": mot.get("regle"),
+                "n_identiques": mot.get("n_identiques"), "unites": mot.get("unites", []),
+                "fusions": mot.get("fusions", []),
                 "histogramme": hist},
         "soudures": {"depart": tr_algo.get("depart"), "geles": tr_algo.get("geles"),
                      "par_jeton": tr_algo.get("par_jeton"),
