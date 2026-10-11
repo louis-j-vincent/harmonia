@@ -95,6 +95,30 @@ montrés. Défauts vus en le construisant, NON corrigés (montrés tels quels) :
   sous-période de 2 (« C-7 B♭7 » alterne) — la phase est choisie par la
   couverture, l'écran le dit.
 
+## Evening Star : les pâles proposent des bouts de 2 mesures, les petites lettres sont fausses (2026-10-11)
+
+Louis a tracé A 13–20 sur Evening Star (`min_CHVWPIFAT5A`). Valider a bien trouvé
+le 2e A (21–28, 0,93) et le B. Mais :
+
+- **Les pâles (`section_tool.find_repeats`) cherchent une CELLULE, pas la brique.**
+  Elles découpent la brique et gardent la PLUS PETITE taille dont les copies
+  internes se ressemblent ≥ 0,88 : 8 mes. 1,00 · 4 mes. 0,91 · **2 mes. 0,889** →
+  cellule de 2 mesures, proposée en 21–22, 25–26, 37–38, 41–42 (scores jusqu'à
+  1,19 > 1). Acceptées, elles partent comme briques « A » de 2 mesures au Valider
+  suivant (journal serveur 18:59:54). Valider, lui, cherche la brique entière avec
+  proéminence sur son fond. Les deux moteurs ne peuvent donc pas s'accorder.
+- **Les lettres (`soudure._mot_depuis`) dépendent de l'ordre.** Seuil d'Otsu 0,608,
+  SOUS la médiane des ressemblances (0,649) : dans un morceau en Fa tout ressemble
+  à tout ; le 1er germe (mes. 1–2, 18 voisins) avale 14 jetons sur 21 ; et un jeton
+  entre dans un groupe si sa ressemblance MOYENNE aux membres déjà présents passe
+  le seuil — le groupe change en grandissant, donc **F | Gm reçoit « b » en 15–16 et
+  « a » en 23–24 et 39–40**. Figure : scratchpad `evening_star_explication.png`.
+
+Pistes, non implémentées : pâles = même calcul que Valider (`cherche_brique` sur
+la brique seule) ; lettres = classes d'égalité des accords décodés par jeton (deux
+paires identiques ont toujours la même lettre), la ressemblance chord-tone ne
+servant plus qu'à rapprocher des paires presque identiques.
+
 ## Détection des autres sections : ce que la cartographie du 2026-10-11 a trouvé
 
 Cartographie complète du chemin « Valider les sections » (23 étapes, exécutées
