@@ -1,0 +1,113 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Plan : expliquer la détection des sections</title>
+<style>
+:root{--ink:#1c1c1c;--faint:#8a8371;--acc:#8a2b2b;--paper:#f6f2e7;--card:#fffdf7;--line:#ddd3b8}
+body{margin:0 auto;max-width:760px;padding:16px 16px 60px;background:var(--paper);color:var(--ink);font:15px/1.5 system-ui,-apple-system,sans-serif}
+h1{font-size:21px;margin:0 0 4px}h2{font-size:16px;margin:0 0 6px}
+.lede{color:var(--faint);font-size:13.5px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:14px 0}
+.num{display:inline-block;min-width:22px;height:22px;border-radius:11px;background:var(--acc);color:#fff;font:700 12px system-ui;text-align:center;line-height:22px;margin-right:6px}
+.q{font-style:italic;color:var(--acc);margin:2px 0 8px}
+pre{background:#f3edda;border-radius:8px;padding:8px 10px;font:12px/1.35 ui-monospace,Menlo,monospace;overflow-x:auto;margin:8px 0}
+.k{font-size:12.5px;color:var(--faint);margin-top:6px}.k b{color:var(--ink)}
+.dec{border-left:3px solid var(--acc);padding-left:8px;margin-top:8px;font-size:13.5px}
+.tech{font-size:13.5px}.tech li{margin:3px 0}
+table{border-collapse:collapse;font-size:13px}td,th{border-bottom:1px solid var(--line);padding:3px 8px;text-align:left}
+</style>
+<h1>Plan : une page qui montre comment les autres sections sont trouvées</h1>
+<div class="lede">Les blocs gris sont des <b>croquis</b> de chaque illustration ; les chiffres qu'ils portent viennent du calcul réel sur La Jupe. Fil rouge : <b>La Jupe En Laine</b>, tu as tracé <b>un seul B (mesures 18–25)</b>, tu appuies sur « Valider ». La page suit le calcul réel étape par étape, sur les vraies valeurs du morceau, et chaque objet dessiné est cliquable pour <b>écouter</b> les mesures concernées (tête de lecture, départ pile sur la mesure). 23 étapes de code regroupées en 8 chapitres ; les <b style="color:var(--acc)">5 décisions</b> où l'algo tranche à ta place sont marquées en rouge.</div>
+
+<div class="card"><h2><span class="num">0</span>Le point de départ</h2>
+<div class="q">Qu'est-ce que tu as donné à la machine, et qu'est-ce qu'elle doit trouver ?</div>
+<pre>mes.  1 · · · · 9 · · · · 17 18 · · · 25 · · · · · 35 · · · 43 · · · 51 · · · 60 · · 68 · · 76 · · 84 · 91
+toi       ░░░░░░░░░░░░░░░░ [====B====]
+réalité   A·······A······· B········ qA······ B······ B······ qA······ B······ B······ B······ qA······</pre>
+<div class="k">Une bande « ta brique » au-dessus de la forme réelle (celle que tu valides à l'oreille). Sert de légende de couleurs pour toute la page.</div></div>
+
+<div class="card"><h2><span class="num">1</span>Ce que la machine entend</h2>
+<div class="q">Chaque mesure devient « quelles notes d'accord sonnent ».</div>
+<pre>        mes. 18   19   20   21   22   23   24   25
+   C       ·    ·    ░    █    ·    ·    ░    ░
+   D♭      ·    ·    █    ·    ·    ·    ·    ·
+   ...                                            ← 12 lignes (classes de hauteur)
+   B       ·    ·    ·    ░    ·    ·    █    █
+          F-7  B♭7 B♭-/D♭ C7  F-7  Dø   G7  E♭+ G/D</pre>
+<pre>  SSM 91×91 (ressemblance mesure × mesure), la ligne de ta brique surlignée :
+  ███  ░░  ███  ░░  ███ ...   → les diagonales claires = « ça rejoue »</pre>
+<div class="k"><b>Dessins :</b> la heatmap 12 × 91 (accords décodés en légende) et la matrice de ressemblance 91 × 91. Survol d'une case = les deux mesures, leurs notes, leur score ; clic = on les écoute l'une après l'autre. <b>Sur La Jupe :</b> V 91×12, S 91×91.</div></div>
+
+<div class="card"><h2><span class="num">2</span>Ta brique est-elle une boucle plus courte ?</h2>
+<div class="q">Avant de chercher, on vérifie si les 8 mesures ne sont pas 2 × 4.</div>
+<pre>  décalage l = 4 : la 2ᵉ moitié recolle-t-elle à la 1ʳᵉ ?
+     ressemblance mesure à mesure : 1,00  0,70  0,05  0,43   (seuil τ = 0,686)
+     2 mesures collées seulement (il en faudrait 8)   → verdict : boucle = 8, cherchée entière
+  (les autres décalages seront calculés par l'outil)</pre>
+<div class="k"><b>Dessin :</b> les 8 mesures de ta brique en ligne, et pour chaque décalage l une copie décalée en dessous, les mesures qui « collent » (S ≥ τ) en couleur. <b>À instrumenter :</b> la boucle interne de <code>_periode</code> (le r de chaque l n'est pas rendu).</div></div>
+
+<div class="card"><h2><span class="num">3</span>Faire glisser la brique sur tout le morceau</h2>
+<div class="q">Le cœur : à chaque départ possible, à quel point ça ressemble à ta brique ?</div>
+<pre>  1,0 ┤                ▲35  ▲43           ▲60 ▲68 ▲76        ← 5 pics, tous gardés
+      │   ·         ·                                  ·
+  0,6 ┤  ·▲1  ·  ·    ·  ·   ·  ·   ·   ·  ·  ·   ·  ·  ·     ← « jumeaux » A (F-7 B♭7)
+      │ ═══════════════ fond local ════════════════════════
+  0,2 ┤
+       1        18 (toi)  35    43        60   68   76     84</pre>
+<div class="k"><b>Dessin :</b> la courbe de ressemblance (une valeur par départ), la zone interdite (ta brique), le <b>fond local</b> en bande grise, et une pastille par candidat. Clic sur une pastille = <b>la fiche du candidat</b> : les 5 règles en coche verte/rouge, avec leurs chiffres :</div>
+<table><tr><th>règle</th><th>question</th><th>départ 35</th></tr>
+<tr><td>plancher</td><td>score ≥ 0,85 ?</td><td>0,996 ✓</td></tr>
+<tr><td>proéminence</td><td>se détache-t-il de son fond ? (≥ 0,6)</td><td>0,994 ✓</td></tr>
+<tr><td>référence</td><td>pas un étage nettement plus bas que les meilleurs ?</td><td>✓</td></tr>
+<tr><td>maximum local</td><td>le plus haut de son voisinage ?</td><td>✓</td></tr>
+<tr><td>couverture</td><td>case sans chevauchement / suspens ?</td><td>posé ✓</td></tr></table>
+<div class="k">+ bouton « écouter côte à côte » (ta brique puis le candidat). En petit dessous : les 11 courbes transposées (aucune ne passe sur La Jupe, meilleur 0,63).</div>
+<div class="dec"><b>Décision 3</b> — proéminence ≥ 0,6 et « référence du morceau » : ce sont eux qui séparent une vraie reprise d'un jumeau harmonique. Trivial ici (0,99 sur un fond de 0,37) : je propose d'ajouter un 2ᵉ morceau où ça se joue (She Will Be Loved ou X-yIEMduRXk).</div></div>
+
+<div class="card"><h2><span class="num">4</span>Quand plusieurs briques se disputent les mesures</h2>
+<div class="q">Qui gagne quand deux briques veulent la même zone, et que fait-on d'une égalité ?</div>
+<pre>  brique A  ──[A]──────(A?)────────[A]──
+  brique B  ───────[B]──(B?)──[B]─────────     (?) = en suspens
+  arbitrage :  mangée → phase → fragments → score   ⇒ choix + raison</pre>
+<div class="k"><b>Dessin :</b> une ligne par brique, ses reprises sûres en plein, ses candidats en suspens en pointillé ; le tableau des critères de l'arbitrage avec le gagnant. <b>Sur La Jupe : rien à arbitrer</b> (une brique, aucun suspens) — ce chapitre a besoin d'un morceau où tu as tracé 2 briques. <b>À instrumenter :</b> les listes <code>tenues</code> / <code>retenues</code>.</div>
+<div class="dec"><b>Décision 4</b> — les suspens et la règle « une reprise sûre ne mange un suspens que nettement » : l'arbitrage le plus opaque du pipeline.</div></div>
+
+<div class="card"><h2><span class="num">5</span>Le morceau en mots</h2>
+<div class="q">Pour nommer ce qui reste, chaque paire de mesures devient une lettre.</div>
+<pre>  jetons :  a  b  a  c  a  b  a  c  [  B gelé  ] a  ...  a = N.C.|F-7, A♭|Dø, F-7|B♭7… (22 sur 44 !)
+  mesures:  1-2 3-4 ...      15-17 ← jeton de 3 mesures : les trous démarrent sur le C- de queue
+  seuil Otsu : histogramme des ressemblances, coupe à 0,568</pre>
+<div class="k"><b>Dessins :</b> la bande des jetons sous la grille des mesures (on voit le décalage d'une mesure) ; la matrice jeton × jeton ; l'histogramme avec la coupe d'Otsu et <b>un curseur</b> pour voir les lettres fusionner/se séparer quand le seuil bouge. <b>À instrumenter :</b> le seuil et l'ordre des germes sont locaux.</div>
+<div class="dec"><b>Décision 2</b> — le seuil d'Otsu (bas : une lettre fourre-tout) et le calage des jetons sur le début des trous (décalés d'une mesure par rapport à la phrase).</div></div>
+
+<div class="card"><h2><span class="num">6</span>Souder les mots en phrases</h2>
+<div class="q">La paire la plus fréquente est soudée, encore et encore, jusqu'à des phrases de 4 (ou 6) paires.</div>
+<pre>  pas 1 : (a,b) ×5   → ab
+  pas 2 : (ab,a) ×5  → aba
+  pas 3 : (aba,c) ×5 → abac   ⇒ chaque trou = abac = A
+  coût : phrases de 4 = 19   phrases de 6 = 34   → 4 gagne</pre>
+<div class="k"><b>Dessin :</b> une animation pas à pas (bouton ▶ / pas suivant), la bande des jetons se resserre à chaque soudure ; puis le nommage : même mot = même lettre, différence sur le seul dernier mot = prime (A′).</div></div>
+
+<div class="card"><h2><span class="num">7</span>Les règles de nommage finales</h2>
+<div class="q">Les règles écrites à la main qui retouchent le résultat.</div>
+<pre>  intro de tête :  [A][A] avant ta 1re brique  → « intro » 1–17        ⚠
+  queue optionnelle :  B → C- → F-7   (26, 51, 84 : « avec »)
+                       B → F-7        (43, 68 : « sans »)  ⇒ le C- devient « queue »
+  B + queue (préfixe), dernier tour : non déclenchés ici</pre>
+<div class="k"><b>Dessins :</b> pour chaque règle, la bande avant / après la règle, et pour la queue optionnelle le tableau « avec / sans » où chaque ligne s'écoute (fin de B → mesure suivante).</div>
+<div class="dec"><b>Décision 1</b> — l'intro de tête : tout ce qui précède ta première brique devient intro, même deux A complets. <b>Décision 5</b> — la queue optionnelle (≥ 2 « avec », ≥ 1 « sans ») : décisive ici (A = 8/8/7 au lieu de 9/9/8).</div></div>
+
+<div class="card"><h2><span class="num">8</span>Du résultat au chart</h2>
+<div class="q">D'où vient chaque section, et comment elle est écrite.</div>
+<pre>  intro 1–17 algo · B 18–25 toi · q · A algo · B propage · B propage · q · A · B B B propage · q · A
+  pile (empilement) :  B ✓ (22 mesures réécrites)   A ✗ cohérence 0,83 < 0,85   intro ✗ 0,61</pre>
+<div class="k"><b>Dessins :</b> la bande finale colorée par source (toi / trouvé par ta brique / deviné / algo) ; pour chaque lettre, ses passages empilés avec la cohérence et le seuil 0,85 ; puis le chart tel que l'app l'écrit.</div></div>
+
+<div class="card"><h2><span class="num">+</span>À part : les suggestions pâles ne viennent pas du même moteur</h2>
+<div class="k">Avant Valider, l'outil propose en pâle les reprises de ta brique avec un autre calcul (<code>find_repeats</code>). Sur La Jupe : <b>3 B sur 5</b> en pâle, contre <b>5 sur 5</b> pour Valider (35–42 et 43–50 sont écartées par une contrainte de parité de 2 mesures). Dessin : les deux courbes côte à côte, les deux résultats, et pourquoi ils diffèrent.</div></div>
+
+<div class="card tech"><h2>Comment je le construirais</h2>
+<ul>
+<li><b>Un outil</b> <code>tools/explique_sections.py --morceau &lt;clé&gt; --brique B:18-25</code> qui rejoue le vrai calcul et sort un JSON de toutes les étapes. Il appelle les fonctions réelles (<code>cherche_sur_matrices</code>, <code>boucle_minimale</code>, <code>mot_sur_traits</code>, <code>merges4</code>…) ; là où un intermédiaire n'est pas rendu (6 endroits listés), j'ajoute un paramètre optionnel <code>trace=</code> qui ne change rien au calcul.</li>
+<li><b>Une page</b> générée à partir de ce JSON, servie sur <code>:7772/plots/</code>, avec le son (préchargé, tête de lecture, départ pile sur la mesure).</li>
+<li><b>Un test</b> : la page doit retrouver exactement ce que donne Valider (sinon elle explique un autre calcul que celui de l'app).</li>
+<li>Plus tard, si utile : un bouton « Pourquoi ? » dans l'outil des sections qui ouvre cette page sur ta brique.</li>
+</ul></div>
