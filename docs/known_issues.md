@@ -66,6 +66,32 @@ American Boy et 9jLDZjMF3tk (basse une mesure+ à côté), Julia et
 rec_1787243982182 (basse sur le 3, pas le 1 — la demi-mesure ne tranche pas
 ça), Stand By Me (phase du traqueur).
 
+## Détection des autres sections : ce que la cartographie du 2026-10-11 a trouvé
+
+Cartographie complète du chemin « Valider les sections » (23 étapes, exécutées
+sur La Jupe En Laine avec une seule brique B 18–25), en préparation de la page
+qui l'explique. Valider retrouve les 6 B (5 reprises sur 5, scores ≥ 0,988).
+Trouvé en route, NON corrigé :
+
+- **Les suggestions pâles ne sont pas le même moteur que Valider** :
+  `section_tool.find_repeats` (via `/api/section-repeats`) n'en propose que 3 sur
+  5 — la contrainte de parité de 2 mesures écarte 35–42 et 43–50 (distance
+  impaire à l'ancre) dès qu'une reprise paire existe ; ses scores transposés
+  sortent > 1 (jusqu'à 7,7 : on divise par le score de l'ancre tournée), filtrés
+  seulement côté client.
+- **L'intro de tête avale deux A** : tout ce qui précède la première brique tracée
+  devient « intro » (1–17), alors que l'algo y lisait `abac abac` = deux A.
+- **Le mot de bi-mesures** : seuil Otsu 0,568, la moitié des jetons tombent dans
+  la lettre `a` ; les trous commencent sur le C- de queue, donc leurs jetons sont
+  décalés d'une mesure par rapport à la phrase.
+- **`queues_proposees`** est rendu par la route mais lu nulle part dans
+  `static/` ; **`reste`** vaut toujours `False` (compteur client mort).
+- **Docstrings périmés** : simulation.py (parle de `remplir_par_songformer`),
+  routes/sections.py (dit les transposées introuvables), sections_editor.js
+  (« propage = contenu exactement identique » : c'est toute reprise sûre),
+  `RESSEMBLE_MIN`/`_plus_proche` morts, `sections_etat_2026-09-30.md` §1 décrit
+  l'ancienne loi.
+
 ## Accords épurés : taille constante, ♭ ♯ en haut, bloc en bas (2026-10-09, EN PROD)
 
 Demandes de Louis, toutes validées sur captures : (1) un accord a la même
