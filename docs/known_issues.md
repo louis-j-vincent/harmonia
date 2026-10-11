@@ -66,6 +66,35 @@ American Boy et 9jLDZjMF3tk (basse une mesure+ à côté), Julia et
 rec_1787243982182 (basse sur le 3, pas le 1 — la demi-mesure ne tranche pas
 ça), Stand By Me (phase du traqueur).
 
+## « Pourquoi ? » dans l'outil des sections (2026-10-11, construit, pas encore servi sur :7772)
+
+Bouton « Pourquoi ? » à côté de « Valider les sections » (dès une brique
+tracée) → écran plein `static/screens/pourquoi_sections.js`, 8 chapitres + les
+suggestions pâles, les 5 décisions en rouge, chaque plage jouable (curseur sur
+`timeupdate`, pas de rAF). Données : `POST /api/sections/expliquer/<file>`
+(`harmonia/sections/explication.py`), même corps et même code que Valider, avec
+des paramètres `trace=` (None = appel inchangé) ; l'écriture du chart est faite
+À BLANC. Test `tests/test_explication_sections.py` : réponse identique à
+`/api/sections/inferer` sur La Jupe + les 23 morceaux annotés présents
+(0,17–0,71 s chacun).
+
+Ce que l'écran NE fait pas : `combler_trous` est une copie Python de
+`comblerTrous` (JS) — une divergence future ne serait pas vue par le test ; les
+raisons des pics pâles écartés sont reconstituées depuis la courbe de
+`find_repeats`, pas tracées de l'intérieur ; le curseur de seuil du ch. 5
+recalcule les lettres côté client (copie JS de `_mot_depuis`) ; les décalages
+de boucle au-delà du premier qui réussit ne sont jamais calculés, donc jamais
+montrés. Défauts vus en le construisant, NON corrigés (montrés tels quels) :
+- **Empilement, rapport trompeur** (La Jupe) : la « queue » 26/51/84 (trois
+  passages d'UNE mesure) est refusée pour « occurrences of unequal length » ;
+  l'intro 1–17 est rapportée « période 8 ».
+- **Sunny, A en suspens** (A 2–9 + B 10–17 tracés) : 18–25 (0,950) contre 22–29
+  (0,874), écart < tolérance 0,101 → tranché « au score, faute de mieux » ; la
+  reprise de B 26–33 est retenue puis revient.
+- **She Will Be Loved** (A 5–12 + B 21–28) : la boucle de A = 4 mesures avec une
+  sous-période de 2 (« C-7 B♭7 » alterne) — la phase est choisie par la
+  couverture, l'écran le dit.
+
 ## Détection des autres sections : ce que la cartographie du 2026-10-11 a trouvé
 
 Cartographie complète du chemin « Valider les sections » (23 étapes, exécutées

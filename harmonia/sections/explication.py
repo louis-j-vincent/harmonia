@@ -329,7 +329,7 @@ def expliquer(chart: dict, humain: list[dict], audio_dir) -> dict:
         "soudures": {"depart": tr_algo.get("depart"), "geles": tr_algo.get("geles"),
                      "par_jeton": tr_algo.get("par_jeton"),
                      "cible": tr_algo.get("cible"), "couts": tr_algo.get("couts"),
-                     "essais": [{k: e[k] for k in ("cible", "cout", "steps")}
+                     "essais": [{k: e[k] for k in ("cible", "cout", "steps", "nom")}
                                 for e in tr_algo.get("essais", [])],
                      "nommes": tr_algo.get("nommes"), "restes": tr_algo.get("restes")},
         "nommage": {"prefixe": tr_algo.get("prefixe"),

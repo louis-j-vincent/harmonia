@@ -11,6 +11,7 @@ import { paintLoading, pollJob } from "../screens/analyse.js";
 import { openAnnotateTools, relancerAnalyse } from "../screens/annotate.js";
 import { formGroups, loadModel, paintFormChip, paintFormRail } from "../screens/chart.js";
 import { prompterData, reelFill } from "../screens/practise.js";
+import { openPourquoi } from "../screens/pourquoi_sections.js";
 import { S } from "../state.js";
 import { SERIF, SZ, T, UI, clear, closeOverlay, el, fmt, glyph, handle, haptic, kitButton, kitIcon, note, overlay, play, playGlyph, sheetCol, toast } from "../ui/kit.js";
 
@@ -430,6 +431,15 @@ export function buildSectionTool(){
       ()=>{ if(!st.busy) validateSectionSelection(); },
       {state:st.busy?"off":"on", height:44,
        note:nHumain+" à toi · le reste sera nommé"}));
+    // « POURQUOI ? » (Louis, 2026-10-11) : le calcul de Valider montré étape
+    // par étape, sur les MÊMES traits que Valider enverrait — voir
+    // screens/pourquoi_sections.js. Lecture seule, n'écrit rien.
+    if(nHumain){
+      const pq=kitButton("Pourquoi ?", ()=>{ if(!st.busy) openPourquoi(humainPourValider()); },
+                         {height:44});
+      pq.setAttribute("data-sect-pourquoi","1");
+      row.appendChild(pq);
+    }
     if(st.sel) row.appendChild(kitButton("Effacer",
       ()=>{ st.sel=null; go("chart"); }, {height:44}));
     // Le réglage « tri large / moyen / strict » a été retiré (2026-10-01) : il
@@ -700,11 +710,10 @@ function confirmerReprises(items){
 const SIENNES = new Set(["humain", "propage"]);
 function estDeLui(o){ return SIENNES.has(o && o.source); }
 
-export async function validateSectionSelection(){
-    const st=S.sectTool, m=S.model;
-    if(!st) return;
-    pushSectUndo(); clearSugg();
-    st.busy=true; st.note=""; go("chart");
+/* Les traits que « Valider » envoie — ET ceux que « Pourquoi ? » explique :
+   une seule fonction, sinon l'écran d'explication décrirait un autre calcul. */
+export function humainPourValider(){
+    const st=S.sectTool; if(!st) return [];
     const humain=[];
     st.marks.forEach(mk=>(mk.occurrences||[]).forEach(o=>{
       if(estDeLui(o)) humain.push({label:mk.label,
@@ -712,6 +721,14 @@ export async function validateSectionSelection(){
     }));
     if(st.sel) humain.push({label:st.label,
                             mesure_debut:st.sel.b0+1, mesure_fin:st.sel.b1+1});
+    return humain;
+  }
+export async function validateSectionSelection(){
+    const st=S.sectTool, m=S.model;
+    if(!st) return;
+    pushSectUndo(); clearSugg();
+    st.busy=true; st.note=""; go("chart");
+    const humain=humainPourValider();
     try{
       const r=await api.post("/api/sections/inferer/"+m.file, {humain});
       if(r.error){ st.busy=false; st.note=r.error; go("chart"); return; }
