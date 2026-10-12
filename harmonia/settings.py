@@ -111,6 +111,20 @@ class Settings:
     #: dossier est dans known_issues, et la page avant/après le montre morceau
     #: par morceau.
     merge_letters: bool = True
+    #: λ1 t+b (Louis, 2026-10-12) : chaque accord que le Viterbi a découpé est
+    #: RE-NOMMÉ par sa différence aux deux accords voisins — q = norm(max(0,
+    #: p + λ·S)), S = (p − p_avant) + (p − p_après), sur la triade et la basse
+    #: seulement ; les frontières ne bougent jamais. `harmonia.relabel` pour
+    #: les choix (bords, N.C.) et ce que ça ne résout pas.
+    relabel_delta_voisins: bool = True
+    relabel_lambda: float = 1.0
+    #: … et sur le GABARIT EMPILÉ d'une lettre repliée (`folding._decode_template`) ?
+    #: ÉTEINT, à arbitrer à part (2026-10-12) : allumé, il renomme
+    #: Evening Star mes. 14/22 « C/G C7 » → « G-7 C7 » dans la pile du A,
+    #: le dernier A (hors pile, non renommé) ne lui ressemble plus et sort
+    #: en « A′ » (casse `test_fins_et_dernier_a`, le travail « queues » du
+    #: même jour). Un effet de bord = sa propre page avant/après.
+    relabel_gabarit: bool = False
 
 
 SETTINGS = Settings()

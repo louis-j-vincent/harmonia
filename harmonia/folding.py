@@ -927,6 +927,15 @@ def _decode_template(cat, Lf, bpb, P):
     lab = _musx.redecode(beats, cat, downbeat_times=beats[::bpb],
                             beat_trans_penalty=(15.0, 15.0, 100.0),
                             quarter_beats=_q)
+    # λ1 t+b sur le gabarit (2026-10-12) : un accord replié est un accord
+    # inféré comme un autre et recevrait son nom par la même règle que le
+    # brut (`harmonia.relabel`) ; le gabarit est tuilé ×3, donc la copie du
+    # milieu — la seule gardée — a toujours ses deux voisines réelles.
+    # ÉTEINT par défaut : voir `SETTINGS.relabel_gabarit` pour ce que ça
+    # casse aujourd'hui (le dernier A d'Evening Star).
+    if SETTINGS.relabel_delta_voisins and SETTINGS.relabel_gabarit:
+        from harmonia.relabel import relabel_segments
+        lab, _ = relabel_segments(lab, cat)
     T0, T1 = P * Lf * _musx.FRAME_DT, 2 * P * Lf * _musx.FRAME_DT
     # The window that keeps the MIDDLE copy of the ×3-tiled template needs a
     # tolerance of half a musx frame, not 1e-6 s (Louis, 2026-08-09: « pk sur

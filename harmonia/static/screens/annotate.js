@@ -289,12 +289,15 @@ export function openEditor(idx,opts){
     back.onclick=e=>{ if(e.target===back){ stopSpan(); if(opts.onCancel) opts.onCancel(); closeOverlay(back); } };
     const ch=S.chords[idx];
     const hd=el("div","flex:0 0 auto;display:flex;align-items:center;gap:12px;margin-bottom:12px;");
-    hd.appendChild(glyph(ch.root,ch.q,32,"exact",ch.confirmed?T.ink:confColor(ch.c)));
+    let hdGlyph=glyph(ch.root,ch.q,32,"exact",ch.confirmed?T.ink:confColor(ch.c));
+    hd.appendChild(hdGlyph);
     const meta=el("div","");
+    let newHint=null;
     if(opts.isNew){
       meta.appendChild(el("div",`font:600 12px ${UI};color:${T.accent};`,"nouvel accord"));
-      meta.appendChild(el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:2px;`,
-        "choisis une proposition, ou règle-le à la main"));
+      newHint=el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:2px;`,
+        "choisis une proposition, ou règle-le à la main");
+      meta.appendChild(newHint);
     } else {
       // Say the OBSERVABLE, not a percentage: "played once in this song" is
       // both the reason the chord is doubtful and something the reader can
@@ -459,7 +462,7 @@ export function openEditor(idx,opts){
     // Verrouiller marche aussi quand SEULE la basse a changé : l'accord
     // reste celui qui est écrit, et c'est la basse qui devient une
     // affirmation de Louis.
-    lockBtn.onclick=()=>{ if(!opts.isNew||picked||pickedBass!=null)
+    lockBtn.onclick=()=>{ if(!opts.isNew||picked||pickedBass!=null||ch.relabel)
       confirmChord(idx,(picked||ch).root,(picked||ch).q,pickedBass); };
     cutBtn.onclick=()=>{ stopSpan(); if(S._closeEditor) S._closeEditor(); openCutBar(_cutBi); };
     foot.appendChild(preview); foot.appendChild(lockBtn);
@@ -483,6 +486,16 @@ export function openEditor(idx,opts){
     S._editorRefresh=()=>{
       if(!root.contains(back)) return;            // feuille déjà fermée
       if(editTab==="hand" && candList(idx).length) editTab="guide";
+      // Le nom λ1 t+b du nouvel accord est arrivé (`openNewChord`) : l'en-tête
+      // le montre, et « Garder » le garde en un tap (basse comprise si le
+      // nom porte un slash). Un choix déjà fait par Louis n'est pas écrasé.
+      if(opts.isNew && ch.relabel && !picked){
+        const g=glyph(ch.root,ch.q,32,"exact",T.accent);
+        hd.replaceChild(g,hdGlyph); hdGlyph=g;
+        if(newHint) newHint.textContent="nommé d'après ses deux voisins — garde-le, ou choisis";
+        if(pickedBass==null && ch.relabel.bass>=0) pickedBass=ch.relabel.bass;
+        armerLock();
+      }
       renderPane();
     };
   }
@@ -624,17 +637,50 @@ export function openNewChord(bi,k){
     // quand la réponse arrive (`S._editorRefresh`), et si l'appel échoue on
     // reste exactement sur ce qu'on a aujourd'hui — By hand, sans rien
     // inventer.
+    //
+    // LE NOM DU NOUVEL ACCORD (Louis, 2026-10-12) : le serveur le calcule par
+    // le λ1 t+b (`harmonia.relabel.label_for_span`, la règle de la pipeline)
+    // avec les accords juste AVANT et juste APRÈS lui dans la suite éditée —
+    // après la coupe ci-dessus. Le brouillon s'ouvre sur l'accord d'avant
+    // (seed) et prend ce nom dès qu'il arrive, sauf si Louis a déjà choisi.
+    const nb2=_voisinsEdites(draft,t0,t1);
     const file=S.model && S.model.file;
     if(file){
+      const seedRoot=draft.root, seedQ=draft.q;
       api.post(`/api/chord-candidates/${encodeURIComponent(file)}`,{
-        t0, t1, prev_t0: seed?seed.t0:null, prev_t1: seed?seed.t1:null,
+        t0, t1,
+        prev_t0: nb2.prev?nb2.prev[0]:null, prev_t1: nb2.prev?nb2.prev[1]:null,
+        next_t0: nb2.next?nb2.next[0]:null, next_t1: nb2.next?nb2.next[1]:null,
       }).then(r=>{
         if(S.chords[newIdx]!==draft) return;     // annulé entre-temps
         draft.sug=(r&&r.sug)||[];
         draft.sugFrom=(r&&r.source)||null;       // « delta » ou « posterior »
+        const rl=r&&r.relabel;
+        if(rl && !draft.confirmed && draft.root===seedRoot && draft.q===seedQ){
+          draft.root=rl.root; draft.q=rl.q; draft.bass=rl.bass;
+          draft.relabel=rl;                      // nom + top 3, pour l'éditeur
+        }
         if(S._editorRefresh) S._editorRefresh();
       }).catch(()=>{});                          // silence assumé : cf. ci-dessus
     }
+  }
+  // Les voisins d'un accord qu'on vient de poser, DANS LA SUITE ÉDITÉE et par
+  // le TEMPS (pas par l'ordre d'affichage : sur un chart replié, la mesure
+  // affichée après la dernière d'une section n'est pas forcément celle qui
+  // suit à l'écoute). prev = l'empan qui commence le plus tard avant t0,
+  // coupé à t0 ; next = celui qui commence le plus tôt à partir de t1. Un
+  // N.C. le plus proche = voisin absent (règle de `harmonia.relabel`).
+function _voisinsEdites(draft,t0,t1){
+    const eps=1e-3; let prev=null, pS=-Infinity, pNc=false, next=null, nS=Infinity, nNc=false;
+    S.chords.forEach(c=>{
+      if(c===draft || c.removed) return;
+      (c.spans||[[c.t0,c.t1]]).forEach(([s0,s1])=>{
+        if(s0==null||s1==null) return;
+        if(s0<t0-eps && s0>pS){ pS=s0; prev=[s0,Math.min(s1,t0)]; pNc=!!c.nc; }
+        if(s0>=t1-eps && s0<nS){ nS=s0; next=[s0,s1]; nNc=!!c.nc; }
+      });
+    });
+    return {prev:pNc?null:prev, next:nNc?null:next};
   }
 
   // (La feuille « mesure en grand » à points, openBarExpanded, a été supprimée

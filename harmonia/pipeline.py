@@ -667,6 +667,15 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
                     len(downbeats))
     segments = _musx.redecode(beat_times, probs, downbeat_times=downbeats,
                               beats_per_bar=_bpb_early, quarter_beats=_quarter)
+    # 3b ── λ1 t+b (Louis, 2026-10-12) : le Viterbi garde les FRONTIÈRES, et
+    # chaque accord est re-nommé par sa différence aux deux accords voisins
+    # (`harmonia.relabel` — choix des bords et des N.C., et ce que ça ne
+    # résout pas). Constante, pas un réglage : `SETTINGS.relabel_delta_voisins`.
+    _relabel = None
+    if SETTINGS.relabel_delta_voisins:
+        from harmonia.relabel import relabel_segments
+        segments, _relabel = relabel_segments(segments, probs)
+        _relabel = {k: _relabel[k] for k in ("lam", "n", "changed")}
     report(4, draft_chords=[s for _, _, s in segments if s != "N"])
 
     # (stage 4 removed 2026-08-01 — the audit found the chord-tone KS key was
@@ -708,6 +717,7 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
             "sections": sections,
             "prompter": prompter,
             "meta": {"bpm": bd["bpm"], "n_segments": len(segments),
+                     "relabel": _relabel,
                      # Sprint 22 (2026-09-16) : bascule faite. Le littéral
                      # disait encore "harmonia_min" pour que le rapport d'or
                      # compare le JSON octet par octet pendant tout le

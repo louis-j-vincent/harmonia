@@ -100,8 +100,10 @@ def chord_candidates(file):
 
     Corps : `{"t0","t1"}` du nouveau créneau, `{"prev_t0","prev_t1"}` de
     l'accord qui précède (absents = premier accord du morceau, on rend alors
-    le classement brut en le disant). Le client les connaît mieux que nous :
-    c'est lui qui vient de poser le brouillon.
+    le classement brut en le disant), `{"next_t0","next_t1"}` de l'accord qui
+    suit (2026-10-12, pour le nom λ1 t+b, champ `relabel` de la réponse). Le
+    client les connaît mieux que nous : c'est lui qui vient de poser le
+    brouillon.
     """
     from harmonia import musx as _musx
     from harmonia.span_rescore import delta_candidates
@@ -113,12 +115,14 @@ def chord_candidates(file):
         span = (float(d["t0"]), float(d["t1"]))
     except (KeyError, TypeError, ValueError):
         return jsonify({"error": "t0 et t1 requis"}), 400
-    prev = None
-    if d.get("prev_t0") is not None and d.get("prev_t1") is not None:
+    def _empan(k):
+        if d.get(f"{k}_t0") is None or d.get(f"{k}_t1") is None:
+            return None
         try:
-            prev = (float(d["prev_t0"]), float(d["prev_t1"]))
+            return float(d[f"{k}_t0"]), float(d[f"{k}_t1"])
         except (TypeError, ValueError):
-            prev = None
+            return None
+    prev, nxt = _empan("prev"), _empan("next")
     chart = json.loads(p.read_text(encoding="utf-8"))
     stem = Path(chart.get("audio_url") or "").stem
     audio = AUDIO_DIR / f"{stem}.m4a"
@@ -131,7 +135,17 @@ def chord_candidates(file):
     except Exception as exc:                        # noqa: BLE001
         log.warning("candidats: postérieures indisponibles pour %s (%s)", stem, exc)
         return jsonify({"error": "postérieures musx indisponibles", "sug": []}), 503
-    return jsonify(delta_candidates(probs, span, prev))
+    # LE NOM DU NOUVEL ACCORD (Louis, 2026-10-12 : « quand je clique sur une
+    # case vide […] il faut appliquer directement le λ1 t+b à cet endroit-là
+    # pour expliciter le nouvel accord »). Même règle, même code que la
+    # pipeline (`harmonia.relabel`) ; voisines = l'accord juste avant et juste
+    # après le nouveau DANS LA SUITE ÉDITÉE (le client les envoie : c'est lui
+    # qui vient de couper). Une voisine absente (bord, N.C.) ne compte pas.
+    # Le compas garde `sug`/`source` (le classement par gain) à côté.
+    from harmonia.relabel import label_for_span
+    out = delta_candidates(probs, span, prev)
+    out["relabel"] = label_for_span(probs, span, prev, nxt)
+    return jsonify(out)
 
 
 @bp.route("/api/context_rescore/<file>", methods=["POST"])

@@ -5,6 +5,54 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## λ1 t+b BRANCHÉ : chaque accord re-nommé par ses deux voisins + l'accord ajouté dans Annotate (2026-10-12, FAIT, pas encore servi sur :7772)
+
+Louis : « le processeur standard infère les changements ; sur chaque accord
+inféré, λ1 t+b avec les 2 accords voisins (pas les temps) ; une case vide
+touchée en Annotate = un nouvel accord, nommé par λ1 t+b ». Une seule
+implémentation : `harmonia/relabel.py`. Constantes `SETTINGS.relabel_delta_voisins
+= True`, `relabel_lambda = 1.0`, `relabel_gabarit = False`.
+
+- **Pipeline** : juste après `musx.redecode`, frontières intactes, seul le
+  nom change. p = moyenne des trames sur l'empan (convention
+  `pool_span_musx`), S = (p − p_avant) + (p − p_après) sur triade+basse,
+  nom = argmax des log-obs du décodeur vendu sur q (même vocabulaire).
+  Choix : **bord** = une voisine comptée UNE fois (S = p − p_voisine ; la
+  doubler était l'artefact n° 1 de l'essai par demi-mesure) ; **N.C.** jamais
+  renommé, jamais voisine (compte comme absente), et un accord n'est jamais
+  renommé en N.C. ; **garde** : un accord ne change que si le nom sur q
+  diffère du nom sur p seul (λ = 0) — sans elle, 5/333 accords changeaient
+  déjà à λ = 0 (moyenne vs somme des log du Viterbi), pas à cause des voisines.
+- **Annotate** : `/api/chord-candidates` rend `relabel` (nom + top 3), voisins =
+  accords juste avant/après dans la suite ÉDITÉE, cherchés par le temps
+  (`annotate.js::_voisinsEdites`). L'en-tête montre le nom, « Garder » le garde
+  en un tap. Vérifié sur :7779 (Evening Star, mes. 16 temps 3-4 → **B♭m**,
+  top 3 B♭m / B♭m7 / Gm/B♭).
+- **Rapport d'or** (témoin = même code, règle éteinte, `golden/relabel_off`) :
+  30 morceaux sur 65 bougent, 93 mesures, ~68 accords sur ~4 400 (1,5 %).
+  Page : `/reports/relabel_2026-10-12/avant_apres.html`. Motif dominant :
+  **un slash X/b devient l'accord bâti sur b** (30 cas : D/A → A, G♭m/A → A,
+  E-/B → B-, F-/C → C) — le contraste de la basse fait passer la basse
+  en fondamentale ; l'inverse (X → Y/X, 13 cas : B7 → Dø7/B) ; qualité (12 :
+  E♭9 → E♭7sus4, Gm7 → Gø7). Pas d'effacement massif de notes communes.
+- **Gabarit empilé : éteint** (`relabel_gabarit`). Allumé : 130 mesures, et
+  Evening Star mes. 14/22 « C/G C7 » → « G-7 C7 » dans la pile du A ; le
+  dernier A (hors pile) ne lui ressemble plus et sort en « A′ »
+  (`test_fins_et_dernier_a` casse). Page à part :
+  `/reports/relabel_gabarit_2026-10-12/avant_apres.html` (sans boutons
+  « ouvrir », pour ne pas écraser les entrées AVANT/APRÈS).
+
+**Pas résolu** : (1) note commune avec une voisine punie (pas massif ici,
+mais le mécanisme reste) ; (2) bords à un seul côté de contraste ; (3) ça ne
+crée ni ne retire AUCUNE frontière — sur Evening Star, This Love, La Jupe,
+SFS : 0 ou 1 accord renommé, parce que les cachés de l'essai par
+demi-mesure vivent DANS un segment du Viterbi ; seul Annotate (on coupe,
+λ1 t+b nomme) les rend visibles ; (4) `sug`/`casc` restent le classement de
+musx sur p : le nom écrit peut ne pas être `sug[0]` ; (5) la tonalité et
+les couleurs se recalculent sur les noms et peuvent bouger ; (6) le nouvel
+accord d'Annotate est calculé sur son 1er passage seulement (un chart replié
+a plusieurs empans).
+
 ## λ1 t+b sur 3 autres morceaux (2026-10-12, ILLUSTRÉ, rien de branché)
 
 Page : `docs/plots/lambda1_tb_autres_morceaux_2026-10-12.html` ; script
