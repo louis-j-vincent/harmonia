@@ -167,6 +167,14 @@ def main():
             vn = tvx(H[h], H[h + 1], key) if h + 1 < len(H) else None
             ex = [v for v in (vp, vn) if v is not None]
             H[h]["iso_" + key] = (vp, vn, min(ex))   # min = voisine la plus proche
+    # somme des deux différences : S = Δavant + Δaprès = 2p(h) − p(h−1) − p(h+1)
+    # ; norme ‖S‖₁/2 par plan (extensions : moyenne des 4 étages)
+    for h in range(1, len(H) - 1):
+        a, b, c = H[h - 1], H[h], H[h + 1]
+        nS = lambda k: 0.5 * float(np.abs(2 * b[k] - a[k] - c[k]).sum())
+        b["S_tri"] = nS("tri")
+        b["S_bass"] = nS("bass_full")
+        b["S_ext"] = float(np.mean([nS(k) for k, _, _ in PLANS]))
 
     # bornes : bi-mesures depuis la mesure 1 (même grille que le mot du
     # morceau, 21 jetons ; la 43e mesure reste hors grille)
@@ -512,6 +520,91 @@ def iso_cards(H, b0, nb, bars):
     return "".join(cards)
 
 
+def sup_rows(h, hp, hn):
+    """UN seul graphe par demi-mesure : Δavant (bleu translucide) et Δaprès
+    (orange translucide) superposés sur le même axe, et par-dessus leur somme
+    S = Δavant + Δaprès = 2p(h) − p(h−1) − p(h+1) (trait plein, sombre).
+    Mêmes entrées pour les trois (3 triades, basse, extension), choisies par
+    le plus grand |S|. Échelle : demi-largeur = 100 points de % (S est tronqué
+    à ±100 ; il peut aller jusqu'à ±200)."""
+    items = []
+
+    def S3(k):
+        dp, dn = h[k] - hp[k], h[k] - hn[k]
+        return dp, dn, dp + dn
+    dp, dn, S = S3("tri")
+    for i in np.argsort(-np.abs(S))[:3]:
+        items.append((tname(i), dp[i], dn[i], ""))
+    dp, dn, S = S3("bass_full")
+    i = int(np.argmax(np.abs(S)))
+    items.append(("/" + ("—" if i == 0 else NOTES[i - 1]), dp[i], dn[i], "basse"))
+    best = None
+    for k, nom, cols in PLANS:
+        dp, dn, S = S3(k)
+        for i in range(1, len(cols)):
+            if best is None or abs(S[i]) > abs(best[0]):
+                best = (S[i], cols[i].split(" ")[0], dp[i], dn[i], nom)
+    items.append((best[1], best[2], best[3], best[4]))
+
+    def lay(v, cls):
+        w = min(50.0, 50 * abs(v))
+        side = f"left:50%;width:{w:.1f}%" if v >= 0 else f"right:50%;width:{w:.1f}%"
+        return f'<i class="{cls}" style="{side}"></i>'
+    out = []
+    for name, a, b, kind in items:
+        tag = f' <span class="kd">{kind}</span>' if kind else ""
+        out.append(f'<div class="pr"><div class="pn"><span class="n">{html.escape(name)}{tag}</span>'
+                   f'<span class="v">S {100*(a+b):+.0f}</span></div>'
+                   f'<div class="sg">{lay(a, "pv")}{lay(b, "nx")}{lay(a + b, "sm")}</div>'
+                   f'<div class="sd">avant {100*a:+.0f} · après {100*b:+.0f}</div></div>')
+    return "".join(out)
+
+
+def sup_cards(H, b0, nb, bars):
+    cards = []
+    for k in range(2 * nb):
+        h = 2 * b0 + k
+        t = f'mes. {b0 + k//2 + 1} · t{"1-2" if k % 2 == 0 else "3-4"}'
+        cards.append(
+            f'<div class="hcol"><div class="hl"><b>{t}</b> · {html.escape(chord_text(bars, b0 + k//2))}</div>'
+            f'<div class="dh">‖S‖/2 : accord <b>{100*H[h]["S_tri"]:.0f}</b> · basse <b>{100*H[h]["S_bass"]:.0f}</b> · ext. <b>{100*H[h]["S_ext"]:.0f}</b></div>'
+            f'{sup_rows(H[h], H[h-1], H[h+1])}</div>')
+    return "".join(cards)
+
+
+def sum_strip_svg(H, b0, nb, grid):
+    """Bandes ‖S‖₁/2 par demi-mesure (accord, basse, ext.). Grand = bosse ou
+    trou net par rapport aux deux voisines ; petit = égale leur moyenne
+    (accord tenu, ou rampe d'un vrai changement)."""
+    nh = 2 * nb
+    W, lab, rowh, gap, top = 360, 40, 30, 12, 24
+    cw = (W - lab) / nh
+    rows = [("accord", "S_tri", "var(--acc)"), ("basse", "S_bass", "#e08a1e"),
+            ("ext.", "S_ext", "#9b59b6")]
+    Ht = top + len(rows) * (rowh + gap) + 6
+    g = [f'<svg viewBox="0 0 {W} {Ht}" class="strip" role="img" aria-label="norme de la somme S">']
+    for c in range(0, nb, 2):
+        x = lab + 2 * c * cw
+        g.append(f'<rect x="{x:.1f}" y="12" width="{4*cw:.1f}" height="{Ht-18}" '
+                 f'fill="{"var(--line)" if (c // 2) % 2 == 0 else "none"}" opacity=".45"/>')
+    for m in range(nb):
+        g.append(f'<text x="{lab + 2*m*cw + cw:.1f}" y="9" class="sx">{b0 + m + 1}</text>')
+    for r, (nom, key, col) in enumerate(rows):
+        y0 = top + r * (rowh + gap)
+        g.append(f'<text x="0" y="{y0 + rowh - 6}" class="sl">{nom}</text>')
+        g.append(f'<line x1="{lab}" x2="{W}" y1="{y0+rowh}" y2="{y0+rowh}" stroke="var(--mut)" stroke-width=".5"/>')
+        for k in range(nh):
+            v = H[2 * b0 + k][key]
+            x = lab + k * cw + 0.18 * cw
+            hh = rowh * min(1.0, v)
+            g.append(f'<rect x="{x:.1f}" y="{y0 + rowh - hh:.1f}" width="{0.64*cw:.1f}" height="{hh:.1f}" '
+                     f'fill="{col}"><title>mes. {b0 + k//2 + 1} {"t1-2" if k % 2 == 0 else "t3-4"} : ‖S‖/2 = {v:.2f}</title></rect>')
+            if v >= 0.3:
+                g.append(f'<text x="{x + 0.32*cw:.1f}" y="{y0 + rowh - hh - 1:.1f}" class="sv">{100*v:.0f}</text>')
+    g.append("</svg>")
+    return "".join(g)
+
+
 def matrix_html(S, labels, thr, odd=None):
     h = '<table class="mx"><tr><th></th>' + "".join(f"<th>{l}</th>" for l in labels) + "</tr>"
     for i, li in enumerate(labels):
@@ -583,9 +676,10 @@ def write_page(chart, H, bornes, idx, A1, A2, res, halves, bars, ext_stats, dec)
             f'<section class="cell"><div class="ch"><b>{nom}</b> <span class="ms">mes. {m0}–{m0+7}</span>'
             f'<button class="play" data-t0="{grid[b0]:.3f}" data-t1="{grid[b0+8]:.3f}">▶ écouter</button></div>'
             f'<div class="cap chords">{html.escape(ch)}</div>'
-            f'{iso_strip_svg(H, b0, 8, grid)}'
-            f'<details class="dd"{" open" if nom == "A1" else ""}><summary>Les 16 demi-mesures, voisine d\'avant et voisine d\'après</summary>'
-            f'<div class="halves">{iso_cards(H, b0, 8, bars)}</div></details></section>')
+            f'<div class="cap">isolement = min(TV avant, TV après)</div>{iso_strip_svg(H, b0, 8, grid)}'
+            f'<div class="cap">‖S‖₁/2 : bosse ou trou net par rapport aux deux voisines</div>{sum_strip_svg(H, b0, 8, grid)}'
+            f'<details class="dd"{" open" if nom == "A1" else ""}><summary>Les 16 demi-mesures : Δavant, Δaprès et leur somme S sur un seul graphe</summary>'
+            f'<div class="halves">{sup_cards(H, b0, 8, bars)}</div></details></section>')
     ext_tbl = "".join(
         f"<tr><td><b>{s['nom']}</b><div class='mut'>{' / '.join(s['cols'])}</div></td>"
         f"<td>{100*s['mean']:.0f} %</td>"
@@ -680,6 +774,9 @@ table{{border-collapse:collapse}} .tbl td,.tbl th{{border-bottom:1px solid var(-
 .pr{{margin:3px 0}} .pn{{display:flex;justify-content:space-between;font-size:11px}}
 .pb{{display:grid;grid-template-columns:1fr 1fr;gap:3px}}
 .dd summary{{margin:6px 0}}
+.sg{{position:relative;height:14px;background:linear-gradient(to right,transparent calc(50% - .5px),var(--mut) calc(50% - .5px),var(--mut) calc(50% + .5px),transparent calc(50% + .5px)),var(--line);border-radius:4px}}
+.sg i{{position:absolute}} .sg i.pv{{top:0;height:100%;background:#2a6fdb;opacity:.38}} .sg i.nx{{top:0;height:100%;background:#e08a1e;opacity:.38}}
+.sg i.sm{{top:4px;height:6px;background:var(--fg);border-radius:2px}} .sd{{font-size:10px;color:var(--mut)}}
 .strip{{width:100%;height:auto;display:block;margin-top:4px}} .strip .sx{{font-size:9px;fill:var(--mut);text-anchor:middle}}
 .strip .sl{{font-size:9px;fill:var(--mut)}} .strip .sv{{font-size:8px;fill:var(--fg);text-anchor:middle}}
 .hmwrap{{margin:4px 0 8px}} .cap{{font-size:11px;color:var(--mut);margin:2px 0}}
@@ -708,7 +805,9 @@ details{{margin-top:6px}} summary{{font-size:13px;color:var(--acc)}}
 <h2>2 bis. Les deux voisines à la fois</h2>
 <p class="mut"><b>Formule</b> — pour chaque demi-mesure h : TV<sub>avant</sub> = ½ Σ|p(h) − p(h−1)|, TV<sub>après</sub> = ½ Σ|p(h) − p(h+1)|, et <b>isolement = min(TV<sub>avant</sub>, TV<sub>après</sub>)</b>. Les voisines viennent du morceau entier (la mesure 13 regarde la 12, la 20 regarde la 21).
 <b>Lecture</b> : isolement petit = elle ressemble à au moins une voisine (elle fait partie d'un accord tenu) ; isolement grand = elle ne ressemble à aucune des deux (accord d'une demi-mesure seulement, ou accident de musx). Bandes : barre pleine = isolement, barre claire = la plus éloignée des deux voisines ; le nombre = isolement en %. Même trois plans que la section 2.</p>
-<p class="mut">Dans le détail de chaque demi-mesure : à gauche p(h) − p(avant), à droite p(h) − p(après), mêmes entrées des deux côtés ; vert = plus de ça ici que chez la voisine, rouge = moins. Les deux nombres sont en points de %.</p>
+<p class="mut"><b>Ce que j'ai compris de ta demande</b> (si tu voulais autre chose, dis-le-moi) : un seul graphe par demi-mesure, où Δ<sub>avant</sub> = p(h) − p(h−1) (bleu, translucide) et Δ<sub>après</sub> = p(h) − p(h+1) (orange, translucide) sont <b>superposés</b> sur le même axe, avec par-dessus leur <b>somme S = Δ<sub>avant</sub> + Δ<sub>après</sub> = 2·p(h) − p(h−1) − p(h+1)</b> (trait sombre plein). Mêmes entrées pour les trois (les 3 accords, la basse et l'extension où |S| est le plus grand).</p>
+<p class="mut"><b>Lire S</b> : S &gt; 0 = <b>bosse</b> (cette demi-mesure a plus de cet accord que les deux voisines : il existe ici et nulle part autour). S &lt; 0 = <b>trou</b> (les voisines l'ont, pas celle-ci : typique d'un flottement dans un accord tenu). S ≈ 0 = elle vaut la moyenne de ses voisines, ou elle est sur une rampe. Attention : à la frontière d'un vrai changement (une voisine identique, l'autre différente), S vaut environ ±Δ, pas 0 : la demi-mesure du bord ressort aussi. Axe : la demi-largeur vaut 100 points de % ; S peut aller jusqu'à ±200 (tronqué sur le dessin, le chiffre est exact).</p>
+<p class="mut">Le nombre en haut de chaque carte, et la deuxième bande de chaque section, = ‖S‖₁/2 = ½ Σ|2p(h) − p(h−1) − p(h+1)|, par plan (accord, basse, extensions en moyenne des 4 étages). Voisines prises dans tout le morceau.</p>
 {''.join(iso)}
 <div class="sum">{ISO_NOTE}</div>
 
@@ -768,6 +867,7 @@ NOTE = {
 
 ISO_NOTE = """<p><b>Ce que ça montre.</b> Presque toutes les demi-mesures ont un isolement d'environ 40 % (accord) : même dans un accord tenu tout au long de la mesure (F mes. 13, C7 mes. 14, Gm mes. 16), les deux moitiés ne se ressemblent qu'à 60 %. C'est le flottement de musx, et il est aussi fort que la différence entre deux vrais accords voisins (F → C7 : 61 %).</p>
 <p>Donc <b>le min ne sépare pas un vrai changement du flottement</b> : une demi-mesure au bord d'un changement garde une voisine identique, et son min retombe à 40 %. Il sépare autre chose : l'accord d'une demi-mesure seulement (G7 | C7 mes. 18, Gm7 | C7 mes. 20 : 87–91 % et 75–79 %) contre l'accord franchement tenu (F/C mes. 17 : 19 % ; D7 mes. 32 : 2–6 %).</p>
+<p><b>Avec la somme S (A1, ‖S‖₁/2 accord).</b> Elle ne sépare pas mieux : les accords tenus (F mes. 13 t1-2 : 130, F mes. 15 : 134 puis 79, Gm mes. 16 : 122 puis 106) sortent aussi fort que les changements (G7 | C7 mes. 18 : 177 et 186). Raison : le flottement est <b>périodique</b> (t1-2 reçoit un signe de S, t3-4 le signe contraire : bosse puis trou sur le même F). S le montre bien (bleu et orange se doublent au lieu de s'annuler), mais il faut l'œil pour distinguer cette alternance d'un vrai changement ; le chiffre seul n'y arrive pas.</p>
 <p>La basse est plus nette que l'accord : sur F/C (mes. 17, 25) son isolement tombe à 4–5 %, là où l'accord reste à 19–25 % ; c'est elle qui dit « rien n'a bougé ».</p>"""
 
 
