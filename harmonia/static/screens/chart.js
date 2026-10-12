@@ -2000,9 +2000,10 @@ export function buildIReal(){
         const place = pendu
           ? `position:absolute;left:calc(${q4/bpbQ*100}% + 1px);top:calc(50% + ${Math.round(size*(EPT?0.34:0.16))+Math.round(rowPT/2)}px);z-index:2;`
           : `position:relative;z-index:1;${tight?"":(EP && b.chords.length===1 && q4===0
-              // EP: un accord seul sur le temps 1 se centre dans sa mesure
-              // (la capture) — ça ne ment sur aucun temps.
-              ? "grid-column:1/-1;grid-row:1;justify-self:center;"
+              // EP: un accord seul sur le temps 1 se cale en début de mesure
+              // (Louis 2026-10-12 : « ne le centre pas, mets-le en début de
+              // barre ») ; il garde toute la largeur pour ne pas être rogné.
+              ? "grid-column:1/-1;grid-row:1;justify-self:start;"
               : `grid-column:${q4+1};grid-row:1;justify-self:start;`)}`;
         const item=el(S.mode==="annotate"?"button":"div",`${place}min-width:0;${autoTight&&!pendu?"flex:0 0 auto;":""}display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;background:none;border:none;cursor:${ch.nc&&S.mode!=="annotate"?"default":"pointer"};padding:0 ${tight||pendu?0:2}px;${S.mode==="annotate"?"pointer-events:none;":""}${ch.carry?"opacity:.72;":""}`);
 
