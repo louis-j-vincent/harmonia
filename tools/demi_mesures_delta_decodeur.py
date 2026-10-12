@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import html
 import json
+from pathlib import Path
 
 import numpy as np
 
@@ -80,28 +81,35 @@ def chart_name(c) -> str:
     return s
 
 
-def main():
-    chart = json.loads(CHART.read_text())
-    audio = (SETTINGS.audio_dir / f"{STEM}.m4a").resolve()
+def core(stem: str = STEM, chart_path=None, verbose: bool = True):
+    """Le cœur commun : postérieures par demi-mesure, S, les 6 variantes,
+    décodages, top 3, texte du chart, accords tenus. Réutilisé tel quel par
+    tools/lambda1_tb_autres_morceaux.py (autres chansons, AUCUN réglage changé).
+
+    Mesures où beatthis ne donne pas 4 temps : on coupe la mesure en son
+    milieu (n'arrive jamais sur Evening Star ; compté dans `n_irreg`)."""
+    chart = json.loads(Path(chart_path or SETTINGS.repo / f"state/cache/charts/min_{stem}.json").read_text())
+    audio = next(SETTINGS.audio_dir.glob(f"{stem}.*")).resolve()
     z = cache.load_npz("musx_probs", audio)
     P = [np.asarray(z[k], dtype=np.float64) for k in PLANES]
-    T = P[0].shape[0]
     grid = chart["barGrid"]
     bt = np.asarray(chart["beatTimes"])
     n = len(grid) - 1
     assert chart["bpb"] == 4
 
-    halves, beats_of = [], []
+    halves, beats_of, n_irreg = [], [], 0
     for b in range(n):
         t0, t1 = grid[b], grid[b + 1]
         bb = bt[(bt >= t0 - 0.05) & (bt < t1 - 0.05)]
-        assert len(bb) == 4, (b, bb)
+        if len(bb) != 4:
+            n_irreg += 1
+            bb = np.linspace(t0, t1, 5)[:4]
         halves += [(t0, float(bb[2])), (float(bb[2]), t1)]
         beats_of.append(list(map(float, bb)) + [t1])
     H = len(halves)
     fr = [(int(round(a / FRAME_DT)), int(round(c / FRAME_DT))) for a, c in halves]
+    fr = [(a, max(c, a + 1)) for a, c in fr]
     p = [np.stack([X[a:c].mean(0) for a, c in fr]) for X in P]          # (H, d) par plan
-
     def S_of(X):
         S = np.zeros_like(X)
         S[1:-1] = 2 * X[1:-1] - X[:-2] - X[2:]
@@ -179,9 +187,21 @@ def main():
     for key, *_ in VARIANTS:
         keep = sum(DEC[key][i] == DEC["l0"][i] for i in held)
         held_stats[key] = (keep, len(held))
-    print("demi-mesures « tenues » (même accord brut avant/ici/après) :", len(held))
-    for key, *_ in VARIANTS:
-        print(f"  {key:4s} garde le nom sur {held_stats[key][0]}/{held_stats[key][1]}")
+    if verbose:
+        print("demi-mesures « tenues » (même accord brut avant/ici/après) :", len(held))
+        for key, *_ in VARIANTS:
+            print(f"  {key:4s} garde le nom sur {held_stats[key][0]}/{held_stats[key][1]}")
+
+    return dict(chart=chart, audio=audio, P=P, grid=grid, n=n, halves=halves, beats_of=beats_of,
+                H=H, fr=fr, p=p, S=S, Q=Q, hmm=hmm, decode=decode, top3=top3, DEC=DEC, TOP=TOP,
+                raw=raw, chart_h=chart_h, held=held, held_stats=held_stats, n_irreg=n_irreg)
+
+
+def main():
+    c = core()
+    chart, audio, P, grid, halves, beats_of, H, p, S, Q, hmm, DEC, TOP, raw, chart_h, held, held_stats = (
+        c[k] for k in ("chart", "audio", "P", "grid", "halves", "beats_of", "H", "p", "S", "Q", "hmm",
+                       "DEC", "TOP", "raw", "chart_h", "held", "held_stats"))
 
     # masse de S⁺ sur les tenues : combien de « signal » reste-t-il ?
     tri_mass = {"tenue": float(np.mean([np.maximum(0, S[0][i]).sum() for i in held])),

@@ -1,0 +1,230 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>λ1 t+b, autres morceaux</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1f;--mut:#6b6b70;--line:#e3e1dc;--acc:#2a6fdb;--ok:#1d8a4e;--ko:#c0392b;--q:#b7791f;--card:#fff;--new:#9a5b00}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#151517;--fg:#ececef;--mut:#9a9aa2;--line:#2c2c31;--acc:#6ea0ff;--ok:#4cc38a;--ko:#ff7a6b;--q:#e0b050;--card:#1d1d21;--new:#f0b860}}
+:root[data-theme="dark"]{--bg:#151517;--fg:#ececef;--mut:#9a9aa2;--line:#2c2c31;--acc:#6ea0ff;--ok:#4cc38a;--ko:#ff7a6b;--q:#e0b050;--card:#1d1d21;--new:#f0b860}
+*{box-sizing:border-box} html,body{margin:0;overflow-x:hidden}
+body{background:var(--bg);color:var(--fg);font:15px/1.45 -apple-system,system-ui,sans-serif;padding:16px;max-width:820px;margin:auto}
+h1{font-size:20px;margin:4px 0 8px} h2{font-size:17px;margin:28px 0 6px}
+.sum{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:10px;padding:10px 12px}
+.sum p{margin:5px 0} .mut{color:var(--mut);font-size:12.5px} p{margin:6px 0}
+.hd{font-size:15px} .sh{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:14px}
+.dv{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px;margin:8px 0}
+.dh{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px}
+.chg{font-size:14px;margin:2px 0 4px;overflow-wrap:anywhere} .new{color:var(--new)}
+.tp{font-size:12.5px;overflow-wrap:anywhere}
+.vd{font-size:13.5px;margin:6px 0 0} .vok b{color:var(--ok)} .vq b{color:var(--q)} .vx b{color:var(--ko)}
+.play{margin-left:auto;font:inherit;font-size:13px;padding:5px 12px;border-radius:14px;border:1px solid var(--acc);background:transparent;color:var(--acc);cursor:pointer}
+.play.on{background:var(--acc);color:#fff}
+table{border-collapse:collapse;width:100%} td,th{border-bottom:1px solid var(--line);padding:4px 3px;font-size:13px;text-align:left}
+th{color:var(--mut);font-weight:600;font-size:12px}
+</style></head><body>
+<h1>λ1 t+b sur trois autres morceaux</h1>
+<p class="mut">2026-10-12. La même variante qu'Evening Star, sans aucun réglage : à chaque demi-mesure, on donne au décodeur la postérieure musx <i>plus</i> sa différence avec les deux demi-mesures voisines, seulement pour la triade et la basse (7e, 9e… inchangées). On compare à « λ0 » = la postérieure seule. Le chart actuel est montré pour repère ; ce n'est pas une vérité.</p>
+<div class="sum"><p><b>1.</b> <b>Le motif d'Evening Star se répète</b> : peu de changements (3, 10 et 6 demi-mesures, contre 13 sur Evening Star), et les accords tenus gardent tous leur nom.</p><p><b>2.</b> <b>Ce qui change est souvent musical</b> : sur This Love, trois fois une dominante sur sol (G/B, Fm/G) juste avant Cm là où le chart écrit A♭ ou B° ; sur San Francisco Street un Em7 (ii) au lieu d'A7 avant D ; sur La Jupe un E♭+ (= Cm maj7) juste après G7.</p><p><b>3.</b> <b>Pas de qualité inventée en série.</b> Deux artefacts reviennent : (1) la 1re et la dernière demi-mesure du morceau (une seule voisine) ; (2) une note déjà présente dans l'accord voisin est effacée — D♭6 → D♭ après B♭7, E♭/B♭ → E♭ après B♭. La différence punit les notes communes.</p></div>
+<table><tr><th>morceau</th><th>changées</th><th>tenus gardés</th></tr>
+<tr><td>Evening Star (rappel)</td><td>13 / 86</td><td>5 / 5</td></tr>
+<tr><td>La Jupe En Laine</td><td>3 / 182</td><td>2 / 2</td></tr><tr><td>This Love (Maroon 5)</td><td>10 / 160</td><td>4 / 4</td></tr><tr><td>San Francisco Street</td><td>6 / 240</td><td>47 / 47</td></tr>
+</table>
+<p class="mut">Pour chaque changement : le top 3 du décodeur pour une trame (λ0 puis λ1 t+b) ; puis l'audio brut, indépendant de musx (chroma NNLS moyenné sur la demi-mesure) : les 4 notes les plus fortes, la basse la plus forte, et à quel point les notes de chaque accord collent (cosinus, 1 = parfait). Ce chiffre ne voit pas la basse : un renversement (G vs G/B) y fait toujours égalité, c'est la ligne « basse » qui tranche. Aucune grille iReal n'existe pour ces trois morceaux ; This Love a une tab Ultimate Guitar 4,8★ référencée mais son texte n'est pas en cache, donc pas de colonne de référence.</p>
+
+<h2>La Jupe En Laine</h2>
+<p class="hd"><b>3</b> demi-mesures changent sur <b>182</b> ; accords tenus qui gardent leur nom : <b>2 / 2</b>.</p>
+<p class="mut">Tonalité du chart : C mineur. Genre de changement : 2 autre fondamentale, 1 couleur (même fondamentale). Le bouton joue la mesure d'avant + la mesure.</p>
+<div class="sh">Presque rien ne bouge (3 sur 182). Un E♭+ plausible après G7 ; les deux autres changements sont le piège « note commune » : le 6te de D♭6 effacé parce que le B♭7 d'avant l'avait.</div>
+<div class="dv">
+<div class="dh"><b>mes. 50, temps 1-2</b>
+<button class="play" data-s="0" data-t0="107.729" data-t1="112.174">▶ écouter</button></div>
+<div class="chg"><span class="mut">chart</span> E♭ <span class="mut">· λ0</span> <b>E♭</b> → <span class="mut">λ1 t+b</span> <b class="new">E♭+</b></div>
+<div class="tp"><b>λ0</b> E♭ 20 % · E♭+ 20 % · E♭7 15 %</div>
+<div class="tp"><b>λ1 t+b</b> E♭+ 27 % · E♭ 27 % · E♭7 20 %</div>
+<div class="tp mut">audio brut : notes B G E♭ F ; basse E♭
+· accord des notes E♭ 0.56 / E♭+ 0.83 → <b>λ1 t+b</b></div>
+<p class="vd vok"><b>plausible.</b> Juste après un G7 : le si♮ est la note la plus forte, sur mi♭-sol. E♭+ = mi♭ sol si = Cm(maj7) sur basse mi♭ — le si du G7 qui reste, couleur classique en mineur.</p></div><div class="dv">
+<div class="dh"><b>mes. 78, temps 1-2</b>
+<button class="play" data-s="0" data-t0="169.959" data-t1="174.404">▶ écouter</button></div>
+<div class="chg"><span class="mut">chart</span> D♭ <span class="mut">· λ0</span> <b>B♭m/D♭</b> → <span class="mut">λ1 t+b</span> <b class="new">D♭</b></div>
+<div class="tp"><b>λ0</b> B♭m/D♭ 28 % · D♭ 23 % · B♭m 12 %</div>
+<div class="tp"><b>λ1 t+b</b> B♭m/D♭ 38 % · D♭ 30 % · D♭maj7 11 %</div>
+<div class="tp mut">audio brut : notes B♭ D♭ F G ; basse D♭
+· accord des notes B♭m/D♭ 0.96 / D♭ 0.62 → <b>λ0</b></div>
+<p class="vd vx"><b>artefact probable.</b> Le si♭ est la note la plus forte (B♭m/D♭ = D♭6 colle à 0,96, D♭ seul 0,62). Il était déjà là dans le B♭7 d'avant : la différence efface ce qui est commun avec la voisine, et le 6te disparaît. λ1 rejoint le chart, l'audio dit D♭6.</p></div><div class="dv">
+<div class="dh"><b>mes. 78, temps 3-4</b>
+<button class="play" data-s="0" data-t0="169.959" data-t1="174.404">▶ écouter</button></div>
+<div class="chg"><span class="mut">chart</span> D♭ <span class="mut">· λ0</span> <b>B♭m/D♭</b> → <span class="mut">λ1 t+b</span> <b class="new">D♭</b></div>
+<div class="tp"><b>λ0</b> D♭ 27 % · B♭m/D♭ 23 % · D♭7 12 %</div>
+<div class="tp"><b>λ1 t+b</b> D♭ 29 % · B♭m/D♭ 19 % · D♭7 13 %</div>
+<div class="tp mut">audio brut : notes B♭ D♭ C F ; basse D♭
+· accord des notes B♭m/D♭ 0.84 / D♭ 0.56 → <b>λ0</b></div>
+<p class="vd vx"><b>artefact probable.</b> Même chose, 2e moitié : si♭ toujours fort, D♭6 colle mieux que D♭ (0,84 contre 0,56).</p></div>
+<h2>This Love (Maroon 5)</h2>
+<p class="hd"><b>10</b> demi-mesures changent sur <b>160</b> ; accords tenus qui gardent leur nom : <b>4 / 4</b>.</p>
+<p class="mut">Tonalité du chart : C mineur. Genre de changement : 4 renversement (même accord, autre basse), 5 autre fondamentale, 1 couleur (même fondamentale). Le bouton joue la mesure d'avant + la mesure.</p>
+<div class="sh">Le plus intéressant : là où le chart écrit A♭ ou B° juste avant Cm, λ1 trouve 3 fois une dominante sur sol, et l'audio est d'accord (pas de la♭, pas de fa). Le reste : un bord de morceau, des basses de passage à écouter.</div>
+<div class="dv">
+<div class="dh"><b>mes. 1, temps 1-2</b>
+<button class="play" data-s="1" data-t0="1.081" data-t1="3.605">▶ écouter</button></div>
+<div class="chg"><span class="mut">chart</span> G/B <span class="mut">· λ0</span> <b>G/B</b> → <span class="mut">λ1 t+b</span> <b class="new">G</b></div>
+<div class="tp"><b>λ0</b> G 33 % · G/B 28 % · G7 12 %</div>
+<div class="tp"><b>λ1 t+b</b> G 46 % · N.C. 22 % · G7 17 %</div>
+<div class="tp mut">audio brut : notes B G D G♭ ; basse B
+· accord des notes G/B 0.94 / G 0.94 → <b>égalité</b></div>
+<p class="vd vx"><b>artefact probable.</b> Toute première demi-mesure : une seule voisine, comptée deux fois. La basse si est la plus forte (sol 0,75) : le G/B du chart et de λ0 tient mieux ; λ1 perd le renversement et hésite même avec « pas d'accord » (22 %).</p></div><div class="dv">
+<div class="dh"><b>mes. 8, temps 3-4</b>
+<button class="play" data-s="1" data-t0="16.230" data-t1="21.279">▶ écouter</button></div>
+<div class="chg"><span class="mut">chart</span> Dø7 <span class="mut">· λ0</span> <b>Dø7</b> → <span class="mut">λ1 t+b</span> <b class="new">B♭/A♭</b></div>
+<div class="tp"><b>λ0</b> B♭/A♭ 13 % · Dø7 10 % · D° 9 %</div>
+<div class="tp"><b>λ1 t+b</b> B♭/A♭ 20 % · B♭7 12 % · B♭ 11 %</div>
+<div class="tp mut">audio brut : notes F B♭ E♭ A♭ ; basse A♭
+· accord des notes Dø7 0.65 / B♭/A♭ 0.76 → <b>λ1 t+b</b></div>
+<p class="vd vq"><b>à écouter.</b> Basse la♭ (pas ré, 0,23) avec fa, si♭, mi♭ en haut : quelque chose sur la♭ plutôt que Dø7. B♭/A♭ (= B♭7 avec la 7e à la basse) colle un peu mieux (0,76 contre 0,65). λ0 avait déjà B♭/A♭ en tête, le décodeur gardait Dø7.</p></div><div class="dv">
+<div class="dh"><b>mes. 26, temps 3-4</b>
+<button class="play" data-s="1" data-t0="61.678" data-t1="66.727">▶ écouter</button></div>
+<div class="chg"><span class="mut">chart</span> Cm <span class="mut">· λ0</span> <b>Cm</b> → <span class="mut">λ1 t+b</span> <b class="new">Cm/G</b></div>
+<div class="tp"><b>λ0</b> Cm/G 27 % · Cm 21 % · Cm7 8 %</div>
+<div class="tp"><b>λ1 t+b</b> Cm/G 31 % · G 21 % · Gm 11 %</div>
+<div class="tp mut">audio brut : notes G G♭ D♭ D ; basse G
+· accord des notes Cm 0.56 / Cm/G 0.56 → <b>égalité</b></div>
+<p class="vd vq"><b>à écouter.</b> Basse sol, puis sol♭, avant le Fm : la basse descend sol → sol♭ → fa. Cm/G note bien la basse ; mais l'audio a aussi sol♭ et ré♭ forts (ni Cm ni Cm/G ne collent, 0,56) : peut-être un accord de passage G♭ vers Fm.</p></div><div class="dv">
+<div class="dh"><b>mes. 28, temps 3-4</b>
+<button class="play" data-s="1" data-t0="66.727" data-t1="71.777">▶ écouter</button></div>
+<div class="chg"><span class="mut">chart</span> A♭ <span class="mut">· λ0</span> <b>B♭/A♭</b> → <span class="mut">λ1 t+b</span> <b class="new">A♭</b></div>
+<div class="tp"><b>λ0</b> B♭/A♭ 14 % · A♭ 12 % · A♭7 12 %</div>
+<div class="tp"><b>λ1 t+b</b> A♭ 22 % · A♭7 21 % · B♭/A♭ 12 %</div>
+<div class="tp mut">audio brut : notes B♭ D A♭ E♭ ; basse B♭
+· accord des notes B♭/A♭ 0.71 / A♭ 0.54 → <b>λ0</b></div>
+<p class="vd vq"><b>à écouter.</b> λ1 rejoint le chart (A♭), mais l'audio a si♭ ré la♭ = B♭7, basse si♭ (B♭/A♭ 0,71, A♭ 0,54). La voisine suivante est un silence (N.C.), ce qui déforme la différence.</p></div><div class="dv">
+<div class="dh"><b>mes. 33, temps 3-4</b>
+<button class="play" data-s="1" data-t0="79.352" data-t1="84.401">▶ écouter</button></div>
+<div class="chg"><span class="mut">chart</span> B° <span class="mut">· λ0</span> <b>B°</b> → <span class="mut">λ1 t+b</span> <b class="new">G/B</b></div>
+<div class="tp"><b>λ0</b> G/B 19 % · B 14 % · B7 13 %</div>
+<div class="tp"><b>λ1 t+b</b> G/B 24 % · B 22 % · B7 20 %</div>
+<div class="tp mut">audio brut : notes E♭ C D B ; basse D
+· accord des notes B° 0.51 / G/B 0.60 → <b>λ1 t+b</b></div>
+<p class="vd vok"><b>plausible.</b> Avant Cm : G/B → Cm, le V renversé qui ramène au i. L'audio n'a pas de fa (donc pas de B°) ; do et mi♭ forts = le Cm qui arrive un peu en avance.</p></div><div class="dv">
+<div class="dh"><b>mes. 46, temps 3-4</b>
+<button class="play" data-s="1" data-t0="112.175" data-t1="117.225">▶ écouter</button></div>
+<div class="chg"><span class="mut">chart</span> Cm <span class="mut">· λ0</span> <b>Cm</b> → <span class="mut">λ1 t+b</span> <b class="new">Cm/G</b></div>
+<div class="tp"><b>λ0</b> Cm/G 26 % · Cm 20 % · Cm7 7 %</div>
+<div class="tp"><b>λ1 t+b</b> Cm/G 27 % · G 18 % · Gm 14 %</div>
+<div class="tp mut">audio brut : notes G♭ G D♭ F ; basse G♭
+· accord des notes Cm 0.51 / Cm/G 0.51 → <b>égalité</b></div>
+<p class="vd vq"><b>à écouter.</b> Même endroit au 2e couplet, même lecture : basse sol puis sol♭ vers Fm, sol♭ et ré♭ forts. Deux couplets sur deux : ce n'est pas du bruit, mais le nom (Cm/G ? G♭ ?) est à écouter.</p></div><div class="dv">
+<div class="dh"><b>mes. 51, temps 3-4</b>
+<button class="play" data-s="1" data-t0="124.800" data-t1="129.849">▶ écouter</button></div>
+<div class="chg"><span class="mut">chart</span> B° <span class="mut">· λ0</span> <b>B°</b> → <span class="mut">λ1 t+b</span> <b class="new">B</b></div>
+<div class="tp"><b>λ0</b> B° 23 % · B 23 % · Bø7 11 %</div>
+<div class="tp"><b>λ1 t+b</b> B 31 % · B7 16 % · B° 13 %</div>
+<div class="tp mut">audio brut : notes B E♭ G♭ C ; basse B
+· accord des notes B° 0.61 / B 0.84 → <b>λ1 t+b</b></div>
+<p class="vd vq"><b>à écouter.</b> L'audio a bien si ré♯ fa♯ (B majeur colle à 0,84, B° 0,61). Un accord d'approche un demi-ton sous Cm ? Inattendu en do mineur, à écouter.</p></div><div class="dv">
+<div class="dh"><b>mes. 64, temps 3-4</b>
+<button class="play" data-s="1" data-t0="157.623" data-t1="162.673">▶ écouter</button></div>
+<div class="chg"><span class="mut">chart</span> A♭ <span class="mut">· λ0</span> <b>A♭</b> → <span class="mut">λ1 t+b</span> <b class="new">G/B</b></div>
+<div class="tp"><b>λ0</b> A♭ 22 % · G/B 14 % · G 9 %</div>
+<div class="tp"><b>λ1 t+b</b> G/B 33 % · G 21 % · G+ 15 %</div>
+<div class="tp mut">audio brut : notes G B E♭ C ; basse B
+· accord des notes A♭ 0.38 / G/B 0.76 → <b>λ1 t+b</b></div>
+<p class="vd vok"><b>plausible.</b> Le chart et λ0 disent A♭, mais l'audio n'a presque pas de la♭ (basse 0,21) : basse si, sol et si en haut → G/B qui ramène à Cm (0,76 contre 0,38). Même geste que mes. 33.</p></div><div class="dv">
+<div class="dh"><b>mes. 68, temps 3-4</b>
+<button class="play" data-s="1" data-t0="167.722" data-t1="172.772">▶ écouter</button></div>
+<div class="chg"><span class="mut">chart</span> E♭ <span class="mut">· λ0</span> <b>E♭/B♭</b> → <span class="mut">λ1 t+b</span> <b class="new">E♭</b></div>
+<div class="tp"><b>λ0</b> E♭/B♭ 21 % · E♭ 20 % · Cm/B♭ 10 %</div>
+<div class="tp"><b>λ1 t+b</b> E♭ 57 % · E♭7 12 % · E♭/B♭ 10 %</div>
+<div class="tp mut">audio brut : notes E♭ G B♭ E ; basse E
+· accord des notes E♭/B♭ 0.90 / E♭ 0.90 → <b>égalité</b></div>
+<p class="vd vq"><b>à écouter.</b> Même accord, seule la basse change (si♭ → mi♭). La basse du chroma est floue (un mi♮ en tête, sans doute une note de passage) : rien ne tranche. Le si♭ était la basse de l'accord d'avant : la différence l'a effacé.</p></div><div class="dv">
+<div class="dh"><b>mes. 72, temps 3-4</b>
+<button class="play" data-s="1" data-t0="177.822" data-t1="182.872">▶ écouter</button></div>
+<div class="chg"><span class="mut">chart</span> A♭ <span class="mut">· λ0</span> <b>A♭</b> → <span class="mut">λ1 t+b</span> <b class="new">Fm/G</b></div>
+<div class="tp"><b>λ0</b> Fm/G 15 % · A♭ 11 % · Fm/A♭ 10 %</div>
+<div class="tp"><b>λ1 t+b</b> Fm/G 23 % · G 21 % · G7 11 %</div>
+<div class="tp mut">audio brut : notes G D F E♭ ; basse G
+· accord des notes A♭ 0.43 / Fm/G 0.45 → <b>égalité</b></div>
+<p class="vd vok"><b>plausible.</b> Avant Cm, basse sol, avec sol ré fa en haut : une dominante sur sol (Fm/G ≈ G7sus4 avec ♭9) plutôt qu'A♭ (la♭ faible). Même rôle que mes. 33 et 64 ; le nom exact est à écouter.</p></div>
+<h2>San Francisco Street</h2>
+<p class="hd"><b>6</b> demi-mesures changent sur <b>240</b> ; accords tenus qui gardent leur nom : <b>47 / 47</b>.</p>
+<p class="mut">Tonalité du chart : D majeur. Genre de changement : 3 autre fondamentale, 3 couleur (même fondamentale). Le bouton joue la mesure d'avant + la mesure.</p>
+<div class="sh">Très stable (6 sur 240, 47 accords tenus sur 47). Deux changements plausibles (G/A avec basse la, Em7 avant D), une tierce absente à trancher à l'oreille, deux artefacts (Amaj7 inventé entre deux voisins proches, dernière demi-mesure).</div>
+<div class="dv">
+<div class="dh"><b>mes. 32, temps 1-2</b>
+<button class="play" data-s="2" data-t0="66.460" data-t1="70.740">▶ écouter</button></div>
+<div class="chg"><span class="mut">chart</span> G/A <span class="mut">· λ0</span> <b>Gmaj7</b> → <span class="mut">λ1 t+b</span> <b class="new">G/A</b></div>
+<div class="tp"><b>λ0</b> G/A 14 % · G7 10 % · Gmaj7 10 %</div>
+<div class="tp"><b>λ1 t+b</b> G/A 22 % · G7 6 % · Gmaj7 6 %</div>
+<div class="tp mut">audio brut : notes A B D G ; basse A
+· accord des notes Gmaj7 0.72 / G/A 0.74 → <b>égalité</b></div>
+<p class="vd vok"><b>plausible.</b> Basse la très nette (sol 0,03) : G/A (= A9sus4, le son « sol sur la ») colle ; λ1 rejoint le chart, λ0 avait oublié la basse.</p></div><div class="dv">
+<div class="dh"><b>mes. 73, temps 1-2</b>
+<button class="play" data-s="2" data-t0="154.640" data-t1="158.960">▶ écouter</button></div>
+<div class="chg"><span class="mut">chart</span> Am7 <span class="mut">· λ0</span> <b>Am7</b> → <span class="mut">λ1 t+b</span> <b class="new">A7</b></div>
+<div class="tp"><b>λ0</b> A7 18 % · Am7 17 % · Em7 15 %</div>
+<div class="tp"><b>λ1 t+b</b> A7 31 % · Am7 19 % · A7sus4 15 %</div>
+<div class="tp mut">audio brut : notes E D B A ; basse A
+· accord des notes Am7 0.63 / A7 0.65 → <b>λ1 t+b</b></div>
+<p class="vd vq"><b>à écouter.</b> La tierce manque : ni do (0,02) ni do♯ (0,11) dans l'audio. Am7, A7 ou A7sus4 sont tous défendables ; l'oreille décide.</p></div><div class="dv">
+<div class="dh"><b>mes. 73, temps 3-4</b>
+<button class="play" data-s="2" data-t0="154.640" data-t1="158.960">▶ écouter</button></div>
+<div class="chg"><span class="mut">chart</span> Am7 <span class="mut">· λ0</span> <b>Am7</b> → <span class="mut">λ1 t+b</span> <b class="new">A7</b></div>
+<div class="tp"><b>λ0</b> Am7 22 % · A7sus4 17 % · A7 17 %</div>
+<div class="tp"><b>λ1 t+b</b> Am7 24 % · A7sus4 18 % · A7 16 %</div>
+<div class="tp mut">audio brut : notes A D G E ; basse A
+· accord des notes Am7 0.72 / A7 0.69 → <b>λ0</b></div>
+<p class="vd vq"><b>à écouter.</b> 2e moitié : un peu de do (0,29) contre do♯ (0,17) — léger avantage à Am7 (chart et λ0). λ1 garde A7 par continuité avec la 1re moitié.</p></div><div class="dv">
+<div class="dh"><b>mes. 109, temps 3-4</b>
+<button class="play" data-s="2" data-t0="232.340" data-t1="236.640">▶ écouter</button></div>
+<div class="chg"><span class="mut">chart</span> A7 <span class="mut">· λ0</span> <b>A7</b> → <span class="mut">λ1 t+b</span> <b class="new">Em7</b></div>
+<div class="tp"><b>λ0</b> A7 21 % · Em7 14 % · A7sus4 14 %</div>
+<div class="tp"><b>λ1 t+b</b> Em7 32 % · Em9 16 % · A7sus4 12 %</div>
+<div class="tp mut">audio brut : notes D G B E ; basse B
+· accord des notes A7 0.50 / Em7 0.94 → <b>λ1 t+b</b></div>
+<p class="vd vok"><b>plausible.</b> Pas de la à la basse (0,14) ; mi sol si ré = Em7 (0,94 contre 0,50). Avant Dmaj7 : le ii (Em7) qui déborde sur le V, ou un ii–I sans V. Plausible.</p></div><div class="dv">
+<div class="dh"><b>mes. 111, temps 1-2</b>
+<button class="play" data-s="2" data-t0="236.640" data-t1="240.940">▶ écouter</button></div>
+<div class="chg"><span class="mut">chart</span> Dmaj7 → Gmaj7 <span class="mut">· λ0</span> <b>Gmaj7</b> → <span class="mut">λ1 t+b</span> <b class="new">Amaj7</b></div>
+<div class="tp"><b>λ0</b> Dmaj7 19 % · Gmaj7 17 % · D 7 %</div>
+<div class="tp"><b>λ1 t+b</b> Amaj7 29 % · A 11 % · Amaj9 8 %</div>
+<div class="tp mut">audio brut : notes B G♭ D G ; basse G
+· accord des notes Gmaj7 0.91 / Amaj7 0.24 → <b>λ0</b></div>
+<p class="vd vx"><b>artefact probable.</b> Aucune note d'Amaj7 dans l'audio (0,24 ; sol, si, ré, fa♯ = Gmaj7, 0,91). Coincée entre Dmaj7 et Gmaj7, la demi-mesure n'a plus rien de « nouveau » : la différence amplifie un reste de bruit.</p></div><div class="dv">
+<div class="dh"><b>mes. 120, temps 3-4</b>
+<button class="play" data-s="2" data-t0="255.960" data-t1="260.240">▶ écouter</button></div>
+<div class="chg"><span class="mut">chart</span> Em7 <span class="mut">· λ0</span> <b>Em7</b> → <span class="mut">λ1 t+b</span> <b class="new">G/A</b></div>
+<div class="tp"><b>λ0</b> Em7 57 % · Em 17 % · Em9 9 %</div>
+<div class="tp"><b>λ1 t+b</b> A7sus4 17 % · A7 16 % · G/A 11 %</div>
+<div class="tp mut">audio brut : notes B G D G♭ ; basse G
+· accord des notes Em7 0.90 / G/A 0.86 → <b>λ0</b></div>
+<p class="vd vx"><b>artefact probable.</b> Dernière demi-mesure du morceau : une seule voisine, comptée deux fois. Pas de la à la basse (sol et mi) : Em7 (chart, 0,90) tient mieux que G/A.</p></div>
+<h2>Ce que ça ne dit pas</h2>
+<p>Trois morceaux, lectures du chroma seulement : chaque étiquette « plausible / à écouter / artefact » est une hypothèse pour ton oreille. Rien n'est branché dans le pipeline.</p>
+<p class="mut">Scripts : tools/lambda1_tb_autres_morceaux.py (ce document) et tools/demi_mesures_delta_decodeur.py (le cœur commun, Evening Star inchangé).</p>
+<audio id="au0" preload="none"></audio><audio id="au1" preload="none"></audio><audio id="au2" preload="none"></audio>
+<script>
+(function(){
+  var SRC=['../audio/ujgPfUZ7Whc.m4a','../audio/maroon_5_this_love.m4a','../audio/9zEl-FQLI4A.m4a'], au=[], cur=null, stopAt=null, curAu=null;
+  // iPhone : fetch()+blob (le chargeur média de la PWA ne bufferise pas), pas de boucle rAF : arrêt piloté par timeupdate
+  SRC.forEach(function(src,k){
+    var a=document.getElementById('au'+k); au.push(a);
+    fetch(src).then(function(r){return r.blob();}).then(function(b){a.src=URL.createObjectURL(b);}).catch(function(){a.src=src;});
+    a.addEventListener('timeupdate',function(){ if(curAu===a && stopAt!==null && a.currentTime>=stopAt){a.pause();} });
+    a.addEventListener('pause',function(){ if(curAu===a){ if(cur){cur.classList.remove('on');cur=null;} stopAt=null; curAu=null; } });
+  });
+  document.querySelectorAll('.play').forEach(function(b){
+    b.addEventListener('click',function(ev){
+      ev.preventDefault(); ev.stopPropagation();
+      if(cur===b){curAu.pause();return;}
+      var a=au[+b.dataset.s];
+      if(cur) cur.classList.remove('on');
+      if(curAu && curAu!==a){ var old=curAu; curAu=null; old.pause(); }
+      if(!a.src) a.src=SRC[+b.dataset.s];
+      cur=b; curAu=a; b.classList.add('on');
+      var t0=parseFloat(b.dataset.t0); stopAt=parseFloat(b.dataset.t1);
+      try{a.currentTime=t0;}catch(e){}
+      var p=a.play(); if(p&&p.catch) p.catch(function(){});
+    });
+  });
+})();
+</script>
+</body></html>

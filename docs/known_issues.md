@@ -5,6 +5,21 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## λ1 t+b sur 3 autres morceaux (2026-10-12, ILLUSTRÉ, rien de branché)
+
+Page : `docs/plots/lambda1_tb_autres_morceaux_2026-10-12.html` ; script
+`tools/lambda1_tb_autres_morceaux.py` (réutilise `core()` de
+`tools/demi_mesures_delta_decodeur.py`, Evening Star vérifié identique octet
+pour octet). Même variante, aucun réglage. Changées / tenus gardés : La Jupe
+3/182, 2/2 ; This Love 10/160, 4/4 ; San Francisco Street 6/240, 47/47. Le
+motif d'Evening Star se répète (peu de changements, tenus intacts).
+Plausibles au chroma : This Love, 3× une dominante sur sol (G/B, Fm/G) avant
+Cm là où le chart écrit A♭/B° (mes. 33, 64, 72) ; SFS Em7 au lieu d'A7 avant D
+(mes. 109). Artefacts récurrents : (1) 1re/dernière demi-mesure (une seule
+voisine comptée 2×) ; (2) note commune avec la voisine effacée (D♭6 → D♭ après
+B♭7, E♭/B♭ → E♭ après B♭) ; (3) un Amaj7 inventé entre Dmaj7 et Gmaj7. Pas de
+qualité inventée en série. Verdicts = lectures du chroma, à l'oreille de Louis.
+
 ## Différence aux voisines dans le décodeur, et le « diminué » de la mesure 18 (2026-10-12, Evening Star, ILLUSTRÉ, rien de branché)
 
 Page : `docs/plots/demi_mesures_delta_decodeur_2026-10-12.html` ; script
