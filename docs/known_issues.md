@@ -185,6 +185,7 @@ servant plus qu'à rapprocher des paires presque identiques.
 ## Petites lettres = quel produit scalaire sur les postérieures ? (2026-10-12, ILLUSTRÉ, rien de branché)
 
 Louis entend A1 (13–20) = a a b a, l'intrus étant la cellule 3 (F/C | G7 C7).
+**Correction 2026-10-12 (Louis) : A n'est PAS a a b a** (différences réentendues) — la cible « a a b a » ci-dessous est abandonnée, matrices gardées pour info ; la page montre désormais aussi les étages 6te/9e/11e (jamais devant « non » : 9e ≤ 46 %, 6te ≤ 25 % par demi-mesure, 0 accord étendu décodé) et les différences entre demi-mesures voisines.
 Page : `docs/plots/produit_scalaire_lettres_2026-10-12.html`
 (`tools/produit_scalaire_lettres.py`). Postérieures musx moyennées par
 demi-mesure (temps 1-2 / 3-4), comparées position par position, 8 définitions :

@@ -17,7 +17,7 @@ from pathlib import Path
 
 import numpy as np
 
-from harmonia import cache, soudure
+from harmonia import cache, musx, soudure
 from harmonia.musx import FRAME_DT
 from harmonia.sections.similarity import chord_tone_matrix, harmonic_vectors
 from harmonia.settings import SETTINGS
@@ -29,6 +29,23 @@ OUT = SETTINGS.repo / "docs/plots/produit_scalaire_lettres_2026-10-12.html"
 NOTES = "C D♭ D E♭ E F G♭ G A♭ A B♭ B".split()
 QUAL = ["", "m", "sus4", "sus2", "dim", "aug"]
 SEPT = ["sans 7e", "maj7", "7 (b7)", "dim7"]
+
+# Plans d'extension de musx — sens des colonnes LU dans le code vendu
+# (third_party/musx_ismir2019/complex_chord.py : SeventhTypes, NinthTypes,
+# EleventhTypes, ThirteenthTypes ; chordnet_ismir_naive.py : chord_limit
+# 7e=3, 9e=3, 11e=2, 13e=2 ⇒ 4/4/3/3 colonnes, colonne 0 = « aucune »).
+# Le 6 est la 13e : SuffixDecoder.ADD_NOTES '6' → ThirteenthTypes.add_13,
+# 'maj6'/'min6' → add_13 ; 'b6' → add_b13. Ces plans sont relatifs à la
+# fondamentale (même colonne quel que soit l'accord). Le décodeur (xhmm_ismir)
+# multiplie p(triade)·p(basse)·p(7e)·p(9e)·p(11e)·p(13e) : un C9 bat un C7
+# exactement quand p(9e = 9) > p(9e = aucune) sur la durée de l'accord.
+PLANS = [
+    ("s7", "7e", ["non", "7M", "♭7", "♭♭7"]),
+    ("s9", "9e", ["non", "9", "♯9", "♭9"]),
+    ("s11", "11e", ["non", "11", "♯11"]),
+    ("s13", "6te / 13e", ["non", "6 (=13)", "♭6 (=♭13)"]),
+]
+EXT_COL = ["#8a8a90", "#2a6fdb", "#e08a1e", "#9b59b6"]   # non / 1re / 2e / 3e colonne
 
 # Les 12 bi-mesures montrées (1re mesure, 1-indexée) et leur nom.
 CELLS = [(13, "A1·1"), (15, "A1·2"), (17, "A1·3"), (19, "A1·4"),
@@ -61,6 +78,7 @@ def main():
     chart = json.loads(CHART.read_text())
     z = cache.load_npz("musx_probs", (SETTINGS.audio_dir / f"{STEM}.m4a").resolve())
     triad, bass, s7 = z["triad"], z["bass"], z["s7"]
+    ext = {k: z[k] for k, _, _ in PLANS}
     grid = chart["barGrid"]
     bt = np.asarray(chart["beatTimes"])
     n = len(grid) - 1
@@ -90,8 +108,52 @@ def main():
         c7 = chroma.copy()
         for k, off in ((1, 11), (2, 10), (3, 9)):
             c7 += sv[k] * np.roll(root, off)
-        H.append(dict(tri=p, root=root, chroma=chroma, c7=c7, bass=bs[1:],
-                      bass_full=bs, s7=sv))
+        d = dict(tri=p, root=root, chroma=chroma, c7=c7, bass=bs[1:],
+                 bass_full=bs, s7=sv)
+        for k, _, _ in PLANS:
+            d[k] = pool(ext[k], t0, t1)
+        H.append(d)
+
+    # ── extensions : sont-elles jamais probables ? ─────────────────────────
+    def bar_of(t):
+        return int(np.searchsorted(grid, t, side="right"))   # 1-indexée
+    ext_stats = []
+    for k, nom, cols in PLANS:
+        X = ext[k]
+        fr = 1 - X[:, 0]
+        hv = np.array([1 - h[k][0] for h in H])
+        jh = int(np.argmax(hv))
+        jf = int(np.argmax(fr))
+        best_col = 1 + int(np.argmax(H[jh][k][1:]))
+        ext_stats.append(dict(
+            k=k, nom=nom, cols=cols, mean=float(fr.mean()),
+            fmax=float(fr.max()), ft=jf * FRAME_DT, fbar=bar_of(jf * FRAME_DT),
+            hmax=float(hv[jh]), hbar=jh // 2 + 1, htemps="1-2" if jh % 2 == 0 else "3-4",
+            hcol=cols[best_col],
+            hwin=int((hv > 0.5).sum()), nh=len(H),
+            ffrac=float((fr > 0.5).mean())))
+    # ce que le décodeur de production écrit sur ce morceau (aucun cache lab)
+    lab = musx.redecode(chart["beatTimes"],
+                        [z[k] for k in ("triad", "bass", "s7", "s9", "s11", "s13")],
+                        downbeat_times=grid[:-1])
+    quals = [l.split(":", 1)[-1] for _, _, l in lab]
+    n_ext = sum(1 for q in quals if any(s in q for s in ("9", "11", "13", "6")))
+    dec = dict(n=len(lab), n_ext=n_ext, n7=sum(1 for q in quals if "7" in q))
+    for s in ext_stats:
+        print(f"{s['k']:4s} moy {s['mean']:.3f} max trame {s['fmax']:.3f} (mes. {s['fbar']}) "
+              f"max demi-mes. {s['hmax']:.3f} (mes. {s['hbar']} t{s['htemps']}, {s['hcol']}) "
+              f">0.5 sur {s['hwin']}/{s['nh']} demi-mes.")
+    print("décodeur :", dec)
+
+    # ── différences avec les voisines ──────────────────────────────────────
+    def tv(a, b):
+        return 0.5 * float(np.abs(a - b).sum())
+    for h in range(len(H)):
+        prev = H[h - 1] if h > 0 else None
+        H[h]["tv_tri"] = tv(H[h]["tri"], prev["tri"]) if prev else None
+        H[h]["tv_bass"] = tv(H[h]["bass_full"], prev["bass_full"]) if prev else None
+        H[h]["tv_ext"] = (float(np.mean([tv(H[h][k], prev[k]) for k, _, _ in PLANS]))
+                          if prev else None)
 
     # bornes : bi-mesures depuis la mesure 1 (même grille que le mot du
     # morceau, 21 jetons ; la 43e mesure reste hors grille)
@@ -206,7 +268,7 @@ def main():
               f"force={forced[0] if forced else None} "
               f"A1={fm[A1[0]:A1[-1]+1]} A2={fm[A2[0]:A2[-1]+1]} B={fm[idx[8]:idx[11]+1]} mot={fm}")
 
-    write_page(chart, H, bornes, idx, A1, A2, res, halves, bars)
+    write_page(chart, H, bornes, idx, A1, A2, res, halves, bars, ext_stats, dec)
 
 
 # ── page ─────────────────────────────────────────────────────────────────────
@@ -260,11 +322,90 @@ def half_block(h):
     b = h["bass_full"]
     btop = np.argsort(-b)[:3]
     bs = " · ".join(("—" if i == 0 else NOTES[i - 1]) + f" {100*b[i]:.0f}" for i in btop)
-    sv = h["s7"]
-    k = int(np.argmax(sv))
-    s7 = " · ".join(f"{SEPT[i]} {100*sv[i]:.0f}" for i in np.argsort(-sv)[:2])
     return (f'<div class="half">{rows}<div class="sub">basse : {bs}</div>'
-            f'<div class="sub">7e : {s7}</div></div>')
+            f'{ext_rows(h)}</div>')
+
+
+def ext_rows(h):
+    """Une barre empilée par plan d'extension : gris = « non », couleurs =
+    les colonnes réelles de musx ; à droite, la plus probable des non-« non »."""
+    out = []
+    for k, nom, cols in PLANS:
+        v = h[k]
+        segs = "".join(f'<i style="width:{100*v[i]:.1f}%;background:{EXT_COL[i]}" '
+                       f'title="{cols[i]} {100*v[i]:.0f} %"></i>' for i in range(len(cols)))
+        j = 1 + int(np.argmax(v[1:]))
+        out.append(f'<div class="r ex"><span class="n">{nom.split(" ")[0]}</span>'
+                   f'<span class="stk">{segs}</span>'
+                   f'<span class="v">{cols[j].split(" ")[0]}&nbsp;{100*v[j]:.0f}</span></div>')
+    return "".join(out)
+
+
+def delta_rows(a, b):
+    """Différence p(a) − p(b), plan par plan, en barres divergentes
+    (vers la droite = présent ici, absent à côté ; vers la gauche = l'inverse)."""
+    rows = []
+    d = a["tri"] - b["tri"]
+    for i in np.argsort(-np.abs(d))[:3]:
+        rows.append((tname(i), d[i], ""))
+    d = a["bass_full"] - b["bass_full"]
+    i = int(np.argmax(np.abs(d)))
+    rows.append(("/" + ("—" if i == 0 else NOTES[i - 1]), d[i], "basse"))
+    best = None
+    for k, nom, cols in PLANS:
+        d = a[k] - b[k]
+        for i in range(1, len(cols)):
+            if best is None or abs(d[i]) > abs(best[1]):
+                best = (cols[i].split(" ")[0], d[i], nom)
+    rows.append(best)
+    out = []
+    for name, v, kind in rows:
+        w = min(50.0, 50 * abs(v))
+        side = f"left:50%;width:{w:.1f}%" if v >= 0 else f"right:50%;width:{w:.1f}%"
+        cls = "up" if v >= 0 else "dn"
+        tag = f' <span class="kd">{kind}</span>' if kind else ""
+        out.append(f'<div class="r dr"><span class="n">{html.escape(name)}{tag}</span>'
+                   f'<span class="dv"><i class="{cls}" style="{side}"></i></span>'
+                   f'<span class="v">{100*v:+.0f}</span></div>')
+    return "".join(out)
+
+
+def strip_svg(H, b0, nb, bars, grid):
+    """Bande « où ça change » : pour chaque frontière entre deux demi-mesures,
+    TV = ½ Σ |p(h) − p(h−1)| pour l'accord (triade 73), la basse (13) et les
+    extensions (moyenne des 4 plans). 0 = identique, 1 = tout a changé."""
+    nh = 2 * nb
+    W, lab, rowh, gap, top = 360, 40, 26, 12, 24
+    cw = (W - lab) / nh
+    rows = [("accord", "tv_tri", "var(--acc)"), ("basse", "tv_bass", "#e08a1e"),
+            ("ext.", "tv_ext", "#9b59b6")]
+    Ht = top + len(rows) * (rowh + gap) + 6
+    g = [f'<svg viewBox="0 0 {W} {Ht}" class="strip" role="img" aria-label="force des changements">']
+    for c in range(0, nb, 2):   # bi-mesures
+        x = lab + 2 * c * cw
+        g.append(f'<rect x="{x:.1f}" y="12" width="{4*cw:.1f}" height="{Ht-18}" '
+                 f'fill="{"var(--line)" if (c // 2) % 2 == 0 else "none"}" opacity=".45"/>')
+    for m in range(nb):
+        x = lab + 2 * m * cw
+        g.append(f'<text x="{x + cw:.1f}" y="9" class="sx">{b0 + m + 1}</text>')
+    for r, (nom, key, col) in enumerate(rows):
+        y0 = top + r * (rowh + gap)
+        g.append(f'<text x="0" y="{y0 + rowh - 6}" class="sl">{nom}</text>')
+        g.append(f'<line x1="{lab}" x2="{W}" y1="{y0+rowh}" y2="{y0+rowh}" stroke="var(--mut)" stroke-width=".5"/>')
+        for k in range(nh):
+            v = H[2 * b0 + k][key]
+            if v is None:
+                continue
+            # la frontière h−1 | h est dessinée au bord gauche de la demi-mesure h
+            x = lab + k * cw - 0.32 * cw
+            hh = rowh * min(1.0, v)
+            g.append(f'<rect x="{x:.1f}" y="{y0 + rowh - hh:.1f}" width="{0.64*cw:.1f}" '
+                     f'height="{hh:.1f}" fill="{col}"><title>mes. {b0 + k//2 + 1} '
+                     f'{"t1" if k % 2 == 0 else "t3"} : {v:.2f}</title></rect>')
+            if v >= 0.35:
+                g.append(f'<text x="{x + 0.32*cw:.1f}" y="{y0 + rowh - hh - 1:.1f}" class="sv">{100*v:.0f}</text>')
+    g.append("</svg>")
+    return "".join(g)
 
 
 def matrix_html(S, labels, thr, odd=None):
@@ -282,7 +423,7 @@ def matrix_html(S, labels, thr, odd=None):
     return h + "</table>"
 
 
-def write_page(chart, H, bornes, idx, A1, A2, res, halves, bars):
+def write_page(chart, H, bornes, idx, A1, A2, res, halves, bars, ext_stats, dec):
     grid = chart["barGrid"]
     cell_html = []
     for (m, name), j in zip(CELLS, idx):
@@ -301,12 +442,41 @@ def write_page(chart, H, bornes, idx, A1, A2, res, halves, bars):
         halves_html = "".join(
             f'<div class="hcol"><div class="hl">½{k+1} · mes. {m + k//2}, temps {"1-2" if k % 2 == 0 else "3-4"}</div>'
             f"{half_block(h)}</div>" for k, h in enumerate(hs))
+        hidx = [2 * b0 + k for k in range(4)]
+        diff_html = "".join(
+            f'<div class="hcol"><div class="hl">½{k+1} · mes. {m + k//2}, t{"1-2" if k % 2 == 0 else "3-4"}</div>'
+            f'<div class="dh">← moins la précédente'
+            f'{" · TV " + format(H[h]["tv_tri"], ".2f") if H[h]["tv_tri"] is not None else ""}</div>'
+            f'{delta_rows(H[h], H[h-1]) if h > 0 else ""}'
+            f'<div class="dh">→ moins la suivante</div>'
+            f'{delta_rows(H[h], H[h+1]) if h + 1 < len(H) else ""}</div>'
+            for k, h in enumerate(hidx))
+        diff_block = (f'<details class="dd"{" open" if name.startswith("A1") else ""}>'
+                      f'<summary>Différences avec les demi-mesures voisines</summary>'
+                      f'<div class="halves">{diff_html}</div></details>')
         cell_html.append(
             f'<section class="cell" id="c{m}"><div class="ch"><b>{name}</b> '
             f'<span class="ms">mes. {m}–{m+1}</span> <span class="chords">{html.escape(chords)}</span>'
             f'<button class="play" data-t0="{t0:.3f}" data-t1="{t1:.3f}">▶ écouter</button></div>'
             f'<div class="hmwrap"><div class="cap">notes d\'accord attendues, ligne = demi-mesure</div>{hm}</div>'
-            f'<div class="halves">{halves_html}</div></section>')
+            f'<div class="halves">{halves_html}</div>{diff_block}</section>')
+
+    # bandes « où ça change », une par section
+    strips = []
+    for nom, m0 in (("A1", 13), ("A2", 21), ("B", 29)):
+        b0 = m0 - 1
+        ch = " | ".join(chord_text(bars, b0 + i) for i in range(8))
+        strips.append(
+            f'<section class="cell"><div class="ch"><b>{nom}</b> <span class="ms">mes. {m0}–{m0+7}</span>'
+            f'<button class="play" data-t0="{grid[b0]:.3f}" data-t1="{grid[b0+8]:.3f}">▶ écouter</button></div>'
+            f'<div class="cap chords">{html.escape(ch)}</div>'
+            f'{strip_svg(H, b0, 8, bars, grid)}</section>')
+    ext_tbl = "".join(
+        f"<tr><td><b>{s['nom']}</b><div class='mut'>{' / '.join(s['cols'])}</div></td>"
+        f"<td>{100*s['mean']:.0f} %</td>"
+        f"<td>{100*s['hmax']:.0f} % <span class='mut'>({s['hcol']}, mes. {s['hbar']} t{s['htemps']})</span></td>"
+        f"<td>{100*s['fmax']:.0f} % <span class='mut'>({'mes. ' + str(s['fbar']) if s['fbar'] < len(grid) else 'après la dernière mesure'})</span></td>"
+        f"<td>{s['hwin']} / {s['nh']}</td></tr>" for s in ext_stats)
 
     labs12 = [n for _, n in CELLS]
     labsA1 = labs12[:4]
@@ -359,7 +529,7 @@ def write_page(chart, H, bornes, idx, A1, A2, res, halves, bars):
 <details><summary>Le mot du morceau entier (21 bi-mesures)</summary><p class="mono">{mot}</p></details>
 </section>""")
 
-    summary = SUMMARY(res, A1, A2)
+    summary = SUMMARY(res, A1, A2, ext_stats, dec, H)
     page = f"""<!doctype html><html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Produit scalaire des lettres</title>
@@ -386,6 +556,15 @@ table{{border-collapse:collapse}} .tbl td,.tbl th{{border-bottom:1px solid var(-
 .n{{font-weight:600;white-space:nowrap;overflow:hidden}} .v{{text-align:right;color:var(--mut)}}
 .bar{{height:8px;background:var(--line);border-radius:4px;overflow:hidden}} .bar i{{display:block;height:100%;background:var(--acc)}}
 .sub{{font-size:11px;color:var(--mut)}}
+.stk{{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--line)}} .stk i{{display:block;height:100%}}
+.ex .n{{font-weight:400;color:var(--mut)}} .r.ex{{grid-template-columns:2.6em 1fr 3.4em}}
+.dh{{font-size:11px;color:var(--mut);margin-top:4px}}
+.r.dr{{grid-template-columns:4.4em 1fr 2.2em}} .kd{{font-weight:400;color:var(--mut);font-size:10px}}
+.dv{{position:relative;height:8px;background:linear-gradient(to right,transparent calc(50% - .5px),var(--mut) calc(50% - .5px),var(--mut) calc(50% + .5px),transparent calc(50% + .5px)),var(--line);border-radius:4px}}
+.dv i{{position:absolute;top:0;height:100%}} .dv i.up{{background:var(--ok)}} .dv i.dn{{background:var(--ko)}}
+.dd summary{{margin:6px 0}}
+.strip{{width:100%;height:auto;display:block;margin-top:4px}} .strip .sx{{font-size:9px;fill:var(--mut);text-anchor:middle}}
+.strip .sl{{font-size:9px;fill:var(--mut)}} .strip .sv{{font-size:8px;fill:var(--fg);text-anchor:middle}}
 .hmwrap{{margin:4px 0 8px}} .cap{{font-size:11px;color:var(--mut);margin:2px 0}}
 .hm{{width:100%;table-layout:fixed}} .hm th{{font-size:10px;font-weight:400;color:var(--mut);padding:0}} .hm td{{height:14px;border:1px solid var(--bg)}}
 .hm tr th:first-child{{width:1.4em}}
@@ -399,16 +578,26 @@ details{{margin-top:6px}} summary{{font-size:13px;color:var(--acc)}}
 <h1>Quel produit scalaire pour les petites lettres ? — Evening Star</h1>
 <div class="sum">{summary}</div>
 
-<h2>Les candidats en un tableau</h2>
-<p class="mut">Lettres données par la règle actuelle (accords identiques ⇒ même lettre ; deux groupes se rejoignent si toutes leurs paires dépassent la paire identique la moins ressemblante du morceau). L'oreille de Louis : A1 = <b>a a b a</b>, l'intrus = cellule 3 (F/C | G7 C7).</p>
+<h2>1. Les 6te, 9e, 11e, 13e : ce que musx en dit</h2>
+<p class="mut">musx sort, à chaque instant, un vote par « étage » de l'accord, en plus de la triade et de la basse. Colonnes lues dans le code de musx (pas devinées) ; le 6 est rangé dans l'étage 13e. « Proba. d'une extension » = 1 − p(non).</p>
+<div class="scroll"><table class="tbl"><tr><th>étage (colonnes)</th><th>moyenne sur le morceau</th><th>max sur une demi-mesure</th><th>max sur un instant (23 ms)</th><th>demi-mesures où l'extension l'emporte sur « non »</th></tr>
+{ext_tbl}</table></div>
+<p class="mut">Le décodeur de production, relancé ici sur ce morceau : {dec['n']} accords écrits, dont {dec['n7']} avec une 7e et <b>{dec['n_ext']}</b> avec 6, 9, 11 ou 13. Il écrirait C9 plutôt que C7 dès que p(9) &gt; p(non) sur la durée de l'accord ; ça n'arrive jamais ici.</p>
+
+<h2>2. Où ça change : les différences entre demi-mesures voisines</h2>
+<p class="mut"><b>Formule</b> — à chaque frontière entre la demi-mesure h−1 et h : TV = ½ Σ<sub>i</sub> |p<sub>i</sub>(h) − p<sub>i</sub>(h−1)|, calculée séparément pour l'accord (73 triades), la basse (13 notes) et les extensions (moyenne des 4 étages). 0 = même postérieure, 1 = plus rien en commun. Chaque barre est posée sur la frontière (début de la demi-mesure h) ; le nombre = % de la probabilité qui a changé. Bandes grisées = bi-mesures (les cellules des lettres).</p>
+{''.join(strips)}
+
+<h2>3. Les candidats « produit scalaire » en un tableau</h2>
+<p class="mut">Gardé pour information. Lettres données par la règle actuelle (accords identiques ⇒ même lettre ; deux groupes se rejoignent si toutes leurs paires dépassent la paire identique la moins ressemblante du morceau). La colonne « a a b a possible ? » visait une cible abandonnée : Louis a réentendu, A n'est pas a a b a.</p>
 <div class="scroll"><table class="tbl"><tr><th>définition</th><th>lettres, règle actuelle (A1 · A2)</th><th>intrus (A1 · A2)</th><th>a a b a possible ? (A1 · A2)</th><th>avec ce seuil : A1 · A2 · B</th></tr>
 {''.join(table_rows)}</table></div>
 
-<h2>1. Les postérieures, demi-mesure par demi-mesure</h2>
-<p class="mut">Une « demi-mesure » = temps 1-2 ou 3-4 (4 temps par mesure, vérifié sur la grille). Pour chacune : les 5 accords les plus probables de musx (en %), les 3 basses, la septième. Au-dessus, les notes d'accord attendues (Σ probabilité × notes de l'accord), une ligne par demi-mesure. ▶ joue exactement les 2 mesures.</p>
+<h2>4. Les postérieures, demi-mesure par demi-mesure</h2>
+<p class="mut">Une « demi-mesure » = temps 1-2 ou 3-4 (4 temps par mesure, vérifié sur la grille). Pour chacune : les 5 accords les plus probables de musx (en %), les 3 basses, puis une barre par étage — <b>7e</b> (non / 7M / ♭7 / ♭♭7), <b>9e</b> (non / 9 / ♯9 / ♭9), <b>11e</b> (non / 11 / ♯11), <b>6te</b> = 13e (non / 6 / ♭6) : gris = « non », couleur = l'extension, chiffre = la plus probable. Sous « Différences » : p(cette demi-mesure) − p(voisine), barre à droite (verte) = présent ici et pas à côté, à gauche (rouge) = l'inverse ; 3 triades, la basse, l'extension qui bougent le plus. Au-dessus, les notes d'accord attendues (Σ probabilité × notes de l'accord), une ligne par demi-mesure. ▶ joue exactement les 2 mesures.</p>
 {''.join(cell_html)}
 
-<h2>2. Les définitions candidates</h2>
+<h2>5. Les définitions candidates (information)</h2>
 <p class="mut">Toutes « alignées » : on compare la demi-mesure k de X à la demi-mesure k de Y, puis on fait la moyenne des 4.</p>
 {''.join(cand_html)}
 
@@ -465,24 +654,32 @@ def verdict(r, lA1, lA2, w1, w2):
     return s
 
 
-def SUMMARY(res, A1, A2):
-    ok1 = [r for r in res if r["w1"]]
-    ok12 = [r for r in ok1 if r["w2"]]
+def SUMMARY(res, A1, A2, ext_stats, dec, H):
+    E = {e["k"]: e for e in ext_stats}
+    nh = len(H)
+    def mx(k):
+        e = E[k]
+        return f"{100*e['hmax']:.0f} % (mes. {e['hbar']}, temps {e['htemps']})"
+    l0 = ("<p><b>Correction du 12/10 :</b> A n'est pas « a a b a » — Louis y a réentendu des "
+          "différences. La page ne cherche plus le candidat qui donne a a b a ; les matrices "
+          "restent en bas, pour information.</p>")
+    l1 = ("<p><b>Les 6te, 9e, 11e : musx ne les entend jamais assez fort.</b> "
+          f"Sur une demi-mesure, la 9e monte au plus à {mx('s9')}, la 6te à {mx('s13')}, "
+          f"la 11e à {mx('s11')}. Sur aucune des {nh} demi-mesures elles ne passent devant « non ». "
+          f"Ce n'est pas l'aval qui les jette : le décodeur, relancé ici, écrit <b>{dec['n_ext']}</b> "
+          f"accord avec 6, 9, 11 ou 13 sur {dec['n']} — il les écrirait si musx votait plus pour "
+          f"l'extension que pour « non ». Seule la 7e est vraiment là (elle l'emporte sur "
+          f"{E['s7']['hwin']} demi-mesures sur {nh}).</p>")
+    l2 = ("<p><b>Où ça change, sur A1 (section 2) :</b> les 4 bi-mesures démarrent toutes par un "
+          "changement net au temps 1 vers F (≈ 90 % de la probabilité bouge). Elles diffèrent par la "
+          "2e mesure : C7 (basse sol → do au milieu), Gm (basse sol → si♭ au milieu), G7 C7 et Gm7 C7 "
+          "(un 2e changement net au temps 3). Mes. 17 est la seule mesure immobile : la basse reste "
+          "sur do toute la mesure (F/C, 4 % bouge au milieu).</p>")
     thr = [r["thr"] for r in res]
-    l1 = ("<p><b>1. Seule la basse donne a a b a.</b> "
-          + (", ".join(f"{r['title']} (seuil {r['w1'][0]:.2f}–{r['w1'][1]:.2f})" for r in ok1)
-             if ok1 else "Aucune définition")
-          + " : la cellule 3 (F/C | G7 C7) est la seule à poser do à la basse. "
-          "Toutes les définitions « notes d'accord » désignent au contraire la 2 (F | Gm).</p>")
-    l2 = ("<p><b>2. Cohérent sur A2 :</b> "
-          + (", ".join(f"{r['title']} — {r['ftxt']}" for r in ok12) if ok12 else "aucune")
-          + ".</p>")
-    l3 = ("<p><b>3. Mais pas avec la règle de seuil actuelle.</b> Le seuil vient des paires identiques "
-          f"({min(thr):.2f}–{max(thr):.2f} selon la définition) : il est si haut que rien ne fusionne et "
-          "A1 sort toujours <span class='mono'>ghij</span>. a a b a demande un seuil vers 0.5 : il faut donc changer "
-          "aussi la règle du seuil, pas seulement le produit scalaire. Un seul morceau : à vérifier ailleurs "
-          "avant d'en faire une loi.</p>")
-    return l1 + l2 + l3
+    l3 = ("<p class='mut'>Rappel des candidats (section 3) : seule la tête « basse » isolait la cellule 3 ; "
+          f"la règle de seuil actuelle ({min(thr):.2f}–{max(thr):.2f}) ne fusionne rien quelle que soit la "
+          "définition. Un seul morceau : hypothèse, pas loi.</p>")
+    return l0 + l1 + l2 + l3
 
 
 if __name__ == "__main__":
