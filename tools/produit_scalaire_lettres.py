@@ -155,6 +155,19 @@ def main():
         H[h]["tv_ext"] = (float(np.mean([tv(H[h][k], prev[k]) for k, _, _ in PLANS]))
                           if prev else None)
 
+    # voisines des deux côtés (dans tout le morceau, pas coupées à la zone montrée)
+    def tvx(a, b, key):
+        if key == "ext":
+            return float(np.mean([tv(a[k], b[k]) for k, _, _ in PLANS]))
+        kk = {"tri": "tri", "bass": "bass_full"}[key]
+        return tv(a[kk], b[kk])
+    for h in range(len(H)):
+        for key in ("tri", "bass", "ext"):
+            vp = tvx(H[h], H[h - 1], key) if h > 0 else None
+            vn = tvx(H[h], H[h + 1], key) if h + 1 < len(H) else None
+            ex = [v for v in (vp, vn) if v is not None]
+            H[h]["iso_" + key] = (vp, vn, min(ex))   # min = voisine la plus proche
+
     # bornes : bi-mesures depuis la mesure 1 (même grille que le mot du
     # morceau, 21 jetons ; la 43e mesure reste hors grille)
     bornes = list(range(0, n - n % 2 + 1, 2))
@@ -268,6 +281,12 @@ def main():
               f"force={forced[0] if forced else None} "
               f"A1={fm[A1[0]:A1[-1]+1]} A2={fm[A2[0]:A2[-1]+1]} B={fm[idx[8]:idx[11]+1]} mot={fm}")
 
+    for m0 in (13, 21, 29):
+        for k in range(16):
+            h = 2 * (m0 - 1) + k
+            print("iso", m0 + k // 2, "t1-2" if k % 2 == 0 else "t3-4",
+                  " ".join(f"{q}:{H[h]['iso_'+q][0]:.2f}/{H[h]['iso_'+q][1]:.2f}->{H[h]['iso_'+q][2]:.2f}"
+                           for q in ("tri", "bass", "ext")), chord_text(bars, m0 - 1 + k // 2))
     write_page(chart, H, bornes, idx, A1, A2, res, halves, bars, ext_stats, dec)
 
 
@@ -408,6 +427,91 @@ def strip_svg(H, b0, nb, bars, grid):
     return "".join(g)
 
 
+def iso_strip_svg(H, b0, nb, grid):
+    """Bandes « isolement » : par demi-mesure h, barre pleine = min(TVprev, TVnext)
+    (la voisine la plus proche), barre claire derrière = max(TVprev, TVnext).
+    Les voisines viennent du morceau entier (H est global)."""
+    nh = 2 * nb
+    W, lab, rowh, gap, top = 360, 40, 30, 12, 24
+    cw = (W - lab) / nh
+    rows = [("accord", "tri", "var(--acc)"), ("basse", "bass", "#e08a1e"),
+            ("ext.", "ext", "#9b59b6")]
+    Ht = top + len(rows) * (rowh + gap) + 6
+    g = [f'<svg viewBox="0 0 {W} {Ht}" class="strip" role="img" aria-label="isolement des demi-mesures">']
+    for c in range(0, nb, 2):
+        x = lab + 2 * c * cw
+        g.append(f'<rect x="{x:.1f}" y="12" width="{4*cw:.1f}" height="{Ht-18}" '
+                 f'fill="{"var(--line)" if (c // 2) % 2 == 0 else "none"}" opacity=".45"/>')
+    for m in range(nb):
+        g.append(f'<text x="{lab + 2*m*cw + cw:.1f}" y="9" class="sx">{b0 + m + 1}</text>')
+    for r, (nom, key, col) in enumerate(rows):
+        y0 = top + r * (rowh + gap)
+        g.append(f'<text x="0" y="{y0 + rowh - 6}" class="sl">{nom}</text>')
+        g.append(f'<line x1="{lab}" x2="{W}" y1="{y0+rowh}" y2="{y0+rowh}" stroke="var(--mut)" stroke-width=".5"/>')
+        for k in range(nh):
+            vp, vn, mn = H[2 * b0 + k]["iso_" + key]
+            mx = max(v for v in (vp, vn) if v is not None)
+            x = lab + k * cw + 0.18 * cw
+            hh = rowh * min(1.0, mx)
+            g.append(f'<rect x="{x:.1f}" y="{y0 + rowh - hh:.1f}" width="{0.64*cw:.1f}" height="{hh:.1f}" '
+                     f'fill="{col}" opacity=".28"/>')
+            hh = rowh * min(1.0, mn)
+            g.append(f'<rect x="{x:.1f}" y="{y0 + rowh - hh:.1f}" width="{0.64*cw:.1f}" height="{hh:.1f}" '
+                     f'fill="{col}"><title>mes. {b0 + k//2 + 1} {"t1-2" if k % 2 == 0 else "t3-4"} : '
+                     f'avant {vp if vp is None else format(vp, ".2f")}, après {vn if vn is None else format(vn, ".2f")}, '
+                     f'min {mn:.2f}</title></rect>')
+            if mn >= 0.3:
+                g.append(f'<text x="{x + 0.32*cw:.1f}" y="{y0 + rowh - hh - 1:.1f}" class="sv">{100*mn:.0f}</text>')
+    g.append("</svg>")
+    return "".join(g)
+
+
+def pair_rows(h, hp, hn):
+    """Pour une demi-mesure h : p(h)−p(précédente) (barre de gauche) et
+    p(h)−p(suivante) (barre de droite), mêmes entrées des deux côtés :
+    3 triades, la basse, l'extension, choisies par le plus grand |Δ| des deux."""
+    items = []
+    dp, dn = h["tri"] - hp["tri"], h["tri"] - hn["tri"]
+    for i in np.argsort(-np.maximum(np.abs(dp), np.abs(dn)))[:3]:
+        items.append((tname(i), dp[i], dn[i], ""))
+    dp, dn = h["bass_full"] - hp["bass_full"], h["bass_full"] - hn["bass_full"]
+    i = int(np.argmax(np.maximum(np.abs(dp), np.abs(dn))))
+    items.append(("/" + ("—" if i == 0 else NOTES[i - 1]), dp[i], dn[i], "basse"))
+    best = None
+    for k, nom, cols in PLANS:
+        dp, dn = h[k] - hp[k], h[k] - hn[k]
+        for i in range(1, len(cols)):
+            m = max(abs(dp[i]), abs(dn[i]))
+            if best is None or m > best[0]:
+                best = (m, cols[i].split(" ")[0], dp[i], dn[i], nom)
+    items.append((best[1], best[2], best[3], best[4]))
+
+    def half(v, left):
+        w = min(50.0, 50 * abs(v))
+        side = f"left:50%;width:{w:.1f}%" if v >= 0 else f"right:50%;width:{w:.1f}%"
+        return f'<span class="dv"><i class="{"up" if v >= 0 else "dn"}" style="{side}"></i></span>'
+    out = []
+    for name, a, b, kind in items:
+        tag = f' <span class="kd">{kind}</span>' if kind else ""
+        out.append(f'<div class="pr"><div class="pn"><span class="n">{html.escape(name)}{tag}</span>'
+                   f'<span class="v">{100*a:+.0f} | {100*b:+.0f}</span></div>'
+                   f'<div class="pb">{half(a, True)}{half(b, False)}</div></div>')
+    return "".join(out)
+
+
+def iso_cards(H, b0, nb, bars):
+    cards = []
+    for k in range(2 * nb):
+        h = 2 * b0 + k
+        t = f'mes. {b0 + k//2 + 1} · t{"1-2" if k % 2 == 0 else "3-4"}'
+        vt = H[h]["iso_tri"]
+        cards.append(
+            f'<div class="hcol"><div class="hl"><b>{t}</b> · {html.escape(chord_text(bars, b0 + k//2))}</div>'
+            f'<div class="dh">accord : avant {100*vt[0]:.0f} · après {100*vt[1]:.0f} · <b>min {100*vt[2]:.0f}</b></div>'
+            f'{pair_rows(H[h], H[h-1], H[h+1])}</div>')
+    return "".join(cards)
+
+
 def matrix_html(S, labels, thr, odd=None):
     h = '<table class="mx"><tr><th></th>' + "".join(f"<th>{l}</th>" for l in labels) + "</tr>"
     for i, li in enumerate(labels):
@@ -471,6 +575,17 @@ def write_page(chart, H, bornes, idx, A1, A2, res, halves, bars, ext_stats, dec)
             f'<button class="play" data-t0="{grid[b0]:.3f}" data-t1="{grid[b0+8]:.3f}">▶ écouter</button></div>'
             f'<div class="cap chords">{html.escape(ch)}</div>'
             f'{strip_svg(H, b0, 8, bars, grid)}</section>')
+    iso = []
+    for nom, m0 in (("A1", 13), ("A2", 21), ("B", 29)):
+        b0 = m0 - 1
+        ch = " | ".join(chord_text(bars, b0 + i) for i in range(8))
+        iso.append(
+            f'<section class="cell"><div class="ch"><b>{nom}</b> <span class="ms">mes. {m0}–{m0+7}</span>'
+            f'<button class="play" data-t0="{grid[b0]:.3f}" data-t1="{grid[b0+8]:.3f}">▶ écouter</button></div>'
+            f'<div class="cap chords">{html.escape(ch)}</div>'
+            f'{iso_strip_svg(H, b0, 8, grid)}'
+            f'<details class="dd"{" open" if nom == "A1" else ""}><summary>Les 16 demi-mesures, voisine d\'avant et voisine d\'après</summary>'
+            f'<div class="halves">{iso_cards(H, b0, 8, bars)}</div></details></section>')
     ext_tbl = "".join(
         f"<tr><td><b>{s['nom']}</b><div class='mut'>{' / '.join(s['cols'])}</div></td>"
         f"<td>{100*s['mean']:.0f} %</td>"
@@ -562,6 +677,8 @@ table{{border-collapse:collapse}} .tbl td,.tbl th{{border-bottom:1px solid var(-
 .r.dr{{grid-template-columns:4.4em 1fr 2.2em}} .kd{{font-weight:400;color:var(--mut);font-size:10px}}
 .dv{{position:relative;height:8px;background:linear-gradient(to right,transparent calc(50% - .5px),var(--mut) calc(50% - .5px),var(--mut) calc(50% + .5px),transparent calc(50% + .5px)),var(--line);border-radius:4px}}
 .dv i{{position:absolute;top:0;height:100%}} .dv i.up{{background:var(--ok)}} .dv i.dn{{background:var(--ko)}}
+.pr{{margin:3px 0}} .pn{{display:flex;justify-content:space-between;font-size:11px}}
+.pb{{display:grid;grid-template-columns:1fr 1fr;gap:3px}}
 .dd summary{{margin:6px 0}}
 .strip{{width:100%;height:auto;display:block;margin-top:4px}} .strip .sx{{font-size:9px;fill:var(--mut);text-anchor:middle}}
 .strip .sl{{font-size:9px;fill:var(--mut)}} .strip .sv{{font-size:8px;fill:var(--fg);text-anchor:middle}}
@@ -587,6 +704,13 @@ details{{margin-top:6px}} summary{{font-size:13px;color:var(--acc)}}
 <h2>2. Où ça change : les différences entre demi-mesures voisines</h2>
 <p class="mut"><b>Formule</b> — à chaque frontière entre la demi-mesure h−1 et h : TV = ½ Σ<sub>i</sub> |p<sub>i</sub>(h) − p<sub>i</sub>(h−1)|, calculée séparément pour l'accord (73 triades), la basse (13 notes) et les extensions (moyenne des 4 étages). 0 = même postérieure, 1 = plus rien en commun. Chaque barre est posée sur la frontière (début de la demi-mesure h) ; le nombre = % de la probabilité qui a changé. Bandes grisées = bi-mesures (les cellules des lettres).</p>
 {''.join(strips)}
+
+<h2>2 bis. Les deux voisines à la fois</h2>
+<p class="mut"><b>Formule</b> — pour chaque demi-mesure h : TV<sub>avant</sub> = ½ Σ|p(h) − p(h−1)|, TV<sub>après</sub> = ½ Σ|p(h) − p(h+1)|, et <b>isolement = min(TV<sub>avant</sub>, TV<sub>après</sub>)</b>. Les voisines viennent du morceau entier (la mesure 13 regarde la 12, la 20 regarde la 21).
+<b>Lecture</b> : isolement petit = elle ressemble à au moins une voisine (elle fait partie d'un accord tenu) ; isolement grand = elle ne ressemble à aucune des deux (accord d'une demi-mesure seulement, ou accident de musx). Bandes : barre pleine = isolement, barre claire = la plus éloignée des deux voisines ; le nombre = isolement en %. Même trois plans que la section 2.</p>
+<p class="mut">Dans le détail de chaque demi-mesure : à gauche p(h) − p(avant), à droite p(h) − p(après), mêmes entrées des deux côtés ; vert = plus de ça ici que chez la voisine, rouge = moins. Les deux nombres sont en points de %.</p>
+{''.join(iso)}
+<div class="sum">{ISO_NOTE}</div>
 
 <h2>3. Les candidats « produit scalaire » en un tableau</h2>
 <p class="mut">Gardé pour information. Lettres données par la règle actuelle (accords identiques ⇒ même lettre ; deux groupes se rejoignent si toutes leurs paires dépassent la paire identique la moins ressemblante du morceau). La colonne « a a b a possible ? » visait une cible abandonnée : Louis a réentendu, A n'est pas a a b a.</p>
@@ -640,6 +764,11 @@ NOTE = {
     "fa": "√p donne plus de poids aux hésitations, mais le classement ne change pas : la 2 reste l'intruse.",
     "fe": "Même neutralisation que (e) : la basse ne pèse pas assez contre les notes d'accord.",
 }
+
+
+ISO_NOTE = """<p><b>Ce que ça montre.</b> Presque toutes les demi-mesures ont un isolement d'environ 40 % (accord) : même dans un accord tenu tout au long de la mesure (F mes. 13, C7 mes. 14, Gm mes. 16), les deux moitiés ne se ressemblent qu'à 60 %. C'est le flottement de musx, et il est aussi fort que la différence entre deux vrais accords voisins (F → C7 : 61 %).</p>
+<p>Donc <b>le min ne sépare pas un vrai changement du flottement</b> : une demi-mesure au bord d'un changement garde une voisine identique, et son min retombe à 40 %. Il sépare autre chose : l'accord d'une demi-mesure seulement (G7 | C7 mes. 18, Gm7 | C7 mes. 20 : 87–91 % et 75–79 %) contre l'accord franchement tenu (F/C mes. 17 : 19 % ; D7 mes. 32 : 2–6 %).</p>
+<p>La basse est plus nette que l'accord : sur F/C (mes. 17, 25) son isolement tombe à 4–5 %, là où l'accord reste à 19–25 % ; c'est elle qui dit « rien n'a bougé ».</p>"""
 
 
 def verdict(r, lA1, lA2, w1, w2):
