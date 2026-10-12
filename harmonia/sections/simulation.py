@@ -1553,16 +1553,49 @@ def nommer_dernier_tour(out: list[dict], bars: list,
         tr["raison"] = "sa lettre est déjà jouée ailleurs"
         return          # sa lettre est déjà jouée ailleurs : une reprise
     fin = bars[dernier["m0"]:dernier["m1"] + 1]
-    for lab, occ in sorted(lettres.items(),
-                           key=lambda kv: (-len(kv[1]), kv[1][0]["m0"])):
+    candidates = sorted(lettres.items(),
+                        key=lambda kv: (-len(kv[1]), kv[1][0]["m0"]))
+
+    def refs_de(occ):
         lg = max(o["m1"] - o["m0"] for o in occ)
-        refs = [bars[o["m0"]:o["m1"] + 1] for o in occ if o["m1"] - o["m0"] == lg]
-        ok = dernier_tour_des_passes(fin, refs, tonique) is not None
+        return [bars[o["m0"]:o["m1"] + 1] for o in occ if o["m1"] - o["m0"] == lg]
+    for lab, occ in candidates:
+        ok = dernier_tour_des_passes(fin, refs_de(occ), tonique) is not None
         tr["essais"].append({"lettre": lab, "ok": ok})
         if ok:
             dernier["label"] = lab
             dernier["regle"] = "dernier tour"
             tr["raison"] = f"renommé {lab}"
+            return
+    # UN DERNIER A AU BOUT D'UN AUTRE BLOC (Louis, 2026-10-12, Evening Star :
+    # l'algo nommait B 29–43, alors que 37–43 rejoue le début du A jusqu'à la
+    # fin). On cherche, dans le bloc final de l'algo, la PREMIÈRE mesure à
+    # partir de laquelle tout le reste du morceau est le début d'une lettre
+    # connue, en phase 0 (`folding.ouverture_finale` : dernier tour de la
+    # règle 2, ou passage coupé par la fin) — et on coupe là. Il faut au
+    # moins la MOITIÉ de la lettre : en deçà, quelques mesures qui
+    # ressemblent au début du A sont la fin du bloc, pas un tour du A. Le
+    # bloc entier peut aussi être ce tour coupé (s = m0 : il est renommé).
+    from harmonia.folding import ouverture_finale
+    for lab, occ in candidates:
+        refs = refs_de(occ)
+        L_ref = len(refs[0])
+        for s in range(dernier["m0"], dernier["m1"] + 1):
+            reste = bars[s:dernier["m1"] + 1]
+            if 2 * len(reste) < L_ref:
+                break
+            if not ouverture_finale(reste, refs, tonique):
+                continue
+            tr["essais"].append({"lettre": lab, "ok": True, "coupe": s})
+            if s == dernier["m0"]:
+                dernier["label"] = lab
+                dernier["regle"] = "dernier tour"
+                tr["raison"] = f"renommé {lab} (passage coupé)"
+                return
+            neuf = {**dernier, "m0": s, "label": lab, "regle": "dernier tour"}
+            dernier["m1"] = s - 1
+            out.insert(out.index(dernier) + 1, neuf)
+            tr["raison"] = f"coupé en {s}, la fin devient {lab}"
             return
     tr["raison"] = "aucune lettre ne colle"
 

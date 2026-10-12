@@ -5,6 +5,57 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Les queues : « un A, fins 1. et 2. » et « un dernier A » (2026-10-12, FAIT, pas encore servi sur :7772)
+
+Louis, Evening Star (`min_CHVWPIFAT5A`) : « il faudrait pouvoir toujours bien
+gérer les queues ». Avant : la pile du A était refusée (« stack incoherent
+0,35 », mesure 8 : `G-7 C7` contre `F B♭`), le A ×2 s'écrivait avec la fin du
+2e passage, **la 1re fin `F C | G-7 C7` était perdue** ; et l'algo nommait
+B 29–43, alors que 37–43 rejoue le début du A.
+
+1. **Fins 1./2.** (`folding.tronc_et_queue` / `_porte_de_queue`, utilisé par
+   `_ireal_endings` ET par le veto de pile de `fold_letter_groups`) : si le
+   tronc est le même moment (`meme_moment` : couleurs, accord de passage)
+   et que la vraie différence tient dans le **dernier quart** de la section
+   (≤ 2 mesures, `fenetre_de_queue` — la cadence de la dernière phrase de 4),
+   la queue commence à la 1re mesure de ce quart qui s'écrit autrement. Les
+   fins sont groupées au même moment près (deux couleurs d'une fin = une
+   fin) ; groupement ambigu ou un seul groupe → rien (under-fold). La règle
+   exacte d'avant reste la 1re porte (rien de ce qu'elle acceptait ne bouge).
+   Dans la pile (occurrence contre occurrence seulement), la queue sort de
+   la pile comme `fins_hors_pile` au lieu de refuser la lettre ; une
+   incohérence avant la queue refuse toujours.
+2. **Dernier A** (`simulation.nommer_dernier_tour` + `folding.ouverture_finale`) :
+   dans le bloc final de l'ALGO (jamais un bloc tracé), la 1re mesure à partir
+   de laquelle tout le reste est le début, en phase 0, d'une lettre connue
+   (dernier tour de la règle 2, ou passage coupé par la fin) ; au moins la
+   moitié de la lettre doit SONNER. Le bloc est coupé là. À l'écriture,
+   `_merge_coupe` lit maintenant un hôte à fins 1./2. fin par fin (la mesure
+   43 `F D♭7` allume la 2e fin `F`, pas `F C`) ; `_merge_dernier_tour`
+   accepte un hôte à fins si le tour tient dans le tronc.
+
+Evening Star après : intro 1–12 · A 13–20 · A 21–28 · B 29–36 · A 37–43 →
+chart = intro, **A ×3 avec 1. `F C | G-7 C7` / 2. `F | F B♭`**, B ; bande de
+forme i·A·B·A. Effet de bord : la pile du A réécrit la mesure 3 du A en
+`F△7 F` (consensus des deux passages, au lieu de `F`).
+
+Avant/après sur les 25 morceaux annotés (Valider à blanc) — 3 changent :
+Evening Star (voulu) ; **La Jupe** D 84–91 → D 84 (`C-`, la queue) + A 85–91
+(le dernier A, coupé — c'est la forme de la carte du 2026-10-11) ;
+Fjufjv4rH0s, A empilé au lieu de refusé (0,75 sur la dernière mesure) mais
+aucun accord écrit ne change. Rapport d'or (pipeline + sections à la main,
+contre le même code sans le changement) : seul **Sunny** bouge — son A reçoit
+une fin d'1 mesure, 1. `B- B` / 2. `F#ø7 B7` : probablement la même cadence
+vers Em mal entendue une fois, à arbitrer.
+
+**Ne résout pas** : la queue dans une pile de SOUS-PHRASE (P < section) reste
+`FIN_SECTION_HORS_PILE` = 1 ; une lettre déjà cohérente garde sa queue
+empilée (consensus) ; une fin de morceau en phase ≠ 0 ; le dernier tour
+n'est jamais proposé dans un bloc que Louis a tracé ; la passe écrite dans le
+tronc donne la couleur (`C/G C7` plutôt que `C7`) ; Ic5vxw3eijY garde son
+`E | N.C.` final hors du A (une mesure qui sonne < moitié du A de 4).
+Tests : `tests/test_fins_et_dernier_a.py`.
+
 ## Le chart commence quand l'harmonie commence (2026-10-09, BRANCHÉ)
 
 Louis : « commence le chart quand l'harmonie commence, et on reporte sur la

@@ -736,6 +736,34 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
             pw = [float(Vb[a] @ Vb[b])
                   for i, a in enumerate(g) for b in g[i + 1:]]
             coh_by_pos[k] = float(np.median(pw))
+        # LA QUEUE NE REFUSE PAS LA LETTRE (Louis, 2026-10-12, Evening Star :
+        # « il faudrait pouvoir toujours bien gérer les queues »). Quand on
+        # empile occurrence contre occurrence (la période EST la section) et
+        # que les seules positions incohérentes sont dans la queue que les
+        # passages jouent différemment (`tronc_et_queue`, sur leur décodage
+        # de 1re passe) — c'est une 1re/2e fin, pas deux musiques. Ces
+        # positions sortent de la pile comme les fins de sous-phrase
+        # (`fins_hors_pile` : chaque passage garde SA fin, que
+        # `_ireal_endings` écrira en 1./2.), et le veto juge le tronc seul.
+        # Une incohérence AVANT la queue refuse toujours la lettre entière.
+        queue_hors_pile = 0
+        incoherentes = [k for k, c in enumerate(coh_by_pos)
+                        if c is not None and c < STACK_COHERENCE]
+        if incoherentes and all(
+                s["barRanges"][0][1] - s["barRanges"][0][0] + 1 == P
+                for s in secs):
+            tronc = tronc_et_queue([bars[s["barRanges"][0][0]:
+                                         s["barRanges"][0][1] + 1] for s in secs])
+            if tronc is not None and min(incoherentes) >= tronc:
+                queue_hors_pile = P - tronc
+                for k in range(tronc, P):
+                    fins_hors_pile.extend(pos_members[k])
+                    variants.extend(b for b in pos_members[k] if b not in variants)
+                    gated[k] = []
+                    coh_by_pos[k] = None
+                logger.info("fold %s: queue de %d mesure(s) jouée différemment "
+                            "— hors pile, le tronc seul juge la cohérence",
+                            letter, queue_hors_pile)
         coh = [c for c in coh_by_pos if c is not None]
         # Veto de cohérence PAR LETTRE ENTIÈRE : min(coh) < STACK_COHERENCE
         # refuse toute la lettre (pas de veto mesure-par-mesure ni bi-mesure —
@@ -843,6 +871,7 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
                           "changed": sorted(set(changed)),
                           "cv_skip": sorted(cv_skip),
                           "pos_skip": [],
+                          **({"queue": queue_hors_pile} if queue_hors_pile else {}),
                           "coh": [None if c is None else round(c, 3)
                                   for c in coh_by_pos]}
         logger.info("fold %s: P=%d, obs/pos %s, %d variants, %d bars changed",
@@ -1869,6 +1898,102 @@ def _compat(a, b, grain: str = "exact") -> bool:
     return all(_compat(xa, xb, grain) for xa, xb in zip(a, b))
 
 
+def fenetre_de_queue(L: int) -> int:
+    """Combien de mesures de fin une 1re/2e fin peut occuper dans une section
+    de `L` mesures, quand le tronc n'est pas identique à la note près : le
+    DERNIER QUART, et jamais plus de `_ENDING_TAIL_MAX` (2).
+
+    Pourquoi un quart (Louis, 2026-10-12, Evening Star) : une section se
+    bâtit en phrases de 4 mesures ; la fin alternative est la CADENCE de la
+    dernière phrase — sa 2e moitié, soit les 2 dernières mesures d'un A de 8,
+    la dernière d'une cellule de 4 (le « tour » qui relance ou qui sort). Au-delà
+    d'un quart, c'est la phrase elle-même qui change : une autre section, pas
+    une autre fin. Le plafond 2 est celui de la règle exacte d'avant
+    (`_ENDING_TAIL_MAX`), pour qu'une section de 16 ne reçoive pas des fins de
+    4 mesures par cette porte-ci."""
+    return min(_ENDING_TAIL_MAX, max(0, L // 4))
+
+
+def tronc_et_queue(passes: list) -> int | None:
+    """La longueur du TRONC commun de passages de même longueur `L` qui ne
+    diffèrent que par leur queue — ou None s'il n'y a pas de 1re/2e fin à
+    écrire. La queue = les `L - tronc` dernières mesures.
+
+    Deux portes, la 2e n'ajoutant que des cas que la 1re refusait :
+      1. la règle exacte d'avant (2026-07-21) : tronc identique accord pour
+         accord (`_compat` exact), queue de 1 à `_ENDING_TAIL_MAX` mesures,
+         tronc ≥ 2 ;
+      2. LE TRONC À LA COULEUR PRÈS (Louis, 2026-10-12 : « il faudrait
+         pouvoir toujours bien gérer les queues ») : toutes les mesures avant
+         le dernier quart (`fenetre_de_queue`) sont le même moment
+         (`meme_moment` : famille, accord de passage en plus ou en moins) ;
+         la queue commence à la PREMIÈRE mesure de ce dernier quart où les
+         passages ne s'écrivent pas pareil, et il faut qu'une vraie
+         différence (pas le même moment) s'y trouve. Evening Star : `C7`
+         contre `C/G C7` (mes. 2) et `F C` contre `F` (mes. 7) sont des
+         couleurs, `G-7 C7` contre `F B♭` (mes. 8) une autre harmonie →
+         tronc 6, queue `F C | G-7 C7` contre `F | F B♭`.
+
+    CE QUE ÇA NE FAIT PAS : regrouper les queues (`_ireal_endings` le fait, à
+    l'égalité exacte) ; une différence au milieu (phase ≠ fin) refuse
+    toujours ; dans le tronc, c'est le passage écrit qui donne la couleur.
+    """
+    r = _porte_de_queue(passes)
+    return None if r is None else r[0]
+
+
+def _porte_de_queue(passes: list) -> tuple[int, list | None] | None:
+    """(tronc, groupes) — voir `tronc_et_queue`. `groupes` vaut None par la
+    porte exacte (`_ireal_endings` groupe alors les queues à l'égalité
+    exacte, comme avant) ; par la porte « à la couleur près », c'est la liste
+    des groupes de passes qui jouent la MÊME fin au même moment près
+    (`meme_moment` mesure par mesure) — deux couleurs d'une même fin ne font
+    pas deux fins. Under-fold : si une passe se range dans deux groupes à la
+    fois (ressemblance non transitive), ou s'il ne reste qu'un groupe, None."""
+    passes = [list(p) for p in passes or []]
+    if len(passes) < 2:
+        return None
+    L = len(passes[0])
+    if any(len(p) != L for p in passes) or L < 3:
+        return None
+
+    def tous(r, egal):
+        return all(egal(pa[r], pb[r]) for i, pa in enumerate(passes)
+                   for pb in passes[i + 1:])
+
+    def exact(a, b):
+        return _compat(_barsig(a), _barsig(b))
+    # 1. la règle exacte
+    prefix = next((r for r in range(L) if not tous(r, exact)), L)
+    if 1 <= L - prefix <= _ENDING_TAIL_MAX and prefix >= 2:
+        return prefix, None
+    # 2. le tronc à la couleur près, la queue dans le dernier quart
+    W = fenetre_de_queue(L)
+    if W < 1 or L - W < 2:
+        return None
+    if not all(tous(r, meme_moment) for r in range(L - W)):
+        return None
+    fen = range(L - W, L)
+    if all(tous(r, meme_moment) for r in fen):
+        return None                      # que des couleurs : pas de 2e fin
+    prefix = next(r for r in fen if not tous(r, exact))
+
+    def meme_fin(pa, pb):
+        return all(meme_moment(pa[r], pb[r]) for r in range(prefix, L))
+    groupes: list[list[int]] = []
+    for pi, p in enumerate(passes):
+        oui = [g for g in groupes if meme_fin(passes[g[0]], p)]
+        if len(oui) > 1 or (oui and not all(meme_fin(passes[q], p) for q in oui[0])):
+            return None                  # ambigu : on n'écrit pas de fins
+        if oui:
+            oui[0].append(pi)
+        else:
+            groupes.append([pi])
+    if len(groupes) < 2:
+        return None
+    return prefix, groupes
+
+
 def _ireal_endings(blk: dict, bars, grid, fusion: int = FUSION_DEFAUT) -> None:
     """Règle 2 : des passages qui ne diffèrent QUE sur leur queue deviennent
     UN bloc avec une 1ʳᵉ et une 2ᵉ fin. Mute `blk` sur place.
@@ -1896,19 +2021,22 @@ def _ireal_endings(blk: dict, bars, grid, fusion: int = FUSION_DEFAUT) -> None:
     if len(blk["bars"]) != L or L < 3:
         return
     sigs = [[_barsig(bars[c0 + r]) for r in range(L)] for c0, _ in ranges]
-    prefix_len = L
-    for r in range(L):
-        if not all(_compat(sa[r], sb[r]) for i, sa in enumerate(sigs)
-                   for sb in sigs[i + 1:]):
-            prefix_len = r
-            break
-    tail = L - prefix_len
-    if not (1 <= tail <= _ENDING_TAIL_MAX) or prefix_len < 2:
+    # le tronc et la queue : voir `tronc_et_queue` (Evening Star, 2026-10-12 :
+    # deux couleurs dans le tronc ne cachent plus la vraie queue)
+    porte = _porte_de_queue([[bars[c0 + r] for r in range(L)]
+                             for c0, _ in ranges])
+    if porte is None:
         return
+    prefix_len, par_moment = porte
+    tail = L - prefix_len
     # les groupes de queues, dans l'ordre de leur première passe ; une passe
-    # rejoint le premier groupe dont la passe-témoin se lit pareil
+    # rejoint le premier groupe dont la passe-témoin se lit pareil — au même
+    # moment près quand le tronc n'était pas identique (`_porte_de_queue`)
     groupes: list[dict] = []
-    for pi, s in enumerate(sigs):
+    if par_moment is not None:
+        groupes = [{"sig": tuple(sigs[g[0]][prefix_len:]), "passes": list(g),
+                    "rep": g[0]} for g in par_moment]
+    for pi, s in enumerate(sigs if par_moment is None else []):
         t = tuple(s[prefix_len:])
         g = next((g for g in groupes if _compat(g["sig"], t)), None)
         if g is None:
@@ -2174,6 +2302,36 @@ def dernier_tour_des_passes(fin, refs, tonique=None) -> dict | None:
     return dict(oui[0], passes=(len(oui), len(refs)))
 
 
+def ouverture_finale(fin, refs, tonique=None) -> bool:
+    """La fin du morceau `fin` est-elle un DERNIER TOUR, partiel, d'une
+    lettre dont `refs` sont les passages entiers ? Deux formes, en phase 0 :
+      * la règle 2 du 2026-10-01 (`dernier_tour_des_passes` : début du A,
+        tonique tenue et/ou fondu) ;
+      * le passage COUPÉ par la fin du morceau (Evening Star, mes. 37–43 :
+        sept des huit mesures du A, chacune le même moment — `meme_moment`
+        — que la mesure de même rang, puis plus rien), pour au moins la
+        moitié des passages, comme `dernier_tour_des_passes`.
+    Sert au NOMMAGE (`simulation.nommer_dernier_tour`) ; l'écriture le
+    raccorde ensuite par `_merge_coupe` ou `_merge_dernier_tour`.
+
+    Ce que ça ne couvre pas : une fin qui joue le MILIEU du A (phase ≠ 0)."""
+    if dernier_tour_des_passes(fin, refs, tonique) is not None:
+        return True
+    refs = [r for r in refs or [] if r]
+    fin = list(fin or [])
+    T = list(fin)
+    while T and _muette(T[-1]):
+        T.pop()
+    if not refs or not T:
+        return False
+    # au moins la MOITIÉ du passage doit SONNER (le fondu muet ne compte
+    # pas) : une mesure de tonique suivie du silence est la fin du morceau,
+    # pas un tour de la lettre (Ic5vxw3eijY : `E | N.C.` contre un A de 4)
+    oui = [r for r in refs if len(fin) < len(r) and 2 * len(T) >= len(r)
+           and all(meme_moment(T[i], r[i]) for i in range(len(T)))]
+    return 2 * len(oui) >= len(refs)
+
+
 def _role_family_de(c: dict) -> str:
     from harmonia.roles import family
     return family(c.get("q") or "")
@@ -2196,10 +2354,11 @@ def _merge_dernier_tour(host: dict, blk: dict, bars, grid, fin_morceau: int,
     case n'en a pas déjà une : une seule variante par case, comme partout),
     sur une copie de la mesure écrite.
 
-    NE S'APPLIQUE PAS à un bloc écrit en 1re/2e fin (les rangées de
-    `barSpans` y sont tronc puis variantes).
+    Sur un bloc écrit en 1re/2e fin (les rangées de `barSpans` y sont tronc
+    puis variantes), seulement si le tour tient dans le tronc (2026-10-12) ;
+    sinon il n'est pas raccordé ici.
     """
-    if bars is None or host.get("endings") or len(blk.get("barRanges") or []) != 1:
+    if bars is None or len(blk.get("barRanges") or []) != 1:
         return False
     c0, c1 = blk["barRanges"][0]
     if c1 != fin_morceau or not host.get("bars"):
@@ -2209,6 +2368,11 @@ def _merge_dernier_tour(host: dict, blk: dict, bars, grid, fin_morceau: int,
     refs = [bars[a:b + 1] for a, b in host["barRanges"] if b - a + 1 == L_host]
     r = dernier_tour_des_passes(bars[c0:c1 + 1], refs, tonique)
     if r is None:
+        return False
+    # Un hôte à 1re/2e fin (2026-10-12) : seulement si le dernier tour reste
+    # dans le TRONC — ses rangées sont alors les mêmes qu'un bloc sans fins.
+    if host.get("endings") and \
+            r["ouverture"] + r["tenue"] > W - int(host["endings"]["tail"]):
         return False
     n_rows = len(host["barSpans"])
     for i in range(r["ouverture"] + r["tenue"]):
@@ -2353,16 +2517,40 @@ def _merge_coupe(host: dict, blk: dict, cell, P, grid) -> bool:
     sonnent = [i for i in range(L) if not _muette(blk["bars"][i])]
     if not sonnent or sonnent[-1] != len(sonnent) - 1:
         sonnent = list(range(L))          # un N.C. AU MILIEU reste un N.C.
-    offset = next((off for off in range(P)
-                   if all(meme_moment(blk["bars"][i], cell[(off + i) % P])
-                          for i in sonnent)),
-                  None)
+    # UN HÔTE À 1re/2e FIN, LU FIN PAR FIN (2026-10-12, Evening Star : le
+    # dernier A, coupé par la fin du morceau, joue la mesure 7 de la 2e fin
+    # — `F`, pas le `F C` de la 1re). Le bloc écrit n'en porte qu'une ; on
+    # essaie le tronc suivi de CHAQUE fin, et la mesure qui tombe dans la
+    # queue allume la rangée de la fin qu'elle joue (`barSpans` = tronc,
+    # puis les rangées de chaque variante, dans l'ordre).
+    end = host.get("endings")
+    W = len(host["bars"])
+    if end and P >= W and end.get("variants"):
+        tail = int(end["tail"])
+        pre = W - tail
+        lectures_ = [(list(host["bars"][:pre]) + list(v["bars"]),
+                      list(range(pre)) + [pre + j * tail + t for t in range(tail)])
+                     for j, v in enumerate(end["variants"])]
+    else:
+        lectures_ = [(cell, None)]
+    offset, lignes = None, None
+    for cel, rangs in lectures_:
+        Pc = len(cel) if rangs is not None else P
+        offset = next((off for off in range(Pc)
+                       if all(meme_moment(blk["bars"][i], cel[(off + i) % Pc])
+                              for i in sonnent)),
+                      None)
+        if offset is not None:
+            lignes = rangs
+            break
     if offset is None:
         return False
     n_rows = len(host["barSpans"])
     for c0, c1 in blk["barRanges"]:
         for i, b in enumerate(range(c0, c1 + 1)):
             r = offset + i
+            if lignes is not None:
+                r = lignes[r] if r < len(lignes) else n_rows
             if r < n_rows:
                 host["barSpans"][r].append(
                     [grid[b], grid[min(len(grid) - 1, b + 1)]])
