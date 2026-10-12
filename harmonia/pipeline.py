@@ -580,6 +580,21 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
     if grid.get("downbeats"):
         downbeats = grid["downbeats"]
 
+    # 2b ── LE GARDE-FOU DES CHANGEMENTS DE RYTHME (Louis, 2026-10-12, That's
+    # Life mes. 40 : « on décale tout […] vérifier si, quand il y a un
+    # changement de rythme, il fait sens »). Un passage où le traqueur change
+    # de tempo n'est gardé que si l'harmonie le soutient ; sinon l'ancienne
+    # grille est recousue à travers (`harmonia.rythme` — la règle, et ce
+    # qu'elle ne résout pas). Ici et pas dans `beats.py` : il faut les
+    # postérieures musx, qui ne sont prêtes qu'à ce point.
+    _rythme = None
+    if SETTINGS.rythme_garde_fou:
+        from harmonia.rythme import verifier_changements
+        beat_times, downbeats, _rap = verifier_changements(
+            beat_times, downbeats, triad, _musx.FRAME_DT,
+            bpb=int(grid.get("metre") or 4))
+        _rythme = [r for r in _rap if r["verdict"].startswith("recousu")]
+
     # 3 ── beat-grid re-decode: boundaries land exactly on our beats.
     # downbeat_times wired IN (2026-07-31, Louis's This Love report): at
     # phrase turns the frame evidence goes ambiguous for ~a beat and a FLAT
@@ -718,6 +733,7 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
             "prompter": prompter,
             "meta": {"bpm": bd["bpm"], "n_segments": len(segments),
                      "relabel": _relabel,
+                     "rythme": _rythme,
                      # Sprint 22 (2026-09-16) : bascule faite. Le littéral
                      # disait encore "harmonia_min" pour que le rapport d'or
                      # compare le JSON octet par octet pendant tout le

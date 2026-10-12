@@ -5,6 +5,40 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## That's Life mes. 40 : « on décale tout » — garde-fou des changements de rythme (2026-10-12, BRANCHÉ, pas encore servi sur :7772)
+
+**Ce que c'était.** De 119 à 145 s, Beat This! compte les TRIOLETS du shuffle
+(une marque tous les 0,26 s au lieu de 0,80) ; `drop_duplicate_beats` /
+`drop_inserted_beats` n'en retirent qu'une partie. `bars.layout_bars` range
+4 marques par mesure avec une phase GLOBALE : les mesures 38–51 durent 1,6–2,4 s
+au lieu de 3,2 et, en sortie, tout le reste tombe un temps trop tôt. Les
+changements d'accords musx, eux, restent toutes les 3,2 s sur l'ancienne
+grille : ce n'était pas la musique. Page : `docs/plots/thats_life_rythme_2026-10-12.html`.
+
+**Le garde-fou** (`harmonia/rythme.py`, appelé dans `pipeline.analyze_steps`
+après musx, constante `SETTINGS.rythme_garde_fou`) : une zone où les battues
+sortent du tempo puis y reviennent (≥ 1 mesure régulière de chaque côté) est
+jugée par l'harmonie — chaque changement d'accord de la zone + 8 mesures
+suivantes est-il sur un temps plus fort (1 > 3 > 2/4) sous « l'ancienne grille
+continue » ou sous « le traqueur a raison » ? Recousu seulement si l'ancienne
+grille gagne au test du signe (5 %). That's Life : 11 contre 0, 61 → 56 mesures.
+
+**Rapport d'or avec / sans la règle (même code)** : 5 / 67 changent, 62 identiques
+— That's Life, Goodbye Yellow Brick Road (2 temps manqués, 8/0 chacun, 67 mesures
+changent), Go Thru Your Phone (temps manqué, 9/0), Claustrophobic (temps en trop,
+10/3), PJ Morton How Deep (5/0 — **à vérifier, peut-être un vrai ralenti**).
+Avant/après : `/reports/rythme_2026-10-12/avant_apres.html`. Hors bibliothèque
+d'or, le balayage du cache trouve aussi Evening Star `OHOH8fAc11g` (55–60 s, 10/3).
+
+**Ce que ça NE règle PAS** : (1) un vrai changement de mesure joué à temps
+réguliers (une mesure 2/4 insérée) — aucune battue anormale, la règle ne se
+déclenche pas, et `layout_bars` garde une phase unique pour tout le morceau ;
+(2) une zone collée au début ou à la fin (pas d'ancre) ; (3) une zone où les deux
+lectures finissent sur la même phase (le point d'orgue de That's Life à 2:39 :
+deux mesures de ~5 s restent) ; (4) un verrou d'octave qui ne revient jamais
+(bouton ÷2/×2) ; (5) l'orthographe D♯/G♯ dans la modulation en A♭ de That's Life
+(autre défaut, d'épellation).
+
 ## λ1 t+b BRANCHÉ : chaque accord re-nommé par ses deux voisins + l'accord ajouté dans Annotate (2026-10-12, FAIT, pas encore servi sur :7772)
 
 Louis : « le processeur standard infère les changements ; sur chaque accord

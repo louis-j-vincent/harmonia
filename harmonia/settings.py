@@ -125,6 +125,11 @@ class Settings:
     #: en « A′ » (casse `test_fins_et_dernier_a`, le travail « queues » du
     #: même jour). Un effet de bord = sa propre page avant/après.
     relabel_gabarit: bool = False
+    #: LE GARDE-FOU DES CHANGEMENTS DE RYTHME (Louis, 2026-10-12, That's Life
+    #: mes. 40). Un passage où Beat This! change de tempo n'est gardé que si
+    #: les changements d'accords musx le soutiennent (test du signe, 5 %) ;
+    #: sinon l'ancienne grille est recousue à travers. `harmonia.rythme`.
+    rythme_garde_fou: bool = True
 
 
 SETTINGS = Settings()
