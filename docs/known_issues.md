@@ -182,6 +182,25 @@ la brique seule) ; lettres = classes d'égalité des accords décodés par jeton
 paires identiques ont toujours la même lettre), la ressemblance chord-tone ne
 servant plus qu'à rapprocher des paires presque identiques.
 
+## Petites lettres = quel produit scalaire sur les postérieures ? (2026-10-12, ILLUSTRÉ, rien de branché)
+
+Louis entend A1 (13–20) = a a b a, l'intrus étant la cellule 3 (F/C | G7 C7).
+Page : `docs/plots/produit_scalaire_lettres_2026-10-12.html`
+(`tools/produit_scalaire_lettres.py`). Postérieures musx moyennées par
+demi-mesure (temps 1-2 / 3-4), comparées position par position, 8 définitions :
+- Toutes les définitions « accord » (triade 73, fondamentale, notes d'accord,
+  + 7e, et leurs versions √p) désignent la cellule **2** (F | Gm) comme intruse ;
+  aucun seuil ne donne a a b a. L'outil actuel est déjà l'une d'elles (notes
+  d'accord, par mesure) : il reproduit bien « ghij ».
+- **Seule la tête basse** sépare la 3 (le do de F/C) : a a b a sur A1 pour un
+  seuil 0,44–0,76, sur A2 pour 0,14–0,52 ; à 0,48 les deux A s'écrivent `gghg`.
+- Notes + basse à parts égales : les deux effets s'annulent (lien 1–2 0,763 /
+  1–3 0,764), pas de a a b a.
+- **CE QUE ÇA NE RÉSOUT PAS** : la règle de seuil actuelle (paire identique la
+  moins ressemblante) donne 0,95–0,99 pour toutes les définitions ⇒ rien ne
+  fusionne, A1 = ghij quoi qu'on choisisse. Il faut aussi une autre règle de
+  seuil. Un seul morceau : hypothèse, pas loi.
+
 ## Détection des autres sections : ce que la cartographie du 2026-10-11 a trouvé
 
 Cartographie complète du chemin « Valider les sections » (23 étapes, exécutées
