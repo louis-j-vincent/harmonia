@@ -5,6 +5,39 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Différence aux voisines dans le décodeur, et le « diminué » de la mesure 18 (2026-10-12, Evening Star, ILLUSTRÉ, rien de branché)
+
+Page : `docs/plots/demi_mesures_delta_decodeur_2026-10-12.html` ; script
+`tools/demi_mesures_delta_decodeur.py`. Le décodeur de production (Viterbi
+musx, `musx.redecode`) reçoit une suite de trames constante par demi-mesure
+q(h), avec S(h) = 2p(h) − p(h−1) − p(h+1) : q = norm(max(0, p + λS)), λ ∈
+{0, ½, 1}, et S⁺ = norm(max(0, S)) ; plus deux variantes où S ne touche que
+triade + basse. Différent de l'essai du 2026-10-09 (Eb+, La Jupe) : là on
+SOUSTRAYAIT les voisines (N à 99,6 %) ; ici on AJOUTE la différence à p.
+
+- **λ = 1 sur triade+basse** : 13 demi-mesures sur 86 changent ; les
+  accords tenus gardent leur nom (5/5). Changements plausibles au chroma :
+  B♭m6 (iv mineur) mes. 16 et 24 temps 3-4, C mes. 19 temps 3-4 ; à écouter :
+  Gm7 au lieu de C7/C/G mes. 14 et 22 temps 1-2.
+- **S⁺ seul = détecteur de changements** : 84 changements d'accord sur 85
+  frontières, accords tenus perdus 2/5, 9e/11e/13e inventées (sur les étages
+  d'extension, « non » est constant donc S ≈ 0 et le bruit gagne).
+- **Mesure 18 temps 1-2 : musx n'a pas de diminué** (12 dim réunis 0,5 %,
+  ♭♭7 0,1 %, ♭9 0,8 % ; max trame 1,1 %). L'audio brut (chroma NNLS) a un
+  ré♭ comme note la plus forte au 1er temps sur sol-si-fa (G7♭5, cos 0,90–0,93),
+  qui monte au ré au 2e temps — idem mes. 26 et 42. Pas un °7 (la♭ 0,14).
+  Mécanisme : la triade musx n'a pas de case « tierce majeure + quinte
+  diminuée », et ça dure un temps sur deux. C'est la postérieure, pas le
+  décodeur.
+
+**Pas résolu** : rien n'est branché ; une seule chanson ; verdicts = lectures
+du chroma, pas l'oreille de Louis. Prochaine mesure la moins chère : un
+détecteur chroma « ♭5 sur dominante » au temps près, compté sur la
+bibliothèque, validé d'abord sur mes. 18/26/42. Pour λ1 t+b : 2 autres
+morceaux connus avant toute conclusion. Bug de calibration trouvé en route :
+la sortie VAMP NNLS commence à la (index 0 = A) — décaler de −3, pas +3,
+pour avoir do en 0 (vérifié sur la mes. 19 = F).
+
 ## Les queues : « un A, fins 1. et 2. » et « un dernier A » (2026-10-12, FAIT, pas encore servi sur :7772)
 
 Louis, Evening Star (`min_CHVWPIFAT5A`) : « il faudrait pouvoir toujours bien
