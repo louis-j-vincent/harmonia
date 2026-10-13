@@ -595,6 +595,20 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
             bpb=int(grid.get("metre") or 4))
         _rythme = [r for r in _rap if r["verdict"].startswith("recousu")]
 
+    # 2c ── LES RÉGIONS DE RYTHME (Louis, 2026-10-13, The APL Song : « l'intro
+    # a un tempo différent du reste du morceau »). Une portion d'au moins une
+    # phrase dont les accords ET les downbeats du traqueur s'accordent sur une
+    # autre barre de mesure que la portion voisine reçoit sa propre phase
+    # (`harmonia.regions_rythme` — la règle, et ce qu'elle ne résout pas).
+    # APRÈS le garde-fou : un hoquet recousu n'a plus de trace à juger ici, et
+    # les régions ne touchent pas aux battues, seulement aux barres.
+    _regions = []
+    if SETTINGS.regions_rythme:
+        from harmonia.regions_rythme import detecter_regions
+        _regions = detecter_regions(
+            beat_times, downbeats, triad, _musx.FRAME_DT,
+            bpb=int(grid.get("metre") or 4))["regions"]
+
     # 3 ── beat-grid re-decode: boundaries land exactly on our beats.
     # downbeat_times wired IN (2026-07-31, Louis's This Love report): at
     # phrase turns the frame evidence goes ambiguous for ~a beat and a FLAT
@@ -676,10 +690,23 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
         # celle des accords non.
         _bt_tmp = np.asarray(beat_times, dtype=float)
         _k1 = int(np.abs(_bt_tmp - float(bar1_time)).argmin())
-        downbeats = [float(t) for t in _bt_tmp[_k1 % _bpb_early::_bpb_early]]
+        if len(_regions) >= 2:
+            # la marque re-phase SA portion seulement ; les autres gardent
+            # la barre que leur donnent l'harmonie et le traqueur
+            from harmonia.regions_rythme import lignes_de_mesure
+            _j1 = max(j for j, r in enumerate(_regions) if r["i0"] <= _k1)
+            downbeats = [float(_bt_tmp[k]) for k in lignes_de_mesure(
+                _regions, len(_bt_tmp), _bpb_early, {_j1: _k1 % _bpb_early})
+                if 0 <= k < len(_bt_tmp)]
+        else:
+            downbeats = [float(t) for t in _bt_tmp[_k1 % _bpb_early::_bpb_early]]
         logger.info("pipeline: bar1 mark re-phases the decode downbeats "
                     "(phase %d, %d downbeats)", _k1 % _bpb_early,
                     len(downbeats))
+    elif len(_regions) >= 2:
+        from harmonia.regions_rythme import lignes_de_mesure
+        downbeats = [float(beat_times[k]) for k in lignes_de_mesure(
+            _regions, len(beat_times), _bpb_early) if 0 <= k < len(beat_times)]
     segments = _musx.redecode(beat_times, probs, downbeat_times=downbeats,
                               beats_per_bar=_bpb_early, quarter_beats=_quarter)
     # 3b ── λ1 t+b (Louis, 2026-10-12) : le Viterbi garde les FRONTIÈRES, et
@@ -704,7 +731,8 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
     # `prompter_chords` and the final chord count below must read the same
     # list, not the pre-layout one.
     lay = layout_bars(segments, beat_times, downbeats, triad,
-                      bar1_time=bar1_time)
+                      bar1_time=bar1_time,
+                      regions=_regions if len(_regions) >= 2 else None)
     segments = lay.segments
     bpb, n_bars, bar1_bar, grid, bars = \
         lay.bpb, lay.n_bars, lay.bar1_bar, lay.grid, lay.bars
@@ -729,6 +757,10 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
             "bar1": None if bar1_time is None else round(float(bar1_time), 3),
             "form": None,
             "fold": fold_report,
+            **({"tempoRegions": [
+                {"t0": r["t0"], "t1": r["t1"], "bpm": r["bpm"],
+                 "beatsPerBar": r["beatsPerBar"], "phase": r["phase"]}
+                for r in _regions]} if len(_regions) >= 2 else {}),
             "sections": sections,
             "prompter": prompter,
             "meta": {"bpm": bd["bpm"], "n_segments": len(segments),

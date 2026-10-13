@@ -130,6 +130,13 @@ class Settings:
     #: les changements d'accords musx le soutiennent (test du signe, 5 %) ;
     #: sinon l'ancienne grille est recousue à travers. `harmonia.rythme`.
     rythme_garde_fou: bool = True
+    #: LES RÉGIONS DE RYTHME (Louis, 2026-10-13, The APL Song : « l'intro a un
+    #: tempo différent du reste »). Une portion d'au moins une phrase (4
+    #: mesures) dont les changements d'accords ET les downbeats du traqueur
+    #: s'accordent sur une autre barre de mesure que la voisine (test du
+    #: signe, 5 %, des deux côtés) a sa propre phase ; la mesure de jonction
+    #: est courte. `harmonia.regions_rythme`.
+    regions_rythme: bool = True
 
 
 SETTINGS = Settings()

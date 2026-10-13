@@ -5,6 +5,51 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## The APL Song : l'intro n'a pas la même barre de mesure — régions de rythme (2026-10-13, BRANCHÉ, pas encore servi sur :7772)
+
+Louis : « l'intro a un tempo différent du reste du morceau ». **Mesuré : le
+tempo est le même** (89,0 BPM dans l'intro et le corps) ; c'est la **barre de
+mesure** qui saute : l'intro (l'échantillon, 16,3 → 38,5 s) dure 8 mesures +
+1 temps, la batterie entre un temps « tard », et vers 121 s le morceau revient
+sur la barre de l'intro (mesure de 3 temps). Accords musx ET downbeats Beat
+This! le disent tous les deux. **Cause** : `bars.layout_bars` pose UNE phase
+pour tout le morceau (celle de la mesure 1 de `harmonia.debut`, 16,5 s) → mes.
+17-48 écrites un temps trop tôt (« Em Bm | Bm Em | … »). Le garde-fou 007d51c
+n'y était pour rien (la grille rigide avait déjà lissé les battues).
+
+**Brique** (`harmonia/regions_rythme.py`, `SETTINGS.regions_rythme`, étape 2c
+de `analyze_steps` après le garde-fou) : une portion ≥ 1 phrase (4 mesures) a
+sa propre barre quand ses accords (test du signe 5 %, des deux côtés de la
+frontière) ET les downbeats du traqueur s'accordent sur une autre phase que la
+voisine. `layout_bars(regions=)` pose les barres portion par portion, mesure de
+jonction courte ; la marque mesure 1 ne re-phase que sa portion ; chart
+`tempoRegions`. Plan : `docs/plans/regions_tempo_2026-10-13.md`. Page :
+`docs/plots/apl_song_tempo_2026-10-13.html`.
+
+**Rapport d'or vs même code brique éteinte** (`state/cache/golden/regions` vs
+`regions_off`) : 6/69 changent, 63 identiques ; That's Life, GYBR, Go Thru Your
+Phone, Claustrophobic ×2, PJ Morton : identiques (le garde-fou a déjà recousu,
+rien à juger). Changent : APL (accords sur le temps 1 : 27/51 → 47/52), My
+Sweet Lord (36/135 → 131/138, deux sauts à 16,7 s et 52,9 s ; tonalité
+affichée G♭ → D♭), Henri Salvador/Syracuse (23/54 → 41/56), Autumn Leaves
+(75/153 → 115/148, saut à 286 s), Just The Two Of Us `Uw5OLnN7UvM` (57 → 67,
+demi-mesure à 122 s), Evening Star `OHOH8fAc11g` (28/76 → 52/76, demi-mesure à
+61,7 s — **à écouter** : juste après la zone que le garde-fou recoud à 55-60 s,
+les deux règles ne disent pas la même chose). Avant/après :
+`/reports/regions_2026-10-13/avant_apres.html` (JTTOU et Autumn Leaves sous
+`old_/new_<stem>_regions`, pour ne pas écraser les entrées du 2026-10-12).
+
+**Ce que ça NE règle PAS** : (1) les 16 s sans pulsation au début d'APL (6
+mesures vides au tempo du corps) ; (2) un verrou d'octave LOCAL du traqueur
+(≥ 8 mesures à demi-tempo : GYBR, Syracuse `fOw6_NaT24k`, `fd02pGJx0s0` au
+balayage — 10/71 morceaux ont ≥ 8 mesures à > 6 % du tempo du morceau, la
+plupart des octaves ou des zones déjà recousues) : c'est le vrai « autre
+tempo », prochain levier ; (3) un passage en 3/4, un rubato ; (4) une portion
+< 1 phrase ; (5) la mesure courte s'affiche comme une case pleine ; (6) une
+ré-analyse décale de +1 les numéros de mesure après chaque frontière — un
+découpage validé à la main en numéros de mesure serait à revoir (aucun des 6
+n'en a).
+
 ## Changements de gamme : pastille « → A♭ majeur » + orthographe des accords par zone (2026-10-13, FAIT, pas encore servi sur :7772)
 
 Louis : « comment représenter les changements de gamme ? il faudrait updater

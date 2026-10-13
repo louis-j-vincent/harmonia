@@ -130,13 +130,27 @@ class BarLayout:
     #: afterwards (the prompter, the final chord count) must read THIS list,
     #: not their own, or they disagree with what got laid on the grid.
     segments: list[tuple[float, float, str]]
+    #: Beat index of every bar line when the song has several rhythm regions
+    #: (`harmonia.regions_rythme`) — None for the ordinary one-phase song,
+    #: where bar b starts at beat `off + b*bpb`.
+    lines: list[int] | None = None
 
 
 def layout_bars(segments, beat_times, downbeats, triad: np.ndarray, *,
-                bar1_time: float | None = None) -> BarLayout:
+                bar1_time: float | None = None,
+                regions: list[dict] | None = None) -> BarLayout:
     """Lay redecoded chord segments onto a bar grid by beat-index arithmetic.
 
     See the module docstring for the rules encoded below and their dates.
+
+    `regions` (2026-10-13, The APL Song) : the rhythm regions of
+    `harmonia.regions_rythme.detecter_regions`. With two or more, each region
+    lays its bars on ITS OWN phase (the harmony's, confirmed by the tracker),
+    the global harmonic re-anchor is skipped (the regions already ARE the
+    harmony's verdict, portion by portion), and Louis's bar-1 mark re-phases
+    only the region it falls in. The last bar of a region is short (1 to
+    bpb-1 beats) when the next region's phase differs. Fewer than two
+    regions: exactly the one-phase layout below, unchanged.
     """
     # 5 ── bar layout by beat-index arithmetic (the live app's method — see
     # the block comment above _phase_correction)
@@ -164,12 +178,14 @@ def layout_bars(segments, beat_times, downbeats, triad: np.ndarray, *,
     # …then the chords may out-vote them (harmonic re-anchor, live thresholds)
     chord_residues = [bi - off for bi, (_, _, lab) in zip(seg_bidx, segments)
                       if lab != "N"]
-    corr = _phase_correction(chord_residues, bpb)
+    corr = 0 if (regions and len(regions) >= 2) else \
+        _phase_correction(chord_residues, bpb)
     if corr:
         logger.info("bars: harmonic re-anchor fired, shifting bar phase "
                     "by %+d beat(s)", corr)
         off += corr
     _bar1_k = None
+    multi = bool(regions) and len(regions) >= 2
     if bar1_time is not None:
         # Set bar 1 (Louis, 2026-08-08): the user's own marked downbeat
         # OUT-VOTES both the tracker's phase and the harmonic re-anchor.
@@ -178,24 +194,51 @@ def layout_bars(segments, beat_times, downbeats, triad: np.ndarray, *,
         # cut — and the marked bar itself becomes a HARD section boundary
         # further down (`pipeline._one_section`: « A » starts on the mark).
         _bar1_k = int(np.abs(bt_arr - float(bar1_time)).argmin())
-        off = _bar1_k % bpb
+        if not multi:
+            off = _bar1_k % bpb
         logger.info("bars: bar1 override at %.3fs -> beat %d, phase %d",
-                    float(bar1_time), _bar1_k, off)
+                    float(bar1_time), _bar1_k, _bar1_k % bpb)
 
     # bar/beat per segment: pure integer arithmetic, no time containment
     last_beat = int(np.abs(bt_arr - max(t1 for _, t1, _ in segments)).argmin()) \
         if segments else len(bt_arr) - 1
-    n_bars = max(1, -((off - last_beat) // bpb))     # ceil((last_beat-off)/bpb)
+    lines = None
+    if multi:
+        from bisect import bisect_right
+        from harmonia.regions_rythme import lignes_de_mesure
+        ph = {}
+        if _bar1_k is not None:
+            j1 = max(j for j, r in enumerate(regions) if r["i0"] <= _bar1_k)
+            ph[j1] = _bar1_k % bpb
+        lines = lignes_de_mesure(regions, len(bt_arr), bpb, ph)
+        off = lines[0]
+        n_bars = max(1, sum(1 for k in lines if k < last_beat))
+
+        def bar_of(k: int) -> int:                   # -1 = before bar 0 (pickup)
+            return bisect_right(lines, k) - 1
+
+        def line(b: int) -> int:
+            if b < len(lines):
+                return lines[b]
+            return lines[-1] + (b - len(lines) + 1) * bpb
+    else:
+        n_bars = max(1, -((off - last_beat) // bpb))  # ceil((last_beat-off)/bpb)
+
+        def bar_of(k: int) -> int:
+            return (k - off) // bpb
+
+        def line(b: int) -> int:
+            return off + b * bpb
     # the marked beat's BAR index — (k - off) is a multiple of bpb by
     # construction (off = k mod bpb)
     bar1_bar = None if _bar1_k is None else \
-        max(0, min(n_bars - 1, (_bar1_k - off) // bpb))
+        max(0, min(n_bars - 1, bar_of(_bar1_k)))
     bars: list[list[dict]] = [[] for _ in range(n_bars)]
     n_dropped = 0
     for _si, ((t0, t1, lab), bi) in enumerate(zip(segments, seg_bidx)):
         ch = to_chord(lab)
         eff = bi - off
-        b = max(0, eff // bpb)                       # pickups clamp into bar 0
+        b = max(0, bar_of(bi))                       # pickups clamp into bar 0
         if b >= n_bars:
             continue
         entry = {
@@ -207,7 +250,7 @@ def layout_bars(segments, beat_times, downbeats, triad: np.ndarray, *,
             # pickups (eff<0) clamp into bar 0 AND display at beat 0 — the
             # modulo residue is meaningless once the bar is clamped, and the
             # beat now drives the visual quarter position
-            "bar": b, "beat": (eff % bpb) if eff >= 0 else 0,
+            "bar": b, "beat": (bi - line(b)) if eff >= 0 else 0,
             "pickup": eff < 0,
             "t0": round(float(t0), 3), "t1": round(float(t1), 3),
         }
@@ -220,9 +263,9 @@ def layout_bars(segments, beat_times, downbeats, triad: np.ndarray, *,
         # written where it happens, N.C. intro bars stay N.C. (Stand By Me).
         if (not entry["nc"] and entry["beat"] > 0 and not entry["pickup"]
                 and _si > 0 and segments[_si - 1][2] == "N"
-                and (seg_bidx[_si - 1] - off) // bpb < b):
+                and bar_of(seg_bidx[_si - 1]) < b):
             entry["beat"] = 0
-            entry["t0"] = round(_bar_time(bt_arr, off + b * bpb, step), 3)
+            entry["t0"] = round(_bar_time(bt_arr, line(b), step), 3)
         bars[b].append(entry)
     # Q4 (Louis, 2026-08-01): when an N.C. and a chord land on the SAME
     # (bar, beat) slot — leading silence snapped onto a real onset, or a
@@ -279,12 +322,12 @@ def layout_bars(segments, beat_times, downbeats, triad: np.ndarray, *,
         first = bars[b][0] if bars[b] else None
         if first is None and prev is not None and not prev["nc"]:
             bars[b].append({**prev, "carry": True, "bar": b, "beat": 0,
-                            "t0": round(_bar_time(bt_arr, off + b * bpb, step), 3),
-                            "t1": round(_bar_time(bt_arr, off + (b + 1) * bpb, step), 3)})
+                            "t0": round(_bar_time(bt_arr, line(b), step), 3),
+                            "t1": round(_bar_time(bt_arr, line(b + 1), step), 3)})
         elif first is not None and first["beat"] > 0 and prev is not None \
                 and not prev["nc"]:
             bars[b].insert(0, {**prev, "carry": True, "bar": b, "beat": 0,
-                               "t0": round(_bar_time(bt_arr, off + b * bpb, step), 3),
+                               "t0": round(_bar_time(bt_arr, line(b), step), 3),
                                "t1": first["t0"]})
         if bars[b]:
             prev = bars[b][-1]
@@ -303,8 +346,9 @@ def layout_bars(segments, beat_times, downbeats, triad: np.ndarray, *,
     # (reps=1 each — the label strip milestone; folding is scoped separately).
     # Bar b's time span = the REAL beat times at its boundary indices
     # (extrapolated by the median beat only off the tracked range).
-    grid = [round(_bar_time(bt_arr, off + b * bpb, step), 4)
+    grid = [round(_bar_time(bt_arr, line(b), step), 4)
             for b in range(n_bars + 1)]
 
     return BarLayout(bpb=bpb, off=off, n_bars=n_bars, bar1_bar=bar1_bar,
-                     grid=grid, bars=bars, step=step, segments=segments)
+                     grid=grid, bars=bars, step=step, segments=segments,
+                     lines=lines)

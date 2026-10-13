@@ -74,13 +74,18 @@ FENETRE_MESURES = 8
 
 
 def changements_accords(triad: np.ndarray, frame_dt: float,
-                        periode: float) -> np.ndarray:
+                        periode: float, *, sans_nc: bool = False) -> np.ndarray:
     """Les instants où l'accord musx le plus probable change, en secondes.
 
     Lissage sur un demi-temps, et un accord ne compte que s'il tient au moins
     un temps — deux échelles prises sur le TEMPS du morceau, pas réglées.
     Indépendant des battues par construction : c'est ce qui en fait un
     témoin et non un écho du traqueur.
+
+    `sans_nc` (2026-10-13, `harmonia.regions_rythme`) : ne garde que les
+    changements D'UN ACCORD À UN AUTRE — l'entrée depuis un N.C. (la musique
+    qui commence, un retour après un silence) n'est pas un changement
+    d'harmonie posé sur un temps, c'est l'instant où musx se met à entendre.
     """
     from scipy.ndimage import uniform_filter1d
     w = max(1, int(round(0.5 * periode / frame_dt)))
@@ -99,6 +104,9 @@ def changements_accords(triad: np.ndarray, frame_dt: float,
             kept[-1] = (kept[-1][0], s[1], s[2])
         else:
             kept.append(s)
+    if sans_nc:
+        return np.array([s[0] * frame_dt for p, s in zip(kept, kept[1:])
+                         if p[2] != 0 and s[2] != 0], float)
     return np.array([s[0] * frame_dt for s in kept[1:]], float)
 
 
