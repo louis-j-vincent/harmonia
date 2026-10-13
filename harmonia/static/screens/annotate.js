@@ -13,7 +13,7 @@ import { buildIReal, loadModel, renderChart } from "../screens/chart.js";
 import { openBar1Sheet, openSectionTool } from "../screens/sections_editor.js";
 import { S } from "../state.js";
 import { buildCascade } from "./cascade.js";
-import { ctlSkin, kitButton, kitPlusFold, FAINT_ON_PETAL, INK_ON_PETAL, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, el, fifthsIndex, fmt, glyph, handle, haptic, keyTint, mod, note, overlay, petalEdge, petalFill, play, playedLabel, roleOf, sheetCol, sv, toast } from "../ui/kit.js";
+import { spellChord, withChordSpelling, ctlSkin, kitButton, kitPlusFold, FAINT_ON_PETAL, INK_ON_PETAL, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, el, fifthsIndex, fmt, glyph, handle, haptic, keyTint, mod, note, overlay, petalEdge, petalFill, play, playedLabel, roleOf, sheetCol, sv, toast } from "../ui/kit.js";
 
 // The single DOM host div (`<div id="app">`) — there is exactly one call
 // site, `window.APP.build(document.getElementById("app"))` in main.js, so
@@ -288,6 +288,7 @@ export function openEditor(idx,opts){
     // (aussi : fermer l'éditeur coupe l'enregistrement qu'il jouait)
     back.onclick=e=>{ if(e.target===back){ stopSpan(); if(opts.onCancel) opts.onCancel(); closeOverlay(back); } };
     const ch=S.chords[idx];
+    spellChord(ch);   // tout l'éditeur s'écrit dans la zone de tonalité de l'accord (2026-10-13)
     const hd=el("div","flex:0 0 auto;display:flex;align-items:center;gap:12px;margin-bottom:12px;");
     let hdGlyph=glyph(ch.root,ch.q,32,"exact",ch.confirmed?T.ink:confColor(ch.c));
     hd.appendChild(hdGlyph);
@@ -357,7 +358,7 @@ export function openEditor(idx,opts){
       const ord=ordreEditable(), at=ord.indexOf(idx);
       const nav=el("div","flex:0 0 auto;display:flex;gap:8px;margin-bottom:10px;");
       const mk=(dir,j)=>{
-        const lab=j>=0&&j<ord.length ? (()=>{ const c=S.chords[ord[j]]; return note(c.root)+(TOK[c.q]!=null?TOK[c.q]:c.q); })() : "";
+        const lab=j>=0&&j<ord.length ? (()=>{ const c=S.chords[ord[j]]; return withChordSpelling(c,()=>note(c.root)+(TOK[c.q]!=null?TOK[c.q]:c.q)); })() : "";
         const b=el("button",`flex:1 1 0;min-width:0;min-height:44px;border:1.5px solid ${T.rule};border-radius:12px;background:transparent;color:${T.ink};`+
           `font:600 13px ${UI};cursor:pointer;-webkit-tap-highlight-color:transparent;display:flex;align-items:center;justify-content:${dir<0?"flex-start":"flex-end"};gap:8px;padding:0 14px;`,
           dir<0?"‹ "+lab:lab+" ›");
@@ -1221,7 +1222,7 @@ export function openCutBar(bi){
         `font:600 12px ${UI};color:${T.faint};${onsetIdx!=null?"":"cursor:pointer;-webkit-tap-highlight-color:transparent;"}`);
       cell.appendChild(el("div",`font:600 11px ${UI};color:${T.faint};`,String(k+1)));
       if(onsetIdx!=null){
-        const c=S.chords[onsetIdx];
+        const c=S.chords[onsetIdx]; spellChord(c);
         cell.appendChild(c.nc?el("div",`font:italic 600 13px ${SERIF};color:${T.faint};`,"N.C.")
                              :glyph(c.root,c.q,18,"exact",T.ink));
       } else {
@@ -1269,7 +1270,7 @@ export function choisirRecoller(bi){
       "la mesure ne gardera que cet accord, sur toute sa durée"));
     const row=el("div",`flex:0 0 auto;display:grid;grid-template-columns:repeat(${Math.min(order.length,4)},minmax(0,1fr));gap:6px;margin-bottom:12px;`);
     order.forEach((ix,k)=>{
-      const c=S.chords[ix];
+      const c=S.chords[ix]; spellChord(c);
       if(c.nc && k>0) return;
       const b=el("button",`display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:72px;border:1.5px solid ${T.rule};border-radius:12px;background:${T.line};padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent;font:600 11px ${UI};color:${T.faint};`);
       b.appendChild(el("div",`font:600 11px ${UI};color:${T.faint};`,"temps "+(Math.round(c.beat||0)+1)));

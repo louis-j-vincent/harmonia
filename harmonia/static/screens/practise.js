@@ -9,7 +9,7 @@ import { appBar, go, screenWrap } from "../router.js";
 import { buildFormRail, lensBand, paintFormRail } from "../screens/chart.js";
 import { openPrefsSheet } from "../screens/prefs.js";
 import { S } from "../state.js";
-import { NOTES, PLAY_RATES as RATES, PREF, SERIF, SZ, T, UI, assignCost, clear, closeOverlay, ctlSkin, dispQ, el, glyph, handle, haptic, kitButton, kitIcon, kitSegmented, learnLevel, meanOf, mod, note, overlay, play, playGlyph, rateLabel, renderHand, renderKeys, renderVoicing, roleOf, rootHue, sheetBox, sheetCol, splitHands, vlCandidates, voClose, voicingByStyle, withBass } from "../ui/kit.js";
+import { zoneAt, zoneSpellings, useSpelling, NOTES, PLAY_RATES as RATES, PREF, SERIF, SZ, T, UI, assignCost, clear, closeOverlay, ctlSkin, dispQ, el, glyph, handle, haptic, kitButton, kitIcon, kitSegmented, learnLevel, meanOf, mod, note, overlay, play, playGlyph, rateLabel, renderHand, renderKeys, renderVoicing, roleOf, rootHue, sheetBox, sheetCol, splitHands, vlCandidates, voClose, voicingByStyle, withBass } from "../ui/kit.js";
 
 // The single DOM host div (`<div id="app">`) — there is exactly one call
 // site, `window.APP.build(document.getElementById("app"))` in main.js, so
@@ -308,6 +308,8 @@ export function renderPrompter(){
       setTimeout(()=>inp.focus(),60);
     }
     const chords=prompterData().slice().sort((a,b)=>a.t0-b.t0);
+    // l'orthographe de chaque accord selon sa zone de tonalité (2026-10-13)
+    const sps=zoneSpellings(chords, chords.map(c=>zoneAt((c.t0+c.t1)/2)));
     const grid=(m.barGrid||[]).slice();
     ensureLoopEls();   // warm the loop pair so the first LOOP tap costs nothing
     // UI refresh 2026-08-08 (§4 / design 2a): current chord 78px, its ROLE on
@@ -719,11 +721,11 @@ export function renderPrompter(){
       for(let i=0;i<grid.length;i++){
         strip.appendChild(el("div",`position:absolute;top:0;bottom:0;left:${(grid[i]*pxs).toFixed(1)}px;width:1px;background:${T.rule};opacity:.45;`));
       }
-      chords.forEach(c=>{
+      chords.forEach((c,ci)=>{
         const x0=c.t0*pxs, wpx=Math.max(3,(c.t1-c.t0)*pxs-2);
         const b=el("div",`position:absolute;top:50%;transform:translateY(-50%);height:62px;left:${x0.toFixed(1)}px;width:${wpx.toFixed(1)}px;border-radius:9px;display:flex;align-items:center;justify-content:center;overflow:hidden;white-space:nowrap;background:${c.nc?"transparent":reelFill(c.root)};border:1px solid ${c.nc?T.line:"transparent"};opacity:.62;`);
         if(c.nc) b.appendChild(el("span",`font:600 12px ${UI};color:${T.faint};`,"·"));
-        else b.appendChild(glyph(c.root,c.q,18,"exact",T.ink,c.bass));
+        else { const p=useSpelling(sps[ci]); b.appendChild(glyph(c.root,c.q,18,"exact",T.ink,c.bass)); useSpelling(p); }
         strip.appendChild(b); blocks.push(b);
       });
       sync(true);
@@ -752,15 +754,16 @@ export function renderPrompter(){
           curMids=null; curOne=null;
           if(kbCard) kbCard._show(null);
         } else {
+          useSpelling(sps[i]);   // la zone de tonalité de l'accord joué (2026-10-13)
           big.appendChild(glyph(c.root,c.q,bigSize,"exact",bigChordColor(c.root),c.bass));
           // the ROLE on one line (design 2a) — same roleOf the editor's Guide uses
           const nx=(chords[i+1]&&!chords[i+1].nc)?{root:chords[i+1].root,q:chords[i+1].q}:null;
           sub.textContent=roleCourt(roleOf(S.key,c.root,dispQ(c.q),nx).text);
           // the next two chords, greyed
-          [chords[i+1], chords[i+2]].forEach(n=>{ if(!n) return;
+          [chords[i+1], chords[i+2]].forEach((n,k)=>{ if(!n) return;
             nextRow.appendChild(n.nc
               ? el("span",`font:italic 600 16px ${SERIF};color:${T.faint};`,"N.C.")
-              : glyph(n.root,n.q,26,"exact",T.ink,n.bass)); });
+              : (()=>{ const p=useSpelling(sps[i+1+k]); const g=glyph(n.root,n.q,26,"exact",T.ink,n.bass); useSpelling(p); return g; })()); });
           curMids=midsFor(c,i);
           curOne=oneFor(c,i);
           if(kbCard) kbCard._show(kbMidis());

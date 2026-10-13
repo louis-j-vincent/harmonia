@@ -7,9 +7,9 @@
 import { api } from "../api.js";
 import { playTick } from "../audio.js";
 import { API, go, rebuildChrome } from "../router.js";
-import { LEVEL_CAPTION, MAJOR_COLL, loadModel } from "../screens/chart.js";
+import { LEVEL_CAPTION, MAJOR_COLL, applyKeyZones, loadModel } from "../screens/chart.js";
 import { S } from "../state.js";
-import { CE_IV, FLAT, PREF, SERIF, SHARP, SZ, T, UI, applyTheme, closeOverlay, dispQ, el, glyph, handle, haptic, keyFill, kitButton, kitPlusFold, kitSegmented, learnLevel, mod, note, overlay, play, playMidis, renderVoicing, sev4, sheetBox, sheetCol, toast, voClose, voicingCards, withBass } from "../ui/kit.js";
+import { CE_IV, FLAT, PREF, setSpelling, spellChord, SERIF, SHARP, SZ, T, UI, applyTheme, closeOverlay, dispQ, el, glyph, handle, haptic, keyFill, kitButton, kitPlusFold, kitSegmented, learnLevel, mod, note, overlay, play, playMidis, renderVoicing, sev4, sheetBox, sheetCol, toast, voClose, voicingCards, withBass } from "../ui/kit.js";
 
 // The single DOM host div (`<div id="app">`) — there is exactly one call
 // site, `window.APP.build(document.getElementById("app"))` in main.js, so
@@ -272,6 +272,7 @@ export function buildExtensions(root,q){
   // bass accented, then the level's alternate voicings side by side.
 export function openChordSheet(idx){
     const ch=S.chords[idx]; if(!ch||ch.nc) return;
+    spellChord(ch);   // l'orthographe de SA zone de tonalité (2026-10-13)
     const lv=learnLevel();
     const q=dispQ(ch.q);
     const bass=(lv>=3)?ch.bass:-1;
@@ -370,6 +371,7 @@ export function openShareSheet(){
     back.appendChild(sheet); root.appendChild(back);
   }
 export function openRotor(){
+    spellChord(null);   // le cycle des quintes s'écrit dans le ton du morceau
     const back=overlay(); const sheet=sheetBox(); sheet.appendChild(handle());
     sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,"Transposer"));
     sheet.appendChild(el("div",`text-align:center;font:italic 12px ${SERIF};color:${T.faint};margin-bottom:14px;`,"tourne le cycle des quintes — tout le chart se transpose"));
@@ -461,5 +463,9 @@ export function openRotor(){
 // ramène racine et basse dans la tonalité d'origine (S.model.key.tonic) avant
 // d'écrire. La basse est décalée elle aussi — avant 2026-10-01 elle restait
 // en place (Gm/B♭ → Cm/B♭ au lieu de Cm/E♭).
-export function transposeTo(pc){ const d=mod(pc-S.key,12); S.chords.forEach(c=>{ c.root=mod(c.root+d,12); if(c.bass!=null&&c.bass>=0) c.bass=mod(c.bass+d,12); if(c.sug) c.sug.forEach(s=>{ s.root=mod(s.root+d,12); }); if(c.sugBass) c.sugBass.forEach(b=>{ b.pc=mod(b.pc+d,12); }); }); S.key=pc; go("chart"); }
+export function transposeTo(pc){ const d=mod(pc-S.key,12); S.chords.forEach(c=>{ c.root=mod(c.root+d,12); if(c.bass!=null&&c.bass>=0) c.bass=mod(c.bass+d,12); if(c.sug) c.sug.forEach(s=>{ s.root=mod(s.root+d,12); }); if(c.sugBass) c.sugBass.forEach(b=>{ b.pc=mod(b.pc+d,12); }); }); S.key=pc;
+  // Les zones de tonalité tournent avec le reste (2026-10-13) : sans ça, un
+  // chart transposé garderait les ♭/♯ du ton d'origine dans chaque zone.
+  (S.keyZones||[]).forEach(z=>{ z.tonic=mod(z.tonic+d,12); }); setSpelling(S.key,S.keyMode); applyKeyZones();
+  go("chart"); }
 

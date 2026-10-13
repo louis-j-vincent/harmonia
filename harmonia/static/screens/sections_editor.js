@@ -13,7 +13,7 @@ import { formGroups, loadModel, paintFormChip, paintFormRail } from "../screens/
 import { prompterData, reelFill } from "../screens/practise.js";
 import { openPourquoi } from "../screens/pourquoi_sections.js";
 import { S } from "../state.js";
-import { SERIF, SZ, T, UI, clear, closeOverlay, el, fmt, glyph, handle, haptic, kitButton, kitIcon, note, overlay, play, playGlyph, sheetCol, toast } from "../ui/kit.js";
+import { zoneAt, zoneSpellings, useSpelling, SERIF, SZ, T, UI, clear, closeOverlay, el, fmt, glyph, handle, haptic, kitButton, kitIcon, note, overlay, play, playGlyph, sheetCol, toast } from "../ui/kit.js";
 
 // The single DOM host div (`<div id="app">`) — there is exactly one call
 // site, `window.APP.build(document.getElementById("app"))` in main.js, so
@@ -1541,6 +1541,8 @@ export function renderSectionEditor(){
 export function openBar1Sheet(){
     const m=S.model; if(!m||!m.file||!S.audio) return;
     const chords=prompterData().slice().sort((a,b)=>a.t0-b.t0);
+    // l'orthographe de chaque accord selon sa zone de tonalité (2026-10-13)
+    const sps=zoneSpellings(chords, chords.map(c=>zoneAt((c.t0+c.t1)/2)));
     const grid=(m.barGrid||[]).slice();
     const beats=(m.beatTimes||[]).slice();
     if(grid.length<2) { toast("Pas de grille de temps sur ce chart"); return; }
@@ -1640,11 +1642,11 @@ export function openBar1Sheet(){
         `position:absolute;top:64%;bottom:0;left:${(t*pxs).toFixed(1)}px;width:1px;background:${T.line};`)));
       grid.forEach(t=>strip.appendChild(el("div",
         `position:absolute;top:0;bottom:0;left:${(t*pxs).toFixed(1)}px;width:2px;background:${T.rule};`)));
-      chords.forEach(c=>{
+      chords.forEach((c,ci)=>{
         if(c.nc) return;
         const x0=c.t0*pxs, wpx=Math.max(3,(c.t1-c.t0)*pxs-2);
         const b=el("div",`position:absolute;top:8px;height:52px;left:${x0.toFixed(1)}px;width:${wpx.toFixed(1)}px;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:${reelFill(c.root)};opacity:.8;`);
-        b.appendChild(glyph(c.root,c.q,15,"exact",T.ink,c.bass));
+        { const p=useSpelling(sps[ci]); b.appendChild(glyph(c.root,c.q,15,"exact",T.ink,c.bass)); useSpelling(p); }
         strip.appendChild(b);
       });
     }

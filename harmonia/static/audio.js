@@ -8,7 +8,7 @@ import { go } from "./router.js";
 import { chartDock, closeVoicingCard, immersiveArm, paintDockTime, renderChart } from "./screens/chart.js";
 import { setPlayhead } from "./screens/sections_editor.js";
 import { S } from "./state.js";
-import { T, UI, actx, clear, dispQ, el, glyph, haptic, learnLevel, mod, note, play, playGlyph, renderVoicing, suspendPreviewAudio, toast, vlTotals, vlTrack, voClose, voicingByStyle, withBass } from "./ui/kit.js";
+import { T, UI, actx, clear, dispQ, el, glyph, haptic, learnLevel, mod, note, play, playGlyph, renderVoicing, spellChord, suspendPreviewAudio, toast, vlTotals, vlTrack, voClose, voicingByStyle, withBass } from "./ui/kit.js";
 
 // The single DOM host div (`<div id="app">`) — there is exactly one call
 // site, `window.APP.build(document.getElementById("app"))` in main.js, so
@@ -208,6 +208,7 @@ export function paintCoachChord(idx){
       m=(S.coachStyle==="rootless")?m0:withBass(m0,ch.root,(lv>=3)?ch.bass:-1);
     }
     clear(S._coachGlyph);
+    spellChord(ch);   // l'orthographe de SA zone de tonalité (2026-10-13)
     // ink on card since the coach moved into the dock (was cream on deep)
     S._coachGlyph.appendChild(glyph(ch.root,q,20,"exact",T.ink,(lv>=3)?ch.bass:-1));
     S._coachNames.textContent=m.map(x=>note(mod(x,12))).join(" · ")+(picked?"  ·  "+picked.style:"");

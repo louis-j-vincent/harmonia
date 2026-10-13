@@ -104,6 +104,11 @@ def chart_model(file):
     model = appliquer_fusion(model, niveau)
     ann = annotations.load_annotation(file)
     model = annotations.overlay(model, ann)
+    # LES ZONES DE TONALITÉ (2026-10-13) : calculées ici, au service, depuis
+    # les `keySegments` déjà stockés — tout chart existant les a sans
+    # ré-analyse. Règle et limites : `harmonia/key_zones.py`.
+    from harmonia.key_zones import key_zones_for_model
+    model["keyZones"] = key_zones_for_model(model)
     # overlay() can insert a new chord into a bar that already has one (it
     # clones that chord as a template); it silently drops a fix that targets
     # a bar with NONE (a fully-held "%" bar) — fill_empty_bars covers just

@@ -61,8 +61,61 @@ export const SHARP=["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","
 export const FLAT_MAJ=new Set([0,1,3,5,6,8,10]);
 export const mod=(n,m)=>((n%m)+m)%m;
 export let NOTES=FLAT;
-export function setSpelling(tonic,mode){ const maj=(mode==="minor")?mod(tonic+3,12):mod(tonic,12); NOTES=FLAT_MAJ.has(maj)?FLAT:SHARP; }
+  // L'ORTHOGRAPHE SUIT LA ZONE DE TONALITÉ (Louis, 2026-10-13 : « comment
+  // représenter les changements de gamme ? il faudrait updater les
+  // accords »). `HOME` = l'orthographe du ton du morceau (titre du chart) ;
+  // `NOTES` = celle en vigueur pour ce qu'on dessine MAINTENANT. La grille la
+  // pose mesure par mesure (`useSpelling`, puis la remet) ; une feuille qui
+  // montre UN accord (éditeur, voicing, coach, Practise) la pose sur cet
+  // accord (`spellChord`, qui lit `ch.sp`, posé dans chart.js loadModel). Les
+  // racines des accords ne bougent jamais — seul le NOM affiché change.
+export let HOME=FLAT;
+export function spellingFor(tonic,mode){ const maj=(mode==="minor")?mod(tonic+3,12):mod(tonic,12); return FLAT_MAJ.has(maj)?FLAT:SHARP; }
+export function setSpelling(tonic,mode){ NOTES=HOME=spellingFor(tonic,mode); }
+export function useSpelling(arr){ const prev=NOTES; if(arr) NOTES=arr; return prev; }
+export function spellChord(ch){ NOTES=(ch&&ch.sp)||HOME; }
+export function withChordSpelling(ch,fn){ const p=NOTES; NOTES=(ch&&ch.sp)||HOME; try{ return fn(); } finally{ NOTES=p; } }
+  // Par le TEMPS (le défilant de Practise lit `prompter.chords`, qui n'a pas
+  // d'index de mesure) : la zone qui contient t, sinon le ton du morceau.
+export function zoneAt(t){
+    const Z=S.keyZones||[]; let k=0;
+    for(let j=1;j<Z.length;j++) if(Z[j].t0<=t) k=j;
+    return k;
+  }
+export function spellingAt(t){
+    const Z=S.keyZones; if(!Z||Z.length<2||t==null) return HOME;
+    const k=zoneAt(t); return spellingFor(Z[k].tonic,Z[k].mode);
+  }
+  // L'ACCORD QUI ANNONCE LA NOUVELLE GAMME S'ÉCRIT DANS ELLE (vu au rendu
+  // 2026-10-13, That's Life mes. 47 : « D7 D♯7 | E♭7 … » — le D♯7 est le
+  // E♭7 qui pousse vers A♭). Juste avant un changement de zone, en
+  // remontant : tant qu'un accord est HORS de la gamme qu'on quitte et DANS
+  // celle où l'on va, il prend l'orthographe de la nouvelle. Le premier
+  // accord qui appartient encore à l'ancienne gamme arrête la remontée.
+  // `list` en ordre de temps, `kz[i]` = zone de list[i] ; renvoie un tableau
+  // d'orthographes (FLAT/SHARP) aligné sur `list`.
+const MAJ_SCALE=[0,2,4,5,7,9,11];
+const inScale=(pc,z)=>{ const maj=(z.mode==="minor")?mod(z.tonic+3,12):mod(z.tonic,12); return MAJ_SCALE.includes(mod(pc-maj,12)); };
+export function zoneSpellings(list,kz){
+    const Z=S.keyZones||[];
+    const out=list.map((c,i)=>{ const z=Z[kz[i]]; return z?spellingFor(z.tonic,z.mode):HOME; });
+    for(let i=1;i<list.length;i++){
+      if(kz[i]===kz[i-1]) continue;
+      const zn=Z[kz[i]];
+      if(!zn) continue;
+      for(let j=i-1;j>=0 && kz[j]===kz[i-1];j--){
+        const c=list[j], zo=Z[kz[j]];
+        if(!c || c.nc) continue;
+        if(inScale(c.root,zo) || !inScale(c.root,zn)) break;
+        out[j]=out[i];
+      }
+    }
+    return out;
+  }
 export const note=pc=>NOTES[mod(pc,12)];
+  // Le nom d'une tonalité dans sa PROPRE orthographe : « A♭ majeur » même au
+  // milieu d'une zone en dièses (titre du chart, pastille de modulation).
+export const keyName=(tonic,mode)=>spellingFor(tonic,mode)[mod(tonic,12)]+" "+(mode==="minor"?"mineur":"majeur");
 export const el=(t,c,x)=>{const e=document.createElement(t); if(c)e.style.cssText=c; if(x!=null)e.textContent=x; return e;};
 export const clear=n=>{ while(n.firstChild) n.removeChild(n.firstChild); };
 
@@ -986,7 +1039,7 @@ export function toast(msg){ const t=el("div",`position:absolute;left:50%;bottom:
 // search — always show flats; setSpelling() above picks flats/sharps once a
 // song's key is known). Exists so those screens don't reassign the imported
 // NOTES binding directly (ES modules make imported bindings read-only).
-export function resetSpelling(){ NOTES=FLAT; }
+export function resetSpelling(){ NOTES=HOME=FLAT; }
 // audio.js's togglePlay suspends the little chord-preview AudioContext so the
 // <audio> element can take the iOS audio session (2026-07-20 no-sound fix) —
 // exported instead of exposing `actx` itself, which stays reassignable only here.

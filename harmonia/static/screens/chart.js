@@ -12,7 +12,7 @@ import { candList, maybeShowPendingUndo, openAnnotateTools, openEditor, openNewC
 import { openChordSheet, openPrefsSheet, openRotor, openShareSheet, transposeTo } from "../screens/prefs.js";
 import { attachSectionDrag, buildSectionTool, closeSectionTool, paintSectionTool, sectToolOn, setPlayhead, spanTime } from "../screens/sections_editor.js";
 import { S } from "../state.js";
-import { PLAY_RATES, PREF, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, ctlSkin, dispQ, el, fmt, fnColor, glyph, glyphEpure, pedalGlyph, handle, haptic, keyFill, keyHue, kitIcon, kitLegend, kitSegmented, learnLevel, lensLabelColor, mod, note, overlay, rateLabel, play, playGlyph, sheetBox, playMidis, playedLabel, qClass, renderHand, setSpelling, songTitle, splitHands, tightGap, tightSize, toast, vlTrack, voClose, voicingByStyle, withBass } from "../ui/kit.js";
+import { PLAY_RATES, PREF, SERIF, SZ, T, TOK, UI, clear, closeOverlay, confColor, ctlSkin, dispQ, el, fmt, fnColor, glyph, glyphEpure, pedalGlyph, handle, haptic, keyFill, keyHue, kitIcon, kitLegend, kitSegmented, learnLevel, lensLabelColor, mod, note, overlay, rateLabel, play, playGlyph, sheetBox, playMidis, playedLabel, qClass, renderHand, setSpelling, spellingFor, useSpelling, spellChord, keyName, zoneAt, zoneSpellings, songTitle, splitHands, tightGap, tightSize, toast, vlTrack, voClose, voicingByStyle, withBass } from "../ui/kit.js";
 
 // The single DOM host div (`<div id="app">`) — there is exactly one call
 // site, `window.APP.build(document.getElementById("app"))` in main.js, so
@@ -88,6 +88,14 @@ export function fitsCollection(tones,c,root){
     return false;
   }
 export function cofDist(a,b){ const d=Math.abs(mod(a*7,12)-mod(b*7,12)); return Math.min(d,12-d); }
+  // La pastille « → A♭ majeur » (2026-10-13) : la géométrie du badge de
+  // section (bordure 1,5 px, rayon 4, police UI grasse), en BLEU — le rouge
+  // est réservé aux sections, reprises et tête de lecture.
+export function keyPillEl(text,narrow){
+    const p=el("span",`display:inline-block;font:700 ${narrow?9:11}px ${UI};line-height:1;color:${T.blue};border:1.5px solid ${T.blue};border-radius:4px;padding:1px 4px;background:${T.paper};white-space:nowrap;`,text);
+    p.dataset.keyPill="1";
+    return p;
+  }
 export const keyLabelName=(tonic,mode)=>note(tonic)+" "+mode;
 export function labelCollection(coll,run){
     const rel=mod(coll+9,12); let majHits=0,minHits=0,needsMinor=false;
@@ -573,6 +581,29 @@ export function loadModel(m, opts){
       spans.forEach(sp=>S.chordTimeIndex.push({idx,t0:sp[0],t1:sp[1]}));
     });
     S.chordTimeIndex.sort((a,b)=>a.t0-b.t0);
+    // LES ZONES DE TONALITÉ (2026-10-13) : servies par /api/chart-model
+    // (`keyZones`, règle dans harmonia/key_zones.py). Un modèle qui n'en a
+    // pas (chart brut d'Analyse, outil de sections) garde UNE zone, le ton du
+    // morceau — exactement l'orthographe d'avant.
+    S.keyZones=(m.keyZones&&m.keyZones.length)
+      ? m.keyZones.map(z=>({t0:z.t0, t1:z.t1, tonic:z.tonic, mode:z.mode}))
+      : [{t0:-Infinity, t1:Infinity, tonic:m.key.tonic, mode:m.key.mode||"major"}];
+    applyKeyZones();
+  }
+  // Chaque mesure prend la zone qui contient le MILIEU de son premier
+  // passage (une mesure repliée jouée dans deux tons prend celle de son 1er
+  // passage — limite notée dans key_zones.py) ; chacun de ses accords en
+  // reçoit l'orthographe (`ch.sp`, lue par spellChord / la grille).
+export function applyKeyZones(){
+    const Z=S.keyZones||[];
+    const order=[], kz=[];
+    S.bars.forEach(b=>{
+      const sp=(b.tspans&&b.tspans[0])||[b.t0,b.t1];
+      b.kz=Z.length>1 && sp[0]!=null ? zoneAt((sp[0]+(sp[1]!=null?sp[1]:sp[0]))/2) : 0;
+      b.idxs.forEach(i=>{ S.chords[i].kz=b.kz; order.push(S.chords[i]); kz.push(b.kz); });
+    });
+    const sps=zoneSpellings(order,kz);
+    order.forEach((c,k)=>{ c.sp=sps[k]; });
   }
 
   // ── chart chrome (UI refresh 2026-08-08, §2 / design 1a) ─────────────────
@@ -601,7 +632,7 @@ export function chartToolbar(){
     const meta=el("button",
       `display:inline-flex;align-items:center;gap:6px;border:none;min-height:${SZ.control}px;`+
       `margin:-9px 0 -11px;background:none;padding:0;font:500 13px ${UI};color:${T.faint};cursor:pointer;white-space:nowrap;`);
-    meta.appendChild(el("span",`color:${T.ink};font-weight:600;`, note(S.key)+" "+(S.keyMode==="minor"?"mineur":"majeur")));   // comme la bibliothèque (« B♭ majeur »), UX #13a
+    meta.appendChild(el("span",`color:${T.ink};font-weight:600;`, keyName(S.key,S.keyMode)));   // comme la bibliothèque (« B♭ majeur »), UX #13a
     if(m && m.form){ meta.appendChild(el("span","","·")); meta.appendChild(el("span","",m.form)); }
     meta.appendChild(el("span",`color:${T.accent};`,"↻ Transposer"));   // UX #20 : le ↻ seul ressemblait à « rafraîchir »
     meta.setAttribute("aria-label","Transposer");
@@ -974,6 +1005,7 @@ export function openVoicingCard(idx, anchorEl){
     if(S.piano==="never") return;      // réglage Aa: le piano ne monte jamais
     closeVoicingCard();
     const ch=S.chords[idx]; if(!ch || ch.nc) return;
+    spellChord(ch);   // l'orthographe de SA zone de tonalité (2026-10-13)
     const lv=learnLevel(), q=dispQ(ch.q);
     let m;
     if(S.coachStyle==="smooth"){
@@ -1559,7 +1591,7 @@ export function buildIReal(){
     const secGap = EP ? (narrow?22:24) : (narrow?16:18);
     S._cells=[];
     let rowCells=[];
-    const bars=S.bars.map(b=>({sec:b.sec, secId:b.secId, secFirst:b.secFirst, reps:b.reps, beats:b.beats,
+    const bars=S.bars.map(b=>({sec:b.sec, secId:b.secId, secFirst:b.secFirst, reps:b.reps, beats:b.beats, kz:b.kz||0,
                                repOpen:b.repOpen, repClose:b.repClose, repN:b.repN,
                                ending:b.ending, endingFirst:b.endingFirst, endingOwn:b.endingOwn,
                                chords:b.idxs.map(i=>({ch:S.chords[i], idx:i}))}));
@@ -1664,11 +1696,30 @@ export function buildIReal(){
     };
     const fillRow=()=>{ while(col!==0&&col<4){ const f=filler(col); grid.appendChild(f); rowCells.push(f); col++; } };
     const closeRow=()=>{ fillRow(); if(!EP) rowCells.forEach(c=>{ if(!c.dataset.bare) c.style.borderBottom=`1px solid ${T.rule}`; }); };
+    // L'orthographe de la grille suit la zone de chaque mesure ; celle d'avant
+    // (p. ex. l'accord ouvert dans l'éditeur) revient après la grille.
+    const spellAvant=useSpelling(null);
+    const ZK=S.keyZones||[];
+    let kzAvant=null;   // la zone de la mesure DESSINÉE précédente (pastille)
     bars.forEach((b,bi)=>{
       // Louis, 2026-08-08: the chord-less leading intro does not print AT ALL
       // in Read — the form rail above still carries it. Analyse/Annotate keep
       // its bars (N.C. cells stay inspectable and correctable).
       if(S.mode==="read" && S._muettes && S._muettes.has(b.secId)) return;
+      const zb=ZK[b.kz]||null;
+      if(zb) useSpelling(spellingFor(zb.tonic,zb.mode));
+      // LA PASTILLE DE CHANGEMENT DE GAMME (Louis, 2026-10-13, maquette
+      // choisie : « pastille au début de la mesure »). Sur la 1re mesure
+      // dessinée d'une nouvelle zone : « → A♭ majeur ». Sur la toute 1re
+      // mesure, seulement si le morceau ne commence pas dans le ton du titre
+      // (sans flèche). Un seul ton = aucune pastille, rien ne bouge.
+      let keyPill=null;
+      if(zb && ZK.length>1){
+        if(kzAvant===null){
+          if(zb.tonic!==S.key || zb.mode!==S.keyMode) keyPill=keyName(zb.tonic,zb.mode);
+        } else if(b.kz!==kzAvant) keyPill="→ "+keyName(zb.tonic,zb.mode);
+        kzAvant=b.kz;
+      }
       // L'INTRO ÉCRIT SES ACCORDS, COMME TOUT LE MONDE (Louis, 2026-09-18 :
       // « fais en sorte qu'on affiche toujours les accords de l'intro »).
       // Elle se repliait en UNE rangée « intro … » en Read : sur Lost Without
@@ -1872,10 +1923,29 @@ export function buildIReal(){
         // §6: secGap est descendu à 16/18 — le badge doit tenir DANS le gap
         // sans mordre la bordure de sa rangée, donc il se pose au ras de
         // celle-ci (top:-(secGap-1)) au lieu de flotter à -(secGap-3).
-        cell.appendChild(el("div",`position:absolute;left:${EP?(narrow?4:6):0}px;top:${EP?4:-(secGap-1)}px;font:800 ${narrow?9:11}px ${UI};line-height:1;color:${T.accent};border:1.5px solid ${T.accent};border-radius:4px;padding:1px 4px;background:${T.paper};z-index:2;`,b.sec));
+        const badge=el("div",`position:absolute;left:${EP?(narrow?4:6):0}px;top:${EP?4:-(secGap-1)}px;font:800 ${narrow?9:11}px ${UI};line-height:1;color:${T.accent};border:1.5px solid ${T.accent};border-radius:4px;padding:1px 4px;background:${T.paper};z-index:2;`,b.sec);
+        cell.appendChild(badge);
+        // La pastille de tonalité se range À DROITE du badge de section, sur
+        // la même ligne : la rangée ne bouge pas d'un pixel.
+        if(keyPill){
+          badge.style.display="flex"; badge.style.gap="5px"; badge.style.alignItems="center";
+          badge.style.border="none"; badge.style.padding="0"; badge.style.background="none";
+          const lettre=el("span",`border:1.5px solid ${T.accent};border-radius:4px;padding:1px 4px;background:${T.paper};`,b.sec);
+          badge.textContent=""; badge.appendChild(lettre);
+          badge.appendChild(keyPillEl(keyPill,narrow));
+          keyPill=null;
+        }
         // (la barre noire d'ouverture de section a disparu d'ici: Louis en
         // veut UNE, continue sur toute la hauteur du chart — elle est posée
         // une seule fois sur le cadre, tout en bas de cette fonction.)
+      }
+      // Pastille sur une mesure qui n'ouvre pas de section : dans le haut de
+      // la cellule (le gap de section quand la rangée en a un), hors du flux
+      // des accords — la grille ne bouge pas.
+      if(keyPill){
+        const kp=keyPillEl(keyPill,narrow);
+        kp.style.cssText+=`position:absolute;left:${narrow?4:6}px;top:${rowPT?4:2}px;z-index:3;pointer-events:none;`;
+        cell.appendChild(kp);
       }
       // LES REPRISES ||: … :|| ×N (2026-09-30, docs/STATE.md). Encre, jamais
       // le rouge ; posées sur les bords de la mesure, pas au-dessus des
@@ -2018,6 +2088,7 @@ export function buildIReal(){
           return;
         }
         const dq=dispQ(ch.q);
+        if(ch.sp) useSpelling(ch.sp);   // l'accord pivot peut déjà s'écrire dans la zone suivante (zoneSpellings)
         // Le glyphe vit dans un porteur `data-gl` : la petite lecture s'y
         // accroche (au-dessus, bord gauche), et le rétrécissement des mesures
         // de reprise (fitRepCells, plus bas) le mesure et l'échelonne d'un bloc.
@@ -2305,6 +2376,7 @@ export function buildIReal(){
       rowCells.push(cell);
       col++;
     });
+    useSpelling(spellAvant);
     // fermer la toute dernière rangée du chart — exactement les mêmes règles
     // que partout ailleurs, via le même `closeRow` (rowH/rowMT compris, §3).
     closeRow();

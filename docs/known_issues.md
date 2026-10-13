@@ -5,6 +5,58 @@ refactor `harmonia_min` → `harmonia`) : `docs/archive/known_issues_2026-07_202
 Mécanique du projet (comment vérifier un changement, où sont les fichiers) :
 `docs/STATE.md`.
 
+## Changements de gamme : pastille « → A♭ majeur » + orthographe des accords par zone (2026-10-13, FAIT, pas encore servi sur :7772)
+
+Louis : « comment représenter les changements de gamme ? il faudrait updater
+les accords ». Maquettes montrées, il a CHOISI : (1) une pastille au début de
+la mesure, comme les badges de section ; (2) seule l'ORTHOGRAPHE des accords
+suit la tonalité locale (D♯→E♭, G♯→A♭ dans la zone A♭).
+
+**Règle (une phrase).** Une pastille s'écrit au début d'une zone qui CHANGE
+LA GAMME (l'armure : sol majeur → mi mineur n'en est pas une) et dure au
+moins une phrase (4 mesures de la grille du chart) ; un segment plus court
+est rendu à la zone d'avant. `harmonia/key_zones.py`, calculé AU SERVICE par
+`/api/chart-model` (`keyZones`) depuis les `keySegments` déjà stockés :
+aucun chart n'a besoin d'être ré-analysé. `x3` n'est pas utilisé (c'est la
+part de tierce majeure — le mode — pas une confiance de segment).
+
+**Ce qui change à l'écran (journal UI, avant changement).** Pastille bleue
+(`T.blue`, géométrie du badge de section : bordure 1,5 px, rayon 4, police UI
+grasse 9/11 px ; le rouge reste aux sections/reprises/tête de lecture), texte
+« → A♭ majeur » dans l'orthographe de SA gamme ; sur une mesure qui ouvre
+une section elle se range à droite du badge, sinon en haut à gauche de la
+cellule, hors du flux : la grille ne bouge pas d'un pixel. Sur la 1re mesure,
+sans flèche, seulement si le morceau ne commence pas dans le ton du titre.
+L'orthographe : `ch.sp` par accord (chart.js `applyKeyZones`), posée dans la
+grille, l'éditeur, la carte voicing, le coach, Practise (défilant + gros
+accord) et la bande de l'outil mesure 1. Les accords qui ANNONCENT la
+nouvelle gamme (juste avant, hors de l'ancienne gamme et dans la nouvelle)
+s'écrivent déjà dans la nouvelle : That's Life mes. 47 « D7 E♭7 », et non plus
+« D7 D♯7 ». Le titre du chart dit toujours le ton du titre. Un morceau à un
+seul ton : rendu identique au pixel (Evening Star, capture :7772 vs :7779).
+
+**Corpus (règle 5).** 80 charts (copies avant/après exclues), 14 ont plus
+d'un segment, 14 auraient une pastille — page
+`docs/plots/zones_tonalite_2026-10-13.html` (`tools/page_zones_tonalite.py`).
+Plausibles : That's Life ×2 (G→A♭), My Cherie Amour (B→C), Evening Star
+`min_OHOH8fAc11g` (G→A), Bora Bora (Em→Fm), Go Thru Your Phone (E♭m→A♭),
+Sunny ×2 (Em→Gm), Can't Take My Eyes (E→G→F♯m,
+grille à demi-tempo : 5 mesures = 35 s). **Douteux, à juger par Louis :**
+Smooth Criminal (« F majeur » sur 104 mesures puis « → A mineur » : le
+morceau est en la mineur, F = VI — probablement un faux), Maybe Another
+Time (« → C♯ mineur » 7 mesures dans A♭ : sans doute le iv emprunté, et il
+s'écrirait en dièses au milieu d'un morceau en bémols), Goodbye Yellow Brick
+Road (« → B♭ mineur » 5 mesures puis retour F), Sunny Afternoon (« → C
+majeur » posé au milieu d'une ligne, mes. 15, sur A♭△7 D7 — le pont autour
+de F/C plutôt qu'une vraie modulation ?).
+
+**PAS fait (choix de Louis) :** les couleurs de fonction (le chiffrage
+romain de l'éditeur reste relatif au ton du titre : E♭7 y est « ♭VI⁷ de
+♭II ») ; le Transposer comme geste musical (il fait seulement tourner les
+zones avec le reste, pour garder une orthographe juste). **Limites :** sur
+un chart replié, une mesure jouée dans deux tons prend celle de son 1er
+passage ; le chart brut d'Analyse (pendant le calcul) n'a qu'une zone.
+
 ## That's Life mes. 40 : « on décale tout » — garde-fou des changements de rythme (2026-10-12, BRANCHÉ, pas encore servi sur :7772)
 
 **Ce que c'était.** De 119 à 145 s, Beat This! compte les TRIOLETS du shuffle
