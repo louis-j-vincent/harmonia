@@ -217,6 +217,27 @@ def note_corrections_accords(stem: str, model: dict, fixes: list[dict]) -> int:
     return n
 
 
+def note_correction_battues(stem: str, avant: dict, apres: dict) -> bool:
+    """Une correction de GRILLE DE BATTUES (l'éditeur mobile, 2026-10-27 —
+    le filet de sécurité demandé par Louis après le premier test de vitesse
+    Android : si le modèle rapide se trompe, il corrige à la main).
+
+    Dédiée plutôt que forcée dans `note_corrections_accords` /
+    `note_corrections_sections` : une correction de battues n'est pas une
+    substitution ponctuelle (un accord, une étiquette à une mesure) mais une
+    grille ENTIÈRE qui remplace une autre — aligner les deux grilles
+    battue-par-battue pour un diff fin demanderait un appariement au plus
+    proche voisin (voir `t5prep_leviers_vitesse.md` §Levier 4, qui a dû le
+    faire pour l'int8) hors périmètre ici. On note donc seulement QUE la
+    grille a changé, QUAND, et son effet en gros (`avant`/`apres` = compte de
+    battues et de temps forts) — assez pour savoir sur quel morceau et à
+    quelle fréquence Louis a dû intervenir, pas assez pour qu'un agent
+    apprenne un motif de correction (même limite que le reste de ce module,
+    voir sa docstring).
+    """
+    return noter(stem, "battue", {"avant": avant, "apres": apres})
+
+
 def _section_de(model: dict, mesure) -> str | None:
     try:
         m = int(mesure)

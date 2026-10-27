@@ -149,6 +149,26 @@ def tempo_factor_for(file_key: str) -> float | None:
     return d.get("tempo_factor")
 
 
+def manual_beats_for(file_key: str) -> dict | None:
+    """La grille de battues corrigée à la main par Louis pour ce morceau, ou
+    None (2026-10-27, portage mobile — l'éditeur de battues).
+
+    Même sidecar et même logique collante que `bar1_for`/`tempo_factor_for` :
+    `state/human/marks/<stem>.json`, clé `manual_beats`
+    (`{"beats":[s...],"downbeats":[s...]}`), écrite par
+    `routes/analyze.py::api_beats_correct` AVANT la ré-analyse. Une
+    ré-analyse d'un morceau déjà corrigé ne doit pas perdre la correction —
+    exactement le risque que `bar1_for` documente déjà.
+    """
+    stem = file_key.removeprefix("min_")
+    p = SETTINGS.marks_dir / f"{stem}.json"
+    try:
+        d = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return d.get("manual_beats")
+
+
 def _resolve_audio(url: str) -> tuple[Path, str, str]:
     """analyze URL → (audio path, title, artist). Three forms:
     'local:<stem>' (from our own search results, possibly wrapped in a
@@ -192,7 +212,8 @@ def _resolve_audio(url: str) -> tuple[Path, str, str]:
     raise FileNotFoundError(f"could not resolve {url!r} to audio")
 
 
-def _run_job(job_id: str, url: str, bar1_time=None, tempo_factor=None):
+def _run_job(job_id: str, url: str, bar1_time=None, tempo_factor=None,
+            manual_beats=None):
     """Le chart BRUT est publié dès qu'il existe ; le raffinement continue après.
 
     Louis, 2026-08-07 : « dès que le chart brut est dispo tu l'affiches direct,
@@ -279,6 +300,16 @@ def _run_job(job_id: str, url: str, bar1_time=None, tempo_factor=None):
             if tempo_factor is not None:
                 log.info("job %s: reprise du réglage tempo de %s (x%s)",
                          job_id, file_key, tempo_factor)
+        # Même logique collante pour la grille de battues corrigée à la main
+        # (2026-10-27, éditeur mobile) : une ré-analyse (changement de
+        # modèle, nouveau lancement) ne doit pas perdre la correction de
+        # Louis — même risque que `bar1_time` et `tempo_factor` ci-dessus.
+        if manual_beats is None:
+            manual_beats = manual_beats_for(file_key)
+            if manual_beats is not None:
+                log.info("job %s: reprise de la grille de battues corrigée "
+                         "de %s (%d battues)", job_id, file_key,
+                         len(manual_beats.get("beats", [])))
         # Le sidecar est ce que /api/library ressert : c'est là que l'artiste
         # doit atterrir pour être VU. On n'écrase jamais une saisie de Louis —
         # l'éditeur artiste/titre de l'app écrit dans le même fichier.
@@ -305,7 +336,7 @@ def _run_job(job_id: str, url: str, bar1_time=None, tempo_factor=None):
                 audio_path, title=job["title"], file_key=file_key,
                 audio_url=f"/audio/{audio_path.name}", progress=progress,
                 bar1_time=bar1_time, tempo_factor=tempo_factor,
-                duration_s=dur):
+                duration_s=dur, manual_beats=manual_beats):
             if kind == "head":
                 # LE CHART DE TÊTE NE TOUCHE PAS LE DISQUE (2026-08-18). C'est
                 # un aperçu des ~45 premières secondes, dont 6 % des accords
@@ -375,17 +406,18 @@ def _run_job(job_id: str, url: str, bar1_time=None, tempo_factor=None):
 
 
 def start_job(url: str, *, title: str = "", bar1_time=None,
-              tempo_factor=None) -> str:
+              tempo_factor=None, manual_beats=None) -> str:
     """Crée un job, lance son thread, renvoie son id — l'usine commune à
-    `/api/analyze`, `/api/bar1/<file>`, `/api/tempo/<file>` et
-    `/api/record-analyze`."""
+    `/api/analyze`, `/api/bar1/<file>`, `/api/tempo/<file>`,
+    `/api/beats/<file>` et `/api/record-analyze`."""
     job_id = uuid.uuid4().hex[:12]
     with _JOBS_LOCK:
         _jobs[job_id] = {"status": "running", "stage": 0, "created": time.time(),
                          "title": title}
     threading.Thread(target=_run_job, args=(job_id, url),
                      kwargs={"bar1_time": bar1_time,
-                             "tempo_factor": tempo_factor}, daemon=True).start()
+                             "tempo_factor": tempo_factor,
+                             "manual_beats": manual_beats}, daemon=True).start()
     return job_id
 
 

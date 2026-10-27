@@ -254,6 +254,15 @@ def start_server(state_dir: str, audio_dir: str, port: int,
         mobile_timing.install()
         app.register_blueprint(mobile_timing.bp)
 
+    # T5 (2026-10-27) : switch à chaud du `.pte` de Beat This! pour comparer
+    # final0/small0/int8 À L'OREILLE sur le téléphone de Louis — voir
+    # mobile_beatmodel.py. Monté seulement quand `models_dir` existe, comme
+    # mobile_timing juste au-dessus : sans lui il n'y a pas de runtime
+    # `beats_runtime="java"` à recharger.
+    if models_dir:
+        import mobile_beatmodel
+        app.register_blueprint(mobile_beatmodel.bp)
+
     # Import YouTube P3b (mobile_youtube.py, PAS dans harmonia/) : remplace
     # harmonia.server.youtube._ytdlp_bin/_video_meta/_download_audio (qui
     # shellent vers un binaire yt-dlp + Firefox + PO-Token server, aucun des

@@ -938,7 +938,8 @@ def _beatthis_track(audio_path: Path):
 
 
 def track(audio_path: str | Path, *, use_cache: bool = True,
-          tempo_factor: float | None = None) -> dict:
+          tempo_factor: float | None = None,
+          manual_beats: dict | None = None) -> dict:
     """Beats + downbeats for one audio file.
 
     Returns {"beats": [s...], "downbeats": [s...], "bpm": float}.
@@ -950,8 +951,37 @@ def track(audio_path: str | Path, *, use_cache: bool = True,
     bug). Applied AFTER `_clean()`, on every call, cache hit or not — the
     cache keeps storing what Beat This! actually produced, so removing the
     override later reverts cleanly.
+
+    `manual_beats` (2026-10-27, portage mobile — filet de sécurité demandé
+    par Louis pour arbitrer les leviers de vitesse Android) : `{"beats":
+    [s...], "downbeats": [s...]}`, la grille qu'il vient de corriger à la
+    main dans l'éditeur mobile. Quand elle est fournie, le TRACEUR N'EST PAS
+    APPELÉ et le cache disque n'est NI LU NI ÉCRIT — c'est le seul moyen que
+    la grille corrigée soit bien celle qui part en aval (`check_grid`,
+    `pipeline._run_beats`), et que supprimer la correction plus tard rende
+    exactement ce que le traceur aurait dit sans jamais avoir été pollué.
+    Ni `_clean()` ni `apply_tempo_octave()` ne s'appliquent ici : les deux
+    sont des heuristiques qui corrigent un DÉFAUT du traceur (temps dupliqués,
+    octave verrouillée) — appliquées à une grille qu'un humain vient de
+    corriger à l'oreille, elles pourraient défaire sa correction en silence.
+    `tempo_factor` est donc IGNORÉ quand `manual_beats` est fourni (pas
+    résolu plus loin : si Louis veut un ÷2/×2 par-dessus une correction
+    manuelle, il doit le refaire à la main dans l'éditeur).
     """
     audio_path = Path(audio_path)
+    if manual_beats is not None:
+        beats_list = sorted(round(float(t), 4) for t in manual_beats.get("beats", []))
+        downbeats_list = sorted(round(float(t), 4) for t in manual_beats.get("downbeats", []))
+        if len(beats_list) < 4:
+            raise BeatTrackingError(
+                f"manual_beats a {len(beats_list)} battues (<4) pour "
+                f"{audio_path.name} — correction refusée")
+        import numpy as np
+        bpm = round(60.0 / float(np.median(np.diff(beats_list))), 2)
+        logger.info("beats: grille MANUELLE pour %s (%d battues, %d temps "
+                    "forts) — traceur non appelé, cache ignoré",
+                    audio_path.name, len(beats_list), len(downbeats_list))
+        return {"beats": beats_list, "downbeats": downbeats_list, "bpm": bpm}
     if use_cache:
         try:
             d = cache.load_json("beats", audio_path)

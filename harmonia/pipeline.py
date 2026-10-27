@@ -449,7 +449,7 @@ def _head_chart(audio_path: Path, *, title, file_key, audio_url, bar1_time,
     return None
 
 
-def _run_beats(audio_path, report, tempo_factor=None):
+def _run_beats(audio_path, report, tempo_factor=None, manual_beats=None):
     """Battues + garde-fou de grille → dict, avec `grid` en plus.
 
     Extrait d'`analyze_steps` le 2026-08-18 pour pouvoir tourner pendant que
@@ -461,10 +461,19 @@ def _run_beats(audio_path, report, tempo_factor=None):
     doit s'appliquer AVANT `check_grid` juste en dessous, sinon le garde
     juge une grille que Louis vient de corriger comme si elle était encore
     celle du traceur.
+
+    `manual_beats` (2026-10-27) : même idée que `tempo_factor`, pour la
+    grille corrigée à la main dans l'éditeur mobile — voir
+    `harmonia.beats.track` pour ce qu'elle fait (traceur non appelé) et ce
+    qu'elle N'APPLIQUE PAS (`tempo_factor` est ignoré dans ce cas). `grid`
+    reste calculé normalement juste en dessous : une grille manuelle qui ne
+    porte pas de mesure à 4 temps cohérente est refusée tout aussi fort
+    qu'une grille du traceur.
     """
     # 1 ── beats (hard error if Beat This! fails; librosa is banned)
     report(1, phase="listening")
-    bd = _beats.track(audio_path, tempo_factor=tempo_factor)
+    bd = _beats.track(audio_path, tempo_factor=tempo_factor,
+                      manual_beats=manual_beats)
     beat_times, downbeats = bd["beats"], bd["downbeats"]
     # Refuse LOUDLY on a grid that cannot carry a 4-beat bar (Louis,
     # 2026-08-05). Everything below indexes bars as `off + b*bpb` over beat
@@ -503,7 +512,7 @@ def _run_beats(audio_path, report, tempo_factor=None):
 def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
                   audio_url: str = "", progress=None, bar1_time=None,
                   tempo_factor=None, head_s: float = HEAD_SECONDS,
-                  duration_s: float | None = None):
+                  duration_s: float | None = None, manual_beats=None):
     """Générateur : `("raw", modèle)` puis `("final", modèle)`.
 
     `duration_s` : la durée du morceau, si l'appelant l'a déjà (ffprobe coûte
@@ -556,6 +565,13 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
     Passée telle quelle à `_run_beats`, avant tout le reste : chaque étage en
     aval (re-décodage, mesures, sections) travaille déjà sur la grille
     corrigée, sans rien savoir de la correction elle-même.
+
+    `manual_beats` (2026-10-27, portage mobile) : `{"beats":[s...],
+    "downbeats":[s...]}` corrigés à la main dans l'éditeur mobile, qui
+    remplace ENTIÈREMENT la sortie du traceur — voir `harmonia.beats.track`.
+    Comme `tempo_factor`, passé tel quel à `_run_beats` avant tout le reste ;
+    contrairement à lui, les deux ne se combinent pas (voir la docstring de
+    `harmonia.beats.track`).
     """
     def report(stage, **kw):
         if progress:
@@ -591,7 +607,8 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
     _pool = ThreadPoolExecutor(max_workers=1)
     _probs_fut = _pool.submit(_musx.frame_posteriors, audio_path)
     try:
-        bd = _run_beats(audio_path, report, tempo_factor=tempo_factor)
+        bd = _run_beats(audio_path, report, tempo_factor=tempo_factor,
+                        manual_beats=manual_beats)
         probs = _probs_fut.result()
     finally:
         _pool.shutdown(wait=True)

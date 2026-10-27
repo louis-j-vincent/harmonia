@@ -143,6 +143,80 @@ def api_tempo(file):
     return jsonify({"job_id": job_id})
 
 
+@bp.post("/api/beats/<file>")
+def api_beats_correct(file):
+    """Correction manuelle de la grille de battues (l'éditeur mobile,
+    2026-10-27 — filet de sécurité demandé par Louis après le premier test
+    de vitesse sur Android : si le modèle de battues rapide se trompe, il
+    corrige à l'œil plutôt que d'attendre un nouveau modèle).
+
+    Corps {"beats":[s...], "downbeats":[s...]} : la grille corrigée
+    ENTIÈRE (pas un diff) — c'est ce que l'éditeur construit après
+    ajout/suppression/déplacement d'une battue, le plus simple à valider
+    côté serveur. Même mécanique que `/api/bar1` et `/api/tempo` : la marque
+    (`state/human/marks/<stem>.json`, clé `manual_beats`) est écrite AVANT
+    la ré-analyse — source de vérité à l'exécution, `jobs.manual_beats_for`
+    — puis un job normal repart avec le même `file_key`.
+
+    `harmonia.beats.track()` rend cette grille TELLE QUELLE : aucun
+    nettoyage automatique de doublons, aucun garde d'octave — Louis vient de
+    corriger à l'oreille, les heuristiques du traceur n'ont plus leur mot à
+    dire (voir la docstring de `track()`). `check_grid`, en aval, reste actif
+    et refuse tout aussi fort une grille manuelle qui ne porte pas de mesure
+    à 4 temps cohérente qu'une grille du traceur.
+    """
+    import json
+    body = request.get_json(silent=True) or {}
+    try:
+        beats = sorted(round(float(t), 4) for t in body.get("beats", []))
+        downbeats = sorted(round(float(t), 4) for t in body.get("downbeats", []))
+    except (TypeError, ValueError):
+        return jsonify({"error": "beats/downbeats doivent être des listes de nombres"}), 400
+    if len(beats) < 4:
+        return jsonify({"error": f"{len(beats)} battue(s) (<4) — grille refusée"}), 400
+    p = CHARTS_DIR / f"{Path(file).stem}.json"
+    if not p.exists():
+        return jsonify({"error": "no such chart"}), 404
+    model = json.loads(p.read_text(encoding="utf-8"))
+    stem = Path(model.get("audio_url") or "").stem or \
+        Path(file).stem.removeprefix("min_")
+    from harmonia.corrections import note_correction_battues
+    note_correction_battues(
+        stem,
+        {"n_beats": len(model.get("beatTimes") or []),
+         "n_downbeats": len(model.get("barGrid") or [])},
+        {"n_beats": len(beats), "n_downbeats": len(downbeats)})
+    _write_mark(stem, manual_beats={"beats": beats, "downbeats": downbeats})
+    log.info("beats %s: grille manuelle posée (%d battues, %d temps forts)",
+             file, len(beats), len(downbeats))
+    job_id = start_job(stem, title=model.get("title") or "",
+                       manual_beats={"beats": beats, "downbeats": downbeats})
+    return jsonify({"job_id": job_id})
+
+
+@bp.post("/api/beats/<file>/reset")
+def api_beats_reset(file):
+    """Efface la correction manuelle de battues : la prochaine analyse
+    revient au traceur (symétrique de `/api/beats/<file>` — sans ce bouton,
+    une correction posée par erreur serait permanente)."""
+    import json
+    p = CHARTS_DIR / f"{Path(file).stem}.json"
+    if not p.exists():
+        return jsonify({"error": "no such chart"}), 404
+    model = json.loads(p.read_text(encoding="utf-8"))
+    stem = Path(model.get("audio_url") or "").stem or \
+        Path(file).stem.removeprefix("min_")
+    mark = _read_mark(stem)
+    if "manual_beats" in mark:
+        mark.pop("manual_beats", None)
+        SETTINGS.marks_dir.mkdir(parents=True, exist_ok=True)
+        (SETTINGS.marks_dir / f"{stem}.json").write_text(
+            json.dumps(mark), encoding="utf-8")
+        log.info("beats %s: correction manuelle effacée", file)
+    job_id = start_job(stem, title=model.get("title") or "")
+    return jsonify({"job_id": job_id})
+
+
 @bp.get("/api/job/<job_id>")
 def api_job(job_id):
     job = _jobs.get(job_id)
