@@ -7,6 +7,7 @@
 import { api } from "../api.js";
 import { go } from "../router.js";
 import { paintLoading, pollJob } from "../screens/analyse.js";
+import { openBeatEditor, openBeatModelDebug } from "../screens/beat_editor.js";
 import { deleteChart } from "../screens/library.js";
 import { buildIReal, renderChart } from "../screens/chart.js";
 import { openBar1Sheet, openSectionTool } from "../screens/sections_editor.js";
@@ -71,6 +72,16 @@ export function openAnnotateTools(){
     line("Caler la mesure 1","le vrai départ du morceau", openBar1Sheet);
     line("Diviser le tempo par 2","le morceau tourne deux fois trop vite", ()=>applyTempoFactor(0.5));
     line("Multiplier le tempo par 2","le morceau tourne deux fois trop lentement", ()=>applyTempoFactor(2));
+    // Filet de sécurité mobile (2026-10-27) : si le modèle de battues rapide
+    // se trompe, corriger à la main plutôt qu'attendre un nouveau modèle.
+    // Pas de condition de plateforme — l'éditeur marche aussi bien sur Mac,
+    // et ça évite de faire dépendre ce bouton d'une détection "mobile".
+    line("Corriger les battues","ajouter, déplacer, supprimer une battue à la main", openBeatEditor);
+    // Debug T5 (2026-10-27) : switch de modèle beat_this à chaud, pour
+    // comparer final0/small0/int8 à l'oreille sur le téléphone — jamais
+    // visible sans `?debug=1` (S.debugMobile, posé par router.js), comme
+    // `&edit=sections`.
+    if(S.debugMobile) line("Modèle de battues (debug)","final0 / small0 / int8, à chaud", openBeatModelDebug);
     line("Souder les sections","à l'oreille, deux passages à la fois",
       ()=>{ window.location="/soudure/"+encodeURIComponent(m.file); });
     line("Voir la matrice","où le morceau se répète, à l'œil",
