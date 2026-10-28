@@ -124,7 +124,28 @@ def _install_mobile_backends(models_dir: str) -> None:
     # dans le log — jamais un repli muet, et jamais dans l'APK, pour qu'un
     # chiffre de vitesse pris sur l'émulateur ne puisse pas être confondu avec
     # celui du téléphone.
-    xnn = os.path.join(models_dir, "beat_this_final0_fixed1500.pte")
+    #
+    # LE RÉGLAGE DE LOUIS (Réglages généraux, 2026-10-28). Si un modèle a
+    # été choisi comme défaut (`settings.js`, persisté par
+    # `mobile_beatmodel.set_model` via `mobile_settings.write_default_
+    # beat_model`), c'est CELUI-LÀ qui doit charger au démarrage — sinon le
+    # réglage ne "collerait" que jusqu'au prochain redémarrage de l'app,
+    # exactement ce que Louis a demandé de corriger. Repli sur `final0` si
+    # rien n'a jamais été réglé, ou si le fichier choisi a disparu (APK plus
+    # ancien que le choix, improbable mais pas invérifiable ici).
+    from harmonia.settings import SETTINGS
+    import mobile_settings
+    _default_name = mobile_settings.read_default_beat_model(SETTINGS.human_dir)
+    _default_fname = mobile_settings.FILES.get(
+        _default_name, mobile_settings.FILES["final0"])
+    xnn = os.path.join(models_dir, _default_fname)
+    if _default_name and not os.path.exists(xnn):
+        log.warning("Réglages: modèle par défaut %r introuvable (%s) — "
+                    "repli sur final0", _default_name, xnn)
+        xnn = os.path.join(models_dir, mobile_settings.FILES["final0"])
+    elif _default_name:
+        log.info("Beat This!: démarrage sur le modèle par défaut réglé "
+                 "par Louis (%s)", _default_name)
     portable = os.path.join(models_dir, "beat_this_final0_fixed1500_portable.pte")
     if os.path.exists(portable):
         pte = portable

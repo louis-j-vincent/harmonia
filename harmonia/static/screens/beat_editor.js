@@ -151,9 +151,14 @@ export function openBeatEditor(){
 // ── Switch de modèle de battues (T5, 2026-10-27→10-28) ───────────────────
 //
 // D'abord posé derrière `?debug=1` pour la toute première comparaison ;
-// Louis a demandé un bouton normal (annotate.js:84, "Outils"), donc plus de
-// garde ici. Recharge `BeatsRuntime` côté Android (mobile_beatmodel.py) puis
-// laisse Louis relancer l'analyse lui-même pour écouter le résultat.
+// Louis a demandé un bouton normal (annotate.js:84, "Outils"), puis un écran
+// Réglages général, pas lié à un morceau (settings.js). Les deux entrées
+// partagent `mountBeatModelPicker` ci-dessous — Louis n'a demandé qu'UN seul
+// réglage ("quel modèle par défaut"), pas deux états à tenir synchronisés :
+// choisir depuis un chart ouvert bascule aussi le défaut, choisir depuis
+// Réglages bascule aussi le modèle déjà chargé. Recharge `BeatsRuntime` côté
+// Android (mobile_beatmodel.py, qui persiste le choix) puis laisse Louis
+// relancer l'analyse lui-même pour écouter le résultat.
 
 const MODEL_NAMES = {
   final0: "final0 — production, 82 Mo",
@@ -161,22 +166,15 @@ const MODEL_NAMES = {
   int8: "int8 — quantifié, 21 Mo",
 };
 
-export function openBeatModelDebug(){
-  const back = overlay(); const sheet = sheetCol(); sheet.appendChild(handle());
-  const close = () => closeOverlay(back);
-  sheet.appendChild(el("div", `text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,
-    "Modèle de battues"));
-  sheet.appendChild(el("div", `text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:12px;`,
-    "bascule à chaud, puis relance l'analyse pour comparer à l'oreille"));
-
-  const status = el("div", `text-align:center;font:600 12px ${UI};color:${T.faint};margin-bottom:10px;`, "chargement…");
-  sheet.appendChild(status);
-  const list = el("div", "display:flex;flex-direction:column;gap:8px;flex:0 0 auto;");
-  sheet.appendChild(list);
-
+// Monte la liste des 3 modèles + son statut dans `list`/`status` (déjà créés
+// par l'appelant — sheet ou écran plein, peu importe). Pas de JSX/framework
+// ici (tout le reste de l'app est fait à la main, `ui/kit.js`), donc pas de
+// composant réutilisable au sens React — juste une fonction qu'on appelle
+// deux fois avec des conteneurs différents.
+export function mountBeatModelPicker(list, status){
   async function refresh(){
     let r;
-    try { r = await api.get("/api/debug/beat_model"); }
+    try { r = await api.get("/api/settings/beat_model"); }
     catch (e) { status.textContent = "serveur injoignable (" + e + ")"; return; }
     clear(list);
     Object.keys(MODEL_NAMES).forEach(name => {
@@ -191,9 +189,9 @@ export function openBeatModelDebug(){
         b.onclick = async () => {
           status.textContent = "chargement du modèle…";
           try {
-            const rr = await api.post("/api/debug/beat_model", { name });
+            const rr = await api.post("/api/settings/beat_model", { name });
             if (rr.error) { toast(rr.error); status.textContent = ""; refresh(); return; }
-            toast(name + " chargé · cache vidé (" + rr.cleared_cache_files + " fichier(s)) — relance l'analyse");
+            toast(name + " réglé par défaut · cache vidé (" + rr.cleared_cache_files + " fichier(s)) — relance l'analyse");
             refresh();
           } catch (e) { toast("échec: " + e); refresh(); }
         };
@@ -203,6 +201,21 @@ export function openBeatModelDebug(){
     status.textContent = "actuellement chargé : " + r.current;
   }
   refresh();
+}
+
+export function openBeatModelDebug(){
+  const back = overlay(); const sheet = sheetCol(); sheet.appendChild(handle());
+  const close = () => closeOverlay(back);
+  sheet.appendChild(el("div", `text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,
+    "Modèle de battues"));
+  sheet.appendChild(el("div", `text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:12px;`,
+    "change le défaut, puis relance l'analyse pour comparer à l'oreille"));
+
+  const status = el("div", `text-align:center;font:600 12px ${UI};color:${T.faint};margin-bottom:10px;`, "chargement…");
+  sheet.appendChild(status);
+  const list = el("div", "display:flex;flex-direction:column;gap:8px;flex:0 0 auto;");
+  sheet.appendChild(list);
+  mountBeatModelPicker(list, status);
 
   const cancel = el("button",
     `flex:0 0 auto;width:100%;margin-top:14px;background:transparent;border:none;color:${T.faint};`+

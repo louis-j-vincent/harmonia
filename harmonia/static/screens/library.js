@@ -80,12 +80,19 @@ export function renderLibrary(){
     }
     const w=screenWrap();
 
-    const head=el("div",`flex:0 0 auto;padding:calc(14px + env(safe-area-inset-top)) 20px 22px;`);
+    const head=el("div",`flex:0 0 auto;padding:calc(14px + env(safe-area-inset-top)) 20px 22px;`+
+      `display:flex;align-items:flex-start;justify-content:space-between;gap:10px;`);
+    const headText=el("div","min-width:0;");
     const logo=el("div",`font:italic 600 30px ${SERIF};color:${T.ink};`);
     logo.innerHTML='harmon<span style="color:'+T.accent+'">ia</span>';
-    head.appendChild(logo);
-    head.appendChild(el("div",`font:italic 14px ${SERIF};color:${T.faint};margin-top:3px;`,
+    headText.appendChild(logo);
+    headText.appendChild(el("div",`font:italic 14px ${SERIF};color:${T.faint};margin-top:3px;`,
       "l'harmonie de n'importe quelle chanson"));
+    head.appendChild(headText);
+    // Réglages (2026-10-28, demande de Louis) : la seule porte de l'app qui
+    // n'est PAS liée à un morceau — d'où sa place ici, sur l'accueil, pas
+    // dans une feuille Outils qui suppose un chart déjà ouvert.
+    head.appendChild(kitIcon("⚙", ()=>go("settings"), "Réglages"));
     w.appendChild(head);
 
     const body=el("div",

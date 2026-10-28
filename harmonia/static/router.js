@@ -12,6 +12,7 @@ import { loadLibrary, renderCharts, renderLibrary } from "./screens/library.js";
 import { renderPrompter } from "./screens/practise.js";
 import { renderSearch } from "./screens/search.js";
 import { renderSectionEditor } from "./screens/sections_editor.js";
+import { renderSettings } from "./screens/settings.js";
 import { S } from "./state.js";
 import { SERIF, T, UI, applyTheme, el, kitIcon } from "./ui/kit.js";
 
@@ -193,6 +194,7 @@ export function go(screen,opts){
     else if(screen==="jam") elS=renderJam();
     else if(screen==="prompter") elS=renderPrompter();
     else if(screen==="sections") elS=renderSectionEditor();
+    else if(screen==="settings") elS=renderSettings();
     else elS=renderChart();
     S._screenEl=elS; root.appendChild(elS);
     if(keepTop!=null) restoreChartScroll(keepTop);   // après l'insertion
