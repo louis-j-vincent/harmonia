@@ -148,13 +148,12 @@ export function openBeatEditor(){
   back.appendChild(sheet); root.appendChild(back);
 }
 
-// ── Switch de modèle de battues (debug, T5 2026-10-27) ──────────────────
+// ── Switch de modèle de battues (T5, 2026-10-27→10-28) ───────────────────
 //
-// Visible seulement derrière `?debug=1` (S.debugMobile, posé par router.js
-// au démarrage) — jamais dans le chemin normal de l'app, exactement la
-// même discrétion que `&edit=sections`. Recharge `BeatsRuntime` côté
-// Android (mobile_beatmodel.py) puis laisse Louis relancer l'analyse
-// lui-même pour écouter le résultat.
+// D'abord posé derrière `?debug=1` pour la toute première comparaison ;
+// Louis a demandé un bouton normal (annotate.js:84, "Outils"), donc plus de
+// garde ici. Recharge `BeatsRuntime` côté Android (mobile_beatmodel.py) puis
+// laisse Louis relancer l'analyse lui-même pour écouter le résultat.
 
 const MODEL_NAMES = {
   final0: "final0 — production, 82 Mo",
@@ -166,7 +165,7 @@ export function openBeatModelDebug(){
   const back = overlay(); const sheet = sheetCol(); sheet.appendChild(handle());
   const close = () => closeOverlay(back);
   sheet.appendChild(el("div", `text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,
-    "Modèle de battues (debug)"));
+    "Modèle de battues"));
   sheet.appendChild(el("div", `text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:12px;`,
     "bascule à chaud, puis relance l'analyse pour comparer à l'oreille"));
 

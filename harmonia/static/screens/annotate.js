@@ -77,11 +77,11 @@ export function openAnnotateTools(){
     // Pas de condition de plateforme — l'éditeur marche aussi bien sur Mac,
     // et ça évite de faire dépendre ce bouton d'une détection "mobile".
     line("Corriger les battues","ajouter, déplacer, supprimer une battue à la main", openBeatEditor);
-    // Debug T5 (2026-10-27) : switch de modèle beat_this à chaud, pour
-    // comparer final0/small0/int8 à l'oreille sur le téléphone — jamais
-    // visible sans `?debug=1` (S.debugMobile, posé par router.js), comme
-    // `&edit=sections`.
-    if(S.debugMobile) line("Modèle de battues (debug)","final0 / small0 / int8, à chaud", openBeatModelDebug);
+    // T5 (2026-10-27→10-28, Louis) : switch de modèle beat_this à chaud, pour
+    // comparer final0/small0/int8 à l'oreille sur le téléphone. D'abord posé
+    // derrière `?debug=1` (S.debugMobile) pour la toute première comparaison ;
+    // Louis a demandé que ce soit un bouton normal, pas un geste caché.
+    line("Modèle de battues","final0 / small0 / int8, à chaud", openBeatModelDebug);
     line("Souder les sections","à l'oreille, deux passages à la fois",
       ()=>{ window.location="/soudure/"+encodeURIComponent(m.file); });
     line("Voir la matrice","où le morceau se répète, à l'œil",
