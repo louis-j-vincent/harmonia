@@ -121,13 +121,6 @@ export const API={};
     // failure (openChart's own catch already does this).
     const qs = new URLSearchParams(location.search);
     const openFile = qs.get("open");
-    // `?debug=1` (2026-10-27, T5 portage mobile) : même porte de service que
-    // `&edit=sections` ci-dessous — un bouton dans la feuille Outils
-    // (openAnnotateTools, annotate.js) ne s'affiche que derrière ce flag.
-    // Sert UNIQUEMENT le switch de modèle beat_this à chaud
-    // (openBeatModelDebug) : un réglage de comparaison, pas un geste que
-    // Louis ferait par erreur en touchant l'app normalement.
-    S.debugMobile = qs.get("debug")==="1";
     // `&edit=sections` ouvre l'éditeur de T3 : il n'a AUCUN bouton dans l'app
     // (voir renderSectionEditor) — c'est la porte de service qui laisse Louis
     // le voir avant de décider s'il remplace l'outil au doigt du chart.
